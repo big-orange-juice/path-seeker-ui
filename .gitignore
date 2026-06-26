@@ -1,0 +1,17 @@
+node_modules
+.pnpm-store
+.output
+.nuxt
+.nitro
+.turbo
+dist
+coverage
+.idea
+.vscode
+.DS_Store
+*.log
+pnpm-lock.yaml
+apps/mini-app/dist
+apps/mini-app/node_modules
+apps/admin-web/node_modules
+

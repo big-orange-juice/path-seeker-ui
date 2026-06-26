@@ -1,0 +1,26 @@
+{
+  "name": "@path-seeker/mini-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:mp-weixin": "uni",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@vueuse/core": "14.3.0",
+    "gsap": "3.15.0",
+    "pinia": "3.0.4",
+    "vue": "3.5.39"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.31",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-3000020210521001",
+    "@vue/tsconfig": "0.9.1",
+    "tailwindcss": "4.3.1",
+    "typescript": "6.0.3",
+    "vite": "8.1.0",
+    "vue-tsc": "3.3.5"
+  }
+}

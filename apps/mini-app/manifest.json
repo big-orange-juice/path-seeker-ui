@@ -1,0 +1,14 @@
+{
+  "name": "Path Seeker",
+  "appid": "__UNI__PATH_SEEKER__",
+  "description": "博物馆导览解密小程序前端骨架",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false
+    }
+  }
+}
+

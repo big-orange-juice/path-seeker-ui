@@ -1,0 +1,14 @@
+{
+  "name": "path-seeker-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev:admin": "pnpm --filter @path-seeker/admin-web dev",
+    "build:admin": "pnpm --filter @path-seeker/admin-web build",
+    "dev:mini": "pnpm --filter @path-seeker/mini-app dev:mp-weixin",
+    "build:mini": "pnpm --filter @path-seeker/mini-app build:mp-weixin",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
+

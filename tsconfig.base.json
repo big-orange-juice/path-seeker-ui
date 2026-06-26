@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@path-seeker/ts-shared": [
+        "packages/ts-shared/src"
+      ],
+      "@path-seeker/game-renderer": [
+        "packages/game-renderer/src"
+      ],
+      "@path-seeker/ui-admin": [
+        "packages/ui-admin/src"
+      ]
+    }
+  }
+}
+
