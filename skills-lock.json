@@ -49,11 +49,29 @@
       "skillPath": "skills/gsap-utils/SKILL.md",
       "computedHash": "1ab2387f6e694718a4f1b5acf2a4ab16e1b884c3428adf5f6b26d830f00826cf"
     },
+    "pinia": {
+      "source": "antfu/skills",
+      "sourceType": "github",
+      "skillPath": "skills/pinia/SKILL.md",
+      "computedHash": "8e8346fac8cb76d6f186462b712352d5a651c9c049076ea73559f47210c874ef"
+    },
     "vue-best-practices": {
       "source": "hyf0/vue-skills",
       "sourceType": "github",
       "skillPath": "skills/vue-best-practices/SKILL.md",
       "computedHash": "3df585ad31aec78fe55c56c1411262737e6b231677a3153dec512a882fde80cd"
+    },
+    "vueuse": {
+      "source": "onmax/nuxt-skills",
+      "sourceType": "github",
+      "skillPath": "skills/vueuse/SKILL.md",
+      "computedHash": "a55579923ac8f1d56548f493b36434987f74a864d69ef621800d2b6aacd67226"
+    },
+    "vueuse-functions": {
+      "source": "vueuse/skills",
+      "sourceType": "github",
+      "skillPath": "skills/vueuse-functions/SKILL.md",
+      "computedHash": "0b38c6177bd24bb742fab021e11a0e5b2c53f4a760066a5dfe7b54db076efe8e"
     }
   }
 }
