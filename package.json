@@ -7,8 +7,8 @@
     "dev:web-admin": "pnpm --filter @path-seeker/web-admin dev",
     "build:web-admin": "pnpm --filter @path-seeker/web-admin build",
     "dev:h5": "pnpm --filter @path-seeker/mp-wechat dev:h5",
-    "dev:mp-wexin": "pnpm --filter @path-seeker/mp-wechat dev:mp-weixin",
-    "build:mp-wexin": "pnpm --filter @path-seeker/mp-wechat build:mp-weixin",
+    "dev:mp-weixin": "pnpm --filter @path-seeker/mp-wechat dev:mp-weixin",
+    "build:mp-weixin": "pnpm --filter @path-seeker/mp-wechat build:mp-weixin",
     "typecheck": "pnpm -r typecheck"
   }
 }
