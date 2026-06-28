@@ -1,0 +1,4 @@
+﻿interface:
+  display_name: "MP Wechat MVP"
+  short_description: "Path Seeker mini program MVP workflow"
+  default_prompt: "Use $mp-wechat-mvp to implement or refine the Path Seeker mini program MVP shell, mock mission flow, or puzzle renderers."

@@ -1,0 +1,6 @@
+interface:
+  display_name: "前端注释规范"
+  short_description: "优先用于后台、小程序和共享包的中文代码注释。"
+  default_prompt: "Use $frontend-commenting first for Chinese code comment writing or revision in web-admin, mp-wechat, ts-shared, and game-renderer."
+policy:
+  allow_implicit_invocation: true

@@ -1,33 +1,7 @@
 ﻿/**
- * Keep the shared renderer contract intentionally small.
- * The first phase only supports a fixed set of puzzle templates so both the
- * mini app runtime and any future admin preview can register renderers 1:1.
+ * 渲染器共享契约的统一出口。
+ *
+ * 这里只导出题型协议，不导出真实运行时代码。等 mini-app 和后台预览
+ * 都确实需要共享可执行 renderer 时，再把实现抽到这个包里。
  */
-export const FIXED_PUZZLE_TEMPLATE_TYPES = [
-  'observe_choice',
-  'clue_find',
-  'sort',
-  'match',
-  'code_break'
-] as const
-
-export type PuzzleTemplateType = (typeof FIXED_PUZZLE_TEMPLATE_TYPES)[number]
-
-export type HintLevel = 'observe' | 'relation' | 'direct'
-
-export interface PuzzleDefinition {
-  id: string
-  templateType: PuzzleTemplateType
-  title: string
-  prompt?: string
-  introText?: string
-  questionPayload?: Record<string, unknown>
-  answerPayload?: Record<string, unknown>
-  hintPayload?: Partial<Record<HintLevel, string>>
-}
-
-export interface PuzzleRendererInput {
-  puzzle: PuzzleDefinition
-  readonlyMode?: boolean
-  activeHintLevel?: HintLevel | null
-}
+export * from "./contracts"

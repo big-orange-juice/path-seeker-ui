@@ -1,13 +1,19 @@
-<script setup lang="ts">
-import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
+﻿<script setup lang="ts">
+import { onHide, onLaunch, onShow } from "@dcloudio/uni-app"
+
 onLaunch(() => {
-  console.log("App Launch");
-});
+  console.log("Path Seeker mini app launch")
+})
+
 onShow(() => {
-  console.log("App Show");
-});
+  console.log("Path Seeker mini app show")
+})
+
 onHide(() => {
-  console.log("App Hide");
-});
+  console.log("Path Seeker mini app hide")
+})
 </script>
-<style></style>
+
+<style lang="scss">
+@use "@/styles/theme.scss";
+</style>
