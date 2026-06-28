@@ -2,7 +2,7 @@
   "name": "@path-seeker/game-renderer",
   "version": "0.1.0",
   "private": true,
+  "description": "Thin renderer contracts reserved for puzzle runtime code shared by the mini app and admin preview.",
   "type": "module",
   "main": "src/index.ts"
 }
-

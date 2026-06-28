@@ -19,7 +19,8 @@
     "@pinia/nuxt": "0.11.3",
     "@vueuse/nuxt": "14.3.0",
     "nuxt": "4.4.8",
-    "pinia": "3.0.4"
+    "pinia": "3.0.4",
+    "pinia-plugin-persistedstate": "^4.7.1"
   },
   "devDependencies": {
     "@nuxt/eslint": "1.16.0",
