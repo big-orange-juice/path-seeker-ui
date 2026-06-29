@@ -37,7 +37,6 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
-    "@path-seeker/game-renderer": "workspace:*",
     "@dcloudio/uni-app": "3.0.0-4080420251103001",
     "@dcloudio/uni-app-harmony": "3.0.0-4080420251103001",
     "@dcloudio/uni-app-plus": "3.0.0-4080420251103001",
@@ -54,8 +53,10 @@
     "@dcloudio/uni-mp-weixin": "3.0.0-4080420251103001",
     "@dcloudio/uni-mp-xhs": "3.0.0-4080420251103001",
     "@dcloudio/uni-quickapp-webview": "3.0.0-4080420251103001",
+    "@path-seeker/game-renderer": "workspace:*",
     "@vueuse/core": "14.3.0",
     "gsap": "3.15.0",
+    "lucide-static": "^1.21.0",
     "pinia": "3.0.4",
     "pinia-plugin-persistedstate": "^4.7.1",
     "tailwindcss": "4.3.1",

@@ -1,10 +1,11 @@
-﻿import { computed, shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
+import type { AppIconName } from '@/components/ui/AppIcon.vue';
 
 export interface AdminMetric {
   label: string;
   value: string;
   note: string;
-  icon: string;
+  icon: AppIconName;
 }
 
 export interface InfoRow {
@@ -37,10 +38,10 @@ export interface MilestoneStage {
 }
 
 const adminMetrics: AdminMetric[] = [
-  { label: '内容资产', value: '128', note: '馆藏、故事、标签统一入库', icon: 'i-lucide-library-big' },
-  { label: '主题路线', value: '12', note: '含 4 条可发布样板线', icon: 'i-lucide-route' },
-  { label: '分龄题库', value: '64', note: '覆盖 6-10 与 10-15 两档', icon: 'i-lucide-puzzle' },
-  { label: '运营活动', value: '8', note: '节日专题与馆校合作可复用', icon: 'i-lucide-megaphone' },
+  { label: '内容资产', value: '128', note: '馆藏、故事、标签统一入库', icon: 'library-big' },
+  { label: '主题路线', value: '12', note: '含 4 条可发布样板线', icon: 'route' },
+  { label: '分龄题库', value: '64', note: '覆盖 6-10 与 10-15 两档', icon: 'puzzle' },
+  { label: '运营活动', value: '8', note: '节日专题与馆校合作可复用', icon: 'megaphone' },
 ];
 
 const positioningRows: InfoRow[] = [

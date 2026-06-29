@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   ChoiceOption,
   ClueFindPayload,
   CodeBreakPayload,
@@ -45,6 +45,7 @@ export interface MissionSchemaMeta {
 
 export interface MissionRouteCard {
   id: string
+  hallId: string
   routeCode: string
   title: string
   theme: string
@@ -206,3 +207,4 @@ export interface MissionArchiveEntry {
   puzzleCount: number
   usedHintCount: number
 }
+

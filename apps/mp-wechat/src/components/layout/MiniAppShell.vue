@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { useChromeMetrics } from "@/composables/useChromeMetrics"
 import MiniNavBar from "@/components/navigation/MiniNavBar.vue"
 import MiniTabBar from "@/components/navigation/MiniTabBar.vue"
@@ -50,12 +50,5 @@ const { pageInsetStyle } = useChromeMetrics()
   width: 100%;
   overflow: hidden;
   background: transparent;
-  scrollbar-width: none;
-}
-
-.shell-scroll::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
 }
 </style>

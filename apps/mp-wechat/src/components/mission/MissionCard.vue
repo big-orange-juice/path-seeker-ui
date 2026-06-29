@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from "vue"
 import { getDifficultyLabel } from "@/utils/puzzleLabels"
 import type { MissionRouteCard } from "@/types/mission"
@@ -43,7 +43,7 @@ const statusLabel = computed(() => {
 
       <view class="mission-plate">
         <view class="plate-copy">
-          <text class="mission-kicker">{{ route.theme }} · {{ getDifficultyLabel(route.difficultyLevel) }}</text>
+          <text class="mission-kicker">{{ route.theme }} / {{ getDifficultyLabel(route.difficultyLevel) }}</text>
           <text class="mission-title">{{ route.title }}</text>
         </view>
         <view class="mission-seal">{{ route.persona.avatar }}</view>

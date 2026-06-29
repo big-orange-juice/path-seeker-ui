@@ -1,9 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
+import type { AppIconName } from '@/components/ui/AppIcon.vue';
+
 interface Props {
   label: string;
   value: string;
   note: string;
-  icon: string;
+  icon: AppIconName;
 }
 
 defineProps<Props>();
@@ -19,7 +21,7 @@ defineProps<Props>();
       </div>
 
       <div class="rounded-lg border border-border bg-secondary p-2 text-primary">
-        <Icon :name="icon" class="h-4 w-4" />
+        <UiAppIcon :name="icon" class="h-4 w-4" />
       </div>
     </div>
   </UiCard>

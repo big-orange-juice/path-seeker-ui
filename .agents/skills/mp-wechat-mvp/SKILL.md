@@ -1,4 +1,4 @@
-﻿---
+---
 name: mp-wechat-mvp
 description: Implement or refine the `apps/mp-wechat` uni-app MVP for this repository. Use when working on the Path Seeker mini program shell, custom navigation or custom tab bar, schema-aligned mock routes, session recovery, mission flow pages, or the five fixed puzzle renderers (`observe_choice`, `clue_find`, `sort`, `match`, `code_break`).
 ---
@@ -35,6 +35,7 @@ Maintain schema coverage through mock data, not scattered page constants.
 - Use `MiniNavBar`, `MiniTabBar`, `MiniAppShell`, and `PageScaffold` instead of creating page-specific chrome.
 - Keep motion lightweight and structural: shell tab fades, puzzle feedback pop-in, chapter progression transitions.
 - Do not port `shadcn` patterns into the mini program. Favor custom uni-app friendly layout and Tailwind-like utility composition.
+- For icons, use the repository's Lucide source only. Prefer the local `src/components/ui/AppIcon.vue` wrapper backed by `lucide-static`; do not introduce `@nuxt/icon`, iconify naming, or ad-hoc text glyph placeholders when a real icon is intended.
 
 ## Renderer Rules
 

@@ -1,4 +1,4 @@
-import {
+﻿import {
   AGE_BAND_MAP,
   DIFFICULTY_MAP,
   PUZZLE_TYPE_MAP,
@@ -30,6 +30,7 @@ interface ReasoningEvidenceSeed {
 
 interface MissionSeed {
   id: string
+  hallId: string
   routeCode: string
   title: string
   theme: string
@@ -102,6 +103,7 @@ const TEMPLATE_SEQUENCE: Array<{
 const MISSION_SEEDS: MissionSeed[] = [
   {
     id: "route-dragon",
+    hallId: "hall-bronze",
     routeCode: "R-DRAGON-01",
     title: "失落的龙纹密令",
     theme: "亲子冒险",
@@ -253,6 +255,7 @@ const MISSION_SEEDS: MissionSeed[] = [
   },
   {
     id: "route-scroll",
+    hallId: "hall-painting",
     routeCode: "R-SCROLL-02",
     title: "画卷背后的消失人物",
     theme: "剧情推理",
@@ -404,6 +407,7 @@ const MISSION_SEEDS: MissionSeed[] = [
   },
   {
     id: "route-timeline",
+    hallId: "hall-ceramics",
     routeCode: "R-TIME-03",
     title: "谁改写了王朝时间线",
     theme: "深度推理",
@@ -838,6 +842,7 @@ function buildMission(seed: MissionSeed): MissionDetail {
 
   return {
     id: seed.id,
+    hallId: seed.hallId,
     routeCode: seed.routeCode,
     title: seed.title,
     theme: seed.theme,
@@ -901,3 +906,4 @@ export const MOCK_MISSION_MAP = Object.fromEntries(
 export const MOCK_ROUTE_CARDS: MissionRouteCard[] = MOCK_MISSIONS.map(
   ({ museumName: _museumName, prologue: _prologue, introPanel: _introPanel, chapters: _chapters, finale: _finale, ...card }) => card,
 )
+

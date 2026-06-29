@@ -11,7 +11,7 @@ Nuxt is a full-stack Vue framework that provides server-side rendering, file-bas
 
 > The skill is based on Nuxt 4.x, generated at 2026-06-22.
 
-> **Nuxt 4 note:** the default `srcDir` is `app/` — Vue app code (`app.vue`, `components/`, `composables/`, `pages/`, etc.) lives under `app/`, while `server/`, `shared/`, `public/`, `modules/`, `layers/` and `nuxt.config.ts` stay at the project root. The `~`/`@` aliases now point at `app/`; use `~~`/`@@` for the root.
+> **Nuxt 4 note:** the default `srcDir` is `app/` 鈥?Vue app code (`app.vue`, `components/`, `composables/`, `pages/`, etc.) lives under `app/`, while `server/`, `shared/`, `public/`, `modules/`, `layers/` and `nuxt.config.ts` stay at the project root. The `~`/`@` aliases now point at `app/`; use `~~`/`@@` for the root.
 
 ## Core
 
@@ -55,3 +55,9 @@ Nuxt is a full-stack Vue framework that provides server-side rendering, file-bas
 | Layers | Extending applications with reusable layers | [advanced-layers](references/advanced-layers.md) |
 | Lifecycle Hooks | Build-time, runtime, and server hooks | [advanced-hooks](references/advanced-hooks.md) |
 | Module Authoring | Publishable modules with Nuxt Kit, keyed composables, dependencies | [advanced-module-authoring](references/advanced-module-authoring.md) |
+
+## Repository Rule
+
+- In this repository, use lucide-vue-next for Nuxt app icons.
+- Do not add or reintroduce @nuxt/icon.
+- Prefer a local wrapper component such as pp/components/ui/AppIcon.vue so icon names stay explicit and replaceable.

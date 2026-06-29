@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { useAdminTabs } from '@/composables/useAdminTabs';
 
 const { tabs, activeTab, closeTab } = useAdminTabs();
@@ -24,7 +24,7 @@ function handleClose(event: MouseEvent, path: string) {
             : 'border-transparent bg-secondary/45 text-muted-foreground hover:bg-secondary hover:text-foreground'
         "
       >
-        <Icon :name="tab.icon" class="h-3.5 w-3.5" />
+        <UiAppIcon :name="tab.icon" class="h-3.5 w-3.5" />
         <span>{{ tab.label }}</span>
         <button
           v-if="tab.closable"
@@ -32,7 +32,7 @@ function handleClose(event: MouseEvent, path: string) {
           class="inline-flex h-4 w-4 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
           @click="handleClose($event, tab.to)"
         >
-          <Icon name="i-lucide-x" class="h-3 w-3" />
+          <UiAppIcon name="x" class="h-3 w-3" />
         </button>
       </NuxtLink>
     </div>

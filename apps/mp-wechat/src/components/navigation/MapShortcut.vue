@@ -1,5 +1,6 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from "vue"
+import AppIcon from "@/components/ui/AppIcon.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
 
@@ -26,7 +27,9 @@ function openMap() {
 
 <template>
   <button v-if="shouldShow" class="map-shortcut" @click="openMap">
-    <text class="map-shortcut-mark">图</text>
+    <view class="map-shortcut-mark">
+      <AppIcon name="map" :size="18" />
+    </view>
     <text class="map-shortcut-label">地图</text>
   </button>
 </template>
@@ -55,10 +58,6 @@ function openMap() {
   height: 30rpx;
   border-radius: 999rpx;
   background: linear-gradient(135deg, #d1b26f, #f3d99d);
-  color: #171310;
-  font-size: 19rpx;
-  font-weight: 900;
-  letter-spacing: 0.04em;
 }
 
 .map-shortcut-label {

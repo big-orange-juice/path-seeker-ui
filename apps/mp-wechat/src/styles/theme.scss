@@ -1,4 +1,4 @@
-﻿html,
+html,
 body,
 #app,
 uni-page-wrapper,
@@ -16,21 +16,16 @@ page {
   letter-spacing: 0.02em;
 }
 
-* {
-  scrollbar-width: none;
-  box-sizing: border-box;
-}
-
-*::-webkit-scrollbar {
-  display: none;
-  width: 0;
-  height: 0;
-}
-
 view,
 text,
 button,
-input {
+input,
+image,
+scroll-view,
+swiper,
+swiper-item,
+textarea,
+navigator {
   box-sizing: border-box;
 }
 

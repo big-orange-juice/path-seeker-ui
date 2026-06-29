@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { adminNavItems } from '@/composables/useAdminNavigation';
 
 const route = useRoute();
@@ -18,7 +18,7 @@ const route = useRoute();
             : 'text-muted-foreground hover:bg-secondary/80 hover:text-foreground'
         "
       >
-        <Icon :name="item.icon" class="h-4 w-4 shrink-0" />
+        <UiAppIcon :name="item.icon" class="h-4 w-4 shrink-0" />
         <span class="truncate">{{ item.label }}</span>
       </NuxtLink>
     </nav>

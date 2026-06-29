@@ -1,38 +1,39 @@
-﻿<script setup lang="ts">
-import { computed } from "vue"
-import { useChromeMetrics } from "@/composables/useChromeMetrics"
+<script setup lang="ts">
+import { computed } from 'vue';
+import AppIcon from '@/components/ui/AppIcon.vue';
+import { useChromeMetrics } from '@/composables/useChromeMetrics';
 
 interface Props {
-  title: string
-  subtitle?: string
-  showBack?: boolean
-  backLabel?: string
+  title: string;
+  subtitle?: string;
+  showBack?: boolean;
+  backLabel?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  subtitle: "",
+  subtitle: '',
   showBack: false,
-  backLabel: "返回",
-})
+  backLabel: '返回'
+});
 
 const emit = defineEmits<{
-  back: []
-}>()
+  back: [];
+}>();
 
-const { navStyle } = useChromeMetrics()
+const { navStyle } = useChromeMetrics();
 
-const showSubtitle = computed(() => Boolean(props.subtitle))
+const showSubtitle = computed(() => Boolean(props.subtitle));
 
 function handleBack() {
-  emit("back")
-  const pages = getCurrentPages()
+  emit('back');
+  const pages = getCurrentPages();
 
   if (pages.length > 1) {
-    uni.navigateBack({ delta: 1 })
-    return
+    uni.navigateBack({ delta: 1 });
+    return;
   }
 
-  uni.reLaunch({ url: "/pages/shell/index" })
+  uni.reLaunch({ url: '/pages/shell/index' });
 }
 </script>
 
@@ -40,7 +41,7 @@ function handleBack() {
   <view class="nav-wrap" :style="navStyle">
     <view class="nav-row">
       <button v-if="showBack" class="nav-back" @click="handleBack">
-        <text class="nav-back-arrow">‹</text>
+        <AppIcon name="arrow-left" :size="32" class-name="nav-back-arrow" />
         <text>{{ backLabel }}</text>
       </button>
       <view v-else class="nav-spacer"></view>
@@ -66,8 +67,14 @@ function handleBack() {
   z-index: 30;
   padding-left: 20rpx;
   padding-right: 20rpx;
-  background: linear-gradient(180deg, rgba(11, 12, 15, 0.98), rgba(11, 12, 15, 0.72), transparent);
-  backdrop-filter: blur(14px);
+  background: linear-gradient(
+    180deg,
+    rgba(11, 12, 15, 0.48),
+    rgba(11, 12, 15, 0.18),
+    transparent
+  );
+  backdrop-filter: blur(48px);
+  -webkit-backdrop-filter: blur(48px);
 }
 
 .nav-row {
@@ -110,11 +117,6 @@ function handleBack() {
 
 .nav-back::after {
   border: 0;
-}
-
-.nav-back-arrow {
-  font-size: 42rpx;
-  line-height: 1;
 }
 
 .nav-copy {

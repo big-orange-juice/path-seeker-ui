@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import {
   computed,
   nextTick,
@@ -7,6 +7,7 @@ import {
   shallowRef,
   watch
 } from 'vue';
+import AppIcon from '@/components/ui/AppIcon.vue';
 import { gsap } from 'gsap';
 import { useMissionStore } from '@/stores/useMissionStore';
 import { MINI_ROUTES } from '@/utils/navigation';
@@ -15,15 +16,15 @@ import type { ShellTab } from '@/types/mission';
 interface TabItem {
   label: string;
   value: ShellTab;
-  accent: string;
+  icon: 'map' | 'route' | 'archive';
 }
 
 const missionStore = useMissionStore();
 
 const items: TabItem[] = [
-  { label: '地图', value: 'hall', accent: '馆' },
-  { label: '任务', value: 'playing', accent: '线' },
-  { label: '收获', value: 'archive', accent: '藏' }
+  { label: '地图', value: 'hall', icon: 'map' },
+  { label: '任务', value: 'playing', icon: 'route' },
+  { label: '收获', value: 'archive', icon: 'archive' }
 ];
 
 const TAB_WIDTH = 148;
@@ -240,17 +241,17 @@ function getTabStyle(index: number) {
     paddingRight: `${18 * visibleProgress}rpx`,
     gap: `${8 * visibleProgress}rpx`,
     marginRight: `${hasTrailingGap ? GAP * progress : 0}rpx`,
-    opacity: String(visibleProgress),
+    opacity: visibleProgress,
     transform: `scale(${0.94 + 0.06 * visibleProgress})`,
-    pointerEvents: visibleProgress > 0.05 ? 'auto' : 'none'
+    pointerEvents: (visibleProgress > 0.05 ? 'auto' : 'none') as 'auto' | 'none'
   };
 }
 </script>
 
 <template>
-  <view class="tabbar-wrap">
+  <view class="tabbar-fab">
     <view
-      class="tabbar floating-card"
+      class="tabbar"
       :class="{ 'is-expanded': isExpanded }"
       :style="islandStyle">
       <view class="tab-indicator" :style="indicatorStyle"></view>
@@ -262,7 +263,9 @@ function getTabStyle(index: number) {
         :class="{ 'is-active': displayedTab === item.value }"
         :style="getTabStyle(index)"
         @click="handleTabClick(item.value)">
-        <view class="tab-icon">{{ item.accent }}</view>
+        <view class="tab-icon">
+          <AppIcon :name="item.icon" :size="22" />
+        </view>
         <text class="tab-label">{{ item.label }}</text>
       </button>
     </view>
@@ -270,15 +273,12 @@ function getTabStyle(index: number) {
 </template>
 
 <style scoped lang="scss">
-.tabbar-wrap {
+.tabbar-fab {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 50%;
+  bottom: calc(24rpx + env(safe-area-inset-bottom));
   z-index: 40;
-  display: flex;
-  justify-content: center;
-  padding: 0 18rpx calc(14rpx + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
   pointer-events: none;
 }
 
@@ -292,9 +292,10 @@ function getTabStyle(index: number) {
   padding: 8rpx;
   overflow: hidden;
   border-radius: 48rpx;
-  background: rgba(11, 12, 15, 0.5);
-  backdrop-filter: blur(20rpx);
-  box-shadow: 0 0 22rpx rgba(209, 178, 111, 0.3);
+  background: rgba(7, 8, 10, 0.35);
+  backdrop-filter: blur(32rpx);
+  -webkit-backdrop-filter: blur(32rpx);
+  box-shadow: 0 0 28rpx rgba(209, 178, 111, 0.35);
   pointer-events: auto;
   white-space: nowrap;
 }
@@ -346,15 +347,11 @@ function getTabStyle(index: number) {
   height: 38rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.05);
-  color: #cda54d;
-  font-size: 20rpx;
-  font-weight: 800;
   flex: 0 0 auto;
 }
 
 .tab-item.is-active .tab-icon {
   background: linear-gradient(135deg, #d1b26f, #f3d99d);
-  color: #171310;
 }
 
 .tab-label {
