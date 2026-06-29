@@ -1,194 +1,269 @@
-﻿<script setup lang="ts">
-import { computed, onUnmounted, shallowRef, watch } from "vue"
-import { gsap } from "gsap"
-import type { ShellTab } from "@/types/mission"
+<script setup lang="ts">
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  shallowRef,
+  watch
+} from 'vue';
+import { gsap } from 'gsap';
+import { useMissionStore } from '@/stores/useMissionStore';
+import { MINI_ROUTES } from '@/utils/navigation';
+import type { ShellTab } from '@/types/mission';
 
 interface TabItem {
-  label: string
-  value: ShellTab
-  accent: string
+  label: string;
+  value: ShellTab;
+  accent: string;
 }
 
-interface Props {
-  modelValue: ShellTab
-  canOpenMap?: boolean
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  canOpenMap: false,
-})
-
-const emit = defineEmits<{
-  "update:modelValue": [value: ShellTab]
-  "open-map": []
-}>()
+const missionStore = useMissionStore();
 
 const items: TabItem[] = [
-  { label: "任务", value: "hall", accent: "任" },
-  { label: "继续", value: "playing", accent: "走" },
-  { label: "收获", value: "archive", accent: "奖" },
-]
+  { label: '地图', value: 'hall', accent: '馆' },
+  { label: '任务', value: 'playing', accent: '线' },
+  { label: '收获', value: 'archive', accent: '藏' }
+];
 
-const TAB_WIDTH = 142
-const MAP_WIDTH = 128
-const ITEM_HEIGHT = 72
-const GAP = 10
-const PAD = 8
+const TAB_WIDTH = 148;
+const ITEM_HEIGHT = 76;
+const GAP = 10;
+const PAD = 8;
 
-const activeIndex = computed(() => Math.max(items.findIndex((item) => item.value === props.modelValue), 0))
-const isExpanded = shallowRef(false)
-const expandedProgress = shallowRef(0)
-const tweenState = { progress: 0 }
-let expandTween: gsap.core.Tween | null = null
+const currentRoute = computed(() => {
+  const pages = getCurrentPages();
+  return pages[pages.length - 1]?.route || '';
+});
+
+const displayedTab = shallowRef<ShellTab>('hall');
+const pendingTab = shallowRef<ShellTab | null>(null);
+const isExpanded = shallowRef(false);
+const expandedProgress = shallowRef(0);
+const tweenState = { progress: 0 };
+let expandTween: gsap.core.Tween | null = null;
+let queuedAction: (() => void) | null = null;
+let introExpandTimer: ReturnType<typeof setTimeout> | null = null;
+let introCollapseTimer: ReturnType<typeof setTimeout> | null = null;
+const introMarkerKey = '__path_seeker_island_intro__';
+
+const activeTab = computed<ShellTab>(() => {
+  const route = currentRoute.value;
+
+  if (route === MINI_ROUTES.shell.replace(/^\//, '')) {
+    return missionStore.activeShellTab;
+  }
+
+  if (route === MINI_ROUTES.finale.replace(/^\//, '')) {
+    return 'archive';
+  }
+
+  if (missionStore.activeSession) {
+    return 'playing';
+  }
+
+  return 'hall';
+});
+
+const activeIndex = computed(() =>
+  Math.max(
+    items.findIndex((item) => item.value === displayedTab.value),
+    0
+  )
+);
 
 function getExpandedWidth() {
-  const tabGaps = items.length - 1
-  const mapWidth = props.canOpenMap ? MAP_WIDTH + GAP : 0
-  return items.length * TAB_WIDTH + tabGaps * GAP + mapWidth + PAD * 2
+  const tabGaps = items.length - 1;
+  return items.length * TAB_WIDTH + tabGaps * GAP + PAD * 2;
 }
 
-function animateProgress(target: number) {
-  expandTween?.kill()
+function animateProgress(target: number, onComplete?: () => void) {
+  expandTween?.kill();
   expandTween = gsap.to(tweenState, {
     progress: target,
     duration: 0.42,
-    ease: target ? "power3.out" : "power3.inOut",
+    ease: target ? 'power3.out' : 'power3.inOut',
     overwrite: true,
     onUpdate: () => {
-      expandedProgress.value = tweenState.progress
+      expandedProgress.value = tweenState.progress;
     },
     onComplete: () => {
-      expandedProgress.value = target
-      tweenState.progress = target
-    },
-  })
+      expandedProgress.value = target;
+      tweenState.progress = target;
+      onComplete?.();
+    }
+  });
 }
 
 function collapse() {
-  isExpanded.value = false
-  animateProgress(0)
+  isExpanded.value = false;
+  animateProgress(0);
 }
 
 function expand() {
-  isExpanded.value = true
-  animateProgress(1)
+  isExpanded.value = true;
+  animateProgress(1);
+}
+
+function collapseThen(action: () => void) {
+  isExpanded.value = false;
+  queuedAction = action;
+  animateProgress(0, () => {
+    const nextAction = queuedAction;
+    queuedAction = null;
+    nextAction?.();
+  });
+}
+
+function switchToTab(tab: ShellTab) {
+  if (tab === 'playing' && !missionStore.activeSession) {
+    missionStore.setShellTab('hall');
+    return;
+  }
+
+  missionStore.setShellTab(tab);
+
+  if (currentRoute.value === MINI_ROUTES.shell.replace(/^\//, '')) {
+    return;
+  }
+
+  uni.reLaunch({ url: MINI_ROUTES.shell });
 }
 
 function handleTabClick(value: ShellTab) {
   if (!isExpanded.value) {
-    if (value === props.modelValue) {
-      expand()
-      return
+    if (value === displayedTab.value) {
+      expand();
+      return;
     }
 
-    emit("update:modelValue", value)
-    return
+    displayedTab.value = value;
+    switchToTab(value);
+    return;
   }
 
-  emit("update:modelValue", value)
-  collapse()
-}
-
-function handleMapClick() {
-  if (!isExpanded.value) {
-    expand()
-    return
+  if (value === displayedTab.value) {
+    collapse();
+    return;
   }
 
-  emit("open-map")
-  collapse()
+  displayedTab.value = value;
+  pendingTab.value = value;
+  collapseThen(() => {
+    switchToTab(value);
+  });
 }
 
 watch(
-  () => [props.modelValue, props.canOpenMap],
-  () => {
-    if (!isExpanded.value) {
-      tweenState.progress = 0
-      expandedProgress.value = 0
-      return
+  activeTab,
+  (value) => {
+    if (!pendingTab.value || value === pendingTab.value) {
+      displayedTab.value = value;
     }
 
-    animateProgress(1)
+    if (value === pendingTab.value) {
+      pendingTab.value = null;
+    }
+
+    if (!isExpanded.value) {
+      tweenState.progress = 0;
+      expandedProgress.value = 0;
+      return;
+    }
+
+    animateProgress(1);
   },
-)
+  { immediate: true }
+);
 
 onUnmounted(() => {
-  expandTween?.kill()
-})
+  expandTween?.kill();
+  if (introExpandTimer) {
+    clearTimeout(introExpandTimer);
+  }
+  if (introCollapseTimer) {
+    clearTimeout(introCollapseTimer);
+  }
+});
+
+onMounted(async () => {
+  if ((globalThis as Record<string, unknown>)[introMarkerKey]) {
+    return;
+  }
+
+  (globalThis as Record<string, unknown>)[introMarkerKey] = true;
+  await nextTick();
+
+  introExpandTimer = setTimeout(() => {
+    expand();
+    introCollapseTimer = setTimeout(() => {
+      collapse();
+    }, 1000);
+  }, 140);
+});
 
 const islandStyle = computed(() => {
-  const progress = expandedProgress.value
-  const collapsedWidth = TAB_WIDTH + PAD * 2
-  const width = collapsedWidth + (getExpandedWidth() - collapsedWidth) * progress
+  const progress = expandedProgress.value;
+  const collapsedWidth = TAB_WIDTH + PAD * 2;
+  const width =
+    collapsedWidth + (getExpandedWidth() - collapsedWidth) * progress;
 
   return {
-    width: `${width}rpx`,
-  }
-})
+    width: `${width}rpx`
+  };
+});
 
 const indicatorStyle = computed(() => {
-  const progress = expandedProgress.value
-  const expandedX = PAD + activeIndex.value * (TAB_WIDTH + GAP)
-  const x = PAD + (expandedX - PAD) * progress
+  const progress = expandedProgress.value;
+  const expandedX = PAD + activeIndex.value * (TAB_WIDTH + GAP);
+  const x = PAD + (expandedX - PAD) * progress;
 
   return {
     width: `${TAB_WIDTH}rpx`,
     height: `${ITEM_HEIGHT}rpx`,
-    transform: `translateX(${x}rpx)`,
-  }
-})
+    transform: `translateX(${x}rpx)`
+  };
+});
 
 function getTabStyle(index: number) {
-  const progress = expandedProgress.value
-  const isActive = index === activeIndex.value
-  const visibleProgress = isActive ? 1 : progress
-  const hasTrailingGap = index < items.length - 1 || props.canOpenMap
+  const progress = expandedProgress.value;
+  const isActive = index === activeIndex.value;
+  const visibleProgress = isActive ? 1 : progress;
+  const hasTrailingGap = index < items.length - 1;
 
   return {
     width: `${TAB_WIDTH * visibleProgress}rpx`,
+    maxWidth: `${TAB_WIDTH * visibleProgress}rpx`,
     minWidth: `${TAB_WIDTH * visibleProgress}rpx`,
     height: `${ITEM_HEIGHT}rpx`,
+    paddingLeft: `${18 * visibleProgress}rpx`,
+    paddingRight: `${18 * visibleProgress}rpx`,
+    gap: `${8 * visibleProgress}rpx`,
     marginRight: `${hasTrailingGap ? GAP * progress : 0}rpx`,
     opacity: String(visibleProgress),
     transform: `scale(${0.94 + 0.06 * visibleProgress})`,
-    pointerEvents: visibleProgress > 0.05 ? "auto" : "none",
-  }
+    pointerEvents: visibleProgress > 0.05 ? 'auto' : 'none'
+  };
 }
-
-const mapStyle = computed(() => {
-  const progress = props.canOpenMap ? expandedProgress.value : 0
-
-  return {
-    width: `${MAP_WIDTH * progress}rpx`,
-    minWidth: `${MAP_WIDTH * progress}rpx`,
-    height: `${ITEM_HEIGHT}rpx`,
-    opacity: String(progress),
-    transform: `scale(${0.94 + 0.06 * progress})`,
-    pointerEvents: progress > 0.05 ? "auto" : "none",
-  }
-})
 </script>
 
 <template>
   <view class="tabbar-wrap">
-    <view class="tabbar floating-card" :class="{ 'is-expanded': isExpanded }" :style="islandStyle">
+    <view
+      class="tabbar floating-card"
+      :class="{ 'is-expanded': isExpanded }"
+      :style="islandStyle">
       <view class="tab-indicator" :style="indicatorStyle"></view>
 
       <button
         v-for="(item, index) in items"
         :key="item.value"
         class="tab-item"
-        :class="{ 'is-active': props.modelValue === item.value }"
+        :class="{ 'is-active': displayedTab === item.value }"
         :style="getTabStyle(index)"
-        @click="handleTabClick(item.value)"
-      >
+        @click="handleTabClick(item.value)">
         <view class="tab-icon">{{ item.accent }}</view>
         <text class="tab-label">{{ item.label }}</text>
-      </button>
-
-      <button v-if="canOpenMap" class="map-pill" :style="mapStyle" @click="handleMapClick">
-        <view class="map-pill-icon">图</view>
-        <text class="map-pill-label">地图</text>
       </button>
     </view>
   </view>
@@ -203,7 +278,7 @@ const mapStyle = computed(() => {
   z-index: 40;
   display: flex;
   justify-content: center;
-  padding: 0 18rpx calc(12rpx + env(safe-area-inset-bottom));
+  padding: 0 18rpx calc(14rpx + env(safe-area-inset-bottom));
   pointer-events: none;
 }
 
@@ -211,23 +286,29 @@ const mapStyle = computed(() => {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 88rpx;
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  height: 96rpx;
   padding: 8rpx;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 999rpx;
-  background: linear-gradient(180deg, rgba(16, 17, 20, 0.96), rgba(7, 8, 10, 0.96));
-  box-shadow: 0 22rpx 52rpx rgba(0, 0, 0, 0.36);
+  border-radius: 48rpx;
+  background: rgba(11, 12, 15, 0.5);
+  backdrop-filter: blur(20rpx);
+  box-shadow: 0 0 22rpx rgba(209, 178, 111, 0.3);
   pointer-events: auto;
+  white-space: nowrap;
 }
 
 .tab-indicator {
   position: absolute;
   left: 0;
-  top: 8rpx;
-  border-radius: 999rpx;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(209, 178, 111, 0.18));
-  box-shadow: inset 0 0 0 1px rgba(243, 217, 157, 0.08);
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(86, 70, 35, 0.92),
+    rgba(209, 178, 111, 0.18)
+  );
+  box-shadow: inset 0 0 0 1px rgba(243, 217, 157, 0.1);
 }
 
 .tab-item {
@@ -237,12 +318,16 @@ const mapStyle = computed(() => {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 8rpx;
   overflow: hidden;
   border-radius: 999rpx;
-  background: transparent;
-  color: rgba(247, 239, 221, 0.58);
+  background: transparent !important;
+  color: rgba(247, 239, 221, 0.54);
   transform-origin: center center;
+  box-sizing: border-box;
+  white-space: nowrap;
+  line-height: 1;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .tab-item::after {
@@ -257,64 +342,26 @@ const mapStyle = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36rpx;
-  height: 36rpx;
+  width: 38rpx;
+  height: 38rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.05);
-  color: #d1b26f;
+  color: #cda54d;
   font-size: 20rpx;
-  font-weight: 700;
+  font-weight: 800;
   flex: 0 0 auto;
 }
 
 .tab-item.is-active .tab-icon {
-  background: linear-gradient(135deg, rgba(209, 178, 111, 0.46), rgba(209, 178, 111, 0.22));
-  color: #fff8ea;
+  background: linear-gradient(135deg, #d1b26f, #f3d99d);
+  color: #171310;
 }
 
 .tab-label {
   font-size: 23rpx;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.map-pill {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  gap: 8rpx;
-  overflow: hidden;
-  padding: 0 18rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.04);
-  color: #fff8ea;
-  transform-origin: center center;
-}
-
-.map-pill::after {
-  border: 0;
-}
-
-.map-pill-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36rpx;
-  height: 36rpx;
-  border-radius: 999rpx;
-  background: linear-gradient(135deg, #d1b26f, #f3d99d);
-  color: #171310;
-  font-size: 20rpx;
   font-weight: 900;
-  flex: 0 0 auto;
-}
-
-.map-pill-label {
-  font-size: 23rpx;
-  font-weight: 800;
   white-space: nowrap;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 </style>

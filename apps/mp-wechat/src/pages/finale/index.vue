@@ -2,6 +2,8 @@
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
+import { getDifficultyLabel } from "@/utils/puzzleLabels"
+import { toSingleSentence } from "@/utils/copy"
 
 const missionStore = useMissionStore()
 
@@ -26,7 +28,7 @@ function replayMission() {
       <view class="panel glow-banner section-pad finale-hero">
         <text class="eyebrow">{{ missionStore.activeMission.rewardTitle }}</text>
         <text class="display-title">{{ missionStore.activeMission.finale.title }}</text>
-        <text class="body-copy">{{ missionStore.activeMission.finale.truth }}</text>
+        <text class="body-copy">{{ toSingleSentence(missionStore.activeMission.finale.truth) }}</text>
       </view>
 
       <view class="panel section-pad score-card">
@@ -45,8 +47,8 @@ function replayMission() {
             <text class="metric-value title-value">{{ missionStore.activeMission.rewardTitle }}</text>
           </view>
           <view class="metric-cell">
-            <text class="metric-label">同行</text>
-            <text class="metric-value">{{ missionStore.activeSession.selectedAgeBand }}</text>
+            <text class="metric-label">难度</text>
+            <text class="metric-value">{{ getDifficultyLabel(missionStore.activeMission.difficultyLevel) }}</text>
           </view>
         </view>
       </view>
@@ -55,6 +57,15 @@ function replayMission() {
         <view v-for="note in missionStore.activeMission.finale.knowledgeNotes" :key="note" class="route-line-item">
           <text class="muted-copy">{{ note }}</text>
         </view>
+      </view>
+
+      <view class="panel section-pad share-card">
+        <text class="eyebrow">结案</text>
+        <text class="section-title">{{ missionStore.activeMission.finale.debrief }}</text>
+        <view class="chip-row">
+          <text v-for="clue in missionStore.unlockedClueTitles" :key="clue" class="chip is-active">{{ clue }}</text>
+        </view>
+        <text class="muted-copy share-line">{{ toSingleSentence(missionStore.activeMission.finale.shareLine) }}</text>
       </view>
 
       <view class="button-row">
@@ -75,6 +86,17 @@ function replayMission() {
 
 .finale-grid {
   margin-top: 2rpx;
+}
+
+.share-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.share-line {
+  display: block;
+  margin-top: 4rpx;
 }
 
 .title-value {

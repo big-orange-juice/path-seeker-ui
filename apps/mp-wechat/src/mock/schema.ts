@@ -95,9 +95,27 @@ export const PUZZLE_TEMPLATE_OPTIONS: Array<SchemaMappedOption<PuzzleTemplateTyp
     description: "用于作者、用途、纹样和时代关系。",
   },
   {
+    value: "image_puzzle",
+    label: "图像拼图",
+    schemaValue: 5,
+    description: "把线索碎片重新拼回完整结构。",
+  },
+  {
+    value: "story_branch",
+    label: "剧情判断",
+    schemaValue: 6,
+    description: "在剧情分歧里判断哪一步更接近真相。",
+  },
+  {
+    value: "multi_step_reasoning",
+    label: "多步推理",
+    schemaValue: 7,
+    description: "先串证据，再给出最终结论。",
+  },
+  {
     value: "code_break",
     label: "密码解锁",
-    schemaValue: 5,
+    schemaValue: 8,
     description: "章节收束与终局高峰题。",
   },
 ]

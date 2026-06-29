@@ -1,9 +1,12 @@
 ﻿<script setup lang="ts">
+import { computed } from "vue"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
+import { toSingleSentence } from "@/utils/copy"
 
 const missionStore = useMissionStore()
+const resultCopy = computed(() => toSingleSentence(missionStore.activeSession?.latestChapterResult?.narrative || ""))
 
 function continueFlow() {
   missionStore.advanceFromChapterResult()
@@ -17,7 +20,7 @@ function continueFlow() {
       <view class="result-card">
         <text class="score-pill">+{{ missionStore.activeSession.latestChapterResult.gainedScore }} 分</text>
         <text class="display-title result-title">{{ missionStore.activeSession.latestChapterResult.chapterTitle }}</text>
-        <text class="body-copy result-copy">{{ missionStore.activeSession.latestChapterResult.narrative }}</text>
+        <text class="body-copy result-copy">{{ resultCopy }}</text>
       </view>
 
       <view class="clue-card panel">
@@ -26,10 +29,16 @@ function continueFlow() {
         <view class="chip-row result-row">
           <text class="chip is-active">{{ missionStore.activeSession.latestChapterResult.unlockedClue.fragmentTitle }}</text>
           <text v-if="!missionStore.activeSession.latestChapterResult.usedHints.length" class="chip">无提示完成</text>
+          <text v-if="missionStore.activeSession.latestChapterResult.perfectClear" class="chip">完美推进</text>
         </view>
       </view>
 
-      <button class="primary-button" @click="continueFlow">回到大地图</button>
+      <view v-if="missionStore.currentChapter" class="panel next-card">
+        <text class="eyebrow">下一步</text>
+        <text class="section-title">{{ missionStore.currentChapter.nextTarget }}</text>
+      </view>
+
+      <button class="primary-button" @click="continueFlow">继续路线</button>
     </view>
   </PageScaffold>
 </template>
@@ -71,6 +80,13 @@ function continueFlow() {
   display: flex;
   flex-direction: column;
   gap: 14rpx;
+  padding: 24rpx;
+}
+
+.next-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
   padding: 24rpx;
 }
 

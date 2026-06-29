@@ -33,14 +33,13 @@ function goArtifact() {
 </script>
 
 <template>
-  <PageScaffold title="大地图">
+  <PageScaffold title="任务路线">
     <view v-if="missionStore.activeMission && missionStore.activeSession" class="content-stack bottom-safe">
       <view class="map-board">
         <view class="map-board-head">
           <view>
             <text class="eyebrow">路线进度 {{ currentStepLabel }}</text>
             <text class="display-title map-title">{{ missionStore.currentChapter?.targetLocation }}</text>
-            <text class="map-subtitle">每个格子都是一个展柜任务，点亮它就能拿到线索。</text>
           </view>
           <view class="progress-ring">
             <text class="progress-value">{{ missionStore.progressPercent }}%</text>
@@ -76,7 +75,7 @@ function goArtifact() {
       <view class="next-card panel">
         <text class="eyebrow">当前任务</text>
         <text class="section-title">{{ missionStore.currentChapter?.objective }}</text>
-        <button class="primary-button" @click="goArtifact">到展品前观察</button>
+        <button class="primary-button" @click="goArtifact">开始观察</button>
       </view>
     </view>
   </PageScaffold>
@@ -105,16 +104,6 @@ function goArtifact() {
   display: block;
   margin-top: 10rpx;
   font-size: 42rpx;
-}
-
-.map-subtitle {
-  display: block;
-  max-width: 500rpx;
-  margin-top: 12rpx;
-  color: rgba(247, 239, 221, 0.62);
-  font-size: 25rpx;
-  font-weight: 700;
-  line-height: 1.42;
 }
 
 .progress-ring {
@@ -246,4 +235,3 @@ function goArtifact() {
   margin-top: 6rpx;
 }
 </style>
-

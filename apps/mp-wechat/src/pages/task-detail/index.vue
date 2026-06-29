@@ -1,10 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, shallowRef } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
 import { getDifficultyLabel, getPuzzleTypeGlyph, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
+import { toSingleSentence } from "@/utils/copy"
 import type { AgeBand, MissionDetail } from "@/types/mission"
 
 const missionStore = useMissionStore()
@@ -16,7 +17,8 @@ const canResumeCurrent = computed(
   () => missionStore.activeSession?.routeId === mission.value?.id && missionStore.activeSession?.status === "in_progress",
 )
 
-const routePreview = computed(() => mission.value?.chapters.slice(0, 5) ?? [])
+const routePreview = computed(() => mission.value?.chapters.slice(0, 6) ?? [])
+const summaryCopy = computed(() => toSingleSentence(mission.value?.summary || ""))
 
 function startMission() {
   if (!mission.value) {
@@ -60,19 +62,21 @@ onLoad((query) => {
       <view class="panel route-preview">
         <view class="preview-head">
           <view>
-            <text class="eyebrow">路线棋盘</text>
-            <text class="section-title preview-title">从起点一路闯到终点</text>
+            <text class="eyebrow">路线预览</text>
+            <text class="section-title preview-title">从起点一路到终点</text>
           </view>
           <text class="muted-copy">{{ mission.chapterCount }} 站</text>
         </view>
-        <view class="preview-map">
-          <view v-for="chapter in routePreview" :key="chapter.id" class="preview-node">
-            <text class="node-step">{{ chapter.stageNo }}</text>
-            <text class="node-glyph">{{ getPuzzleTypeGlyph(chapter.puzzle.templateType) }}</text>
-            <text class="node-title text-clip-1">{{ chapter.targetLocation }}</text>
-            <text class="node-type">{{ getPuzzleTypeLabel(chapter.puzzle.templateType) }}</text>
+        <scroll-view class="preview-scroll" scroll-x enable-flex show-scrollbar="false">
+          <view class="preview-map">
+            <view v-for="chapter in routePreview" :key="chapter.id" class="preview-node">
+              <text class="node-step">{{ chapter.stageNo }}</text>
+              <text class="node-glyph">{{ getPuzzleTypeGlyph(chapter.puzzle.templateType) }}</text>
+              <text class="node-title text-clip-1">{{ chapter.targetLocation }}</text>
+              <text class="node-type">{{ getPuzzleTypeLabel(chapter.puzzle.templateType) }}</text>
+            </view>
           </view>
-        </view>
+        </scroll-view>
       </view>
 
       <view class="info-pair">
@@ -87,20 +91,33 @@ onLoad((query) => {
       </view>
 
       <view class="panel age-card">
-        <view>
-          <text class="eyebrow">探险队</text>
-          <text class="section-title age-title">谁来一起玩？</text>
-        </view>
-        <view class="age-options">
+        <text class="eyebrow">年龄档</text>
+        <text class="section-title age-title">选择讲述方式</text>
+        <view class="chip-row age-row">
           <button
-            v-for="ageBand in mission.availableAgeBands"
-            :key="ageBand"
-            class="age-pill"
-            :class="{ 'is-active': selectedAgeBand === ageBand }"
-            @click="selectedAgeBand = ageBand"
+            v-for="band in mission.availableAgeBands"
+            :key="band"
+            class="age-chip"
+            :class="{ 'is-active': selectedAgeBand === band }"
+            @click="selectedAgeBand = band"
           >
-            {{ ageBand }}
+            {{ band }}
           </button>
+        </view>
+      </view>
+
+      <view class="panel note-card">
+        <text class="eyebrow">任务摘要</text>
+        <text class="section-title note-title">{{ summaryCopy }}</text>
+      </view>
+
+      <view class="panel story-preview">
+        <text class="eyebrow">开场</text>
+        <view class="route-line">
+          <view v-for="beat in mission.prologue" :key="beat.title" class="route-line-item">
+            <text class="section-title beat-title">{{ beat.title }}</text>
+            <text class="muted-copy">{{ toSingleSentence(beat.content) }}</text>
+          </view>
         </view>
       </view>
 
@@ -166,6 +183,8 @@ onLoad((query) => {
 }
 
 .route-preview,
+.note-card,
+.story-preview,
 .age-card {
   padding: 26rpx;
 }
@@ -178,21 +197,24 @@ onLoad((query) => {
 }
 
 .preview-title,
-.age-title {
+.note-title {
   display: block;
   margin-top: 8rpx;
 }
 
-.preview-map {
-  display: flex;
-  gap: 12rpx;
+.preview-scroll {
   margin-top: 24rpx;
+  white-space: nowrap;
+}
+
+.preview-map {
+  display: inline-flex;
+  gap: 12rpx;
 }
 
 .preview-node {
   position: relative;
-  flex: 1;
-  min-width: 0;
+  width: 156rpx;
   min-height: 160rpx;
   padding: 18rpx 10rpx 14rpx;
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -272,35 +294,50 @@ onLoad((query) => {
   line-height: 1.35;
 }
 
-.age-card {
+.age-card,
+.story-preview,
+.note-card {
   display: flex;
   flex-direction: column;
-  gap: 20rpx;
+  gap: 16rpx;
 }
 
-.age-options {
-  display: flex;
-  gap: 14rpx;
+.age-title {
+  display: block;
+  margin-top: 6rpx;
 }
 
-.age-pill {
-  min-width: 112rpx;
-  min-height: 68rpx;
-  padding: 0 24rpx;
+.age-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52rpx;
+  padding: 0 18rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.055);
-  color: rgba(247, 239, 221, 0.76);
-  font-size: 26rpx;
-  font-weight: 900;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(247, 239, 221, 0.72);
+  font-size: 22rpx;
+  font-weight: 800;
 }
 
-.age-pill.is-active {
-  background: linear-gradient(135deg, rgba(209, 178, 111, 0.34), rgba(209, 178, 111, 0.14));
+.age-chip.is-active {
+  background: rgba(209, 178, 111, 0.18);
   color: #fff8ea;
+  box-shadow: inset 0 0 0 1px rgba(209, 178, 111, 0.38);
+}
+
+.beat-title {
+  display: block;
+  margin-bottom: 8rpx;
+  font-size: 28rpx;
+}
+
+.note-copy {
+  color: rgba(247, 239, 221, 0.72);
+  font-size: 25rpx;
 }
 
 .action-row {
   margin-top: 4rpx;
 }
 </style>
-

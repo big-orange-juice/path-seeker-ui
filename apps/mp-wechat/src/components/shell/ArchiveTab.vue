@@ -15,13 +15,17 @@ const emit = defineEmits<{
 function taskKindLabel(value: TaskKind) {
   return TASK_KIND_OPTIONS.find((item) => item.value === value)?.label || "路线"
 }
+
+function archiveMeta(entry: MissionArchiveEntry) {
+  return `${entry.rewardTitle} · ${entry.difficultyLabel || "已完成"} · ${taskKindLabel(entry.taskKind)}`
+}
 </script>
 
 <template>
   <view class="content-stack">
     <view class="archive-head">
       <text class="eyebrow">我的收获</text>
-      <text class="display-title">完成的路线都会保存。</text>
+      <text class="display-title">完成路线</text>
     </view>
 
     <view v-if="entries.length" class="route-line panel section-pad">
@@ -32,10 +36,12 @@ function taskKindLabel(value: TaskKind) {
         @click="emit('open', entry.routeId)"
       >
         <view class="archive-card">
-          <text class="section-title">{{ entry.routeTitle }}</text>
-          <text class="muted-copy">{{ entry.rewardTitle }} · {{ entry.selectedAgeBand }} · {{ taskKindLabel(entry.taskKind) }}</text>
+          <view class="archive-top">
+            <text class="section-title">{{ entry.routeTitle }}</text>
+            <text class="archive-score">{{ entry.totalScore }} 分</text>
+          </view>
+          <text class="muted-copy">{{ archiveMeta(entry) }}</text>
           <view class="chip-row archive-row">
-            <text class="chip is-active">{{ entry.totalScore }} 分</text>
             <text class="chip">{{ entry.solvedCount }}/{{ entry.puzzleCount }} 站</text>
             <text class="chip">{{ entry.usedHintCount }} 次提示</text>
           </view>
@@ -67,6 +73,20 @@ function taskKindLabel(value: TaskKind) {
   display: flex;
   flex-direction: column;
   gap: 12rpx;
+}
+
+.archive-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.archive-score {
+  flex: 0 0 auto;
+  color: #d1b26f;
+  font-size: 22rpx;
+  font-weight: 900;
 }
 
 .archive-row {

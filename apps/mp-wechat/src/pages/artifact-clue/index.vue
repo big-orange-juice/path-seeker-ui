@@ -1,10 +1,13 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
+import { computed } from "vue"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
 import { getPuzzleTypeGlyph, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
+import { toSingleSentence } from "@/utils/copy"
 
 const missionStore = useMissionStore()
+const artifactStory = computed(() => toSingleSentence(missionStore.currentArtifact?.storyFragment || ""))
 
 function goPuzzle() {
   uni.redirectTo({ url: MINI_ROUTES.puzzle })
@@ -17,6 +20,7 @@ function goPuzzle() {
       <view class="artifact-card">
         <text class="eyebrow">{{ missionStore.currentChapter.targetLocation }}</text>
         <text class="display-title artifact-title">{{ missionStore.currentArtifact.title }}</text>
+        <text class="body-copy artifact-copy">{{ artifactStory }}</text>
         <view v-if="missionStore.currentPuzzle" class="play-chip">
           <text>{{ getPuzzleTypeGlyph(missionStore.currentPuzzle.templateType) }}</text>
           <text>{{ getPuzzleTypeLabel(missionStore.currentPuzzle.templateType) }}</text>
@@ -26,12 +30,17 @@ function goPuzzle() {
       <view class="look-grid">
         <view class="panel look-card primary">
           <text class="look-label">看哪里</text>
-          <text class="look-copy">{{ missionStore.currentArtifact.detailCallout }}</text>
+          <text class="look-copy">{{ toSingleSentence(missionStore.currentArtifact.detailCallout) }}</text>
         </view>
         <view class="panel look-card">
           <text class="look-label">留意</text>
-          <text class="look-copy">{{ missionStore.currentArtifact.suspiciousPoint }}</text>
+          <text class="look-copy">{{ toSingleSentence(missionStore.currentArtifact.suspiciousPoint) }}</text>
         </view>
+      </view>
+
+      <view class="panel story-card">
+        <text class="eyebrow">提示</text>
+        <text class="section-title">{{ missionStore.currentArtifact.observationPoint }}</text>
       </view>
 
       <view class="panel checklist-card">
@@ -61,6 +70,11 @@ function goPuzzle() {
   margin-top: 12rpx;
 }
 
+.artifact-copy {
+  display: block;
+  margin-top: 14rpx;
+}
+
 .play-chip {
   display: inline-flex;
   align-items: center;
@@ -81,7 +95,8 @@ function goPuzzle() {
 }
 
 .look-card,
-.checklist-card {
+.checklist-card,
+.story-card {
   padding: 22rpx;
 }
 
@@ -104,6 +119,7 @@ function goPuzzle() {
   line-height: 1.38;
 }
 
+.story-card,
 .checklist-card {
   display: flex;
   flex-direction: column;
@@ -125,4 +141,3 @@ function goPuzzle() {
   font-weight: 800;
 }
 </style>
-

@@ -4,5 +4,12 @@
   "private": true,
   "description": "Thin renderer contracts reserved for puzzle runtime code shared by the mini app and admin preview.",
   "type": "module",
-  "main": "src/index.ts"
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "gsap": "^3.15.0",
+    "vue": "^3.4.21"
+  }
 }

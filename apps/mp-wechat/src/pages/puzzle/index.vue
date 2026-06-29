@@ -14,11 +14,28 @@ const feedbackMessage = shallowRef("")
 const feedbackFinal = shallowRef(false)
 const feedbackCanAdvance = shallowRef(false)
 
+function createDeterministicShuffle(ids: string[], seed: string) {
+  const next = [...ids]
+
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const seedCode = seed.charCodeAt(index % seed.length) || index
+    const swapIndex = (seedCode + index) % (index + 1)
+    const current = next[index]
+    next[index] = next[swapIndex]
+    next[swapIndex] = current
+  }
+
+  return next
+}
+
 function createDraft(puzzle: MissionPuzzle): MissionAnswerDraft {
   if (puzzle.templateType === "sort") {
     return {
       templateType: "sort",
-      value: puzzle.questionPayload.items.map((item) => item.id),
+      value: createDeterministicShuffle(
+        puzzle.questionPayload.items.map((item) => item.id),
+        puzzle.id,
+      ),
     }
   }
 
@@ -26,6 +43,26 @@ function createDraft(puzzle: MissionPuzzle): MissionAnswerDraft {
     return {
       templateType: "match",
       value: [],
+    }
+  }
+
+  if (puzzle.templateType === "image_puzzle") {
+    return {
+      templateType: "image_puzzle",
+      value: createDeterministicShuffle(
+        puzzle.questionPayload.pieces.map((item) => item.id),
+        `${puzzle.id}:image`,
+      ),
+    }
+  }
+
+  if (puzzle.templateType === "multi_step_reasoning") {
+    return {
+      templateType: "multi_step_reasoning",
+      value: {
+        evidenceOrder: [],
+        conclusionId: null,
+      },
     }
   }
 
@@ -139,23 +176,30 @@ function nextStep() {
       </view>
 
       <view class="renderer-panel panel">
+        <view class="renderer-head">
+          <text class="section-title">互动操作台</text>
+          <text class="muted-copy">先动手，再看提示，最后提交。</text>
+        </view>
         <PuzzleRendererHost v-if="draft" :puzzle="missionStore.currentPuzzle" :model-value="draft" @update:model-value="draft = $event" />
       </view>
 
-      <view class="hint-card panel-soft">
-        <view class="hint-head">
-          <text class="section-title">提示</text>
-          <text class="muted-copy">{{ hintCaption }}</text>
+      <view class="support-grid">
+        <view class="hint-card panel-soft">
+          <view class="hint-head">
+            <text class="section-title">提示</text>
+            <text class="muted-copy">{{ hintCaption }}</text>
+          </view>
+          <text v-if="missionStore.currentHintText" class="body-copy hint-text">{{ missionStore.currentHintText }}</text>
         </view>
-        <text v-if="missionStore.currentHintText" class="body-copy hint-text">{{ missionStore.currentHintText }}</text>
-      </view>
 
-      <view class="action-dock">
-        <view class="button-row">
-          <button class="secondary-button" @click="useHint">看提示</button>
-          <button class="ghost-button" @click="skipAnswer">跳过</button>
+        <view class="panel action-dock">
+          <text class="section-title">本轮操作</text>
+          <view class="button-row">
+            <button class="secondary-button" @click="useHint">看提示</button>
+            <button class="ghost-button" @click="skipAnswer">跳过</button>
+          </view>
+          <button class="primary-button" @click="submitAnswer">提交答案</button>
         </view>
-        <button class="primary-button" @click="submitAnswer">提交答案</button>
       </view>
     </view>
 
@@ -223,7 +267,21 @@ function nextStep() {
   padding: 24rpx;
 }
 
+.renderer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 18rpx;
+}
+
 .hint-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+}
+
+.support-grid {
   display: flex;
   flex-direction: column;
   gap: 14rpx;
@@ -244,6 +302,7 @@ function nextStep() {
   display: flex;
   flex-direction: column;
   gap: 14rpx;
+  padding: 24rpx;
 }
 
 .feedback-mask {

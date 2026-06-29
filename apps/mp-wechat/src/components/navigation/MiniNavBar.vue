@@ -84,7 +84,7 @@ function handleBack() {
 }
 
 .nav-right {
-  width: 136rpx;
+  width: 112rpx;
   display: flex;
   justify-content: flex-end;
 }
@@ -94,10 +94,22 @@ function handleBack() {
   align-items: center;
   justify-content: flex-start;
   gap: 4rpx;
+  min-height: 68rpx;
+  padding: 0 10rpx;
+  border: 0;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   color: rgba(247, 239, 221, 0.82);
   font-size: 25rpx;
   font-weight: 800;
   letter-spacing: 0.03em;
+}
+
+.nav-back::after {
+  border: 0;
 }
 
 .nav-back-arrow {

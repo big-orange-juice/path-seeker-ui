@@ -1,9 +1,5 @@
-﻿<script setup lang="ts">
-import ObserveChoiceRenderer from "@/components/puzzle/renderers/ObserveChoiceRenderer.vue"
-import ClueFindRenderer from "@/components/puzzle/renderers/ClueFindRenderer.vue"
-import SortRenderer from "@/components/puzzle/renderers/SortRenderer.vue"
-import MatchRenderer from "@/components/puzzle/renderers/MatchRenderer.vue"
-import CodeBreakRenderer from "@/components/puzzle/renderers/CodeBreakRenderer.vue"
+<script setup lang="ts">
+import { PuzzleRendererHost as SharedPuzzleRendererHost } from "@path-seeker/game-renderer"
 import type { MissionAnswerDraft, MissionPuzzle } from "@/types/mission"
 
 interface Props {
@@ -19,32 +15,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <ObserveChoiceRenderer
-    v-if="props.puzzle.templateType === 'observe_choice'"
-    :puzzle="props.puzzle"
-    :model-value="props.modelValue"
-    @update:model-value="emit('update:modelValue', $event)"
-  />
-  <ClueFindRenderer
-    v-else-if="props.puzzle.templateType === 'clue_find'"
-    :puzzle="props.puzzle"
-    :model-value="props.modelValue"
-    @update:model-value="emit('update:modelValue', $event)"
-  />
-  <SortRenderer
-    v-else-if="props.puzzle.templateType === 'sort'"
-    :puzzle="props.puzzle"
-    :model-value="props.modelValue"
-    @update:model-value="emit('update:modelValue', $event)"
-  />
-  <MatchRenderer
-    v-else-if="props.puzzle.templateType === 'match'"
-    :puzzle="props.puzzle"
-    :model-value="props.modelValue"
-    @update:model-value="emit('update:modelValue', $event)"
-  />
-  <CodeBreakRenderer
-    v-else
+  <SharedPuzzleRendererHost
     :puzzle="props.puzzle"
     :model-value="props.modelValue"
     @update:model-value="emit('update:modelValue', $event)"

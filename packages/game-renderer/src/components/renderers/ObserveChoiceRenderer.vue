@@ -1,16 +1,30 @@
 <script setup lang="ts">
-import type { BaseMissionPuzzle, MissionAnswerDraft } from "@/types/mission"
+import { nextTick, watch } from "vue"
+import { gsap } from "gsap"
+import { useRendererMotion } from "../../composables/useRendererMotion"
+import type { ObserveChoicePuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
 
 interface Props {
-  puzzle: BaseMissionPuzzle<"observe_choice">
-  modelValue: MissionAnswerDraft | null
+  puzzle: ObserveChoicePuzzleDefinition
+  modelValue: PuzzleAnswerDraft | null
+  readonlyMode?: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  "update:modelValue": [value: MissionAnswerDraft]
+  "update:modelValue": [value: PuzzleAnswerDraft]
 }>()
+
+const { root, animateSelector } = useRendererMotion(() => {
+  gsap.from(".choice-card", {
+    autoAlpha: 0,
+    y: 18,
+    duration: 0.42,
+    ease: "power2.out",
+    stagger: 0.06,
+  })
+})
 
 function selectOption(optionId: string) {
   emit("update:modelValue", {
@@ -18,15 +32,32 @@ function selectOption(optionId: string) {
     value: optionId,
   })
 }
+
+watch(
+  () => props.modelValue?.value,
+  async (value) => {
+    if (typeof value !== "string") {
+      return
+    }
+
+    await nextTick()
+    animateSelector(
+      ".choice-card.is-active",
+      { scale: 0.94, y: 6 },
+      { scale: 1, y: 0, duration: 0.34, ease: "back.out(1.8)" },
+    )
+  },
+)
 </script>
 
 <template>
-  <view class="choice-list">
+  <view ref="root" class="choice-list">
     <button
       v-for="(option, index) in puzzle.questionPayload.options"
       :key="option.id"
       class="choice-card"
       :class="{ 'is-active': modelValue?.value === option.id }"
+      :disabled="readonlyMode"
       @click="selectOption(option.id)"
     >
       <text class="choice-index">{{ index + 1 }}</text>
@@ -35,7 +66,7 @@ function selectOption(optionId: string) {
   </view>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .choice-list {
   display: flex;
   flex-direction: column;

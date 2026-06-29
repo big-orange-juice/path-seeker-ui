@@ -1,16 +1,53 @@
 <script setup lang="ts">
-import type { BaseMissionPuzzle, MissionAnswerDraft } from "@/types/mission"
+import { computed, nextTick, watch } from "vue"
+import { gsap } from "gsap"
+import { useRendererMotion } from "../../composables/useRendererMotion"
+import type { ClueFindPuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
 
 interface Props {
-  puzzle: BaseMissionPuzzle<"clue_find">
-  modelValue: MissionAnswerDraft | null
+  puzzle: ClueFindPuzzleDefinition
+  modelValue: PuzzleAnswerDraft | null
+  readonlyMode?: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  "update:modelValue": [value: MissionAnswerDraft]
+  "update:modelValue": [value: PuzzleAnswerDraft]
 }>()
+
+const { root, animateSelector } = useRendererMotion(() => {
+  const tl = gsap.timeline({
+    defaults: {
+      ease: "power2.out",
+    },
+  })
+
+  tl.from(".board", {
+    autoAlpha: 0,
+    scale: 0.98,
+    duration: 0.3,
+  }).from(
+    ".hotspot",
+    {
+      autoAlpha: 0,
+      scale: 0.78,
+      duration: 0.28,
+      stagger: 0.05,
+    },
+    "-=0.12",
+  )
+})
+
+const boardSurfaceStyle = computed(() =>
+  props.puzzle.questionPayload.imageUrl
+    ? {
+        backgroundImage: `linear-gradient(180deg, rgba(14, 16, 20, 0.12), rgba(14, 16, 20, 0.12)), url(${props.puzzle.questionPayload.imageUrl})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }
+    : null,
+)
 
 function selectHotspot(hotspotId: string) {
   emit("update:modelValue", {
@@ -18,14 +55,30 @@ function selectHotspot(hotspotId: string) {
     value: hotspotId,
   })
 }
+
+watch(
+  () => props.modelValue?.value,
+  async (value) => {
+    if (typeof value !== "string") {
+      return
+    }
+
+    await nextTick()
+    animateSelector(
+      ".hotspot.is-active",
+      { scale: 0.86, backgroundColor: "rgba(209, 178, 111, 0.35)" },
+      { scale: 1, backgroundColor: "rgba(209, 178, 111, 0.22)", duration: 0.32, ease: "back.out(1.7)" },
+    )
+  },
+)
 </script>
 
 <template>
-  <view class="find-stack">
-    <view class="target-chip">找：{{ puzzle.questionPayload.targetDescription }}</view>
+  <view ref="root" class="find-stack">
+    <view v-if="puzzle.questionPayload.targetDescription" class="target-chip">找：{{ puzzle.questionPayload.targetDescription }}</view>
 
     <view class="board">
-      <view class="board-surface">
+      <view class="board-surface" :style="boardSurfaceStyle">
         <button
           v-for="hotspot in puzzle.questionPayload.hotspots"
           :key="hotspot.id"
@@ -37,16 +90,17 @@ function selectHotspot(hotspotId: string) {
             width: `${hotspot.width}%`,
             height: `${hotspot.height}%`,
           }"
+          :disabled="readonlyMode"
           @click="selectHotspot(hotspot.id)"
         >
-          <text class="hotspot-label">{{ hotspot.label }}</text>
+          <text v-if="hotspot.label" class="hotspot-label">{{ hotspot.label }}</text>
         </button>
       </view>
     </view>
   </view>
 </template>
 
-<style scoped lang="scss">
+<style scoped>
 .find-stack {
   display: flex;
   flex-direction: column;

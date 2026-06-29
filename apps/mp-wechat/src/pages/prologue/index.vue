@@ -1,9 +1,12 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
+import { computed } from "vue"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
+import { toSingleSentence } from "@/utils/copy"
 
 const missionStore = useMissionStore()
+const introCopy = computed(() => toSingleSentence(missionStore.activeMission?.introPanel.narrative || ""))
 
 function enterMap() {
   uni.redirectTo({ url: MINI_ROUTES.chapterMap })
@@ -17,6 +20,17 @@ function enterMap() {
         <view class="guide-mark">{{ missionStore.activeMission.persona.avatar }}</view>
         <text class="eyebrow">{{ missionStore.activeMission.persona.name }}</text>
         <text class="display-title start-title">{{ missionStore.activeMission.title }}</text>
+        <text class="body-copy start-copy">{{ introCopy }}</text>
+      </view>
+
+      <view class="panel section-card">
+        <text class="eyebrow">开场</text>
+        <view class="route-line">
+          <view v-for="beat in missionStore.activeMission.prologue" :key="beat.title" class="route-line-item">
+            <text class="section-title beat-title">{{ beat.title }}</text>
+            <text class="muted-copy">{{ toSingleSentence(beat.content) }}</text>
+          </view>
+        </view>
       </view>
 
       <view class="brief-grid">
@@ -27,8 +41,15 @@ function enterMap() {
         </view>
         <view class="panel brief-card">
           <text class="brief-no">02</text>
-          <text class="section-title">一路找线索</text>
-          <text class="muted-copy">每站都有不同玩法。</text>
+          <text class="section-title">一路拼真相</text>
+          <text class="muted-copy">前半段重观察，后半段重闭环。</text>
+        </view>
+      </view>
+
+      <view class="panel playbook-card">
+        <text class="eyebrow">玩法</text>
+        <view class="chip-row">
+          <text v-for="item in missionStore.activeMission.introPanel.playbook" :key="item" class="chip is-active">{{ item }}</text>
         </view>
       </view>
 
@@ -64,6 +85,25 @@ function enterMap() {
 .start-title {
   display: block;
   margin-top: 12rpx;
+}
+
+.start-copy {
+  display: block;
+  margin-top: 16rpx;
+}
+
+.section-card,
+.playbook-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding: 24rpx;
+}
+
+.beat-title {
+  display: block;
+  margin-bottom: 8rpx;
+  font-size: 28rpx;
 }
 
 .brief-grid {

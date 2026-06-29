@@ -1,10 +1,21 @@
-﻿export type AgeBand = "6-10" | "10-15" | "15+"
+﻿import type {
+  ChoiceOption,
+  ClueFindPayload,
+  CodeBreakPayload,
+  HintLevel,
+  MatchPair,
+  MatchPayload,
+  ObserveChoicePayload,
+  PuzzleAnswerDraft,
+  PuzzlePayloadMap,
+  PuzzleTemplateType,
+  ReasoningAnswerValue,
+  SortPayload,
+} from "@path-seeker/game-renderer"
+
+export type AgeBand = "6-10" | "10-15" | "15+"
 
 export type DifficultyLevel = "L1" | "L2" | "L3"
-
-export type HintLevel = "observe" | "relation" | "direct"
-
-export type PuzzleTemplateType = "observe_choice" | "clue_find" | "sort" | "match" | "code_break"
 
 export type TaskKind = "family_adventure" | "story_detective" | "deep_reasoning"
 
@@ -73,66 +84,18 @@ export interface ArtifactClue {
   detailCallout: string
 }
 
-export interface ChoiceOption {
-  id: string
-  label: string
-  description?: string
-}
-
-export interface HotspotArea {
-  id: string
-  x: number
-  y: number
-  width: number
-  height: number
-  label: string
-}
-
-export interface ObserveChoicePayload {
-  prompt: string
-  options: ChoiceOption[]
-  correctOptionId: string
-}
-
-export interface ClueFindPayload {
-  prompt: string
-  targetDescription: string
-  hotspots: HotspotArea[]
-  correctHotspotId: string
-}
-
-export interface SortPayload {
-  prompt: string
-  items: Array<{ id: string; label: string }>
-  correctOrder: string[]
-}
-
-export interface MatchPair {
-  leftId: string
-  rightId: string
-}
-
-export interface MatchPayload {
-  prompt: string
-  left: Array<{ id: string; label: string }>
-  right: Array<{ id: string; label: string }>
-  correctPairs: MatchPair[]
-}
-
-export interface CodeBreakPayload {
-  prompt: string
-  codeLength: number
-  acceptedCode: string
-  clueFragments: string[]
-  maskCharacter?: string
-}
-
-export interface PuzzlePayloadMap {
-  observe_choice: ObserveChoicePayload
-  clue_find: ClueFindPayload
-  sort: SortPayload
-  match: MatchPayload
-  code_break: CodeBreakPayload
+export type {
+  ChoiceOption,
+  ClueFindPayload,
+  CodeBreakPayload,
+  HintLevel,
+  MatchPair,
+  MatchPayload,
+  ObserveChoicePayload,
+  PuzzlePayloadMap,
+  PuzzleTemplateType,
+  ReasoningAnswerValue,
+  SortPayload,
 }
 
 export interface PuzzleReward {
@@ -163,6 +126,9 @@ export type MissionPuzzle =
   | BaseMissionPuzzle<"clue_find">
   | BaseMissionPuzzle<"sort">
   | BaseMissionPuzzle<"match">
+  | BaseMissionPuzzle<"image_puzzle">
+  | BaseMissionPuzzle<"story_branch">
+  | BaseMissionPuzzle<"multi_step_reasoning">
   | BaseMissionPuzzle<"code_break">
 
 export interface MissionChapter {
@@ -198,10 +164,7 @@ export interface MissionDetail extends MissionRouteCard {
   finale: MissionFinale
 }
 
-export interface MissionAnswerDraft {
-  templateType: PuzzleTemplateType
-  value: string | string[] | MatchPair[] | null
-}
+export type MissionAnswerDraft = PuzzleAnswerDraft
 
 export interface ChapterResultSnapshot {
   routeId: string
@@ -236,7 +199,7 @@ export interface MissionArchiveEntry {
   routeTitle: string
   rewardTitle: string
   completedAt: string
-  selectedAgeBand: AgeBand
+  difficultyLabel: string
   taskKind: TaskKind
   totalScore: number
   solvedCount: number

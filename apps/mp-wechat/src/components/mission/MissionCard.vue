@@ -6,9 +6,13 @@ import type { MissionRouteCard } from "@/types/mission"
 interface Props {
   route: MissionRouteCard
   showResume?: boolean
+  status?: "available" | "in-progress" | "completed"
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showResume: false,
+  status: "available",
+})
 
 const emit = defineEmits<{
   open: [routeId: string]
@@ -16,11 +20,27 @@ const emit = defineEmits<{
 
 const routeDots = computed(() => Array.from({ length: props.route.chapterCount }, (_, index) => index))
 const visibleTags = computed(() => props.route.taglines.slice(0, 2))
+const statusLabel = computed(() => {
+  if (props.status === "in-progress") {
+    return "进行中"
+  }
+
+  if (props.status === "completed") {
+    return "已完成"
+  }
+
+  return "可进入"
+})
 </script>
 
 <template>
   <button class="card-button" hover-class="card-button-hover" @click="emit('open', route.id)">
-    <view class="mission-card">
+    <view class="mission-card" :class="`is-${status}`">
+      <view class="mission-top">
+        <text class="mission-status">{{ statusLabel }}</text>
+        <text class="mission-time">{{ route.estimatedMinutes }} 分钟</text>
+      </view>
+
       <view class="mission-plate">
         <view class="plate-copy">
           <text class="mission-kicker">{{ route.theme }} · {{ getDifficultyLabel(route.difficultyLevel) }}</text>
@@ -39,14 +59,15 @@ const visibleTags = computed(() => props.route.taglines.slice(0, 2))
           <text class="mission-meta-value">{{ route.startLocation }}</text>
         </view>
         <view class="mission-stats">
-          <text>{{ route.estimatedMinutes }} 分钟</text>
+          <text>{{ route.taskKind === "family_adventure" ? "亲子探索" : route.taskKind === "story_detective" ? "剧情推理" : "深度推理" }}</text>
           <text>{{ route.chapterCount }} 站</text>
         </view>
       </view>
 
       <view class="chip-row mission-tags">
-        <text v-if="showResume" class="chip is-active">继续</text>
-        <text class="chip">{{ route.recommendedAgeBand }}</text>
+        <text v-if="showResume || status === 'in-progress'" class="chip is-active">继续探索</text>
+        <text v-else-if="status === 'completed'" class="chip is-active">已通关</text>
+        <text class="chip is-active">{{ route.recommendedAgeBand }}</text>
         <text v-for="tag in visibleTags" :key="tag" class="chip">{{ tag }}</text>
       </view>
     </view>
@@ -55,7 +76,12 @@ const visibleTags = computed(() => props.route.taglines.slice(0, 2))
 
 <style scoped lang="scss">
 .card-button {
+  display: block;
   width: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 28rpx;
+  background: transparent;
   text-align: left;
   transition: transform 0.16s ease, opacity 0.16s ease;
 }
@@ -65,16 +91,59 @@ const visibleTags = computed(() => props.route.taglines.slice(0, 2))
   opacity: 0.96;
 }
 
+.card-button::after {
+  border: 0;
+}
+
 .mission-card {
   position: relative;
   overflow: hidden;
-  padding: 20rpx 22rpx;
+  padding: 20rpx 22rpx 22rpx;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 28rpx;
   background:
     radial-gradient(circle at 88% 10%, rgba(209, 178, 111, 0.16), transparent 26%),
     linear-gradient(180deg, rgba(28, 29, 32, 0.98), rgba(14, 16, 20, 0.98));
   box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.24);
+}
+
+.mission-card.is-in-progress {
+  border-color: rgba(243, 217, 157, 0.28);
+  background:
+    radial-gradient(circle at 88% 10%, rgba(243, 217, 157, 0.18), transparent 26%),
+    linear-gradient(180deg, rgba(45, 38, 26, 0.98), rgba(16, 17, 20, 0.98));
+}
+
+.mission-card.is-completed {
+  border-color: rgba(159, 216, 175, 0.22);
+}
+
+.mission-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.mission-status,
+.mission-time {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42rpx;
+  padding: 0 14rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+  font-weight: 900;
+}
+
+.mission-status {
+  background: rgba(209, 178, 111, 0.14);
+  color: #f3d99d;
+}
+
+.mission-time {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(247, 239, 221, 0.62);
 }
 
 .mission-plate,
@@ -88,6 +157,7 @@ const visibleTags = computed(() => props.route.taglines.slice(0, 2))
 .plate-copy {
   flex: 1;
   min-width: 0;
+  padding-top: 12rpx;
 }
 
 .mission-kicker {
@@ -123,7 +193,7 @@ const visibleTags = computed(() => props.route.taglines.slice(0, 2))
   display: flex;
   align-items: center;
   gap: 8rpx;
-  margin: 16rpx 0 14rpx;
+  margin: 18rpx 0 16rpx;
   padding: 10rpx 12rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.04);

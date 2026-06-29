@@ -47,6 +47,15 @@ const { pageInsetStyle } = useChromeMetrics()
   position: absolute;
   inset: 0;
   height: 100%;
+  width: 100%;
   overflow: hidden;
+  background: transparent;
+  scrollbar-width: none;
+}
+
+.shell-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 </style>

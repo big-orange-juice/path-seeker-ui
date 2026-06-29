@@ -2,6 +2,7 @@
 import { defineStore } from "pinia"
 import { MOCK_MISSION_MAP, MOCK_MISSIONS, MOCK_ROUTE_CARDS } from "@/mock/missions"
 import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, TASK_KIND_OPTIONS } from "@/mock/schema"
+import { getDifficultyLabel } from "@/utils/puzzleLabels"
 import type {
   AgeBand,
   DifficultyLevel,
@@ -13,6 +14,7 @@ import type {
   MissionDetail,
   MissionPuzzle,
   MissionSession,
+  ReasoningAnswerValue,
   ShellTab,
   TaskKind,
 } from "@/types/mission"
@@ -59,6 +61,16 @@ function isMatchPairArray(value: unknown): value is MatchPair[] {
   )
 }
 
+function isReasoningAnswerValue(value: unknown): value is ReasoningAnswerValue {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "evidenceOrder" in value &&
+    "conclusionId" in value &&
+    Array.isArray((value as ReasoningAnswerValue).evidenceOrder)
+  )
+}
+
 function compareAnswer(puzzle: MissionPuzzle, draft: MissionAnswerDraft | null) {
   if (!draft) {
     return false
@@ -95,6 +107,29 @@ function compareAnswer(puzzle: MissionPuzzle, draft: MissionAnswerDraft | null) 
     return JSON.stringify(actual) === JSON.stringify(expected)
   }
 
+  if (puzzle.templateType === "image_puzzle") {
+    if (!isStringArray(draft.value)) {
+      return false
+    }
+
+    return JSON.stringify(draft.value) === JSON.stringify(puzzle.questionPayload.correctOrder)
+  }
+
+  if (puzzle.templateType === "story_branch") {
+    return draft.value === puzzle.questionPayload.correctOptionId
+  }
+
+  if (puzzle.templateType === "multi_step_reasoning") {
+    if (!isReasoningAnswerValue(draft.value)) {
+      return false
+    }
+
+    return (
+      JSON.stringify(draft.value.evidenceOrder) === JSON.stringify(puzzle.questionPayload.correctEvidenceOrder) &&
+      draft.value.conclusionId === puzzle.questionPayload.correctConclusionId
+    )
+  }
+
   if (typeof draft.value !== "string") {
     return false
   }
@@ -117,7 +152,7 @@ function createArchiveEntry(session: MissionSession, mission: MissionDetail): Mi
     routeTitle: mission.title,
     rewardTitle: mission.rewardTitle,
     completedAt: new Date().toISOString(),
-    selectedAgeBand: session.selectedAgeBand,
+    difficultyLabel: getDifficultyLabel(mission.difficultyLevel),
     taskKind: mission.taskKind,
     totalScore: session.totalScore,
     solvedCount: session.solvedChapterIds.length,
@@ -148,8 +183,10 @@ export const useMissionStore = defineStore("mission", () => {
 
   const filteredRoutes = computed(() =>
     routeCards.value.filter((route) => {
+      const matchAgeBand = filters.ageBand === "all" ? true : route.availableAgeBands.includes(filters.ageBand)
       const matchDifficulty = filters.difficulty === "all" ? true : route.difficultyLevel === filters.difficulty
-      return matchDifficulty
+      const matchTaskKind = filters.taskKind === "all" ? true : route.taskKind === filters.taskKind
+      return matchAgeBand && matchDifficulty && matchTaskKind
     }),
   )
 
@@ -248,7 +285,7 @@ export const useMissionStore = defineStore("mission", () => {
     return activeSession.value.draftHistory[puzzleId] || null
   }
 
-  function startMission(routeId: string, selectedAgeBand: AgeBand) {
+  function startMission(routeId: string, selectedAgeBand?: AgeBand) {
     const mission = getMission(routeId)
 
     if (!mission) {
@@ -258,7 +295,7 @@ export const useMissionStore = defineStore("mission", () => {
     activeSession.value = {
       sessionId: `session-${routeId}-${Date.now()}`,
       routeId,
-      selectedAgeBand,
+      selectedAgeBand: selectedAgeBand || mission.recommendedAgeBand,
       currentChapterIndex: 0,
       solvedChapterIds: [],
       unlockedClueIds: [],
@@ -422,7 +459,7 @@ export const useMissionStore = defineStore("mission", () => {
       return null
     }
 
-    return startMission(mission.id, mission.recommendedAgeBand)
+    return startMission(mission.id)
   }
 
   watch(
@@ -481,6 +518,3 @@ export const useMissionStore = defineStore("mission", () => {
     replayMission,
   }
 })
-
-
-

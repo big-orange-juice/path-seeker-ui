@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 渲染器侧共享题型契约。
  *
  * 边界要非常清楚：
@@ -10,36 +10,29 @@
 /**
  * 首期固定的题型集合。
  *
- * 这样做的目的不是减少能力，而是先稳定住运行时：
- * - 每个题型对应一个专用 renderer
- * - 后台预览后面也能复用同一套注册表
- * - 埋点、配置、mock 数据都围绕固定 templateType 工作
+ * 当前直接对齐后端规划的 8 类核心交互：
+ * - 基础观察与判断
+ * - 排序 / 配对 / 密码
+ * - 更强调动效反馈的拼图 / 剧情分支 / 多步推理
  */
 export const FIXED_PUZZLE_TEMPLATE_TYPES = [
   "observe_choice",
   "clue_find",
   "sort",
   "match",
-  "code_break"
+  "image_puzzle",
+  "story_branch",
+  "multi_step_reasoning",
+  "code_break",
 ] as const
 
 /**
  * 题型模板 id。
- *
- * 主要用于：
- * - 渲染器注册
- * - payload 类型收窄
- * - 后台配置与运行时对齐
  */
 export type PuzzleTemplateType = (typeof FIXED_PUZZLE_TEMPLATE_TYPES)[number]
 
 /**
  * 渲染器侧的提示层级。
- *
- * 命名直接对齐玩家体验：
- * - observe：把用户拉回观察行为
- * - relation：说明线索之间的关系
- * - direct：给出最后一步的直接帮助
  */
 export type HintLevel = "observe" | "relation" | "direct"
 
@@ -53,16 +46,6 @@ export interface ChoiceOption {
   description?: string | null
 }
 
-/**
- * `observe_choice` 的题面 payload。
- *
- * 这个 renderer 只需要：
- * - 提示文案
- * - 有限选项列表
- * - 正确选项 id
- *
- * 评分、审核、后台统计等信息不应该进入这个层。
- */
 export interface ObserveChoicePayload {
   prompt: string
   options: ChoiceOption[]
@@ -80,57 +63,40 @@ export interface HotspotArea {
   y: number
   width: number
   height: number
+  label?: string | null
 }
 
-/**
- * `clue_find` 的题面 payload。
- */
 export interface ClueFindPayload {
   prompt: string
-  imageUrl: string
+  imageUrl?: string | null
   targetDescription?: string | null
   hotspots: HotspotArea[]
   correctHotspotId: string
 }
 
-/**
- * `sort` 题型中的单个排序项。
- */
 export interface SortItem {
   id: string
   label: string
   imageUrl?: string | null
 }
 
-/**
- * `sort` 的题面 payload。
- */
 export interface SortPayload {
   prompt: string
   items: SortItem[]
   correctOrder: string[]
 }
 
-/**
- * `match` 题型中单侧的一项。
- */
 export interface MatchEntry {
   id: string
   label: string
   imageUrl?: string | null
 }
 
-/**
- * `match` 题型里的一条正确配对关系。
- */
 export interface MatchPair {
   leftId: string
   rightId: string
 }
 
-/**
- * `match` 的题面 payload。
- */
 export interface MatchPayload {
   prompt: string
   left: MatchEntry[]
@@ -139,30 +105,94 @@ export interface MatchPayload {
 }
 
 /**
- * `code_break` 的题面 payload。
+ * 拼图题使用文本碎片和槽位定义。
  *
- * 线索碎片是可选的，因为有些路线会把线索展示放在章节页，而不是直接放在
- * 渲染器内部。
+ * 这样 mock 阶段不依赖真实图片切片，也能先把交互和动效完整跑通。
  */
+export interface ImagePuzzlePiece {
+  id: string
+  label: string
+  hint?: string | null
+}
+
+export interface ImagePuzzlePayload {
+  prompt: string
+  imageUrl?: string | null
+  gridSize: number
+  pieces: ImagePuzzlePiece[]
+  correctOrder: string[]
+  revealTitle?: string | null
+  trayTitle?: string | null
+}
+
+export interface StoryBranchOption {
+  id: string
+  label: string
+  summary?: string | null
+  outcomeTitle?: string | null
+  outcomeText?: string | null
+}
+
+export interface StoryBranchPayload {
+  prompt: string
+  sceneIntro?: string | null
+  options: StoryBranchOption[]
+  correctOptionId: string
+}
+
+export interface ReasoningEvidence {
+  id: string
+  label: string
+  note?: string | null
+  tag?: string | null
+}
+
+export interface ReasoningConclusion {
+  id: string
+  label: string
+  summary?: string | null
+}
+
+export interface MultiStepReasoningPayload {
+  prompt: string
+  evidence: ReasoningEvidence[]
+  correctEvidenceOrder: string[]
+  conclusions: ReasoningConclusion[]
+  correctConclusionId: string
+  chainTitle?: string | null
+  slotLabels?: string[]
+  conclusionTitle?: string | null
+}
+
+export interface CodeDerivationStep {
+  id: string
+  chapterLabel?: string | null
+  sourceTitle: string
+  rule: string
+  result: string
+}
+
 export interface CodeBreakPayload {
   prompt: string
   codeLength: number
   acceptedCode: string
   clueFragments?: string[]
+  derivationSteps?: CodeDerivationStep[]
+  clueSourceTitle?: string | null
   maskCharacter?: string | null
 }
 
 /**
  * templateType 到具体 payload 的映射表。
- *
- * 这一层非常重要，因为后续可以直接据此构建：
- * `Record<PuzzleTemplateType, RendererComponent>`
  */
 export interface PuzzlePayloadMap {
   observe_choice: ObserveChoicePayload
   clue_find: ClueFindPayload
   sort: SortPayload
   match: MatchPayload
+  image_puzzle: ImagePuzzlePayload
+  story_branch: StoryBranchPayload
+  multi_step_reasoning: MultiStepReasoningPayload
   code_break: CodeBreakPayload
 }
 
@@ -184,36 +214,39 @@ export type ObserveChoicePuzzleDefinition = BasePuzzleDefinition<"observe_choice
 export type ClueFindPuzzleDefinition = BasePuzzleDefinition<"clue_find">
 export type SortPuzzleDefinition = BasePuzzleDefinition<"sort">
 export type MatchPuzzleDefinition = BasePuzzleDefinition<"match">
+export type ImagePuzzleDefinition = BasePuzzleDefinition<"image_puzzle">
+export type StoryBranchPuzzleDefinition = BasePuzzleDefinition<"story_branch">
+export type MultiStepReasoningPuzzleDefinition = BasePuzzleDefinition<"multi_step_reasoning">
 export type CodeBreakPuzzleDefinition = BasePuzzleDefinition<"code_break">
 
 /**
  * 固定题型的判别联合。
- *
- * 应用层可以通过 `templateType` 自动收窄到对应 payload。
  */
 export type PuzzleDefinition =
   | ObserveChoicePuzzleDefinition
   | ClueFindPuzzleDefinition
   | SortPuzzleDefinition
   | MatchPuzzleDefinition
+  | ImagePuzzleDefinition
+  | StoryBranchPuzzleDefinition
+  | MultiStepReasoningPuzzleDefinition
   | CodeBreakPuzzleDefinition
 
-/**
- * 所有具体 renderer 统一接收的输入对象。
- */
 export interface PuzzleRendererInput<TPuzzle extends PuzzleDefinition = PuzzleDefinition> {
   puzzle: TPuzzle
   readonlyMode?: boolean
   activeHintLevel?: HintLevel | null
 }
 
+export interface ReasoningAnswerValue {
+  evidenceOrder: string[]
+  conclusionId: string | null
+}
+
 /**
  * renderer 输出给应用外壳的归一化答案草稿。
- *
- * 这一步还不是最终 transport payload，只是把各类交互结果先收敛成统一结构。
- * 真正发请求前，应用 adapter 还可以继续编码或转换。
  */
 export interface PuzzleAnswerDraft {
   templateType: PuzzleTemplateType
-  value: string | string[] | MatchPair[] | HotspotArea | null
+  value: string | string[] | MatchPair[] | ReasoningAnswerValue | null
 }

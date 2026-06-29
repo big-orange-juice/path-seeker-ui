@@ -1,13 +1,12 @@
 ﻿<script setup lang="ts">
 import { computed } from "vue"
 import { onShow } from "@dcloudio/uni-app"
-import MiniAppShell from "@/components/layout/MiniAppShell.vue"
+import PageScaffold from "@/components/layout/PageScaffold.vue"
 import HallTab from "@/components/shell/HallTab.vue"
 import PlayTab from "@/components/shell/PlayTab.vue"
 import ArchiveTab from "@/components/shell/ArchiveTab.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES, withQuery } from "@/utils/navigation"
-import type { ShellTab } from "@/types/mission"
 
 const missionStore = useMissionStore()
 
@@ -57,21 +56,9 @@ function continueMission() {
   uni.redirectTo({ url: path })
 }
 
-function openMap() {
-  if (!missionStore.activeSession) {
-    return
-  }
-
-  uni.redirectTo({ url: MINI_ROUTES.chapterMap })
-}
-
 function replayMission(routeId: string) {
   missionStore.replayMission(routeId)
   uni.redirectTo({ url: MINI_ROUTES.prologue })
-}
-
-function updateTab(tab: ShellTab) {
-  missionStore.setShellTab(tab)
 }
 
 onShow(() => {
@@ -82,22 +69,19 @@ onShow(() => {
 </script>
 
 <template>
-  <MiniAppShell
-    :title="shellMeta.title"
-    :subtitle="shellMeta.subtitle"
-    :tab="missionStore.activeShellTab"
-    :can-open-map="Boolean(missionStore.activeSession)"
-    @update:tab="updateTab"
-    @open-map="openMap"
-  >
+  <PageScaffold :title="shellMeta.title" :subtitle="shellMeta.subtitle" :show-back="false">
     <transition name="page-fade" mode="out-in">
       <HallTab
         v-if="missionStore.activeShellTab === 'hall'"
         :routes="missionStore.filteredRoutes"
-        :filters="{ difficulty: missionStore.filters.difficulty }"
-        :coverage="{ difficulties: missionStore.coverageSummary.difficulties, missionCount: missionStore.coverageSummary.missionCount }"
+        :active-route-id="missionStore.activeSession?.routeId || ''"
+        :completed-route-ids="missionStore.archiveEntries.map((item) => item.routeId)"
+        :filters="missionStore.filters"
+        :coverage="missionStore.coverageSummary"
         @open="openRoute"
+        @filter-age-band="missionStore.setFilters({ ageBand: $event })"
         @filter-difficulty="missionStore.setFilters({ difficulty: $event })"
+        @filter-task-kind="missionStore.setFilters({ taskKind: $event })"
       />
 
       <PlayTab
@@ -113,6 +97,5 @@ onShow(() => {
 
       <ArchiveTab v-else :entries="missionStore.archiveEntries" @open="openRoute" />
     </transition>
-  </MiniAppShell>
+  </PageScaffold>
 </template>
-
