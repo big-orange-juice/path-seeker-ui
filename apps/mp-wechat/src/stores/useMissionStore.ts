@@ -15,7 +15,6 @@ import type {
   MissionPuzzle,
   MissionSession,
   ReasoningAnswerValue,
-  ShellTab,
   TaskKind,
 } from "@/types/mission"
 
@@ -164,7 +163,6 @@ function createArchiveEntry(session: MissionSession, mission: MissionDetail): Mi
 export const useMissionStore = defineStore("mission", () => {
   const missions = shallowRef(MOCK_MISSIONS)
   const routeCards = shallowRef(MOCK_ROUTE_CARDS)
-  const activeShellTab = shallowRef<ShellTab>("hall")
   const activeSession = ref<MissionSession | null>(readStorage<MissionSession | null>(STORAGE_KEY_SESSION, null))
   const archiveEntries = shallowRef<MissionArchiveEntry[]>(readStorage<MissionArchiveEntry[]>(STORAGE_KEY_ARCHIVE, []))
   const filters = reactive<{
@@ -255,10 +253,6 @@ export const useMissionStore = defineStore("mission", () => {
     missionCount: missions.value.length,
   }))
 
-  function setShellTab(tab: ShellTab) {
-    activeShellTab.value = tab
-  }
-
   function setFilters(payload: Partial<typeof filters>) {
     if (payload.ageBand) {
       filters.ageBand = payload.ageBand
@@ -308,7 +302,6 @@ export const useMissionStore = defineStore("mission", () => {
       latestChapterResult: null,
     }
 
-    activeShellTab.value = "playing"
     return activeSession.value
   }
 
@@ -491,7 +484,6 @@ export const useMissionStore = defineStore("mission", () => {
     missions,
     filteredRoutes,
     filters,
-    activeShellTab,
     activeSession,
     activeMission,
     currentChapter,
@@ -505,7 +497,6 @@ export const useMissionStore = defineStore("mission", () => {
     archiveEntries,
     coverageSummary,
     hasActiveSession,
-    setShellTab,
     setFilters,
     getMission,
     getMissionDraft,

@@ -4,7 +4,6 @@ import { gsap } from 'gsap';
 import MissionCard from '@/components/mission/MissionCard.vue';
 import MuseumOverviewMap from '@/components/shell/MuseumOverviewMap.vue';
 import { MUSEUM_FLOOR_LAYOUTS } from '@/mock/museumMap';
-import { useChromeMetrics } from '@/composables/useChromeMetrics';
 import type {
   AgeBand,
   DifficultyLevel,
@@ -31,7 +30,6 @@ interface Props {
 }
 
 const props = defineProps<Props>();
-const { metrics } = useChromeMetrics();
 
 const activeFloorId = shallowRef<MuseumFloorId>('1F');
 const selectedHallId = shallowRef(MUSEUM_FLOOR_LAYOUTS[0]?.halls[0]?.id || '');
@@ -42,10 +40,7 @@ const sheetPanelRef = shallowRef<unknown>(null);
 let sheetTween: { kill?: () => void } | null = null;
 
 const mapStageStyle = computed(() => {
-  const shellHeight = Math.max(
-    640,
-    uni.getSystemInfoSync().windowHeight - metrics.value.navHeight
-  );
+  const shellHeight = Math.max(640, uni.getSystemInfoSync().windowHeight);
 
   return {
     height: `${shellHeight}px`

@@ -10,7 +10,11 @@ import {
 import AppIcon from '@/components/ui/AppIcon.vue';
 import { gsap } from 'gsap';
 import { useMissionStore } from '@/stores/useMissionStore';
-import { MINI_ROUTES } from '@/utils/navigation';
+import {
+  MINI_ROUTES,
+  isFabTopLevelRoute,
+  isMiniRoute
+} from '@/utils/navigation';
 import type { ShellTab } from '@/types/mission';
 
 interface TabItem {
@@ -51,12 +55,23 @@ const introMarkerKey = '__path_seeker_island_intro__';
 const activeTab = computed<ShellTab>(() => {
   const route = currentRoute.value;
 
-  if (route === MINI_ROUTES.shell.replace(/^\//, '')) {
-    return missionStore.activeShellTab;
+  if (isMiniRoute(route, MINI_ROUTES.home)) {
+    return 'hall';
   }
 
-  if (route === MINI_ROUTES.finale.replace(/^\//, '')) {
+  if (isMiniRoute(route, MINI_ROUTES.archive) || isMiniRoute(route, MINI_ROUTES.finale)) {
     return 'archive';
+  }
+
+  if (
+    isMiniRoute(route, MINI_ROUTES.missionCenter) ||
+    isMiniRoute(route, MINI_ROUTES.prologue) ||
+    isMiniRoute(route, MINI_ROUTES.chapterMap) ||
+    isMiniRoute(route, MINI_ROUTES.artifactClue) ||
+    isMiniRoute(route, MINI_ROUTES.puzzle) ||
+    isMiniRoute(route, MINI_ROUTES.chapterResult)
+  ) {
+    return 'playing';
   }
 
   if (missionStore.activeSession) {
@@ -117,18 +132,47 @@ function collapseThen(action: () => void) {
 }
 
 function switchToTab(tab: ShellTab) {
+  const route = currentRoute.value;
+
   if (tab === 'playing' && !missionStore.activeSession) {
-    missionStore.setShellTab('hall');
+    openTopLevelPage(MINI_ROUTES.home);
     return;
   }
 
-  missionStore.setShellTab(tab);
+  if (tab === 'hall') {
+    if (isMiniRoute(route, MINI_ROUTES.home)) {
+      return;
+    }
 
-  if (currentRoute.value === MINI_ROUTES.shell.replace(/^\//, '')) {
+    openTopLevelPage(MINI_ROUTES.home);
     return;
   }
 
-  uni.reLaunch({ url: MINI_ROUTES.shell });
+  if (tab === 'archive') {
+    if (isMiniRoute(route, MINI_ROUTES.archive)) {
+      return;
+    }
+
+    openTopLevelPage(MINI_ROUTES.archive);
+    return;
+  }
+
+  if (isMiniRoute(route, MINI_ROUTES.missionCenter)) {
+    return;
+  }
+
+  openTopLevelPage(MINI_ROUTES.missionCenter);
+}
+
+function openTopLevelPage(url: string) {
+  const route = currentRoute.value;
+
+  if (isFabTopLevelRoute(route)) {
+    uni.redirectTo({ url });
+    return;
+  }
+
+  uni.navigateTo({ url });
 }
 
 function handleTabClick(value: ShellTab) {

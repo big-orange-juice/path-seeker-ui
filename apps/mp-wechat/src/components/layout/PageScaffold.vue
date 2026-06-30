@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useChromeMetrics } from '@/composables/useChromeMetrics';
 import MiniNavBar from '@/components/navigation/MiniNavBar.vue';
 import MiniTabBar from '@/components/navigation/MiniTabBar.vue';
@@ -8,15 +9,22 @@ interface Props {
   subtitle?: string;
   showBack?: boolean;
   showTabBar?: boolean;
+  overlayNav?: boolean;
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   subtitle: '',
   showBack: true,
-  showTabBar: true
+  showTabBar: true,
+  overlayNav: false
 });
 
-const { pageInsetStyle } = useChromeMetrics();
+const { metrics, pageInsetStyle } = useChromeMetrics();
+
+const contentStyle = computed(() => ({
+  ...pageInsetStyle.value,
+  paddingTop: props.overlayNav ? 0 : `${metrics.value.navHeight}px`
+}));
 </script>
 
 <template>
@@ -27,7 +35,7 @@ const { pageInsetStyle } = useChromeMetrics();
       </template>
     </MiniNavBar>
 
-    <view class="page-content" :style="pageInsetStyle">
+    <view class="page-content" :style="contentStyle">
       <slot></slot>
     </view>
 

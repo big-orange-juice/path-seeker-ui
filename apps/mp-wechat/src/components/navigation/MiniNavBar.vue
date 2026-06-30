@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import { useChromeMetrics } from '@/composables/useChromeMetrics';
+import { MINI_ROUTES } from '@/utils/navigation';
 
 interface Props {
   title: string;
@@ -33,7 +34,7 @@ function handleBack() {
     return;
   }
 
-  uni.reLaunch({ url: '/pages/shell/index' });
+  uni.reLaunch({ url: MINI_ROUTES.home });
 }
 </script>
 

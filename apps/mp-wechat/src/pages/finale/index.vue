@@ -8,8 +8,7 @@ import { toSingleSentence } from "@/utils/copy"
 const missionStore = useMissionStore()
 
 function backToArchive() {
-  missionStore.setShellTab("archive")
-  uni.reLaunch({ url: MINI_ROUTES.shell })
+  uni.redirectTo({ url: MINI_ROUTES.archive })
 }
 
 function replayMission() {

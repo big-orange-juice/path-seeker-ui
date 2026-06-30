@@ -1,7 +1,7 @@
 import type { MuseumFloorLayout } from "@/types/museumMap"
 
-export const MUSEUM_WORLD_WIDTH = 1600
-export const MUSEUM_WORLD_HEIGHT = 920
+export const MUSEUM_WORLD_WIDTH = 1666
+export const MUSEUM_WORLD_HEIGHT = 1742
 
 export const MUSEUM_FLOOR_LAYOUTS: MuseumFloorLayout[] = [
   {

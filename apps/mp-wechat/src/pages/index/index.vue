@@ -1,41 +1,29 @@
-<template>
-  <view class="content">
-    <image class="logo" src="/static/logo.png" />
-    <view class="text-area">
-      <text class="title">{{ title }}</text>
-    </view>
-  </view>
-</template>
-
 <script setup lang="ts">
-import { ref } from 'vue'
-const title = ref('Hello')
+import PageScaffold from "@/components/layout/PageScaffold.vue"
+import HallTab from "@/components/shell/HallTab.vue"
+import { useMissionStore } from "@/stores/useMissionStore"
+import { MINI_ROUTES, withQuery } from "@/utils/navigation"
+
+const missionStore = useMissionStore()
+
+function openRoute(routeId: string) {
+  uni.navigateTo({
+    url: withQuery(MINI_ROUTES.taskDetail, { routeId }),
+  })
+}
 </script>
 
-<style>
-.content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.logo {
-  height: 200rpx;
-  width: 200rpx;
-  margin-top: 200rpx;
-  margin-left: auto;
-  margin-right: auto;
-  margin-bottom: 50rpx;
-}
-
-.text-area {
-  display: flex;
-  justify-content: center;
-}
-
-.title {
-  font-size: 36rpx;
-  color: #8f8f94;
-}
-</style>
+<template>
+  <PageScaffold title="秘径寻踪" :show-back="false" overlay-nav>
+    <HallTab
+      :routes="missionStore.filteredRoutes"
+      :active-route-id="missionStore.activeSession?.routeId || ''"
+      :completed-route-ids="missionStore.archiveEntries.map((item) => item.routeId)"
+      :filters="missionStore.filters"
+      :coverage="missionStore.coverageSummary"
+      @open="openRoute"
+      @filter-age-band="missionStore.setFilters({ ageBand: $event })"
+      @filter-difficulty="missionStore.setFilters({ difficulty: $event })"
+      @filter-task-kind="missionStore.setFilters({ taskKind: $event })" />
+  </PageScaffold>
+</template>

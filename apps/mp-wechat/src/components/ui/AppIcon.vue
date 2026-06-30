@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 
-type AppIconName = "archive" | "arrow-left" | "map" | "route"
+type AppIconName = "archive" | "arrow-left" | "map" | "marker" | "route"
 
 interface Props {
   name: AppIconName
@@ -18,6 +18,7 @@ const iconPathMap: Record<AppIconName, string> = {
   archive: "/static/lucide/archive.svg",
   "arrow-left": "/static/lucide/arrow-left.svg",
   map: "/static/lucide/map.svg",
+  marker: "/static/lucide/marker.svg",
   route: "/static/lucide/route.svg",
 }
 

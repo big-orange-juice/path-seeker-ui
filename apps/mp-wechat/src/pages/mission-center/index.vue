@@ -1,0 +1,49 @@
+<script setup lang="ts">
+import PageScaffold from "@/components/layout/PageScaffold.vue"
+import PlayTab from "@/components/shell/PlayTab.vue"
+import { useMissionStore } from "@/stores/useMissionStore"
+import { MINI_ROUTES, withQuery } from "@/utils/navigation"
+
+const missionStore = useMissionStore()
+
+function openRoute(routeId: string) {
+  uni.navigateTo({
+    url: withQuery(MINI_ROUTES.taskDetail, { routeId }),
+  })
+}
+
+function continueMission() {
+  const session = missionStore.activeSession
+
+  if (!session) {
+    return
+  }
+
+  if (session.latestChapterResult) {
+    const path = session.latestChapterResult.finalChapter ? MINI_ROUTES.finale : MINI_ROUTES.chapterResult
+    uni.redirectTo({ url: path })
+    return
+  }
+
+  const path = session.status === "completed" ? MINI_ROUTES.finale : MINI_ROUTES.chapterMap
+  uni.redirectTo({ url: path })
+}
+
+function replayMission(routeId: string) {
+  missionStore.replayMission(routeId)
+  uni.redirectTo({ url: MINI_ROUTES.prologue })
+}
+</script>
+
+<template>
+  <PageScaffold title="继续任务" :subtitle="missionStore.activeMission?.title || ''" :show-back="false">
+    <PlayTab
+      :mission="missionStore.activeMission"
+      :session="missionStore.activeSession"
+      :progress-percent="missionStore.progressPercent"
+      :unlocked-clues="missionStore.unlockedClueTitles"
+      @continue="continueMission"
+      @replay="replayMission"
+      @open="openRoute" />
+  </PageScaffold>
+</template>
