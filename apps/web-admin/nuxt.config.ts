@@ -5,6 +5,12 @@ export default defineNuxtConfig({
   app: {
     baseURL: '/path-seeker/'
   },
+  runtimeConfig: {
+    backendBaseUrl: process.env.NUXT_BACKEND_BASE_URL || '',
+    public: {
+      museumId: process.env.NUXT_PUBLIC_MUSEUM_ID || '1'
+    }
+  },
   modules: [
     '@nuxtjs/tailwindcss',
     'shadcn-nuxt',
@@ -16,14 +22,6 @@ export default defineNuxtConfig({
     '@nuxt/eslint'
   ],
   pinia: {
-    /**
-     * Automatically add stores dirs to the auto imports. This is the same as
-     * directly adding the dirs to the `imports.dirs` option. If you want to
-     * also import nested stores, you can use the glob pattern `./stores/**`
-     * (on Nuxt 3) or `app/stores/**` (on Nuxt 4+)
-     *
-     * @default `['stores']`
-     */
     storesDirs: []
   },
   tailwindcss: {

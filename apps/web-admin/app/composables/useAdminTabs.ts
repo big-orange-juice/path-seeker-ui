@@ -1,4 +1,4 @@
-﻿import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { adminNavItems, type AdminNavItem } from '@/composables/useAdminNavigation';
 
 export interface AdminTabItem extends AdminNavItem {
@@ -15,6 +15,28 @@ export function useAdminTabs() {
     },
   ]);
 
+  const syncTabLabels = () => {
+    tabs.value = tabs.value
+      .map((tab) => {
+        const matched = adminNavItems.find((item) => item.to === tab.to);
+        if (!matched) {
+          return tab;
+        }
+
+        return {
+          ...tab,
+          label: matched.label,
+          icon: matched.icon,
+          closable: matched.to !== '/',
+        };
+      })
+      .filter((tab) => adminNavItems.some((item) => item.to === tab.to));
+
+    if (!tabs.value.length && adminNavItems[0]) {
+      tabs.value = [{ ...adminNavItems[0], closable: false }];
+    }
+  };
+
   const ensureTab = (path: string) => {
     const matched = adminNavItems.find((item) => item.to === path);
     if (!matched) {
@@ -30,7 +52,10 @@ export function useAdminTabs() {
           closable: matched.to !== '/',
         },
       ];
+      return;
     }
+
+    syncTabLabels();
   };
 
   watch(

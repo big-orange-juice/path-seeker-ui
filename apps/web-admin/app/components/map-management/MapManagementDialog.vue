@@ -1,0 +1,319 @@
+<script setup lang="ts">
+import { computed, reactive, shallowRef, watch } from 'vue';
+import MapPhonePreview from '@/components/map-management/MapPhonePreview.vue';
+import MapVenueListEditor from '@/components/map-management/MapVenueListEditor.vue';
+import Dialog from '@/components/shadcn/dialog/Dialog.vue';
+import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
+import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
+import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
+import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
+import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
+import UiImageUpload from '@/components/ui/ImageUpload.vue';
+import type { FloorMapDraft, VenueDraft } from '@/types/map-management';
+import type { UploadAttachment } from '@/types/upload';
+
+interface Props {
+  open: boolean;
+  mode: 'create' | 'edit';
+  initialValue: FloorMapDraft;
+}
+
+const props = defineProps<Props>();
+
+const emit = defineEmits<{
+  'update:open': [value: boolean];
+  save: [value: FloorMapDraft];
+}>();
+
+const formState = reactive<FloorMapDraft>({
+  floorNumber: '',
+  floorName: '',
+  floorLevel: 0,
+  description: '',
+  mapImages: [],
+  mapImageFileId: null,
+  sortOrder: 0,
+  venues: []
+});
+
+const activeVenueId = shallowRef('');
+const pickingVenueId = shallowRef('');
+const draftPoint = shallowRef<{ x: number; y: number } | null>(null);
+
+const dialogTitle = computed(() =>
+  props.mode === 'create' ? '新增楼层地图' : '编辑楼层地图'
+);
+const dialogDescription = computed(
+  () => '填写楼层信息，上传地图并维护楼层下展馆的真实后端字段。'
+);
+
+const syncFormState = (value: FloorMapDraft) => {
+  formState.id = value.id;
+  formState.floorNumber = value.floorNumber;
+  formState.floorName = value.floorName;
+  formState.floorLevel = value.floorLevel;
+  formState.description = value.description;
+  formState.mapImages = [...value.mapImages];
+  formState.mapImageFileId = value.mapImageFileId;
+  formState.sortOrder = value.sortOrder;
+  formState.venues = value.venues.map((venue) => ({ ...venue }));
+};
+
+watch(
+  () => props.initialValue,
+  (value) => {
+    syncFormState(value);
+  },
+  { immediate: true, deep: true }
+);
+
+watch(
+  () => formState.venues,
+  (venues) => {
+    if (!venues.length) {
+      activeVenueId.value = '';
+      pickingVenueId.value = '';
+      draftPoint.value = null;
+      return;
+    }
+
+    if (!venues.some((venue) => venue.id === activeVenueId.value)) {
+      activeVenueId.value = venues[0]?.id ?? '';
+    }
+
+    if (
+      pickingVenueId.value &&
+      !venues.some((venue) => venue.id === pickingVenueId.value)
+    ) {
+      pickingVenueId.value = '';
+      draftPoint.value = null;
+    }
+  },
+  { immediate: true, deep: true }
+);
+
+const handleOpenChange = (...args: unknown[]) => {
+  emit('update:open', Boolean(args[0]));
+};
+
+const closeDialog = () => {
+  emit('update:open', false);
+};
+
+const updateVenue = ({
+  targetId,
+  patch
+}: {
+  targetId: string;
+  patch: Partial<VenueDraft>;
+}) => {
+  formState.venues = formState.venues.map((venue) =>
+    venue.id === targetId ? { ...venue, ...patch } : venue
+  );
+};
+
+const addVenue = () => {
+  const nextVenue: VenueDraft = {
+    id: crypto.randomUUID(),
+    galleryCode: '',
+    name: '',
+    subtitle: '',
+    category: 1,
+    description: '',
+    exhibitCount: null,
+    area: null,
+    coverImageUrl: null,
+    coverImageFileId: null,
+    openStatus: 1,
+    x: null,
+    y: null,
+    sortOrder: formState.venues.length + 1
+  };
+
+  formState.venues = [...formState.venues, nextVenue];
+  activeVenueId.value = nextVenue.id;
+};
+
+const removeVenue = (targetId: string) => {
+  formState.venues = formState.venues
+    .filter((venue) => venue.id !== targetId)
+    .map((venue, index) => ({ ...venue, sortOrder: index + 1 }));
+  if (activeVenueId.value === targetId) {
+    activeVenueId.value =
+      formState.venues.find((venue) => venue.id !== targetId)?.id ?? '';
+  }
+  if (pickingVenueId.value === targetId) {
+    pickingVenueId.value = '';
+    draftPoint.value = null;
+  }
+};
+
+const selectVenue = (targetId: string) => {
+  activeVenueId.value = targetId;
+};
+
+const beginPick = (targetId: string) => {
+  activeVenueId.value = targetId;
+  pickingVenueId.value = targetId;
+  draftPoint.value = null;
+};
+
+const capturePoint = (payload: { x: number; y: number }) => {
+  if (!pickingVenueId.value) {
+    return;
+  }
+
+  draftPoint.value = payload;
+};
+
+const cancelPick = () => {
+  pickingVenueId.value = '';
+  draftPoint.value = null;
+};
+
+const confirmPick = () => {
+  if (!pickingVenueId.value || !draftPoint.value) {
+    return;
+  }
+
+  updateVenue({ targetId: pickingVenueId.value, patch: draftPoint.value });
+  activeVenueId.value = pickingVenueId.value;
+  pickingVenueId.value = '';
+  draftPoint.value = null;
+};
+
+const handleMapUploaded = (files: UploadAttachment[]) => {
+  const latestFile = files[files.length - 1];
+  formState.mapImageFileId = latestFile?.fileId ?? null;
+};
+
+const submitForm = () => {
+  emit('save', {
+    id: formState.id,
+    floorNumber: formState.floorNumber,
+    floorName: formState.floorName,
+    floorLevel: formState.floorLevel,
+    description: formState.description,
+    mapImages: [...formState.mapImages],
+    mapImageFileId: formState.mapImageFileId,
+    sortOrder: formState.sortOrder,
+    venues: formState.venues.map((venue, index) => ({
+      ...venue,
+      sortOrder: venue.sortOrder || index + 1
+    }))
+  });
+};
+</script>
+
+<template>
+  <Dialog :open="props.open" @update:open="handleOpenChange">
+    <DialogContent class="h-[92vh] overflow-hidden p-0">
+      <div class="flex h-full flex-col">
+        <div class="flex items-center justify-between border-b border-border/70 px-7 py-3.5">
+          <DialogHeader class="space-y-0.5">
+            <DialogTitle class="text-[1.35rem] font-semibold tracking-tight text-foreground">
+              {{ dialogTitle }}
+            </DialogTitle>
+            <DialogDescription class="text-xs text-muted-foreground">
+              {{ dialogDescription }}
+            </DialogDescription>
+          </DialogHeader>
+
+          <UiButton variant="ghost" size="icon" @click="closeDialog">
+            <UiAppIcon name="x" class="h-4 w-4" />
+          </UiButton>
+        </div>
+
+        <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="submitForm">
+          <div class="min-h-0 flex-1 overflow-y-auto px-7 py-6">
+            <div class="grid gap-3 xl:grid-cols-[440px_520px_minmax(320px,1fr)] xl:items-start">
+              <section class="space-y-5 rounded-[1.25rem] bg-[#0f1114] p-5">
+                <div class="space-y-1">
+                  <h3 class="text-sm font-semibold text-foreground">基础信息</h3>
+                  <p class="text-xs text-muted-foreground">楼层字段与后端 `CreateFloorRequest` / `UpdateFloorRequest` 对齐。</p>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-2">
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-foreground">楼层号</label>
+                    <UiInput v-model="formState.floorNumber" placeholder="例如：3F" />
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-foreground">楼层名称</label>
+                    <UiInput v-model="formState.floorName" placeholder="例如：特展走廊" />
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-foreground">楼层层级</label>
+                    <UiInput
+                      :model-value="String(formState.floorLevel)"
+                      type="number"
+                      placeholder="例如：3"
+                      @update:model-value="formState.floorLevel = Number($event || 0)" />
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="text-sm font-medium text-foreground">排序号</label>
+                    <UiInput
+                      :model-value="String(formState.sortOrder)"
+                      type="number"
+                      placeholder="例如：10"
+                      @update:model-value="formState.sortOrder = Number($event || 0)" />
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-foreground">楼层描述</label>
+                  <textarea
+                    v-model="formState.description"
+                    rows="4"
+                    class="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent"
+                    placeholder="例如：连接中庭与东展区的主通道" />
+                </div>
+
+                <UiImageUpload
+                  v-model="formState.mapImages"
+                  :multiple="false"
+                  label="地图上传"
+                  hint="上传后用于楼层卡片和取点预览。"
+                  button-text="上传地图"
+                  item-label="地图"
+                  @uploaded="handleMapUploaded" />
+              </section>
+
+              <MapVenueListEditor
+                :venues="formState.venues"
+                :active-venue-id="activeVenueId"
+                :picking-venue-id="pickingVenueId"
+                :draft-point="draftPoint"
+                @add-venue="addVenue"
+                @remove-venue="removeVenue"
+                @select-venue="selectVenue"
+                @update-venue="updateVenue"
+                @begin-pick="beginPick"
+                @confirm-pick="confirmPick"
+                @cancel-pick="cancelPick" />
+
+              <MapPhonePreview
+                :venues="formState.venues"
+                :active-venue-id="activeVenueId"
+                :picking-venue-id="pickingVenueId"
+                :draft-point="draftPoint"
+                :map-image="formState.mapImages[0]"
+                @select-venue="selectVenue"
+                @capture-point="capturePoint" />
+            </div>
+          </div>
+
+          <DialogFooter class="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border/70 bg-[#111316] px-7 py-4">
+            <UiButton type="button" variant="ghost" @click="closeDialog">
+              取消
+            </UiButton>
+            <UiButton type="submit">保存地图</UiButton>
+          </DialogFooter>
+        </form>
+      </div>
+    </DialogContent>
+  </Dialog>
+</template>

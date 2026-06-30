@@ -2,11 +2,14 @@
 import { computed } from 'vue';
 import {
   ChartColumn,
+  ImageUp,
   Library,
   LibraryBig,
+  Map,
   Megaphone,
   Puzzle,
   Route,
+  Trash2,
   UserRound,
   X,
   type LucideIcon,
@@ -14,11 +17,14 @@ import {
 
 export type AppIconName =
   | 'bar-chart-3'
+  | 'image-up'
   | 'library'
   | 'library-big'
+  | 'map'
   | 'megaphone'
   | 'puzzle'
   | 'route'
+  | 'trash-2'
   | 'user-round'
   | 'x';
 
@@ -35,11 +41,14 @@ const props = withDefaults(defineProps<Props>(), {
 
 const iconMap: Record<AppIconName, LucideIcon> = {
   'bar-chart-3': ChartColumn,
+  'image-up': ImageUp,
   library: Library,
   'library-big': LibraryBig,
+  map: Map,
   megaphone: Megaphone,
   puzzle: Puzzle,
   route: Route,
+  'trash-2': Trash2,
   'user-round': UserRound,
   x: X,
 };
