@@ -7,6 +7,8 @@ interface UseMuseumMapViewportOptions {
   minScale?: number;
   maxScale?: number;
   minCoverRatio?: number;
+  initialScaleMode?: 'cover' | 'contain';
+  minScaleMode?: 'cover' | 'contain';
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -88,6 +90,24 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     scale.value = state.scale;
   }
 
+  function resolveFitScale(
+    viewportW: number,
+    viewportH: number,
+    mode: 'cover' | 'contain'
+  ) {
+    if (mode === 'contain') {
+      return Math.min(
+        viewportW / options.worldWidth,
+        viewportH / options.worldHeight
+      );
+    }
+
+    return Math.max(
+      viewportW / options.worldWidth,
+      viewportH / options.worldHeight
+    );
+  }
+
   async function syncViewport() {
     const viewport = await readRect('.museum-map-viewport');
 
@@ -98,18 +118,21 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     viewportWidth.value = viewport.width;
     viewportHeight.value = viewport.height;
 
-    const coverRatio = options.minCoverRatio ?? 1.5;
-    const minS = Math.max(
-      (viewport.width * coverRatio) / options.worldWidth,
-      (viewport.height * coverRatio) / options.worldHeight
-    );
+    const minCoverRatio = options.minCoverRatio ?? 1.5;
+    const minScaleMode = options.minScaleMode ?? 'cover';
+    const initialScaleMode = options.initialScaleMode ?? 'cover';
+    const minBaseScale =
+      minScaleMode === 'contain'
+        ? resolveFitScale(viewport.width, viewport.height, 'contain')
+        : Math.max(
+            (viewport.width * minCoverRatio) / options.worldWidth,
+            (viewport.height * minCoverRatio) / options.worldHeight
+          );
     const nextScale =
-      Math.max(
-        viewport.width / options.worldWidth,
-        viewport.height / options.worldHeight
-      ) * (options.scaleBoost || 1.04);
+      resolveFitScale(viewport.width, viewport.height, initialScaleMode) *
+      (options.scaleBoost || 1.04);
 
-    scale.value = Math.max(nextScale, minS);
+    scale.value = Math.max(nextScale, minBaseScale);
 
     const stageWidth = options.worldWidth * scale.value;
     const stageHeight = options.worldHeight * scale.value;
@@ -146,12 +169,16 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
   }
 
   function applyScale(newScale: number, centerX: number, centerY: number) {
-    const coverRatio = options.minCoverRatio ?? 1.5;
-    const coverMin = Math.max(
-      (viewportWidth.value * coverRatio) / options.worldWidth,
-      (viewportHeight.value * coverRatio) / options.worldHeight
-    );
-    const minS = options.minScale ?? coverMin;
+    const minCoverRatio = options.minCoverRatio ?? 1.5;
+    const minScaleMode = options.minScaleMode ?? 'cover';
+    const baseMin =
+      minScaleMode === 'contain'
+        ? resolveFitScale(viewportWidth.value, viewportHeight.value, 'contain')
+        : Math.max(
+            (viewportWidth.value * minCoverRatio) / options.worldWidth,
+            (viewportHeight.value * minCoverRatio) / options.worldHeight
+          );
+    const minS = options.minScale ?? baseMin;
     const maxS = options.maxScale ?? 8;
     const clampedScale = clamp(newScale, minS, maxS);
 

@@ -56,10 +56,12 @@ const panLayerRef = ref<unknown>(null)
 const stageRef = ref<unknown>(null)
 let draggableInstance: Draggable | null = null
 let selectedMarkerTween: gsap.core.Tween | null = null
+let inertiaTween: gsap.core.Tween | null = null
 const draggableEnabled = ref(false)
 const gsapRuntime = gsap as typeof gsap & {
   registerPlugin?: (...plugins: unknown[]) => void
 }
+const dragSamples: Array<{ x: number; y: number; at: number }> = []
 
 const {
   offsetX,
@@ -76,8 +78,9 @@ const {
 } = useMuseumMapViewport({
   worldWidth: MUSEUM_WORLD_WIDTH,
   worldHeight: MUSEUM_WORLD_HEIGHT,
-  minCoverRatio: 1.08,
-  scaleBoost: 1.02,
+  initialScaleMode: "contain",
+  minScaleMode: "contain",
+  scaleBoost: 1.55,
 })
 
 gsapRuntime.registerPlugin?.(Draggable)
@@ -161,6 +164,85 @@ function getPanBounds(): PanBounds {
   }
 }
 
+function clampToBounds(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function recordDragSample(x: number, y: number) {
+  const now = Date.now()
+  dragSamples.push({ x, y, at: now })
+
+  while (dragSamples.length > 5) {
+    dragSamples.shift()
+  }
+
+  while (dragSamples.length > 1 && now - dragSamples[0]!.at > 140) {
+    dragSamples.shift()
+  }
+}
+
+function clearDragSamples() {
+  dragSamples.length = 0
+}
+
+function stopInertia() {
+  inertiaTween?.kill()
+  inertiaTween = null
+}
+
+function runInertia() {
+  if (dragSamples.length < 2) {
+    return
+  }
+
+  const first = dragSamples[0]
+  const last = dragSamples[dragSamples.length - 1]
+
+  if (!first || !last) {
+    return
+  }
+
+  const elapsed = Math.max(last.at - first.at, 16)
+  const velocityX = (last.x - first.x) / elapsed
+  const velocityY = (last.y - first.y) / elapsed
+  const speed = Math.hypot(velocityX, velocityY)
+
+  if (speed < 0.08) {
+    return
+  }
+
+  const bounds = getPanBounds()
+  const glideDistance = Math.min(520, Math.max(180, speed * 780))
+  const targetX = clampToBounds(offsetX.value + velocityX * glideDistance, bounds.minX, bounds.maxX)
+  const targetY = clampToBounds(offsetY.value + velocityY * glideDistance, bounds.minY, bounds.maxY)
+
+  if (Math.abs(targetX - offsetX.value) < 2 && Math.abs(targetY - offsetY.value) < 2) {
+    return
+  }
+
+  const tweenState = {
+    x: offsetX.value,
+    y: offsetY.value,
+  }
+
+  stopInertia()
+  inertiaTween = gsap.to(tweenState, {
+    x: targetX,
+    y: targetY,
+    duration: Math.min(0.7, Math.max(0.32, speed * 0.24)),
+    ease: "power3.out",
+    overwrite: true,
+    onUpdate: () => {
+      offsetX.value = tweenState.x
+      offsetY.value = tweenState.y
+      syncDraggablePosition()
+    },
+    onComplete: () => {
+      inertiaTween = null
+    },
+  })
+}
+
 function syncDraggablePosition() {
   if (!draggableInstance) {
     return
@@ -183,9 +265,11 @@ function applyDraggableBounds() {
 }
 
 function teardownDraggable() {
+  stopInertia()
   draggableInstance?.kill()
   draggableInstance = null
   draggableEnabled.value = false
+  clearDragSamples()
 }
 
 async function setupDraggable() {
@@ -202,15 +286,23 @@ async function setupDraggable() {
     dragResistance: 0.08,
     minimumMovement: 3,
     allowNativeTouchScrolling: false,
+    onPress() {
+      stopInertia()
+      clearDragSamples()
+      recordDragSample(this.x, this.y)
+    },
     onDrag() {
       offsetX.value = this.x
       offsetY.value = this.y
+      recordDragSample(this.x, this.y)
     },
     onThrowUpdate() {
       offsetX.value = this.x
       offsetY.value = this.y
     },
     onDragEnd() {
+      runInertia()
+      clearDragSamples()
       playSelectedMarkerGlow()
     },
   })[0] || null
@@ -333,6 +425,7 @@ onMounted(async () => {
 onUnmounted(() => {
   teardownDraggable()
   selectedMarkerTween?.kill()
+  stopInertia()
 })
 </script>
 
@@ -344,6 +437,7 @@ onUnmounted(() => {
       @touchmove.stop.prevent="handleViewportTouchMove($event)"
       @touchend.stop="handleViewportTouchEnd"
       @touchcancel.stop="handleViewportTouchEnd">
+      <view class="museum-map-grid-layer"></view>
       <view ref="panLayerRef" class="museum-map-pan" :style="panStyle">
         <view ref="stageRef" class="museum-map-stage" :style="stageStyle">
           <image
@@ -408,10 +502,34 @@ onUnmounted(() => {
     linear-gradient(180deg, rgba(14, 15, 18, 0.98), rgba(6, 7, 10, 1));
 }
 
+.museum-map-grid-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.42;
+  background-image:
+    linear-gradient(rgba(243, 217, 157, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(243, 217, 157, 0.06) 1px, transparent 1px),
+    linear-gradient(rgba(243, 217, 157, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(243, 217, 157, 0.1) 1px, transparent 1px);
+  background-size:
+    40rpx 40rpx,
+    40rpx 40rpx,
+    160rpx 160rpx,
+    160rpx 160rpx;
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    0 0;
+}
+
 .museum-map-pan {
   position: absolute;
   left: 0;
   top: 0;
+  z-index: 1;
   transform-origin: left top;
   will-change: transform;
 }
@@ -471,7 +589,7 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 14rpx;
-  min-width: 220rpx;
+  min-width: 248rpx;
   padding: 0;
   background: transparent !important;
   border: 0;
@@ -489,8 +607,8 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  width: 132rpx;
-  height: 132rpx;
+  width: 168rpx;
+  height: 168rpx;
   color: #f3d99d;
   filter:
     drop-shadow(0 0 16px rgba(209, 178, 111, 0.92))
@@ -522,8 +640,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 64rpx;
-  padding: 12rpx 24rpx;
+  min-height: 76rpx;
+  padding: 14rpx 28rpx;
   border-radius: 999px;
   background:
     linear-gradient(135deg, rgba(209, 178, 111, 0.24), rgba(8, 9, 12, 0.88)),
@@ -538,7 +656,7 @@ onUnmounted(() => {
 
 .marker-name {
   color: #fff5dc;
-  font-size: 24rpx;
+  font-size: 28rpx;
   line-height: 1.1;
   font-weight: 900;
   white-space: nowrap;
@@ -598,11 +716,11 @@ onUnmounted(() => {
 
 @media (max-width: 420px) {
   .hall-marker {
-    min-width: 192rpx;
+    min-width: 220rpx;
   }
 
   .marker-name {
-    font-size: 22rpx;
+    font-size: 24rpx;
   }
 }
 </style>
