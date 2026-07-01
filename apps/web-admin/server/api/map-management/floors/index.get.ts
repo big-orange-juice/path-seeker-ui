@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event): Promise<FloorResponse[]> => {
   const query = getQuery(event);
-  const museumId = Number(query.museumId || 0);
+  const museumId = String(query.museumId || '').trim();
 
   const response: ApiResponse<FloorResponse[]> = await backendFetch(event, '/api/Museum/Floors', {
     query: { museumId },

@@ -32,12 +32,13 @@ const createVenue = (): VenueDraft => ({
   sortOrder: 0,
 });
 
-const toNullableNumber = (value: string | null | undefined) => {
-  if (!value || !/^\d+$/.test(value)) {
+const toNullableId = (value: string | null | undefined) => {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) {
     return null;
   }
 
-  return Number(value);
+  return normalized;
 };
 
 const normalizeVenue = (venue: VenueDraft, index: number): VenueDraft => ({
@@ -67,7 +68,7 @@ const normalizeDraft = (draft: FloorMapDraft): FloorMapDraft => ({
 
 export const useMapManagement = () => {
   const runtimeConfig = useRuntimeConfig();
-  const museumId = computed(() => Number(runtimeConfig.public.museumId || 1));
+  const museumId = computed(() => String(runtimeConfig.public.museumId || '1').trim());
   const asyncKey = computed(() => `map-management:${museumId.value}`);
   const { request } = useApiClient();
 
@@ -139,7 +140,7 @@ export const useMapManagement = () => {
         floorLevel: floor.floorLevel ?? 0,
         description: floor.description ?? '',
         mapImages: floor.mapImageUrl ? [floor.mapImageUrl] : [],
-        mapImageFileId: toNullableNumber(floor.mapImageUrl)?.toString() ?? null,
+        mapImageFileId: toNullableId(floor.mapImageUrl),
         sortOrder: floor.sortOrder ?? 0,
         venues: galleries.map((gallery, index) => ({
           id: gallery.id ?? crypto.randomUUID(),
@@ -151,7 +152,7 @@ export const useMapManagement = () => {
           exhibitCount: gallery.exhibitCount,
           area: gallery.area,
           coverImageUrl: gallery.coverImageUrl,
-          coverImageFileId: toNullableNumber(gallery.coverImageUrl)?.toString() ?? null,
+          coverImageFileId: toNullableId(gallery.coverImageUrl),
           openStatus: gallery.openStatus ?? DEFAULT_OPEN_STATUS,
           x: gallery.x,
           y: gallery.y,
@@ -188,7 +189,7 @@ export const useMapManagement = () => {
     for (const gallery of draft.venues.map(normalizeVenue)) {
       const basePayload: CreateGalleryPayload = {
         museumId: museumId.value,
-        floorId: Number(floorId),
+        floorId,
         galleryCode: gallery.galleryCode || `G-${draft.floorNumber}-${gallery.sortOrder}`,
         name: gallery.name || `未命名展馆 ${gallery.sortOrder}`,
         subtitle: gallery.subtitle || null,
@@ -196,7 +197,7 @@ export const useMapManagement = () => {
         description: gallery.description || null,
         exhibitCount: gallery.exhibitCount,
         area: gallery.area,
-        coverImageUrl: toNullableNumber(gallery.coverImageFileId),
+        coverImageUrl: toNullableId(gallery.coverImageFileId),
         openStatus: gallery.openStatus,
         x: gallery.x,
         y: gallery.y,
@@ -208,7 +209,7 @@ export const useMapManagement = () => {
           method: 'PUT',
           body: {
             ...basePayload,
-            id: Number(gallery.id),
+            id: gallery.id,
           } satisfies UpdateGalleryPayload,
         });
         continue;
@@ -239,7 +240,7 @@ export const useMapManagement = () => {
       floorName: normalized.floorName || null,
       floorLevel: normalized.floorLevel,
       description: normalized.description || null,
-      mapImageUrl: toNullableNumber(normalized.mapImageFileId),
+      mapImageUrl: toNullableId(normalized.mapImageFileId),
       sortOrder: normalized.sortOrder,
     };
 
@@ -250,7 +251,7 @@ export const useMapManagement = () => {
         method: 'PUT',
         body: {
           ...baseFloorPayload,
-          id: Number(targetId),
+          id: targetId,
         } satisfies UpdateFloorPayload,
       });
     } else {

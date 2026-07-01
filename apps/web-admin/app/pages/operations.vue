@@ -1,4 +1,8 @@
 ﻿<script setup lang="ts">
+definePageMeta({
+  middleware: 'admin-auth',
+});
+
 const { operationColumns, operationMetrics, milestoneStages, mvpRows } = useAdminContent();
 </script>
 

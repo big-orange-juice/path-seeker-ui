@@ -22,7 +22,7 @@ export default defineNuxtConfig({
     '@nuxt/eslint'
   ],
   pinia: {
-    storesDirs: []
+    storesDirs: ['./app/stores/**']
   },
   tailwindcss: {
     cssPath: '~/assets/css/main.css',

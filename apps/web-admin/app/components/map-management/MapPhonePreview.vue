@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, reactive, useTemplateRef } from 'vue';
 import type { VenueDraft } from '@/types/map-management';
 
 interface Props {
@@ -15,7 +15,19 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   selectVenue: [targetId: string];
   capturePoint: [payload: { x: number; y: number }];
+  updateVenuePoint: [payload: { targetId: string; point: { x: number; y: number } }];
 }>();
+
+const previewRef = useTemplateRef<HTMLDivElement>('previewRef');
+const dragState = reactive<{
+  pointerId: number | null;
+  targetId: string;
+  mode: 'venue' | 'draft' | null;
+}>({
+  pointerId: null,
+  targetId: '',
+  mode: null,
+});
 
 const activeVenue = computed(
   () =>
@@ -35,35 +47,103 @@ const previewHeaderText = computed(() => {
   return activeVenue.value?.name || '选择场馆';
 });
 
+const resolvePointFromEvent = (event: PointerEvent | MouseEvent) => {
+  const target = previewRef.value;
+  if (!target) {
+    return null;
+  }
+
+  const rect = target.getBoundingClientRect();
+  const x = Math.round(Math.min(Math.max(event.clientX - rect.left, 0), rect.width));
+  const y = Math.round(Math.min(Math.max(event.clientY - rect.top, 0), rect.height));
+  return { x, y };
+};
+
 const handleMapClick = (event: MouseEvent) => {
   if (!props.mapImage || !props.pickingVenueId) {
     return;
   }
 
-  const target = event.currentTarget as HTMLDivElement | null;
-  if (!target) {
+  const point = resolvePointFromEvent(event);
+  if (!point) {
     return;
   }
 
-  const rect = target.getBoundingClientRect();
-  const x = event.clientX - rect.left;
-  const y = event.clientY - rect.top;
+  emit('capturePoint', point);
+};
 
-  if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+const startVenueDrag = (event: PointerEvent, targetId: string) => {
+  if (!props.mapImage) {
     return;
   }
 
-  emit('capturePoint', { x: Math.round(x), y: Math.round(y) });
+  const point = resolvePointFromEvent(event);
+  if (!point) {
+    return;
+  }
+
+  dragState.pointerId = event.pointerId;
+  dragState.targetId = targetId;
+  dragState.mode = 'venue';
+  (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+  emit('selectVenue', targetId);
+  emit('updateVenuePoint', { targetId, point });
+};
+
+const startDraftDrag = (event: PointerEvent) => {
+  if (!props.mapImage || !props.pickingVenueId) {
+    return;
+  }
+
+  const point = resolvePointFromEvent(event);
+  if (!point) {
+    return;
+  }
+
+  dragState.pointerId = event.pointerId;
+  dragState.targetId = props.pickingVenueId;
+  dragState.mode = 'draft';
+  (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId);
+  emit('capturePoint', point);
+};
+
+const handlePointerMove = (event: PointerEvent) => {
+  if (!props.mapImage || dragState.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const point = resolvePointFromEvent(event);
+  if (!point) {
+    return;
+  }
+
+  if (dragState.mode === 'venue' && dragState.targetId) {
+    emit('updateVenuePoint', {
+      targetId: dragState.targetId,
+      point,
+    });
+    return;
+  }
+
+  if (dragState.mode === 'draft') {
+    emit('capturePoint', point);
+  }
+};
+
+const stopDragging = () => {
+  dragState.pointerId = null;
+  dragState.targetId = '';
+  dragState.mode = null;
 };
 </script>
 
 <template>
-  <section class="space-y-4 rounded-[1.25rem] bg-[#0f1114] p-4">
+  <section class="space-y-3 rounded-[0.95rem] bg-[#0f1114] p-4">
     <div class="flex items-start justify-between gap-3">
       <div class="space-y-1">
         <h3 class="text-sm font-semibold text-foreground">模拟预览</h3>
         <p class="text-xs text-muted-foreground">
-          先点“点击获取”，再在画面内落点。
+          支持点击取点，也支持拖拽点位微调。
         </p>
       </div>
       <div
@@ -72,7 +152,7 @@ const handleMapClick = (event: MouseEvent) => {
       </div>
     </div>
 
-    <div class="rounded-[1.4rem] bg-[#14161a] p-3">
+    <div class="rounded-[1rem] bg-[#14161a] p-3">
       <div
         class="mb-3 flex items-center justify-between text-xs text-muted-foreground">
         <span>{{ isPicking ? '点击画面获取坐标' : '选择场馆后可取点' }}</span>
@@ -82,6 +162,7 @@ const handleMapClick = (event: MouseEvent) => {
       </div>
 
       <div
+        ref="previewRef"
         class="relative aspect-[9/19.5] overflow-hidden rounded-[2.9rem] transition"
         :class="[
           props.mapImage
@@ -89,12 +170,16 @@ const handleMapClick = (event: MouseEvent) => {
             : 'cursor-not-allowed bg-[#0f1115]',
           isPicking ? 'ring-2 ring-primary/25' : 'ring-1 ring-white/8'
         ]"
-        @click.stop="handleMapClick($event)">
+        @click.stop="handleMapClick($event)"
+        @pointermove="handlePointerMove"
+        @pointerup="stopDragging"
+        @pointercancel="stopDragging"
+        @pointerleave="stopDragging">
         <img
           v-if="props.mapImage"
           :src="props.mapImage"
           alt="手机地图预览"
-          class="absolute inset-0 h-full w-full object-cover" />
+          class="absolute inset-0 h-full w-full object-cover">
         <div
           class="absolute inset-0 bg-gradient-to-b from-black/8 via-transparent to-black/48" />
 
@@ -105,7 +190,8 @@ const handleMapClick = (event: MouseEvent) => {
             type="button"
             class="absolute -translate-x-1/2 -translate-y-1/2"
             :style="{ left: `${venue.x}px`, top: `${venue.y}px` }"
-            @click.stop="emit('selectVenue', venue.id)">
+            @click.stop="emit('selectVenue', venue.id)"
+            @pointerdown.stop="startVenueDrag($event, venue.id)">
             <span
               class="flex h-4 w-4 items-center justify-center rounded-full border border-white/70"
               :class="
@@ -121,7 +207,8 @@ const handleMapClick = (event: MouseEvent) => {
             :style="{
               left: `${props.draftPoint.x}px`,
               top: `${props.draftPoint.y}px`
-            }">
+            }"
+            @pointerdown.stop="startDraftDrag($event)">
             <span
               class="flex h-5 w-5 items-center justify-center rounded-full border border-primary bg-primary shadow-[0_0_0_8px_rgba(209,178,111,0.18)]" />
           </div>

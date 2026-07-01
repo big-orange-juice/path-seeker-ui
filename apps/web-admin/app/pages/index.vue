@@ -1,61 +1,83 @@
 ﻿<script setup lang="ts">
+import { useTemplateRef } from 'vue';
+
+definePageMeta({
+  layout: 'marketing',
+});
+
+const rootRef = useTemplateRef<HTMLElement>('landingRoot');
 const {
-  adminMetrics,
-  positioningRows,
-  businessModelRows,
-  conceptRows,
-  bModuleColumns,
-  bModules,
-  cModuleColumns,
-  cModules,
-  flowStages,
-} = useAdminContent();
+  heroStats,
+  marketSignals,
+  painPoints,
+  solutionPillars,
+  capabilityRows,
+  aiEngineSteps,
+  audiences,
+  businessRows,
+  roadmapStages,
+  visionLines,
+} = useLandingContent();
+
+useLandingMotion(rootRef);
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1320px] flex-col gap-6">
-    <AdminPageHeader
-      eyebrow="overview"
-      title="秘径寻踪后台概览"
-      description="基于产品方案整理 B 端后台的信息架构，先明确产品定位、业务模型、核心理念与整体流程。"
-    />
-
-    <section class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <AdminMetricCard
-        v-for="metric in adminMetrics"
-        :key="metric.label"
-        :label="metric.label"
-        :value="metric.value"
-        :note="metric.note"
-        :icon="metric.icon"
-      />
-    </section>
-
-    <section class="grid gap-4 xl:grid-cols-2">
-      <AdminSectionCard title="项目定位" description="产品目标、核心价值与交付形态来自产品方案第 1 节。">
-        <AdminInfoList :items="positioningRows" />
-      </AdminSectionCard>
-
-      <AdminSectionCard title="整体业务模型" description="区分博物馆管理者、策展人员与游客三类角色。">
-        <AdminInfoList :items="businessModelRows" />
-      </AdminSectionCard>
-    </section>
-
-    <section class="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-      <AdminSectionCard title="产品核心理念" description="后台设计优先服务内容资产化、路线游戏化与分龄适配。">
-        <AdminInfoList :items="conceptRows" />
-      </AdminSectionCard>
-
-      <AdminSectionCard title="B / C 端功能全景" description="左侧是后台核心模块，右侧对应小程序的游戏化体验结构。">
-        <div class="space-y-4">
-          <AdminSimpleTable :columns="bModuleColumns" :rows="bModules" />
-          <AdminSimpleTable :columns="cModuleColumns" :rows="cModules" />
+  <div ref="landingRoot" class="landing-page">
+    <header class="mx-auto flex w-full max-w-[1320px] items-center justify-between gap-4 px-5 py-5 sm:px-8 lg:px-10">
+      <div class="flex items-center gap-3">
+        <div class="flex h-11 w-11 items-center justify-center rounded-full bg-[#201d18] text-sm font-semibold tracking-[0.18em] text-[#f6efe3]">
+          PS
         </div>
-      </AdminSectionCard>
-    </section>
+        <div>
+          <p class="text-xs uppercase tracking-[0.24em] text-[#8c6b43]">Path Seeker</p>
+          <p class="text-sm text-[#5c5247]">文旅场景 AI 解谜平台</p>
+        </div>
+      </div>
 
-    <AdminSectionCard title="核心业务流程" description="从内容准备到复盘运营，后台与小程序共享一条连续工作流。">
-      <AdminStageList :stages="flowStages" />
-    </AdminSectionCard>
+      <div class="flex items-center gap-3">
+        <NuxtLink
+          to="/login"
+          class="inline-flex h-10 items-center justify-center rounded-full border border-[#1f1c16]/10 bg-white/70 px-5 text-sm font-medium text-[#201d18] transition-colors duration-200 hover:bg-white">
+          管理员登录
+        </NuxtLink>
+      </div>
+    </header>
+
+    <main class="mx-auto flex w-full max-w-[1320px] flex-col gap-6 px-5 pb-14 sm:px-8 lg:px-10 lg:pb-20">
+      <div data-landing-reveal>
+        <LandingHeroSection :stats="heroStats" :audiences="audiences" />
+      </div>
+
+      <div data-landing-reveal>
+        <LandingNarrativeSection
+          :market-signals="marketSignals"
+          :pain-points="painPoints"
+          :solution-pillars="solutionPillars" />
+      </div>
+
+      <div data-landing-reveal>
+        <LandingCapabilitySection
+          :capability-rows="capabilityRows"
+          :ai-engine-steps="aiEngineSteps"
+          :audiences="audiences" />
+      </div>
+
+      <div data-landing-reveal>
+        <LandingBusinessSection
+          :business-rows="businessRows"
+          :roadmap-stages="roadmapStages"
+          :vision-lines="visionLines" />
+      </div>
+    </main>
   </div>
 </template>
+
+<style scoped>
+.landing-page {
+  background:
+    radial-gradient(circle at top left, rgba(214, 176, 125, 0.18), transparent 28%),
+    radial-gradient(circle at 85% 16%, rgba(32, 29, 24, 0.08), transparent 24%),
+    linear-gradient(180deg, #f9f4ed 0%, #f2ebe0 56%, #eee4d7 100%);
+}
+</style>

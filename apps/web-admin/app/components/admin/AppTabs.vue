@@ -11,13 +11,13 @@ function handleClose(event: MouseEvent, path: string) {
 </script>
 
 <template>
-  <div class="border-b border-border bg-[#111214] px-3 sm:px-5 lg:px-6">
-    <div class="flex h-11 items-center gap-2 overflow-x-auto">
+  <div class="border-b border-border bg-[#111214] px-3 sm:px-4 lg:px-5">
+    <div class="flex h-10 items-center gap-2 overflow-x-auto">
       <NuxtLink
         v-for="tab in tabs"
         :key="tab.to"
         :to="tab.to"
-        class="group inline-flex h-8 shrink-0 items-center gap-2 rounded-md border px-3 text-sm transition-colors"
+        class="group inline-flex h-7.5 shrink-0 items-center gap-2 rounded-md border px-2.5 text-sm transition-colors"
         :class="
           activeTab === tab.to
             ? 'border-primary/40 bg-primary/10 text-foreground'

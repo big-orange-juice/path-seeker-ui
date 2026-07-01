@@ -14,21 +14,21 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div v-if="maps.length" class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+  <div v-if="maps.length" class="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
     <article
       v-for="record in maps"
       :key="record.id"
-      class="group relative overflow-hidden rounded-[1.35rem] border border-border/70 bg-[#101317]">
+      class="group relative overflow-hidden rounded-[1rem] border border-border/70 bg-[#101317]">
       <div
         class="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-[1.03]"
         :style="{ backgroundImage: `url(${record.mapImages[0] ?? ''})` }" />
       <div class="absolute inset-0 bg-gradient-to-b from-black/12 via-black/35 to-black/85" />
 
-      <div class="relative flex min-h-[300px] flex-col justify-between p-5">
-        <div class="flex items-start justify-between gap-4">
+      <div class="relative flex min-h-[280px] flex-col justify-between p-4">
+        <div class="flex items-start justify-between gap-3">
           <div class="space-y-2">
-            <p class="text-[11px] uppercase tracking-[0.26em] text-white/68">Floor Management</p>
-            <div class="flex items-end gap-3">
+            <p class="text-[11px] uppercase tracking-[0.22em] text-white/68">楼层地图</p>
+            <div class="flex items-end gap-2.5">
               <span class="text-3xl font-semibold tracking-tight text-white">{{ record.floorNumber }}</span>
               <h3 class="pb-1 text-base font-medium text-white/88">{{ record.floorName }}</h3>
             </div>
@@ -39,7 +39,7 @@ const emit = defineEmits<{
           </div>
         </div>
 
-        <div class="space-y-4">
+        <div class="space-y-3">
           <p class="line-clamp-2 text-sm leading-6 text-white/74">
             {{ record.description || '未填写楼层描述。' }}
           </p>
@@ -69,7 +69,7 @@ const emit = defineEmits<{
     </article>
   </div>
 
-  <div v-else class="warm-panel warm-outline rounded-[1.25rem] border border-dashed border-border/80 px-6 py-14 text-center">
+  <div v-else class="warm-panel warm-outline rounded-[0.95rem] border border-dashed border-border/80 px-5 py-12 text-center">
     <p class="text-base font-medium text-foreground">还没有楼层地图</p>
     <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
       新增第一条楼层记录后，这里会展示楼层编码、名称、底图和展馆摘要。

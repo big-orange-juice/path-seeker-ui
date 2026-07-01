@@ -1,4 +1,8 @@
 ﻿<script setup lang="ts">
+definePageMeta({
+  middleware: 'admin-auth',
+});
+
 const { routeFilter, routeSearch, filteredThemeRoutes } = useAdminContent();
 </script>
 

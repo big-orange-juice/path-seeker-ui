@@ -1,4 +1,8 @@
 ﻿<script setup lang="ts">
+definePageMeta({
+  middleware: 'admin-auth',
+});
+
 const { collectionColumns, collectionFields, conceptRows } = useAdminContent();
 </script>
 

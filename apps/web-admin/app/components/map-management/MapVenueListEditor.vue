@@ -22,11 +22,11 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <section class="space-y-4 rounded-[1.25rem] bg-[#0f1114] p-4">
+  <section class="space-y-3 rounded-[0.95rem] bg-[#0f1114] p-4">
     <div class="flex items-center justify-between gap-3">
       <div class="space-y-1">
         <h3 class="text-sm font-semibold text-foreground">场馆信息</h3>
-        <p class="text-xs text-muted-foreground">按 `/api/Gallery` 的字段维护展馆信息与地图坐标。</p>
+        <p class="text-xs text-muted-foreground">维护当前楼层的场馆资料与地图坐标。</p>
       </div>
       <UiButton size="sm" variant="secondary" @click="emit('addVenue')">
         新增场馆
@@ -37,7 +37,7 @@ const emit = defineEmits<{
       <div
         v-for="venue in props.venues"
         :key="venue.id"
-        class="rounded-[1rem] bg-[#111318] p-4 transition"
+        class="rounded-[0.9rem] bg-[#111318] p-3 transition"
         :class="props.activeVenueId === venue.id ? 'ring-1 ring-primary/40' : 'ring-1 ring-white/5'"
         @click="emit('selectVenue', venue.id)">
         <div class="grid gap-3 md:grid-cols-2">
@@ -99,7 +99,7 @@ const emit = defineEmits<{
           <UiInput :model-value="venue.x === null ? '' : String(venue.x)" placeholder="X" disabled />
           <UiInput :model-value="venue.y === null ? '' : String(venue.y)" placeholder="Y" disabled />
           <UiButton type="button" variant="secondary" class="px-3" @click.stop="emit('beginPick', venue.id)">
-            点击获取
+            取点
           </UiButton>
           <UiButton v-if="props.venues.length > 1" variant="ghost" size="icon" @click.stop="emit('removeVenue', venue.id)">
             <UiAppIcon name="trash-2" class="h-4 w-4" />

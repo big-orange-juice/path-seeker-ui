@@ -48,7 +48,7 @@ onBeforeUnmount(() => {
           aria-modal="true"
           :aria-labelledby="dialog.titleId.value"
           :aria-describedby="dialog.descriptionId.value"
-          class="warm-panel warm-outline relative w-full max-w-[1440px] rounded-[1.1rem] border border-border/80 bg-[#111316]"
+          class="warm-panel warm-outline relative w-full max-w-[1360px] rounded-[0.95rem] border border-border/80 bg-[#111316]"
           :class="props.class"
         >
           <slot />

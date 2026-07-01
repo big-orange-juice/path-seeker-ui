@@ -16,6 +16,7 @@ interface Props {
   open: boolean;
   mode: 'create' | 'edit';
   initialValue: FloorMapDraft;
+  submitting?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -44,7 +45,7 @@ const dialogTitle = computed(() =>
   props.mode === 'create' ? '新增楼层地图' : '编辑楼层地图'
 );
 const dialogDescription = computed(
-  () => '填写楼层信息，上传地图并维护楼层下展馆的真实后端字段。'
+  () => '维护楼层基础信息、地图底图和展馆点位。'
 );
 
 const syncFormState = (value: FloorMapDraft) => {
@@ -93,10 +94,18 @@ watch(
 );
 
 const handleOpenChange = (...args: unknown[]) => {
+  if (props.submitting) {
+    return;
+  }
+
   emit('update:open', Boolean(args[0]));
 };
 
 const closeDialog = () => {
+  if (props.submitting) {
+    return;
+  }
+
   emit('update:open', false);
 };
 
@@ -188,6 +197,10 @@ const handleMapUploaded = (files: UploadAttachment[]) => {
 };
 
 const submitForm = () => {
+  if (props.submitting) {
+    return;
+  }
+
   emit('save', {
     id: formState.id,
     floorNumber: formState.floorNumber,
@@ -207,11 +220,11 @@ const submitForm = () => {
 
 <template>
   <Dialog :open="props.open" @update:open="handleOpenChange">
-    <DialogContent class="h-[92vh] overflow-hidden p-0">
+    <DialogContent class="h-[90vh] overflow-hidden p-0">
       <div class="flex h-full flex-col">
-        <div class="flex items-center justify-between border-b border-border/70 px-7 py-3.5">
+        <div class="flex items-center justify-between border-b border-border/70 px-5 py-3">
           <DialogHeader class="space-y-0.5">
-            <DialogTitle class="text-[1.35rem] font-semibold tracking-tight text-foreground">
+            <DialogTitle class="text-[1.2rem] font-semibold tracking-tight text-foreground">
               {{ dialogTitle }}
             </DialogTitle>
             <DialogDescription class="text-xs text-muted-foreground">
@@ -219,21 +232,21 @@ const submitForm = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <UiButton variant="ghost" size="icon" @click="closeDialog">
+          <UiButton variant="ghost" size="icon" :disabled="props.submitting" @click="closeDialog">
             <UiAppIcon name="x" class="h-4 w-4" />
           </UiButton>
         </div>
 
         <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="submitForm">
-          <div class="min-h-0 flex-1 overflow-y-auto px-7 py-6">
-            <div class="grid gap-3 xl:grid-cols-[440px_520px_minmax(320px,1fr)] xl:items-start">
-              <section class="space-y-5 rounded-[1.25rem] bg-[#0f1114] p-5">
+          <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+            <div class="grid gap-3 xl:grid-cols-[420px_500px_minmax(320px,1fr)] xl:items-start">
+              <section class="space-y-4 rounded-[0.95rem] bg-[#0f1114] p-4">
                 <div class="space-y-1">
                   <h3 class="text-sm font-semibold text-foreground">基础信息</h3>
-                  <p class="text-xs text-muted-foreground">楼层字段与后端 `CreateFloorRequest` / `UpdateFloorRequest` 对齐。</p>
+                  <p class="text-xs text-muted-foreground">维护楼层编号、名称、排序和底图。</p>
                 </div>
 
-                <div class="grid gap-4 md:grid-cols-2">
+                <div class="grid gap-3 md:grid-cols-2">
                   <div class="space-y-2">
                     <label class="text-sm font-medium text-foreground">楼层号</label>
                     <UiInput v-model="formState.floorNumber" placeholder="例如：3F" />
@@ -307,10 +320,12 @@ const submitForm = () => {
           </div>
 
           <DialogFooter class="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border/70 bg-[#111316] px-7 py-4">
-            <UiButton type="button" variant="ghost" @click="closeDialog">
+            <UiButton type="button" variant="ghost" :disabled="props.submitting" @click="closeDialog">
               取消
             </UiButton>
-            <UiButton type="submit">保存地图</UiButton>
+            <UiButton type="submit" :disabled="props.submitting">
+              {{ props.submitting ? '保存中...' : '保存地图' }}
+            </UiButton>
           </DialogFooter>
         </form>
       </div>

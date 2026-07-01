@@ -7282,7 +7282,7 @@
         "description": "创建展馆请求"
       },
       "CreateImageGenerationTaskRequest": {
-        "required": ["modelName", "prompt"],
+        "required": ["prompt"],
         "type": "object",
         "properties": {
           "prompt": {
@@ -7292,8 +7292,8 @@
           },
           "modelName": {
             "maxLength": 128,
-            "minLength": 1,
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "completionMode": {
             "type": "integer",

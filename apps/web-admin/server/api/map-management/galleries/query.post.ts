@@ -14,6 +14,6 @@ export default defineEventHandler(async (event) => {
     pageIndex: body.pageIndex || 1,
     pageSize: body.pageSize || 1000,
     total: 0,
-    totalPage: 0,
+    totalPages: 0,
   };
 });

@@ -16,6 +16,17 @@ interface BackendErrorPayload {
   [key: string]: unknown;
 }
 
+const createBackendBusinessError = (payload: BackendErrorPayload, fallbackStatusCode = 500) =>
+  createError({
+    statusCode: payload.code === 10002 ? 401 : fallbackStatusCode,
+    statusMessage: payload.message || (payload.code === 10002 ? '未登录或登录已过期，请重新登录' : '后端业务处理失败。'),
+    data: {
+      code: payload.code,
+      message: payload.message,
+      traceId: payload.traceId,
+    },
+  });
+
 const buildBackendUrl = (baseUrl: string, path: string, query?: BackendRequestOptions['query']) => {
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
@@ -107,12 +118,22 @@ export const backendFetch = async <T>(
       typeof backendResponse === 'object' && backendResponse
         ? (backendResponse as BackendErrorPayload).message
         : null;
+    const backendCode =
+      typeof backendResponse === 'object' && backendResponse
+        ? (backendResponse as BackendErrorPayload).code
+        : undefined;
+    const backendTraceId =
+      typeof backendResponse === 'object' && backendResponse
+        ? (backendResponse as BackendErrorPayload).traceId
+        : undefined;
 
     throw createError({
-      statusCode: response.status,
+      statusCode: backendCode === 10002 ? 401 : response.status,
       statusMessage: backendMessage || response.statusText || 'Backend request failed',
       data: {
         path,
+        code: backendCode,
+        traceId: backendTraceId,
         backendStatus: response.status,
         backendStatusText: response.statusText,
         backendResponse,
@@ -130,16 +151,8 @@ export const unwrapApiResponse = <T>(response: {
   data?: T | null;
 }) => {
   if (response.code !== 0) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: response.message || '后端业务处理失败。',
-      data: {
-        code: response.code,
-        traceId: response.traceId,
-      },
-    });
+    throw createBackendBusinessError(response);
   }
 
   return response.data ?? null;
 };
-

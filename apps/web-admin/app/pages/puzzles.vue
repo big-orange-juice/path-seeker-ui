@@ -1,4 +1,8 @@
 ﻿<script setup lang="ts">
+definePageMeta({
+  middleware: 'admin-auth',
+});
+
 const { puzzleWorkshopRows, ageColumns, ageStrategies, typeColumns, puzzleTypes } = useAdminContent();
 </script>
 
