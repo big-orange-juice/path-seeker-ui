@@ -11,63 +11,69 @@ defineProps<Props>();
 </script>
 
 <template>
-  <section class="grid gap-6 xl:grid-cols-[1.06fr_0.94fr]">
-    <article class="rounded-[1.8rem] border border-[#1f1c16]/10 bg-white/75 p-6">
+  <section class="grid gap-5 xl:grid-cols-[1.06fr_0.94fr]">
+    <article class="rounded-[1.8rem] border border-white/[0.07] bg-white/[0.03] p-7">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p class="text-xs uppercase tracking-[0.28em] text-[#8c6b43]">B 端控制台</p>
-          <h2 class="mt-3 font-serif text-[2.1rem] font-semibold tracking-[-0.04em] text-[#201d18]">像编排剧本一样编排路线</h2>
+          <p class="text-xs uppercase tracking-[0.28em] text-[#c9a25f]">创作台</p>
+          <h2 class="mt-3 font-display text-[2rem] font-semibold tracking-[-0.03em] text-[#f4ecdd]">像铺开一张地图，编排一条故事线</h2>
         </div>
-        <div class="rounded-full border border-[#1f1c16]/10 bg-[#f5f0e8] px-4 py-2 text-xs font-medium text-[#5c5247]">
-          5 种路线模型 · 2 小时快速出线
+        <div class="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-xs font-medium text-[#b3ab9c]">
+          五种路线 · 一个下午成形
         </div>
       </div>
 
-      <div class="mt-6 grid gap-4 md:grid-cols-3">
+      <div data-landing-stagger class="mt-7 grid gap-4 md:grid-cols-3">
         <div
           v-for="item in capabilityRows"
           :key="item.title"
-          class="rounded-[1.35rem] border border-[#1f1c16]/8 bg-[#fbf7f0] p-4">
-          <h3 class="text-base font-semibold text-[#201d18]">{{ item.title }}</h3>
-          <p class="mt-2 text-sm leading-6 text-[#5d5449]">{{ item.description }}</p>
+          data-stagger-item
+          class="rounded-[1.35rem] border border-white/[0.06] bg-white/[0.02] p-5 transition-colors duration-300 hover:border-[#d6b07d]/30">
+          <h3 class="text-base font-semibold text-[#f0e8d9]">{{ item.title }}</h3>
+          <p class="mt-2 text-sm leading-7 text-[#948c7d]">{{ item.description }}</p>
         </div>
       </div>
     </article>
 
-    <article class="rounded-[1.8rem] border border-[#1f1c16]/10 bg-[#201d18] p-6 text-[#f6efe3]">
-      <p class="text-xs uppercase tracking-[0.28em] text-[#d8b581]">AI Core Engine</p>
-      <h2 class="mt-3 font-serif text-[2.1rem] font-semibold tracking-[-0.04em]">效率只是表层，真正的壁垒是内容理解</h2>
-      <div class="mt-6 space-y-4">
+    <article class="relative overflow-hidden rounded-[1.8rem] border border-[#d6b07d]/20 bg-[linear-gradient(165deg,rgba(214,176,125,0.12),rgba(255,255,255,0.015))] p-7">
+      <p class="text-xs uppercase tracking-[0.28em] text-[#e2ceac]">内容引擎</p>
+      <h2 class="mt-3 font-display text-[2rem] font-semibold tracking-[-0.03em] text-[#fbf3e3]">效率是表象，读懂文化才是底气</h2>
+      <div data-landing-stagger class="mt-7 space-y-4">
         <div
-          v-for="item in aiEngineSteps"
+          v-for="(item, index) in aiEngineSteps"
           :key="item.title"
-          class="rounded-[1.25rem] border border-white/10 bg-white/6 p-4">
-          <h3 class="text-base font-semibold text-[#fff7ec]">{{ item.title }}</h3>
-          <p class="mt-2 text-sm leading-6 text-[#d4c7b7]">{{ item.description }}</p>
+          data-stagger-item
+          class="flex gap-4 rounded-[1.25rem] border border-white/[0.08] bg-white/[0.04] p-5">
+          <span class="font-display text-lg font-semibold text-[#d6b07d]">0{{ index + 1 }}</span>
+          <div>
+            <h3 class="text-base font-semibold text-[#fbf3e3]">{{ item.title }}</h3>
+            <p class="mt-1.5 text-sm leading-7 text-[#c3b69e]">{{ item.description }}</p>
+          </div>
         </div>
       </div>
     </article>
 
-    <article class="rounded-[1.8rem] border border-[#1f1c16]/10 bg-[#efe5d6] p-6 xl:col-span-2">
+    <article class="rounded-[1.8rem] border border-white/[0.07] bg-white/[0.03] p-7 xl:col-span-2">
       <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p class="text-xs uppercase tracking-[0.28em] text-[#8c6b43]">Audience design</p>
-          <h2 class="mt-3 font-serif text-[2.1rem] font-semibold tracking-[-0.04em] text-[#201d18]">同一套节点，按人群分层适配三种体验</h2>
+          <p class="text-xs uppercase tracking-[0.28em] text-[#c9a25f]">因人而异</p>
+          <h2 class="mt-3 font-display text-[2rem] font-semibold tracking-[-0.03em] text-[#f4ecdd]">同一套节点，为不同的人讲不同的故事</h2>
         </div>
-        <p class="max-w-xl text-sm leading-6 text-[#5d5449]">
-          这也是平台思路成立的关键: 一个场馆内容底座，不只服务一个版本，而是面向亲子、成人、外宾持续复用与扩展。
+        <p class="max-w-xl text-sm leading-7 text-[#948c7d]">
+          这正是它成立的关键：一座馆的内容底座，不必只服务一种人。它为孩子、为同伴、为远道而来的客人，各自铺一条恰如其分的路。
         </p>
       </div>
 
-      <div class="mt-6 grid gap-4 lg:grid-cols-3">
+      <div data-landing-stagger class="mt-7 grid gap-4 lg:grid-cols-3">
         <article
           v-for="audience in audiences"
           :key="audience.title"
-          class="rounded-[1.4rem] border border-[#1f1c16]/10 bg-white/70 p-5">
-          <p class="text-xs uppercase tracking-[0.22em] text-[#8c6b43]">{{ audience.tagline }}</p>
-          <h3 class="mt-3 text-xl font-semibold tracking-[-0.03em] text-[#201d18]">{{ audience.title }}</h3>
-          <p class="mt-3 text-sm leading-6 text-[#5d5449]">{{ audience.description }}</p>
-          <div class="mt-4 inline-flex rounded-full bg-[#201d18] px-3 py-1 text-xs font-semibold text-[#f6efe3]">
+          data-stagger-item
+          class="rounded-[1.4rem] border border-white/[0.06] bg-white/[0.02] p-6 transition-colors duration-300 hover:border-[#d6b07d]/30">
+          <p class="text-xs uppercase tracking-[0.2em] text-[#c9a25f]">{{ audience.tagline }}</p>
+          <h3 class="mt-3 font-display text-xl font-semibold tracking-[-0.02em] text-[#f0e8d9]">{{ audience.title }}</h3>
+          <p class="mt-3 text-sm leading-7 text-[#948c7d]">{{ audience.description }}</p>
+          <div class="mt-5 inline-flex rounded-full border border-[#d6b07d]/30 px-3 py-1 text-xs font-medium text-[#d6b07d]">
             {{ audience.pricing }}
           </div>
         </article>

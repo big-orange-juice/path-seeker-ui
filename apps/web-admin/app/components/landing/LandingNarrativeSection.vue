@@ -11,46 +11,50 @@ defineProps<Props>();
 </script>
 
 <template>
-  <section id="platform-story" class="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]">
-    <div class="space-y-4 rounded-[1.75rem] border border-[#1f1c16]/10 bg-white/70 p-6">
-      <p class="text-xs uppercase tracking-[0.28em] text-[#8c6b43]">Market to product thesis</p>
-      <h2 class="font-serif text-[2rem] font-semibold leading-tight tracking-[-0.04em] text-[#201d18] sm:text-[2.5rem]">
-        不是再做一个导览页，
-        <br>
-        而是把“内容供给”变成“体验生产线”
-      </h2>
-      <p class="text-sm leading-7 text-[#5d5449] sm:text-base">
-        PPT 里的主线非常明确：文旅数字化市场已经成熟，但互动解谜仍是供给不足的空白带。Path Seeker 要做的不是单次项目，而是一套让场馆内部可以持续生产、发布、复盘和复用体验内容的平台。
+  <section id="platform-story" class="space-y-8">
+    <div class="max-w-3xl space-y-5">
+      <p class="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-[#c9a25f]">
+        <span class="h-px w-8 bg-[#c9a25f]/60" />
+        我们为什么在做这件事
       </p>
+      <h2 class="font-display text-[2.1rem] font-semibold leading-[1.12] tracking-[-0.03em] text-[#f4ecdd] sm:text-[2.8rem]">
+        不是再造一个导览页，
+        <br>
+        而是把「讲述」重新交回给文化本身
+      </h2>
+      <p class="text-base leading-8 text-[#a49b8c]">
+        文物静默无言，故事却从未消失。我们相信，一次好的相遇不必依赖漫长的定制，也不该被语言与形式所困——它只需要一处让创作自然发生的地方。
+      </p>
+      <div data-landing-rule class="h-px w-full max-w-md bg-gradient-to-r from-[#d6b07d]/60 to-transparent" />
     </div>
 
-    <div class="grid gap-4 md:grid-cols-3">
-      <article class="rounded-[1.6rem] border border-[#1f1c16]/10 bg-[#efe5d6] p-5">
-        <p class="text-xs uppercase tracking-[0.28em] text-[#8c6b43]">01 / 市场机会</p>
-        <div class="mt-4 space-y-4">
+    <div data-landing-stagger class="grid gap-4 md:grid-cols-3">
+      <article data-stagger-item class="rounded-[1.6rem] border border-white/[0.07] bg-white/[0.03] p-6">
+        <p class="text-xs uppercase tracking-[0.28em] text-[#c9a25f]">01 · 缘起</p>
+        <div class="mt-5 space-y-5">
           <div v-for="item in marketSignals" :key="item.title" class="space-y-2">
-            <h3 class="text-base font-semibold text-[#201d18]">{{ item.title }}</h3>
-            <p class="text-sm leading-6 text-[#5a5045]">{{ item.description }}</p>
+            <h3 class="text-base font-semibold text-[#f0e8d9]">{{ item.title }}</h3>
+            <p class="text-sm leading-7 text-[#948c7d]">{{ item.description }}</p>
           </div>
         </div>
       </article>
 
-      <article class="rounded-[1.6rem] border border-[#1f1c16]/10 bg-[#f7f1e8] p-5">
-        <p class="text-xs uppercase tracking-[0.28em] text-[#8c6b43]">02 / 核心痛点</p>
-        <div class="mt-4 space-y-4">
+      <article data-stagger-item class="rounded-[1.6rem] border border-white/[0.07] bg-white/[0.03] p-6">
+        <p class="text-xs uppercase tracking-[0.28em] text-[#c9a25f]">02 · 转身</p>
+        <div class="mt-5 space-y-5">
           <div v-for="item in painPoints" :key="item.title" class="space-y-2">
-            <h3 class="text-base font-semibold text-[#201d18]">{{ item.title }}</h3>
-            <p class="text-sm leading-6 text-[#5a5045]">{{ item.description }}</p>
+            <h3 class="text-base font-semibold text-[#f0e8d9]">{{ item.title }}</h3>
+            <p class="text-sm leading-7 text-[#948c7d]">{{ item.description }}</p>
           </div>
         </div>
       </article>
 
-      <article class="rounded-[1.6rem] border border-[#1f1c16]/10 bg-[#201d18] p-5 text-[#f6efe3]">
-        <p class="text-xs uppercase tracking-[0.28em] text-[#d8b581]">03 / 双端方案</p>
-        <div class="mt-4 space-y-4">
+      <article data-stagger-item class="relative overflow-hidden rounded-[1.6rem] border border-[#d6b07d]/25 bg-[linear-gradient(160deg,rgba(214,176,125,0.14),rgba(255,255,255,0.02))] p-6">
+        <p class="text-xs uppercase tracking-[0.28em] text-[#e2ceac]">03 · 我们如何做</p>
+        <div class="mt-5 space-y-5">
           <div v-for="item in solutionPillars" :key="item.title" class="space-y-2">
-            <h3 class="text-base font-semibold text-[#fff7ec]">{{ item.title }}</h3>
-            <p class="text-sm leading-6 text-[#d4c7b7]">{{ item.description }}</p>
+            <h3 class="text-base font-semibold text-[#fbf3e3]">{{ item.title }}</h3>
+            <p class="text-sm leading-7 text-[#c3b69e]">{{ item.description }}</p>
           </div>
         </div>
       </article>
