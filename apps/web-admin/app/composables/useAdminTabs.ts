@@ -1,4 +1,5 @@
 import { computed, watch } from 'vue';
+import { ADMIN_CONSOLE_HOME_PATH } from '@/constants/admin-auth';
 import { adminNavItems, type AdminNavItem } from '@/composables/useAdminNavigation';
 
 export interface AdminTabItem extends AdminNavItem {
@@ -27,7 +28,7 @@ export function useAdminTabs() {
           ...tab,
           label: matched.label,
           icon: matched.icon,
-          closable: matched.to !== '/',
+          closable: matched.to !== ADMIN_CONSOLE_HOME_PATH,
         };
       })
       .filter((tab) => adminNavItems.some((item) => item.to === tab.to));
@@ -49,7 +50,7 @@ export function useAdminTabs() {
         ...tabs.value,
         {
           ...matched,
-          closable: matched.to !== '/',
+          closable: matched.to !== ADMIN_CONSOLE_HOME_PATH,
         },
       ];
       return;

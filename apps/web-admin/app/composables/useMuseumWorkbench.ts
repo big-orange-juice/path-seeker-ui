@@ -7,6 +7,7 @@ import type {
   CreateGalleryPayload,
   FacilityResponse,
   FloorResponse,
+  FloorResponseListTotalPageResult,
   GalleryPageRequest,
   GalleryResponse,
   GalleryResponseListTotalPageResult,
@@ -167,10 +168,12 @@ export const useMuseumWorkbench = (
     floorsError.value = null;
 
     try {
-      const response = await request<FloorResponse[]>('/api/map-management/floors', {
+      const response = await request<FloorResponse[] | FloorResponseListTotalPageResult<FloorResponse>>('/api/map-management/floors', {
         query: { museumId: museumId.value },
       });
-      floorsData.value = normalizeList<FloorResponse>(response);
+      floorsData.value = Array.isArray(response)
+        ? normalizeList<FloorResponse>(response)
+        : normalizePagedList<FloorResponse>(response).list;
       floorsLoadedMuseumId.value = museumId.value;
     } catch (error) {
       floorsData.value = [];
@@ -503,7 +506,7 @@ export const useMuseumWorkbench = (
       floorName: trim(draft.floorName) || null,
       floorLevel: draft.floorLevel,
       description: trim(draft.description) || null,
-      mapImageUrl: toNullableId(draft.mapImageFileId),
+      mapImageUrl: toNullableId(draft.mapImages[0] ?? null),
       sortOrder: draft.sortOrder,
     };
 
@@ -536,7 +539,7 @@ export const useMuseumWorkbench = (
       floorName: trim(draft.floorName) || null,
       floorLevel: draft.floorLevel,
       description: trim(draft.description) || null,
-      mapImageUrl: toNullableId(draft.mapImageFileId),
+      mapImageUrl: toNullableId(draft.mapImages[0] ?? null),
       sortOrder: draft.sortOrder,
     };
 
@@ -755,3 +758,8 @@ export const useMuseumWorkbench = (
     deleteFacility,
   };
 };
+
+
+
+
+

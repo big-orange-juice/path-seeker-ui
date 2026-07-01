@@ -715,3 +715,5 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
     </Dialog>
   </div>
 </template>
+
+

@@ -38,7 +38,7 @@ defineProps<Props>();
 
         <div data-landing-hero class="flex flex-wrap gap-3">
           <NuxtLink
-            to="/login"
+            to="/console/login"
             class="group inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#d6b07d] px-7 text-sm font-semibold text-[#141210] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_40px_rgba(214,176,125,0.28)]">
             进入创作台
             <span class="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
@@ -87,3 +87,4 @@ defineProps<Props>();
     </div>
   </section>
 </template>
+

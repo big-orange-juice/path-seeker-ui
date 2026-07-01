@@ -193,7 +193,12 @@ const confirmPick = () => {
 
 const handleMapUploaded = (files: UploadAttachment[]) => {
   const latestFile = files[files.length - 1];
-  formState.mapImageFileId = latestFile?.fileId ?? null;
+  if (!latestFile) {
+    return;
+  }
+
+  formState.mapImages = latestFile.fileUrl ? [latestFile.fileUrl] : [];
+  formState.mapImageFileId = latestFile.fileId ?? null;
 };
 
 const submitForm = () => {
@@ -332,3 +337,4 @@ const submitForm = () => {
     </DialogContent>
   </Dialog>
 </template>
+

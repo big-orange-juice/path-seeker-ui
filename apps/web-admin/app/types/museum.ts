@@ -9,6 +9,15 @@ export interface FloorResponse {
   sortOrder: number;
 }
 
+export interface FloorResponseListTotalPageResult<T> {
+  list: T[];
+  pageIndex: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+
 export interface GalleryPageRequest {
   pageIndex: number;
   pageSize: number;
@@ -272,3 +281,4 @@ export interface MuseumFacilityRecord extends MuseumFacilityDraft {
   museumId: string;
   floorName: string;
 }
+

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-await navigateTo('/museums', { replace: true });
+await navigateTo('/console/museums', { replace: true });
 </script>
 
 <template>
@@ -7,3 +7,4 @@ await navigateTo('/museums', { replace: true });
     正在跳转到主体维护...
   </div>
 </template>
+

@@ -16,12 +16,13 @@ export const useLandingMotion = (rootRef: Ref<HTMLElement | null>) => {
     gsap.registerPlugin(ScrollTrigger);
 
     const ctx = gsap.context(() => {
-      const sections = gsap.utils.toArray<HTMLElement>('[data-landing-reveal]');
-      const heroItems = gsap.utils.toArray<HTMLElement>('[data-landing-hero]');
-      const staggerGroups = gsap.utils.toArray<HTMLElement>('[data-landing-stagger]');
-      const parallaxItems = gsap.utils.toArray<HTMLElement>('[data-landing-parallax]');
-      const rules = gsap.utils.toArray<HTMLElement>('[data-landing-rule]');
       const mm = gsap.matchMedia();
+      const heroItems = gsap.utils.toArray<HTMLElement>('[data-motion-hero], [data-landing-hero]');
+      const revealItems = gsap.utils.toArray<HTMLElement>('[data-motion-reveal], [data-landing-reveal]');
+      const staggerGroups = gsap.utils.toArray<HTMLElement>('[data-motion-stagger], [data-landing-stagger]');
+      const parallaxItems = gsap.utils.toArray<HTMLElement>('[data-motion-parallax], [data-landing-parallax]');
+      const rules = gsap.utils.toArray<HTMLElement>('[data-motion-rule], [data-landing-rule]');
+      const scrubItems = gsap.utils.toArray<HTMLElement>('[data-motion-scrub]');
 
       mm.add(
         {
@@ -32,47 +33,48 @@ export const useLandingMotion = (rootRef: Ref<HTMLElement | null>) => {
           const { reduceMotion } = context.conditions as { reduceMotion?: boolean };
 
           if (reduceMotion) {
-            gsap.set([...heroItems, ...sections], { clearProps: 'all' });
+            gsap.set([...heroItems, ...revealItems, ...scrubItems], { clearProps: 'all' });
+            gsap.set([...rules, ...parallaxItems], { clearProps: 'transform' });
             return;
           }
 
-          // Hero content settles in on load.
-          gsap.from(heroItems, {
-            y: 30,
-            autoAlpha: 0,
-            duration: 0.9,
-            ease: 'power3.out',
-            stagger: 0.12,
-          });
-
-          // Whole sections fade up as they enter the viewport.
-          sections.forEach((section, index) => {
-            gsap.from(section, {
-              y: 60,
+          if (heroItems.length) {
+            gsap.from(heroItems, {
+              y: 28,
               autoAlpha: 0,
-              duration: 0.9,
+              duration: 0.95,
               ease: 'power3.out',
-              delay: index === 0 ? 0.1 : 0,
+              stagger: 0.1,
+            });
+          }
+
+          revealItems.forEach((item, index) => {
+            gsap.from(item, {
+              y: 56,
+              autoAlpha: 0,
+              duration: 0.95,
+              ease: 'power3.out',
+              delay: index === 0 ? 0.08 : 0,
               scrollTrigger: {
-                trigger: section,
-                start: 'top 80%',
+                trigger: item,
+                start: 'top 84%',
                 once: true,
               },
             });
           });
 
-          // Cards inside a group cascade in one after another.
           staggerGroups.forEach((group) => {
-            const items = gsap.utils.toArray<HTMLElement>(':scope > [data-stagger-item]', group);
+            const items = Array.from(group.querySelectorAll<HTMLElement>('[data-stagger-item]'));
             if (!items.length) {
               return;
             }
+
             gsap.from(items, {
-              y: 40,
+              y: 36,
               autoAlpha: 0,
-              duration: 0.72,
+              duration: 0.8,
               ease: 'power2.out',
-              stagger: 0.12,
+              stagger: 0.1,
               scrollTrigger: {
                 trigger: group,
                 start: 'top 82%',
@@ -81,14 +83,13 @@ export const useLandingMotion = (rootRef: Ref<HTMLElement | null>) => {
             });
           });
 
-          // Gold hairlines draw themselves across as they appear.
           rules.forEach((rule) => {
             gsap.fromTo(
               rule,
               { scaleX: 0, transformOrigin: 'left center' },
               {
                 scaleX: 1,
-                duration: 1.1,
+                duration: 1,
                 ease: 'power3.out',
                 scrollTrigger: {
                   trigger: rule,
@@ -99,14 +100,14 @@ export const useLandingMotion = (rootRef: Ref<HTMLElement | null>) => {
             );
           });
 
-          // Depth: decorative panels drift as the page scrolls.
           parallaxItems.forEach((item) => {
-            const depth = Number(item.dataset.parallaxDepth ?? '60');
+            const depth = Number(item.dataset.parallaxDepth ?? '56');
+
             gsap.fromTo(
               item,
-              { yPercent: -depth * 0.12 },
+              { yPercent: -depth * 0.14 },
               {
-                yPercent: depth * 0.12,
+                yPercent: depth * 0.14,
                 ease: 'none',
                 scrollTrigger: {
                   trigger: item,
@@ -118,16 +119,35 @@ export const useLandingMotion = (rootRef: Ref<HTMLElement | null>) => {
             );
           });
 
-          return () => {
-            ScrollTrigger.getAll().forEach((trigger) => trigger.kill());
-          };
+          scrubItems.forEach((item) => {
+            const offset = Number(item.dataset.motionY ?? '88');
+
+            gsap.fromTo(
+              item,
+              {
+                y: offset,
+                autoAlpha: 0.24,
+              },
+              {
+                y: -offset * 0.16,
+                autoAlpha: 1,
+                ease: 'none',
+                scrollTrigger: {
+                  trigger: item,
+                  start: 'top 92%',
+                  end: 'bottom 16%',
+                  scrub: true,
+                },
+              },
+            );
+          });
         },
       );
 
       dispose = () => {
         mm.revert();
       };
-    }, rootRef);
+    }, rootRef.value);
 
     const previousDispose = dispose;
     dispose = () => {

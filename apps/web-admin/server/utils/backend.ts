@@ -1,7 +1,9 @@
 import type { H3Event } from 'h3';
+import { ADMIN_AUTH_COOKIE_KEY } from '~~/app/constants/admin-auth';
 
 type BackendQueryValue = string | number | boolean | null | undefined;
 type BackendJsonBody = object;
+const ADMIN_AUTH_STORE_COOKIE_KEY = 'admin-auth';
 
 interface BackendRequestOptions extends Omit<RequestInit, 'headers' | 'body'> {
   headers?: HeadersInit;
@@ -26,6 +28,38 @@ const createBackendBusinessError = (payload: BackendErrorPayload, fallbackStatus
       traceId: payload.traceId,
     },
   });
+
+const normalizeAuthorization = (value: string | null | undefined) => {
+  const token = String(value ?? '').trim();
+
+  if (!token) {
+    return '';
+  }
+
+  return /^bearer\s/i.test(token) ? token : `Bearer ${token}`;
+};
+
+const parsePersistedToken = (value: string | null | undefined) => {
+  const raw = String(value ?? '').trim();
+
+  if (!raw) {
+    return '';
+  }
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(raw)) as { token?: unknown };
+    return typeof parsed.token === 'string' ? parsed.token : '';
+  } catch {
+    return '';
+  }
+};
+
+const resolveCookieAuthorization = (event: H3Event) => {
+  const directToken = getCookie(event, ADMIN_AUTH_COOKIE_KEY);
+  const persistedToken = parsePersistedToken(getCookie(event, ADMIN_AUTH_STORE_COOKIE_KEY));
+
+  return normalizeAuthorization(directToken || persistedToken);
+};
 
 const buildBackendUrl = (baseUrl: string, path: string, query?: BackendRequestOptions['query']) => {
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
@@ -80,6 +114,165 @@ const normalizeRequestBody = (body: BackendRequestOptions['body']) => {
   };
 };
 
+const toSerializableValue = (value: unknown): unknown => {
+  if (value instanceof File) {
+    return {
+      name: value.name,
+      type: value.type,
+      size: value.size,
+    };
+  }
+
+  if (value instanceof Blob) {
+    return {
+      type: value.type,
+      size: value.size,
+    };
+  }
+
+  if (value instanceof URLSearchParams) {
+    return Object.fromEntries(value.entries());
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => toSerializableValue(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, toSerializableValue(item)])
+    );
+  }
+
+  return value;
+};
+
+const maskAuthorization = (value: string) => {
+  const normalized = String(value).trim();
+
+  if (!normalized) {
+    return normalized;
+  }
+
+  const [scheme, token = ''] = normalized.split(/\s+/, 2);
+
+  if (!token) {
+    return normalized;
+  }
+
+  if (token.length <= 12) {
+    return `${scheme} ${token.slice(0, 3)}***${token.slice(-2)}`;
+  }
+
+  return `${scheme} ${token.slice(0, 6)}...${token.slice(-4)}`;
+};
+
+const serializeHeaders = (headers: HeadersInit) => {
+  const resolved = headers instanceof Headers
+    ? Object.fromEntries(headers.entries())
+    : Array.isArray(headers)
+      ? Object.fromEntries(headers)
+      : headers;
+
+  const nextHeaders = { ...(resolved as Record<string, unknown>) };
+  const authorization = typeof nextHeaders.authorization === 'string' ? nextHeaders.authorization : '';
+
+  if (authorization) {
+    nextHeaders.authorization = maskAuthorization(authorization);
+  }
+
+  return nextHeaders;
+};
+
+const serializeParams = (
+  query: BackendRequestOptions['query'],
+  body: BackendRequestOptions['body']
+) => {
+  if (body instanceof FormData) {
+    return {
+      query: query ?? {},
+      body: Object.fromEntries(
+        Array.from(body.entries()).map(([key, value]) => [key, toSerializableValue(value)])
+      ),
+    };
+  }
+
+  return {
+    query: query ?? {},
+    body: toSerializableValue(body ?? null),
+  };
+};
+
+const formatLogValue = (value: unknown) => {
+  try {
+    return JSON.stringify(value, null, 2) ?? 'null';
+  } catch {
+    return String(value);
+  }
+};
+
+const createLogSection = (label: string, value: unknown, isLast = false) => {
+  const marker = isLast ? '└' : '├';
+  const lines = formatLogValue(value).split('\n');
+
+  return [
+    `${marker}─ ${label}: ${lines[0] ?? ''}`,
+    ...lines.slice(1).map((line) => `│  ${line}`),
+  ];
+};
+
+const logBackendRequest = (payload: {
+  targetUrl: string;
+  method: string;
+  headers: HeadersInit;
+  params: unknown;
+}) => {
+  const lines = [
+    '┌─ [backend-request]',
+    `├─ method: ${payload.method}`,
+    `├─ url: ${payload.targetUrl}`,
+    ...createLogSection('headers', serializeHeaders(payload.headers)),
+    ...createLogSection('params', payload.params, true),
+  ];
+
+  console.info(lines.join('\n'));
+};
+
+const logBackendResponse = (payload: {
+  targetUrl: string;
+  method: string;
+  status: number;
+  statusText: string;
+  ok: boolean;
+  headers: HeadersInit;
+  body: unknown;
+}) => {
+  const lines = [
+    `┌─ [backend-response] ${payload.ok ? 'OK' : 'ERROR'}`,
+    `├─ method: ${payload.method}`,
+    `├─ url: ${payload.targetUrl}`,
+    `├─ status: ${payload.status}${payload.statusText ? ` ${payload.statusText}` : ''}`,
+    ...createLogSection('headers', serializeHeaders(payload.headers)),
+    ...createLogSection('body', toSerializableValue(payload.body), true),
+  ];
+
+  console.info(lines.join('\n'));
+};
+
+const resolveRequestAuthorization = (event: H3Event, headers: Record<string, string>, method: string) => {
+  const headerAuthorization = normalizeAuthorization(headers.authorization);
+
+  if (method === 'GET') {
+    return headerAuthorization;
+  }
+
+  return headerAuthorization || resolveCookieAuthorization(event);
+};
+
 export const backendFetch = async <T>(
   event: H3Event,
   path: string,
@@ -99,19 +292,45 @@ export const backendFetch = async <T>(
   const { query, headers: optionHeaders, body: rawBody, ...requestOptions } = options;
   const normalizedBody = normalizeRequestBody(rawBody);
   const url = buildBackendUrl(backendBaseUrl, path, query);
+  const method = String(requestOptions.method || 'GET').toUpperCase();
+  const headers = {
+    accept: 'application/json',
+    ...((event.context.backendHeaders as Record<string, string> | undefined) ?? {}),
+    ...((optionHeaders as Record<string, string> | undefined) ?? {}),
+    ...((normalizedBody.headers as Record<string, string> | undefined) ?? {}),
+  };
+  const authorization = resolveRequestAuthorization(event, headers, method);
+
+  if (authorization) {
+    headers.authorization = authorization;
+  }
+
+  logBackendRequest({
+    targetUrl: url.toString(),
+    method,
+    headers,
+    params: serializeParams(query, rawBody),
+  });
+
   const response = await fetch(url, {
     ...requestOptions,
+    method,
     body: normalizedBody.body,
-    headers: {
-      accept: 'application/json',
-      ...event.context.backendHeaders,
-      ...normalizedBody.headers,
-      ...optionHeaders,
-    },
+    headers,
   });
 
   const rawText = await response.text();
   const backendResponse = parseBackendResponse(rawText);
+
+  logBackendResponse({
+    targetUrl: url.toString(),
+    method,
+    status: response.status,
+    statusText: response.statusText,
+    ok: response.ok,
+    headers: response.headers,
+    body: backendResponse,
+  });
 
   if (!response.ok) {
     const backendMessage =

@@ -4,6 +4,7 @@ import type {
   CreateFloorPayload,
   CreateGalleryPayload,
   FloorResponse,
+  FloorResponseListTotalPageResult,
   GalleryPageRequest,
   GalleryResponse,
   GalleryResponseListTotalPageResult,
@@ -14,6 +15,32 @@ import type { FloorMapDraft, FloorMapRecord, VenueDraft } from '@/types/map-mana
 
 const DEFAULT_GALLERY_CATEGORY = 1;
 const DEFAULT_OPEN_STATUS = 1;
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === 'object');
+
+const normalizeList = <T>(value: unknown): T[] =>
+  Array.isArray(value) ? value.filter(isObjectRecord) as T[] : [];
+
+const normalizePagedList = <T>(value: unknown) => {
+  if (!isObjectRecord(value)) {
+    return {
+      list: [] as T[],
+      pageIndex: 1,
+      pageSize: 1000,
+      total: 0,
+      totalPages: 0,
+    };
+  }
+
+  return {
+    list: normalizeList<T>(value.list),
+    pageIndex: typeof value.pageIndex === 'number' ? value.pageIndex : 1,
+    pageSize: typeof value.pageSize === 'number' ? value.pageSize : 1000,
+    total: typeof value.total === 'number' ? value.total : 0,
+    totalPages: typeof value.totalPages === 'number' ? value.totalPages : 0,
+  };
+};
 
 const createVenue = (): VenueDraft => ({
   id: crypto.randomUUID(),
@@ -101,7 +128,7 @@ export const useMapManagement = () => {
       ]);
 
       return {
-        floors,
+        floors: Array.isArray(floors) ? normalizeList<FloorResponse>(floors) : normalizePagedList<FloorResponse>(floors).list,
         galleries: galleries.list ?? [],
       };
     },
@@ -240,7 +267,7 @@ export const useMapManagement = () => {
       floorName: normalized.floorName || null,
       floorLevel: normalized.floorLevel,
       description: normalized.description || null,
-      mapImageUrl: toNullableId(normalized.mapImageFileId),
+      mapImageUrl: toNullableId(normalized.mapImages[0] ?? null),
       sortOrder: normalized.sortOrder,
     };
 
@@ -295,3 +322,5 @@ export const useMapManagement = () => {
     deleteMap,
   };
 };
+
+
