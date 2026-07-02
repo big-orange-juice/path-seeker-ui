@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   ChartColumn,
   ImageUp,
   Library,
@@ -16,6 +19,9 @@ import {
 } from 'lucide-vue-next';
 
 export type AppIconName =
+  | 'arrow-down'
+  | 'arrow-up'
+  | 'arrow-up-down'
   | 'bar-chart-3'
   | 'image-up'
   | 'library'
@@ -40,6 +46,9 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const iconMap: Record<AppIconName, LucideIcon> = {
+  'arrow-down': ArrowDown,
+  'arrow-up': ArrowUp,
+  'arrow-up-down': ArrowUpDown,
   'bar-chart-3': ChartColumn,
   'image-up': ImageUp,
   library: Library,

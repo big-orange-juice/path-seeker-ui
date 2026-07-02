@@ -1,4 +1,11 @@
-﻿import { getCurrentInstance, nextTick, onMounted, shallowRef } from 'vue';
+import { getCurrentInstance, nextTick, onMounted, shallowRef } from 'vue';
+
+interface ViewportBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
 
 interface UseMuseumMapViewportOptions {
   worldWidth: number;
@@ -9,7 +16,15 @@ interface UseMuseumMapViewportOptions {
   minCoverRatio?: number;
   initialScaleMode?: 'cover' | 'contain';
   minScaleMode?: 'cover' | 'contain';
+  resolveBounds?: () => ViewportBounds;
 }
+
+type TouchPoint = {
+  x: number;
+  y: number;
+};
+
+type InteractionMode = 'idle' | 'drag' | 'pinch';
 
 function clamp(value: number, min: number, max: number) {
   if (min > max) {
@@ -18,7 +33,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function distance(p1: { x: number; y: number }, p2: { x: number; y: number }) {
+function distance(p1: TouchPoint, p2: TouchPoint) {
   return Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
 }
 
@@ -32,6 +47,8 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
   const dragMoved = shallowRef(false);
   const lastDragAt = shallowRef(0);
 
+  let interactionMode: InteractionMode = 'idle';
+
   const dragState = {
     startX: 0,
     startY: 0,
@@ -39,7 +56,21 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     originY: 0
   };
 
+  const pinchState = {
+    startDist: 0,
+    originScale: 1,
+    worldX: 0,
+    worldY: 0
+  };
+
   function clampOffset() {
+    const resolvedBounds = options.resolveBounds?.();
+    if (resolvedBounds) {
+      offsetX.value = clamp(offsetX.value, resolvedBounds.minX, resolvedBounds.maxX);
+      offsetY.value = clamp(offsetY.value, resolvedBounds.minY, resolvedBounds.maxY);
+      return;
+    }
+
     const stageWidth = options.worldWidth * scale.value;
     const stageHeight = options.worldHeight * scale.value;
     const minX = viewportWidth.value - stageWidth;
@@ -47,15 +78,6 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     offsetX.value = clamp(offsetX.value, minX, 0);
     offsetY.value = clamp(offsetY.value, minY, 0);
   }
-
-  const pinchState = {
-    startDist: 0,
-    originScale: 1,
-    originX: 0,
-    originY: 0,
-    midX: 0,
-    midY: 0
-  };
 
   function readRect(selector: string) {
     return new Promise<UniApp.NodeInfo>((resolve) => {
@@ -88,6 +110,7 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     offsetX.value = state.offsetX;
     offsetY.value = state.offsetY;
     scale.value = state.scale;
+    clampOffset();
   }
 
   function resolveFitScale(
@@ -108,6 +131,24 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     );
   }
 
+  function resolveMinScale() {
+    const minCoverRatio = options.minCoverRatio ?? 1.5;
+    const minScaleMode = options.minScaleMode ?? 'cover';
+
+    if (options.minScale !== undefined) {
+      return options.minScale;
+    }
+
+    if (minScaleMode === 'contain') {
+      return resolveFitScale(viewportWidth.value, viewportHeight.value, 'contain');
+    }
+
+    return Math.max(
+      (viewportWidth.value * minCoverRatio) / options.worldWidth,
+      (viewportHeight.value * minCoverRatio) / options.worldHeight
+    );
+  }
+
   async function syncViewport() {
     const viewport = await readRect('.museum-map-viewport');
 
@@ -118,26 +159,18 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     viewportWidth.value = viewport.width;
     viewportHeight.value = viewport.height;
 
-    const minCoverRatio = options.minCoverRatio ?? 1.5;
-    const minScaleMode = options.minScaleMode ?? 'cover';
     const initialScaleMode = options.initialScaleMode ?? 'cover';
-    const minBaseScale =
-      minScaleMode === 'contain'
-        ? resolveFitScale(viewport.width, viewport.height, 'contain')
-        : Math.max(
-            (viewport.width * minCoverRatio) / options.worldWidth,
-            (viewport.height * minCoverRatio) / options.worldHeight
-          );
     const nextScale =
       resolveFitScale(viewport.width, viewport.height, initialScaleMode) *
       (options.scaleBoost || 1.04);
 
-    scale.value = Math.max(nextScale, minBaseScale);
+    scale.value = Math.max(nextScale, resolveMinScale());
 
     const stageWidth = options.worldWidth * scale.value;
     const stageHeight = options.worldHeight * scale.value;
     offsetX.value = (viewport.width - stageWidth) / 2;
     offsetY.value = (viewport.height - stageHeight) / 2;
+    clampOffset();
   }
 
   function resetView() {
@@ -145,6 +178,7 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     const stageHeight = options.worldHeight * scale.value;
     offsetX.value = (viewportWidth.value - stageWidth) / 2;
     offsetY.value = (viewportHeight.value - stageHeight) / 2;
+    clampOffset();
   }
 
   function readTouchPoint(event: TouchEvent) {
@@ -168,63 +202,81 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     };
   }
 
-  function applyScale(newScale: number, centerX: number, centerY: number) {
-    const minCoverRatio = options.minCoverRatio ?? 1.5;
-    const minScaleMode = options.minScaleMode ?? 'cover';
-    const baseMin =
-      minScaleMode === 'contain'
-        ? resolveFitScale(viewportWidth.value, viewportHeight.value, 'contain')
-        : Math.max(
-            (viewportWidth.value * minCoverRatio) / options.worldWidth,
-            (viewportHeight.value * minCoverRatio) / options.worldHeight
-          );
-    const minS = options.minScale ?? baseMin;
-    const maxS = options.maxScale ?? 8;
-    const clampedScale = clamp(newScale, minS, maxS);
-
-    const ratio = clampedScale / scale.value;
-    const nextX = centerX - (centerX - offsetX.value) * ratio;
-    const nextY = centerY - (centerY - offsetY.value) * ratio;
-
-    scale.value = clampedScale;
-    offsetX.value = nextX;
-    offsetY.value = nextY;
+  function readMidPoint(p1: TouchPoint, p2: TouchPoint) {
+    return {
+      x: (p1.x + p2.x) / 2,
+      y: (p1.y + p2.y) / 2
+    };
   }
 
-  function handleTouchStart(event: TouchEvent) {
-    if (event.touches.length >= 2) {
-      const { p1, p2 } = readTouchPoints(event);
-      pinchState.startDist = distance(p1, p2);
-      pinchState.originScale = scale.value;
-      pinchState.originX = offsetX.value;
-      pinchState.originY = offsetY.value;
-      pinchState.midX = (p1.x + p2.x) / 2;
-      pinchState.midY = (p1.y + p2.y) / 2;
-      return;
-    }
-
-    const point = readTouchPoint(event);
+  function startDrag(point: TouchPoint, preserveMoved = false) {
+    interactionMode = 'drag';
     dragState.startX = point.x;
     dragState.startY = point.y;
     dragState.originX = offsetX.value;
     dragState.originY = offsetY.value;
-    dragMoved.value = false;
+    dragMoved.value = preserveMoved ? dragMoved.value : false;
+  }
+
+  function startPinch(event: TouchEvent) {
+    const { p1, p2 } = readTouchPoints(event);
+    const midpoint = readMidPoint(p1, p2);
+
+    interactionMode = 'pinch';
+    dragMoved.value = true;
+    pinchState.startDist = distance(p1, p2);
+    pinchState.originScale = scale.value;
+    pinchState.worldX = (midpoint.x - offsetX.value) / scale.value;
+    pinchState.worldY = (midpoint.y - offsetY.value) / scale.value;
+  }
+
+  function applyPinch(event: TouchEvent) {
+    const { p1, p2 } = readTouchPoints(event);
+    const currentDist = distance(p1, p2);
+    if (pinchState.startDist <= 0) {
+      startPinch(event);
+      return;
+    }
+
+    const midpoint = readMidPoint(p1, p2);
+    const minScale = resolveMinScale();
+    const maxScale = options.maxScale ?? 8;
+    const nextScale = clamp(
+      pinchState.originScale * (currentDist / pinchState.startDist),
+      minScale,
+      maxScale
+    );
+
+    scale.value = nextScale;
+    offsetX.value = midpoint.x - pinchState.worldX * nextScale;
+    offsetY.value = midpoint.y - pinchState.worldY * nextScale;
+    clampOffset();
+  }
+
+  function handleTouchStart(event: TouchEvent) {
+    if (event.touches.length >= 2) {
+      startPinch(event);
+      return;
+    }
+
+    startDrag(readTouchPoint(event));
   }
 
   function handleTouchMove(event: TouchEvent) {
     if (event.touches.length >= 2) {
-      const { p1, p2 } = readTouchPoints(event);
-      const currentDist = distance(p1, p2);
-      if (pinchState.startDist > 0) {
-        const ratio = currentDist / pinchState.startDist;
-        const newScale = pinchState.originScale * ratio;
-        applyScale(newScale, pinchState.midX, pinchState.midY);
-        clampOffset();
+      if (interactionMode !== 'pinch') {
+        startPinch(event);
       }
+      applyPinch(event);
       return;
     }
 
     const point = readTouchPoint(event);
+    if (interactionMode !== 'drag') {
+      startDrag(point, true);
+      return;
+    }
+
     const deltaX = point.x - dragState.startX;
     const deltaY = point.y - dragState.startY;
 
@@ -237,10 +289,18 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     clampOffset();
   }
 
-  function handleTouchEnd() {
-    if (dragMoved.value) {
+  function handleTouchEnd(event?: TouchEvent) {
+    if (event?.touches.length === 1) {
+      startDrag(readTouchPoint(event), true);
+      return;
+    }
+
+    if (dragMoved.value || interactionMode === 'pinch') {
       lastDragAt.value = Date.now();
     }
+
+    interactionMode = 'idle';
+    pinchState.startDist = 0;
   }
 
   function canTriggerTap() {
@@ -260,6 +320,7 @@ export function useMuseumMapViewport(options: UseMuseumMapViewportOptions) {
     viewportHeight,
     syncViewport,
     resetView,
+    clampOffset,
     getResetViewState,
     setViewState,
     handleTouchStart,

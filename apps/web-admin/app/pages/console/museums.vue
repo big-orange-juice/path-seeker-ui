@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { shallowRef } from 'vue';
+import Button from '@/components/shadcn/button/Button.vue';
+import Input from '@/components/shadcn/input/Input.vue';
+import Select from '@/components/shadcn/select/Select.vue';
 import type { MuseumDraft, MuseumRecord } from '@/types/museum';
 
 definePageMeta({
@@ -99,26 +102,24 @@ const handleRemove = async (record: MuseumRecord) => {
       <div class="flex flex-wrap items-end gap-3">
         <div class="min-w-[280px] flex-1 space-y-2">
           <label class="text-sm font-medium text-foreground">关键词</label>
-          <UiInput v-model="keyword" placeholder="搜索主体编码、名称、地址" />
+          <Input v-model="keyword" placeholder="搜索主体编码、名称、地址" />
         </div>
         <div class="w-[180px] space-y-2">
           <label class="text-sm font-medium text-foreground">状态筛选</label>
-          <select
-            v-model="status"
-            class="h-9 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent">
-            <option :value="0">全部状态</option>
-            <option :value="1">启用</option>
-            <option :value="2">停用</option>
-          </select>
+          <Select :model-value="String(status)" @update:model-value="status = Number($event)">
+            <option value="0">全部状态</option>
+            <option value="1">启用</option>
+            <option value="2">停用</option>
+          </Select>
         </div>
 
         <div class="flex flex-wrap items-end justify-start gap-2 xl:justify-end">
-          <UiButton variant="outline" :disabled="submitting" @click="() => { keyword = ''; status = 0; }">
+          <Button variant="outline" :disabled="submitting" @click="() => { keyword = ''; status = 0; }">
             重置筛选
-          </UiButton>
-          <UiButton :disabled="submitting" @click="startCreate">
+          </Button>
+          <Button :disabled="submitting" @click="startCreate">
             新增主体
-          </UiButton>
+          </Button>
         </div>
       </div>
     </section>
@@ -148,3 +149,4 @@ const handleRemove = async (record: MuseumRecord) => {
       @update:open="detailDialogOpen = $event" />
   </div>
 </template>
+

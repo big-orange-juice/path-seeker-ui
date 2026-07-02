@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue"
-import { gsap } from "gsap"
-import { Draggable } from "gsap/Draggable"
-import AppIcon from "@/components/ui/AppIcon.vue"
-import { MUSEUM_FLOOR_LAYOUTS, MUSEUM_WORLD_HEIGHT, MUSEUM_WORLD_WIDTH } from "@/mock/museumMap"
-import { useMuseumMapViewport } from "@/composables/useMuseumMapViewport"
-import { useChromeMetrics } from "@/composables/useChromeMetrics"
-import type { MuseumFloorId, MuseumHallBlock } from "@/types/museumMap"
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { gsap } from 'gsap'
+import AppIcon from '@/components/ui/AppIcon.vue'
+import { useMuseumMapViewport } from '@/composables/useMuseumMapViewport'
+import { useChromeMetrics } from '@/composables/useChromeMetrics'
+import type { MuseumFloorId, MuseumFloorLayout, MuseumHallBlock } from '@/types/museumMap'
 
 interface Props {
+  floors: MuseumFloorLayout[]
   activeFloorId?: MuseumFloorId
   selectedHallId?: string
   routeCount?: number
   completedCount?: number
+  pending?: boolean
+  errorMessage?: string
 }
 
 interface PanBounds {
@@ -22,46 +23,70 @@ interface PanBounds {
   maxY: number
 }
 
-interface MutableDraggable {
-  x: number
-  y: number
-  target: EventTarget
-  update: (applyBounds?: boolean) => void
-  applyBounds: (bounds: PanBounds) => void
-  kill: () => void
-}
-
-const BASE_LAYOUT_WIDTH = 1600
-const BASE_LAYOUT_HEIGHT = 920
-
-const FLOOR_IMAGE_MAP: Partial<Record<MuseumFloorId, string>> = {
-  "1F": "/static/map/1f.png",
-  "2F": "/static/map/2f.png",
-}
+const DEFAULT_WORLD_WIDTH = 320
+const DEFAULT_WORLD_HEIGHT = 640
+const EDGE_REVEAL_X = 112
+const EDGE_REVEAL_TOP = 132
+const EDGE_REVEAL_BOTTOM = 156
+const VIRTUAL_VIEWPORT_MULTIPLIER = 2
 
 const props = withDefaults(defineProps<Props>(), {
-  activeFloorId: "1F",
-  selectedHallId: "",
+  activeFloorId: '',
+  selectedHallId: '',
   routeCount: 0,
   completedCount: 0,
+  pending: false,
+  errorMessage: '',
 })
 
 const emit = defineEmits<{
-  "update:activeFloorId": [floorId: MuseumFloorId]
+  'update:activeFloorId': [floorId: MuseumFloorId]
   selectHall: [hallId: string]
 }>()
 
 const { metrics } = useChromeMetrics()
 const panLayerRef = ref<unknown>(null)
-const stageRef = ref<unknown>(null)
-let draggableInstance: Draggable | null = null
+const worldMetrics = reactive({
+  worldWidth: DEFAULT_WORLD_WIDTH,
+  worldHeight: DEFAULT_WORLD_HEIGHT,
+  initialScaleMode: 'contain' as const,
+  minScaleMode: 'contain' as const,
+  scaleBoost: 1,
+})
 let selectedMarkerTween: gsap.core.Tween | null = null
 let inertiaTween: gsap.core.Tween | null = null
-const draggableEnabled = ref(false)
-const gsapRuntime = gsap as typeof gsap & {
-  registerPlugin?: (...plugins: unknown[]) => void
-}
 const dragSamples: Array<{ x: number; y: number; at: number }> = []
+
+const scaledWorldWidth = computed(() => worldMetrics.worldWidth * scale.value)
+const scaledWorldHeight = computed(() => worldMetrics.worldHeight * scale.value)
+
+function getPanBounds(): PanBounds {
+  const scaledWidth = scaledWorldWidth.value
+  const scaledHeight = scaledWorldHeight.value
+  const freeX = viewportWidth.value - scaledWidth
+  const freeY = viewportHeight.value - scaledHeight
+  const extraViewportX = (viewportWidth.value * (VIRTUAL_VIEWPORT_MULTIPLIER - 1)) / 2
+  const extraViewportY = (viewportHeight.value * (VIRTUAL_VIEWPORT_MULTIPLIER - 1)) / 2
+
+  if (freeX >= 0 && freeY >= 0) {
+    const centeredX = freeX / 2
+    const centeredY = freeY / 2
+
+    return {
+      minX: centeredX - extraViewportX,
+      maxX: centeredX + extraViewportX,
+      minY: centeredY - extraViewportY,
+      maxY: centeredY + extraViewportY,
+    }
+  }
+
+  return {
+    minX: freeX >= 0 ? (freeX / 2) - extraViewportX : freeX - EDGE_REVEAL_X - extraViewportX,
+    maxX: freeX >= 0 ? (freeX / 2) + extraViewportX : EDGE_REVEAL_X + extraViewportX,
+    minY: freeY >= 0 ? (freeY / 2) - extraViewportY : freeY - EDGE_REVEAL_BOTTOM - extraViewportY,
+    maxY: freeY >= 0 ? (freeY / 2) + extraViewportY : EDGE_REVEAL_TOP + extraViewportY,
+  }
+}
 
 const {
   offsetX,
@@ -74,93 +99,102 @@ const {
   handleTouchStart,
   handleTouchMove,
   handleTouchEnd,
+  clampOffset,
   canTriggerTap,
 } = useMuseumMapViewport({
-  worldWidth: MUSEUM_WORLD_WIDTH,
-  worldHeight: MUSEUM_WORLD_HEIGHT,
-  initialScaleMode: "contain",
-  minScaleMode: "contain",
-  scaleBoost: 1.55,
+  get worldWidth() {
+    return worldMetrics.worldWidth
+  },
+  get worldHeight() {
+    return worldMetrics.worldHeight
+  },
+  get initialScaleMode() {
+    return worldMetrics.initialScaleMode
+  },
+  get minScaleMode() {
+    return worldMetrics.minScaleMode
+  },
+  get scaleBoost() {
+    return worldMetrics.scaleBoost
+  },
+  resolveBounds: getPanBounds,
 })
 
-gsapRuntime.registerPlugin?.(Draggable)
-
 const activeFloor = computed(
-  () => MUSEUM_FLOOR_LAYOUTS.find((item) => item.id === props.activeFloorId) || MUSEUM_FLOOR_LAYOUTS[0],
+  () => props.floors.find((item) => item.id === props.activeFloorId) ?? props.floors[0] ?? null,
 )
 
 const selectedHall = computed<MuseumHallBlock | null>(() => {
-  const hall = activeFloor.value.halls.find((item) => item.id === props.selectedHallId)
-  return hall || activeFloor.value.halls[0] || null
+  const floor = activeFloor.value
+  if (!floor) {
+    return null
+  }
+
+  const hall = floor.halls.find((item) => item.id === props.selectedHallId)
+  return hall ?? floor.halls[0] ?? null
 })
 
-const floorImageSrc = computed(() => FLOOR_IMAGE_MAP[activeFloor.value.id] || "")
+const floorImageSrc = computed(() => activeFloor.value?.mapImageUrl || '')
+const floorSummary = computed(() => {
+  if (props.pending) {
+    return '正在同步地图数据...'
+  }
+
+  if (props.errorMessage) {
+    return props.errorMessage
+  }
+
+  if (!activeFloor.value) {
+    return '当前还没有可展示的楼层地图。'
+  }
+
+  return activeFloor.value.summary
+})
 
 const topRightStyle = computed(() => ({
   top: `${metrics.value.navHeight + 16}px`,
-  right: "12rpx",
+  right: 'calc(44rpx + env(safe-area-inset-right))',
 }))
 
 const panStyle = computed(() => ({
-  width: `${MUSEUM_WORLD_WIDTH}px`,
-  height: `${MUSEUM_WORLD_HEIGHT}px`,
+  width: `${scaledWorldWidth.value}px`,
+  height: `${scaledWorldHeight.value}px`,
   transform: `translate3d(${offsetX.value}px, ${offsetY.value}px, 0)`,
 }))
 
-const stageStyle = computed(() => ({
-  width: `${MUSEUM_WORLD_WIDTH}px`,
-  height: `${MUSEUM_WORLD_HEIGHT}px`,
+const worldStyle = computed(() => ({
+  width: `${worldMetrics.worldWidth}px`,
+  height: `${worldMetrics.worldHeight}px`,
   transform: `scale(${scale.value})`,
 }))
 
 function resolveElement(target: unknown): HTMLElement | null {
-  if (typeof HTMLElement !== "undefined" && target instanceof HTMLElement) {
+  if (typeof HTMLElement !== 'undefined' && target instanceof HTMLElement) {
     return target
   }
 
   const maybeRef = target as { $el?: unknown } | null
-  if (typeof HTMLElement !== "undefined" && maybeRef?.$el instanceof HTMLElement) {
+  if (typeof HTMLElement !== 'undefined' && maybeRef?.$el instanceof HTMLElement) {
     return maybeRef.$el
   }
 
   return null
 }
 
-function getMarkerStyle(hall: MuseumHallBlock) {
-  const isSelected = hall.id === selectedHall.value?.id
-  const xScale = MUSEUM_WORLD_WIDTH / BASE_LAYOUT_WIDTH
-  const yScale = MUSEUM_WORLD_HEIGHT / BASE_LAYOUT_HEIGHT
-  const centerX = (hall.x + hall.width / 2) * xScale
-  const centerY = (hall.y + hall.height / 2) * yScale
-
-  return {
-    left: `${centerX}px`,
-    top: `${centerY}px`,
-    "--marker-accent": isSelected ? "#f3d99d" : "#d1b26f",
-    zIndex: isSelected ? 3 : 2,
-  }
+function syncWorldMetrics() {
+  const floor = activeFloor.value
+  worldMetrics.worldWidth = floor?.worldWidth || DEFAULT_WORLD_WIDTH
+  worldMetrics.worldHeight = floor?.worldHeight || DEFAULT_WORLD_HEIGHT
 }
 
-function getPanBounds(): PanBounds {
-  const scaledWidth = MUSEUM_WORLD_WIDTH * scale.value
-  const scaledHeight = MUSEUM_WORLD_HEIGHT * scale.value
-  const freeX = viewportWidth.value - scaledWidth
-  const freeY = viewportHeight.value - scaledHeight
-
-  if (freeX >= 0 && freeY >= 0) {
-    return {
-      minX: freeX / 2,
-      maxX: freeX / 2,
-      minY: freeY / 2,
-      maxY: freeY / 2,
-    }
-  }
+function getMarkerStyle(hall: MuseumHallBlock) {
+  const isSelected = hall.id === selectedHall.value?.id
 
   return {
-    minX: Math.min(freeX, 0),
-    maxX: Math.max(freeX, 0),
-    minY: Math.min(freeY, 0),
-    maxY: Math.max(freeY, 0),
+    left: `${hall.x}px`,
+    top: `${hall.y}px`,
+    '--marker-accent': isSelected ? '#f3d99d' : (hall.accent || '#d1b26f'),
+    zIndex: isSelected ? 3 : 2,
   }
 }
 
@@ -230,12 +264,11 @@ function runInertia() {
     x: targetX,
     y: targetY,
     duration: Math.min(0.7, Math.max(0.32, speed * 0.24)),
-    ease: "power3.out",
+    ease: 'power3.out',
     overwrite: true,
     onUpdate: () => {
       offsetX.value = tweenState.x
       offsetY.value = tweenState.y
-      syncDraggablePosition()
     },
     onComplete: () => {
       inertiaTween = null
@@ -243,105 +276,37 @@ function runInertia() {
   })
 }
 
-function syncDraggablePosition() {
-  if (!draggableInstance) {
-    return
-  }
-
-  const draggable = draggableInstance as unknown as MutableDraggable
-  draggable.x = offsetX.value
-  draggable.y = offsetY.value
-  draggable.update()
-}
-
-function applyDraggableBounds() {
-  if (!draggableInstance) {
-    return
-  }
-
-  const draggable = draggableInstance as unknown as MutableDraggable
-  draggable.applyBounds(getPanBounds())
-  draggable.update(true)
-}
-
-function teardownDraggable() {
-  stopInertia()
-  draggableInstance?.kill()
-  draggableInstance = null
-  draggableEnabled.value = false
-  clearDragSamples()
-}
-
-async function setupDraggable() {
-  teardownDraggable()
-
-  const panEl = resolveElement(panLayerRef.value)
-  if (!panEl || typeof window === "undefined") {
-    return
-  }
-
-  draggableInstance = Draggable.create(panEl, {
-    type: "x,y",
-    edgeResistance: 0.9,
-    dragResistance: 0.08,
-    minimumMovement: 3,
-    allowNativeTouchScrolling: false,
-    onPress() {
-      stopInertia()
-      clearDragSamples()
-      recordDragSample(this.x, this.y)
-    },
-    onDrag() {
-      offsetX.value = this.x
-      offsetY.value = this.y
-      recordDragSample(this.x, this.y)
-    },
-    onThrowUpdate() {
-      offsetX.value = this.x
-      offsetY.value = this.y
-    },
-    onDragEnd() {
-      runInertia()
-      clearDragSamples()
-      playSelectedMarkerGlow()
-    },
-  })[0] || null
-
-  if (!draggableInstance) {
-    return
-  }
-
-  draggableEnabled.value = true
-  syncDraggablePosition()
-  applyDraggableBounds()
-}
-
 function playSelectedMarkerGlow() {
   selectedMarkerTween?.kill()
 
-  const stageEl = resolveElement(stageRef.value)
-  if (!stageEl || typeof window === "undefined") {
+  const panEl = resolveElement(panLayerRef.value)
+  if (!panEl || typeof window === 'undefined') {
     return
   }
 
-  const markerEl = stageEl.querySelector<HTMLElement>(".hall-marker.is-selected .marker-pin")
+  const markerEl = panEl.querySelector<HTMLElement>('.hall-marker.is-selected .marker-pin')
   if (!markerEl) {
     return
   }
 
   selectedMarkerTween = gsap.to(markerEl, {
-    scale: 1.08,
+    scale: 1.06,
     y: -3,
     duration: 0.9,
-    ease: "sine.inOut",
+    ease: 'sine.inOut',
     repeat: -1,
     yoyo: true,
-    transformOrigin: "50% 100%",
+    transformOrigin: '50% 100%',
   })
 }
 
 function handleViewportTouchStart(event: TouchEvent) {
-  if (draggableEnabled.value && event.touches.length < 2) {
+  stopInertia()
+
+  if (event.touches.length < 2) {
+    clearDragSamples()
+    handleTouchStart(event)
+    recordDragSample(offsetX.value, offsetY.value)
     return
   }
 
@@ -349,31 +314,32 @@ function handleViewportTouchStart(event: TouchEvent) {
 }
 
 function handleViewportTouchMove(event: TouchEvent) {
-  if (draggableEnabled.value && event.touches.length < 2) {
-    return
-  }
-
   handleTouchMove(event)
+
+  if (event.touches.length < 2) {
+    recordDragSample(offsetX.value, offsetY.value)
+  }
 }
 
-function handleViewportTouchEnd() {
-  if (draggableEnabled.value) {
+function handleViewportTouchEnd(event: TouchEvent) {
+  const remainingTouches = event.touches?.length || 0
+  handleTouchEnd(event)
+
+  if (remainingTouches > 0) {
+    clearDragSamples()
     return
   }
 
-  handleTouchEnd()
+  runInertia()
+  clearDragSamples()
 }
 
 function selectHall(hallId: string) {
-  if (draggableEnabled.value && Draggable.timeSinceDrag() < 0.12) {
+  if (!canTriggerTap()) {
     return
   }
 
-  if (!draggableEnabled.value && !canTriggerTap()) {
-    return
-  }
-
-  emit("selectHall", hallId)
+  emit('selectHall', hallId)
 }
 
 async function switchFloor(floorId: MuseumFloorId) {
@@ -381,24 +347,25 @@ async function switchFloor(floorId: MuseumFloorId) {
     return
   }
 
-  emit("update:activeFloorId", floorId)
+  emit('update:activeFloorId', floorId)
   await nextTick()
+  syncWorldMetrics()
   await syncViewport()
   resetView()
-  syncDraggablePosition()
-  applyDraggableBounds()
+  clampOffset()
 }
 
 watch(
-  () => props.activeFloorId,
+  activeFloor,
   async () => {
+    syncWorldMetrics()
     await nextTick()
     await syncViewport()
     resetView()
-    syncDraggablePosition()
-    applyDraggableBounds()
+    clampOffset()
     playSelectedMarkerGlow()
   },
+  { immediate: true },
 )
 
 watch(
@@ -410,20 +377,17 @@ watch(
 )
 
 watch(scale, () => {
-  applyDraggableBounds()
-  syncDraggablePosition()
+  clampOffset()
 })
 
 onMounted(async () => {
+  syncWorldMetrics()
   await nextTick()
   await syncViewport()
-  await nextTick()
-  await setupDraggable()
   playSelectedMarkerGlow()
 })
 
 onUnmounted(() => {
-  teardownDraggable()
   selectedMarkerTween?.kill()
   stopInertia()
 })
@@ -435,43 +399,54 @@ onUnmounted(() => {
       class="museum-map-viewport"
       @touchstart.stop="handleViewportTouchStart($event)"
       @touchmove.stop.prevent="handleViewportTouchMove($event)"
-      @touchend.stop="handleViewportTouchEnd"
-      @touchcancel.stop="handleViewportTouchEnd">
+      @touchend.stop="handleViewportTouchEnd($event)"
+      @touchcancel.stop="handleViewportTouchEnd($event)">
       <view class="museum-map-grid-layer"></view>
       <view ref="panLayerRef" class="museum-map-pan" :style="panStyle">
-        <view ref="stageRef" class="museum-map-stage" :style="stageStyle">
-          <image
-            v-if="floorImageSrc"
-            class="floor-map-image"
-            :src="floorImageSrc"
-            mode="aspectFill" />
+        <view class="museum-map-world" :style="worldStyle">
+          <view class="museum-map-stage">
+            <image
+              v-if="floorImageSrc"
+              class="floor-map-image"
+              :src="floorImageSrc"
+              mode="aspectFill" />
 
-          <view v-else class="floor-map-fallback">
-            <view class="fallback-glow"></view>
-            <view class="fallback-grid"></view>
+            <view v-else class="floor-map-fallback">
+              <view class="fallback-glow"></view>
+              <view class="fallback-grid"></view>
+            </view>
           </view>
 
-          <button
-            v-for="hall in activeFloor.halls"
-            :key="hall.id"
-            class="hall-marker"
-            :class="{ 'is-selected': selectedHall?.id === hall.id }"
-            :style="getMarkerStyle(hall)"
-            @click="selectHall(hall.id)">
-            <view class="marker-pin">
-              <AppIcon name="marker" :size="72" class-name="marker-icon" />
-            </view>
-            <view class="marker-copy">
-              <text class="marker-name">{{ hall.label }}</text>
-            </view>
-          </button>
+          <view class="museum-map-marker-layer">
+            <button
+              v-for="hall in activeFloor?.halls || []"
+              :key="hall.id"
+              class="hall-marker"
+              :class="{ 'is-selected': selectedHall?.id === hall.id }"
+              :style="getMarkerStyle(hall)"
+              @click="selectHall(hall.id)">
+              <view class="marker-pin">
+                <AppIcon name="marker" :size="72" class-name="marker-icon" />
+              </view>
+              <view class="marker-copy">
+                <text class="marker-name">{{ hall.label }}</text>
+              </view>
+            </button>
+          </view>
         </view>
+      </view>
+
+      <view v-if="props.pending || props.errorMessage || !activeFloor" class="map-state-card">
+        <text class="map-state-eyebrow">
+          {{ props.pending ? '地图同步中' : props.errorMessage ? '地图加载失败' : '暂无地图' }}
+        </text>
+        <text class="map-state-copy">{{ floorSummary }}</text>
       </view>
     </view>
 
     <view class="map-floating-layer" :style="topRightStyle">
       <button
-        v-for="floor in MUSEUM_FLOOR_LAYOUTS"
+        v-for="floor in props.floors"
         :key="floor.id"
         class="floor-pill"
         :class="{ 'is-active': floor.id === props.activeFloorId }"
@@ -518,11 +493,6 @@ onUnmounted(() => {
     40rpx 40rpx,
     160rpx 160rpx,
     160rpx 160rpx;
-  background-position:
-    0 0,
-    0 0,
-    0 0,
-    0 0;
 }
 
 .museum-map-pan {
@@ -534,10 +504,22 @@ onUnmounted(() => {
   will-change: transform;
 }
 
-.museum-map-stage {
+.museum-map-world {
   position: relative;
   transform-origin: left top;
   will-change: transform;
+}
+
+.museum-map-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.museum-map-marker-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
 }
 
 .floor-map-image,
@@ -589,13 +571,17 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 14rpx;
-  min-width: 248rpx;
+  width: auto;
+  min-width: 0;
+  max-width: none;
   padding: 0;
   background: transparent !important;
   border: 0;
   color: #fff8ea;
-  transform: translate(-50%, -100%);
+  transform: translate3d(-50%, -100%, 0);
   text-align: center;
+  pointer-events: auto;
+  backface-visibility: hidden;
 }
 
 .hall-marker::after {
@@ -614,10 +600,11 @@ onUnmounted(() => {
     drop-shadow(0 0 16px rgba(209, 178, 111, 0.92))
     drop-shadow(0 0 30px rgba(209, 178, 111, 0.7))
     drop-shadow(0 14px 24px rgba(0, 0, 0, 0.26));
+  will-change: transform;
 }
 
 .marker-pin::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 50%;
   bottom: 4rpx;
@@ -637,7 +624,9 @@ onUnmounted(() => {
 }
 
 .marker-copy {
-  display: flex;
+  display: inline-flex;
+  width: auto;
+  max-width: none;
   align-items: center;
   justify-content: center;
   min-height: 76rpx;
@@ -682,43 +671,81 @@ onUnmounted(() => {
   z-index: 20;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
-  align-items: center;
+  gap: 10rpx;
+  align-items: flex-end;
+  max-width: calc(100vw - 120rpx);
+}
+
+.map-state-card {
+  position: absolute;
+  left: 24rpx;
+  right: 24rpx;
+  z-index: 8;
+  border-radius: 28rpx;
+  backdrop-filter: blur(16rpx);
+  -webkit-backdrop-filter: blur(16rpx);
+}
+
+.map-state-card {
+  bottom: calc(132rpx + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  padding: 24rpx;
+  background: rgba(8, 10, 14, 0.74);
+  box-shadow: 0 14rpx 40rpx rgba(0, 0, 0, 0.28);
+}
+
+.map-state-eyebrow {
+  color: #f3d99d;
+  font-size: 20rpx;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.map-state-copy {
+  color: rgba(247, 239, 221, 0.74);
+  font-size: 22rpx;
+  line-height: 1.6;
 }
 
 .floor-pill {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  min-width: 100rpx;
-  min-height: 54rpx;
+  justify-content: flex-start;
+  width: auto;
+  max-width: 100%;
+  min-height: 58rpx;
+  margin: 0;
+  box-sizing: border-box;
   padding: 0 24rpx;
   border-radius: 999rpx;
   backdrop-filter: blur(18rpx);
   -webkit-backdrop-filter: blur(18rpx);
   font-size: 20rpx;
+  line-height: 1;
   font-weight: 900;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: visible;
   border: 0;
-  background: rgba(7, 8, 10, 0.48) !important;
-  color: rgba(247, 239, 221, 0.62);
+  background: rgba(7, 8, 10, 0.56) !important;
+  color: rgba(247, 239, 221, 0.68);
   box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.3);
   transition:
-    opacity 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease,
     transform 0.2s ease;
 }
 
 .floor-pill.is-active {
-  background: rgba(209, 178, 111, 0.22) !important;
+  background:
+    linear-gradient(135deg, rgba(209, 178, 111, 0.38), rgba(39, 32, 18, 0.92)) !important;
   color: #fff8ea;
-  transform: scale(1.04);
+  transform: translateX(-4rpx);
 }
 
 @media (max-width: 420px) {
-  .hall-marker {
-    min-width: 220rpx;
-  }
-
   .marker-name {
     font-size: 24rpx;
   }

@@ -1,135 +1,138 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, shallowRef, watch } from 'vue';
-import { gsap } from 'gsap';
-import MissionCard from '@/components/mission/MissionCard.vue';
-import MuseumOverviewMap from '@/components/shell/MuseumOverviewMap.vue';
-import { MUSEUM_FLOOR_LAYOUTS } from '@/mock/museumMap';
+import { computed, nextTick, onUnmounted, shallowRef, watch } from 'vue'
+import { gsap } from 'gsap'
+import MissionCard from '@/components/mission/MissionCard.vue'
+import MuseumOverviewMap from '@/components/shell/MuseumOverviewMap.vue'
+import { useRemoteMuseumMap } from '@/composables/useRemoteMuseumMap'
 import type {
   AgeBand,
   DifficultyLevel,
   MissionRouteCard,
-  TaskKind
-} from '@/types/mission';
-import type { MuseumFloorId, MuseumHallBlock } from '@/types/museumMap';
+  TaskKind,
+} from '@/types/mission'
+import type { MuseumFloorId, MuseumHallBlock } from '@/types/museumMap'
 
 interface Props {
-  routes: MissionRouteCard[];
-  activeRouteId?: string | null;
-  completedRouteIds?: string[];
+  routes: MissionRouteCard[]
+  activeRouteId?: string | null
+  completedRouteIds?: string[]
   filters: {
-    ageBand: AgeBand | 'all';
-    difficulty: DifficultyLevel | 'all';
-    taskKind: TaskKind | 'all';
-  };
+    ageBand: AgeBand | 'all'
+    difficulty: DifficultyLevel | 'all'
+    taskKind: TaskKind | 'all'
+  }
   coverage: {
-    ageBands: number;
-    difficulties: number;
-    taskKinds: number;
-    missionCount: number;
-  };
+    ageBands: number
+    difficulties: number
+    taskKinds: number
+    missionCount: number
+  }
 }
 
-const props = defineProps<Props>();
+const SHANGHAI_MUSEUM_ID = '345536575083515904'
 
-const activeFloorId = shallowRef<MuseumFloorId>('1F');
-const selectedHallId = shallowRef(MUSEUM_FLOOR_LAYOUTS[0]?.halls[0]?.id || '');
-const sheetVisible = shallowRef(false);
-const sheetRendered = shallowRef(false);
-const sheetMaskRef = shallowRef<unknown>(null);
-const sheetPanelRef = shallowRef<unknown>(null);
-let sheetTween: { kill?: () => void } | null = null;
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  open: [routeId: string]
+}>()
+
+const { floors, pending, error } = useRemoteMuseumMap(SHANGHAI_MUSEUM_ID)
+const activeFloorId = shallowRef<MuseumFloorId>('')
+const selectedHallId = shallowRef('')
+const sheetVisible = shallowRef(false)
+const sheetRendered = shallowRef(false)
+const sheetMaskRef = shallowRef<unknown>(null)
+const sheetPanelRef = shallowRef<unknown>(null)
+let sheetTween: { kill?: () => void } | null = null
 
 const mapStageStyle = computed(() => {
-  const shellHeight = Math.max(640, uni.getSystemInfoSync().windowHeight);
+  const shellHeight = Math.max(640, uni.getSystemInfoSync().windowHeight)
 
   return {
-    height: `${shellHeight}px`
-  };
-});
+    height: `${shellHeight}px`,
+  }
+})
 
 const activeFloor = computed(
-  () =>
-    MUSEUM_FLOOR_LAYOUTS.find((floor) => floor.id === activeFloorId.value) ||
-    MUSEUM_FLOOR_LAYOUTS[0]
-);
+  () => floors.value.find((floor) => floor.id === activeFloorId.value) ?? floors.value[0] ?? null,
+)
 
 const selectedHall = computed<MuseumHallBlock | null>(() => {
-  const hall = activeFloor.value.halls.find(
-    (item) => item.id === selectedHallId.value
-  );
-  return hall || activeFloor.value.halls[0] || null;
-});
-
-const hallRoutes = computed(() =>
-  props.routes.filter((route) => route.hallId === selectedHall.value?.id)
-);
-
-const hallTaskSummary = computed(() => {
-  const count = hallRoutes.value.length;
-
-  if (!selectedHall.value) {
-    return '';
+  const currentFloor = activeFloor.value
+  if (!currentFloor) {
+    return null
   }
 
-  return count ? `当前共 ${count} 条可进入任务` : '当前展馆暂未配置任务';
-});
+  const hall = currentFloor.halls.find((item) => item.id === selectedHallId.value)
+  return hall ?? currentFloor.halls[0] ?? null
+})
+
+const hallRoutes = computed(() =>
+  props.routes.filter((route) => route.hallId === selectedHall.value?.id),
+)
+
+const hallTaskSummary = computed(() => {
+  if (!selectedHall.value) {
+    return ''
+  }
+
+  const count = hallRoutes.value.length
+  return count ? `当前共 ${count} 条可进入任务` : '当前展馆暂未配置任务'
+})
 
 function resolveElement(target: unknown): HTMLElement | null {
   if (typeof HTMLElement !== 'undefined' && target instanceof HTMLElement) {
-    return target;
+    return target
   }
 
-  const maybeRef = target as { $el?: unknown } | null;
-  if (
-    typeof HTMLElement !== 'undefined' &&
-    maybeRef?.$el instanceof HTMLElement
-  ) {
-    return maybeRef.$el;
+  const maybeRef = target as { $el?: unknown } | null
+  if (typeof HTMLElement !== 'undefined' && maybeRef?.$el instanceof HTMLElement) {
+    return maybeRef.$el
   }
 
-  return null;
+  return null
 }
 
 function syncSelectedHallForFloor(floorId: MuseumFloorId) {
-  const nextFloor =
-    MUSEUM_FLOOR_LAYOUTS.find((floor) => floor.id === floorId) ||
-    MUSEUM_FLOOR_LAYOUTS[0];
-  const hasSelectedHall = nextFloor.halls.some(
-    (hall) => hall.id === selectedHallId.value
-  );
+  const nextFloor = floors.value.find((floor) => floor.id === floorId) ?? floors.value[0] ?? null
+  if (!nextFloor) {
+    selectedHallId.value = ''
+    return
+  }
 
+  const hasSelectedHall = nextFloor.halls.some((hall) => hall.id === selectedHallId.value)
   if (!hasSelectedHall) {
-    selectedHallId.value = nextFloor.halls[0]?.id || '';
+    selectedHallId.value = nextFloor.halls[0]?.id ?? ''
   }
 }
 
 function handleFloorChange(floorId: MuseumFloorId) {
-  activeFloorId.value = floorId;
-  syncSelectedHallForFloor(floorId);
-  sheetVisible.value = false;
+  activeFloorId.value = floorId
+  syncSelectedHallForFloor(floorId)
+  sheetVisible.value = false
 }
 
 function playSheetEnter() {
-  sheetTween?.kill?.();
+  sheetTween?.kill?.()
 
-  const mask = resolveElement(sheetMaskRef.value);
-  const panel = resolveElement(sheetPanelRef.value);
+  const mask = resolveElement(sheetMaskRef.value)
+  const panel = resolveElement(sheetPanelRef.value)
 
   if (!mask || !panel) {
-    return;
+    return
   }
 
-  mask.style.opacity = '0';
-  mask.style.visibility = 'hidden';
-  panel.style.opacity = '0';
-  panel.style.transform = 'translate3d(0, 44px, 0)';
+  mask.style.opacity = '0'
+  mask.style.visibility = 'hidden'
+  panel.style.opacity = '0'
+  panel.style.transform = 'translate3d(0, 44px, 0)'
 
-  const timeline = gsap.timeline({ defaults: { overwrite: 'auto' } }) as any;
+  const timeline = gsap.timeline({ defaults: { overwrite: 'auto' } }) as any
   timeline
     .to(mask, {
       autoAlpha: 1,
       duration: 0.18,
-      ease: 'power1.out'
+      ease: 'power1.out',
     })
     .to(
       panel,
@@ -137,108 +140,128 @@ function playSheetEnter() {
         autoAlpha: 1,
         y: 0,
         duration: 0.3,
-        ease: 'power2.out'
+        ease: 'power2.out',
       },
-      0
-    );
+      0,
+    )
 
-  sheetTween = timeline;
+  sheetTween = timeline
 }
 
 function playSheetExit() {
-  sheetTween?.kill?.();
+  sheetTween?.kill?.()
 
-  const mask = resolveElement(sheetMaskRef.value);
-  const panel = resolveElement(sheetPanelRef.value);
+  const mask = resolveElement(sheetMaskRef.value)
+  const panel = resolveElement(sheetPanelRef.value)
 
   if (!mask || !panel) {
-    sheetRendered.value = false;
-    return;
+    sheetRendered.value = false
+    return
   }
 
   const timeline = gsap.timeline({
     defaults: { overwrite: 'auto' },
     onComplete: () => {
-      sheetRendered.value = false;
-    }
-  }) as any;
+      sheetRendered.value = false
+    },
+  }) as any
 
   timeline
     .to(panel, {
       autoAlpha: 0,
       y: 28,
       duration: 0.2,
-      ease: 'power2.in'
+      ease: 'power2.in',
     })
     .to(
       mask,
       {
         autoAlpha: 0,
         duration: 0.16,
-        ease: 'power1.in'
+        ease: 'power1.in',
       },
-      0
-    );
+      0,
+    )
 
-  sheetTween = timeline;
+  sheetTween = timeline
 }
 
 function handleHallSelect(hallId: string) {
-  selectedHallId.value = hallId;
-  sheetVisible.value = true;
+  selectedHallId.value = hallId
+  sheetVisible.value = true
 }
 
 function closeSheet() {
-  sheetVisible.value = false;
+  sheetVisible.value = false
 }
 
 function getRouteStatus(routeId: string) {
   if (routeId === props.activeRouteId) {
-    return 'in-progress' as const;
+    return 'in-progress' as const
   }
 
   if (props.completedRouteIds?.includes(routeId)) {
-    return 'completed' as const;
+    return 'completed' as const
   }
 
-  return 'available' as const;
+  return 'available' as const
 }
 
 watch(
-  activeFloorId,
-  (floorId) => {
-    syncSelectedHallForFloor(floorId);
+  floors,
+  (nextFloors) => {
+    if (!nextFloors.length) {
+      activeFloorId.value = ''
+      selectedHallId.value = ''
+      sheetVisible.value = false
+      return
+    }
+
+    if (!nextFloors.some((floor) => floor.id === activeFloorId.value)) {
+      activeFloorId.value = nextFloors[0]?.id ?? ''
+    }
+
+    syncSelectedHallForFloor(activeFloorId.value)
   },
-  { immediate: true }
-);
+  { immediate: true },
+)
 
 watch(sheetVisible, async (visible) => {
   if (visible) {
-    sheetRendered.value = true;
-    await nextTick();
-    playSheetEnter();
-    return;
+    sheetRendered.value = true
+    await nextTick()
+    playSheetEnter()
+    return
   }
 
   if (!sheetRendered.value) {
-    return;
+    return
   }
 
-  playSheetExit();
-});
+  playSheetExit()
+})
+
+watch(error, () => {
+  if (error.value) {
+    sheetVisible.value = false
+  }
+})
 
 onUnmounted(() => {
-  sheetTween?.kill?.();
-});
+  sheetTween?.kill?.()
+})
 </script>
 
 <template>
   <view class="hall-map-stage" :style="mapStageStyle">
     <MuseumOverviewMap
+      :floors="floors"
       :active-floor-id="activeFloorId"
       :selected-hall-id="selectedHallId"
       :route-count="props.coverage.missionCount"
       :completed-count="props.completedRouteIds?.length || 0"
+      :pending="pending"
+      :error-message="error"
       @update:active-floor-id="handleFloorChange"
       @select-hall="handleHallSelect" />
 
@@ -255,7 +278,7 @@ onUnmounted(() => {
       <view class="hall-sheet-header">
         <view class="hall-sheet-copy">
           <text class="hall-sheet-floor">
-            {{ activeFloor.label }} / {{ selectedHall.shortLabel }}
+            {{ activeFloor?.label }} / {{ selectedHall.shortLabel }}
           </text>
           <text class="hall-sheet-title">{{ selectedHall.label }}</text>
           <text class="hall-sheet-description">
@@ -280,7 +303,7 @@ onUnmounted(() => {
           :route="route"
           :show-resume="route.id === activeRouteId"
           :status="getRouteStatus(route.id)"
-          @open="$emit('open', $event)" />
+          @open="emit('open', $event)" />
       </scroll-view>
 
       <view v-else class="hall-sheet-empty">
@@ -432,3 +455,4 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 </style>
+

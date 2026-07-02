@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
+import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
 import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
@@ -113,7 +114,8 @@ const closeDialog = () => {
   emit('update:open', false);
 };
 
-const submitBasic = (value: MuseumDraft) => {
+const submitBasic = (...args: unknown[]) => {
+  const value = args[0] as MuseumDraft;
   if (props.submitting) {
     return;
   }
@@ -138,15 +140,15 @@ const activeWorkbenchSection = computed<'floors' | 'galleries' | 'facilities'>((
           <DialogHeader class="space-y-0.5">
             <DialogTitle class="text-[1.2rem] font-semibold tracking-tight text-foreground">
               {{ dialogTitle }}
-          </DialogTitle>
-          <DialogDescription class="text-xs text-muted-foreground">
-            {{ dialogDescription }}
-          </DialogDescription>
-        </DialogHeader>
+            </DialogTitle>
+            <DialogDescription class="text-xs text-muted-foreground">
+              {{ dialogDescription }}
+            </DialogDescription>
+          </DialogHeader>
 
-        <UiButton variant="ghost" size="icon" :disabled="props.submitting" @click="closeDialog">
-          <UiAppIcon name="x" class="h-4 w-4" />
-        </UiButton>
+          <Button variant="ghost" size="icon" :disabled="props.submitting" @click="closeDialog">
+            <UiAppIcon name="x" class="h-4 w-4" />
+          </Button>
         </div>
 
         <div class="border-b border-border/70 px-5 py-2.5">

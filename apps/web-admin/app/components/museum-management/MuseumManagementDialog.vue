@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
+import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
 import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
@@ -97,7 +98,8 @@ const closeDialog = () => {
   emit('update:open', false);
 };
 
-const submitForm = (value: MuseumDraft) => {
+const submitForm = (...args: unknown[]) => {
+  const value = args[0] as MuseumDraft;
   if (props.submitting) {
     return;
   }
@@ -123,9 +125,9 @@ const submitForm = (value: MuseumDraft) => {
           </DialogDescription>
         </DialogHeader>
 
-        <UiButton variant="ghost" size="icon" :disabled="props.submitting" @click="closeDialog">
+        <Button variant="ghost" size="icon" :disabled="props.submitting" @click="closeDialog">
           <UiAppIcon name="x" class="h-4 w-4" />
-        </UiButton>
+        </Button>
       </div>
 
       <div class="max-h-[calc(90vh-61px)] overflow-y-auto px-5 py-4">

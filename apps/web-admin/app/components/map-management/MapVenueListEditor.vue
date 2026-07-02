@@ -87,12 +87,11 @@ const emit = defineEmits<{
 
         <div class="mt-2.5 space-y-1.5">
           <label class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">展馆描述</label>
-          <textarea
-            :value="venue.description"
+          <UiTextarea
+            :model-value="venue.description"
             rows="2"
-            class="w-full rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent"
             placeholder="描述当前展馆的主题与内容"
-            @input="emit('updateVenue', { targetId: venue.id, patch: { description: String(($event.target as HTMLTextAreaElement).value) } })" />
+            @update:model-value="emit('updateVenue', { targetId: venue.id, patch: { description: $event } })" />
         </div>
 
         <div class="mt-2.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] gap-1.5">

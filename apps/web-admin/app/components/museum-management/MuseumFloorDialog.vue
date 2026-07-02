@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
+import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
 import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
+import Input from '@/components/shadcn/input/Input.vue';
+import Textarea from '@/components/shadcn/textarea/Textarea.vue';
 import type { MuseumFloorDraft } from '@/types/museum';
 import type { UploadAttachment } from '@/types/upload';
 
@@ -120,37 +123,36 @@ const submitForm = () => {
         <section class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
             <label class="text-sm font-medium text-foreground">楼层号</label>
-            <UiInput v-model="formState.floorNumber" placeholder="例如：3F" />
+            <Input v-model="formState.floorNumber" placeholder="例如：3F" />
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium text-foreground">楼层名称</label>
-            <UiInput v-model="formState.floorName" placeholder="例如：特展走廊" />
+            <Input v-model="formState.floorName" placeholder="例如：特展走廊" />
           </div>
         </section>
 
         <section class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
             <label class="text-sm font-medium text-foreground">层级</label>
-            <input
-              v-model.number="formState.floorLevel"
+            <Input
+              :model-value="String(formState.floorLevel)"
               type="number"
-              class="h-9 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent">
+              @update:model-value="formState.floorLevel = Number($event || 0)" />
           </div>
           <div class="space-y-2">
             <label class="text-sm font-medium text-foreground">排序号</label>
-            <input
-              v-model.number="formState.sortOrder"
+            <Input
+              :model-value="String(formState.sortOrder)"
               type="number"
-              class="h-9 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent">
+              @update:model-value="formState.sortOrder = Number($event || 0)" />
           </div>
         </section>
 
         <section class="space-y-2">
           <label class="text-sm font-medium text-foreground">楼层说明</label>
-          <textarea
+          <Textarea
             v-model="formState.description"
             rows="3"
-            class="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm leading-6 text-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent"
             placeholder="请输入楼层说明" />
         </section>
 
@@ -164,13 +166,12 @@ const submitForm = () => {
           @uploaded="handleMapUploaded" />
 
         <div class="flex justify-end gap-2 border-t border-border/70 pt-3">
-          <UiButton variant="ghost" type="button" @click="emit('update:open', false)">取消</UiButton>
-          <UiButton type="submit" :disabled="props.submitting">
+          <Button variant="ghost" type="button" @click="emit('update:open', false)">取消</Button>
+          <Button type="submit" :disabled="props.submitting">
             {{ props.submitting ? '保存中...' : '保存楼层' }}
-          </UiButton>
+          </Button>
         </div>
       </form>
     </DialogContent>
   </Dialog>
 </template>
-

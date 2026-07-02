@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
 import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
@@ -27,7 +28,7 @@ const formatValue = (value: number | string | null | undefined, suffix = '') => 
 </script>
 
 <template>
-  <Dialog :open="props.open" @update:open="emit('update:open', $event)">
+  <Dialog :open="props.open" @update:open="(...args) => emit('update:open', Boolean(args[0]))">
     <DialogContent class="max-h-[86vh] max-w-[920px] overflow-hidden p-0">
       <div v-if="props.record" class="flex max-h-[86vh] flex-col">
         <div class="flex items-center justify-between border-b border-border/70 px-5 py-3">
@@ -40,9 +41,9 @@ const formatValue = (value: number | string | null | undefined, suffix = '') => 
             </DialogDescription>
           </DialogHeader>
 
-          <UiButton variant="ghost" size="icon" @click="emit('update:open', false)">
+          <Button variant="ghost" size="icon" @click="emit('update:open', false)">
             <UiAppIcon name="x" class="h-4 w-4" />
-          </UiButton>
+          </Button>
         </div>
 
         <div class="overflow-y-auto px-5 py-4">

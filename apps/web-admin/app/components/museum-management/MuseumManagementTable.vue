@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Button from '@/components/shadcn/button/Button.vue';
 import type { MuseumRecord } from '@/types/museum';
 
 interface Props {
@@ -80,15 +81,15 @@ const formatNumber = (value: number | null, suffix = '') => {
         </div>
 
         <div class="flex items-end justify-end gap-2">
-            <UiButton variant="ghost" size="sm" @click="emit('detail', record)">
-              详情
-            </UiButton>
-            <UiButton variant="secondary" size="sm" @click="emit('edit', record)">
-              编辑
-            </UiButton>
-            <UiButton variant="ghost" size="sm" @click="emit('remove', record)">
-              删除
-            </UiButton>
+          <Button variant="ghost" size="sm" @click="emit('detail', record)">
+            详情
+          </Button>
+          <Button variant="secondary" size="sm" @click="emit('edit', record)">
+            编辑
+          </Button>
+          <Button variant="ghost" size="sm" @click="emit('remove', record)">
+            删除
+          </Button>
         </div>
       </article>
     </div>

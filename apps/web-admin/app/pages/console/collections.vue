@@ -1,50 +1,269 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
+import { computed, shallowRef, watch } from 'vue';
+import Button from '@/components/shadcn/button/Button.vue';
+import Input from '@/components/shadcn/input/Input.vue';
+import Select from '@/components/shadcn/select/Select.vue';
+import CollectionExhibitDialog from '@/components/collections/CollectionExhibitDialog.vue';
+import CollectionExhibitTable from '@/components/collections/CollectionExhibitTable.vue';
+import type {
+  ExhibitDraft,
+  ExhibitRecord,
+  GalleryResponse,
+  GalleryResponseListTotalPageResult,
+  MuseumResponse,
+  MuseumResponseListTotalPageResult,
+} from '@/types/museum';
+
 definePageMeta({
   middleware: 'admin-auth',
 });
 
-const { collectionColumns, collectionFields, conceptRows } = useAdminContent();
+const runtimeConfig = useRuntimeConfig();
+const selectedMuseumId = shallowRef(String(runtimeConfig.public.museumId || '1').trim());
+const { request } = useApiClient();
+
+const { data: museumData, pending: museumPending } = useAsyncData(
+  'exhibit-management:museums',
+  () => request<MuseumResponseListTotalPageResult<MuseumResponse>>('/api/museum-management/query', {
+    method: 'POST',
+    body: {
+      pageIndex: 1,
+      pageSize: 1000,
+      keyword: null,
+      status: null,
+    },
+  }),
+  {
+    default: () => ({
+      list: [],
+      pageIndex: 1,
+      pageSize: 1000,
+      total: 0,
+      totalPages: 0,
+    }),
+  }
+);
+
+const museumOptions = computed(() =>
+  (museumData.value.list ?? [])
+    .filter((museum) => museum.id)
+    .map((museum) => ({
+      value: String(museum.id),
+      label: [museum.museumCode, museum.name].filter(Boolean).join(' / ') || String(museum.id),
+    }))
+);
+
+watch(
+  museumOptions,
+  (options) => {
+    if (!options.length) {
+      selectedMuseumId.value = '';
+      return;
+    }
+
+    if (options.some((option) => option.value === selectedMuseumId.value)) {
+      return;
+    }
+
+    selectedMuseumId.value = options[0]?.value ?? '';
+  },
+  { immediate: true }
+);
+
+const {
+  museumId,
+  filters,
+  rows,
+  pending,
+  error,
+  refresh,
+  pageIndex,
+  pageSize,
+  sorting,
+  total,
+  totalPages,
+  createEmptyDraft,
+  createDraftFromRecord,
+  saveDraft,
+  deleteExhibit,
+  setPage,
+  setPageSize,
+  resetFilters,
+  toggleSort,
+} = useExhibitManagement(() => selectedMuseumId.value);
+
+const { data: galleryData } = useAsyncData(
+  computed(() => `exhibit-management:galleries:${museumId.value}`),
+  () => request<GalleryResponseListTotalPageResult<GalleryResponse>>('/api/map-management/galleries/query', {
+    method: 'POST',
+    body: {
+      pageIndex: 1,
+      pageSize: 1000,
+      museumId: museumId.value,
+    },
+  }),
+  {
+    default: () => ({
+      list: [],
+      pageIndex: 1,
+      pageSize: 1000,
+      total: 0,
+      totalPages: 0,
+    }),
+    watch: [museumId],
+  }
+);
+
+const galleryOptions = computed(() =>
+  (galleryData.value.list ?? [])
+    .filter((gallery) => gallery.id)
+    .map((gallery) => ({
+      label: [gallery.galleryCode, gallery.name].filter(Boolean).join(' / ') || String(gallery.id),
+      value: String(gallery.id),
+    }))
+);
+
+const galleryLabelById = computed(() =>
+  Object.fromEntries(galleryOptions.value.map((option) => [option.value, option.label]))
+);
+
+const formMode = shallowRef<'create' | 'edit'>('create');
+const activeRecordId = shallowRef('');
+const submitting = shallowRef(false);
+const draftState = shallowRef<ExhibitDraft>(createEmptyDraft());
+const dialogOpen = shallowRef(false);
+
+const startCreate = () => {
+  formMode.value = 'create';
+  activeRecordId.value = '';
+  draftState.value = createEmptyDraft();
+  dialogOpen.value = true;
+};
+
+const startEdit = (record: ExhibitRecord) => {
+  formMode.value = 'edit';
+  activeRecordId.value = record.id;
+  draftState.value = createDraftFromRecord(record);
+  dialogOpen.value = true;
+};
+
+const handleSave = async (draft: ExhibitDraft) => {
+  submitting.value = true;
+
+  try {
+    const savedId = await saveDraft(draft, formMode.value === 'edit' ? activeRecordId.value : undefined);
+    activeRecordId.value = savedId;
+    formMode.value = 'edit';
+    draftState.value = {
+      ...draft,
+      id: savedId,
+    };
+    dialogOpen.value = false;
+  } finally {
+    submitting.value = false;
+  }
+};
+
+const handleRemove = async (record: ExhibitRecord) => {
+  const confirmed = window.confirm('确认删除馆藏“' + (record.name || record.exhibitCode || record.id) + '”吗？');
+  if (!confirmed) {
+    return;
+  }
+
+  submitting.value = true;
+
+  try {
+    await deleteExhibit(record.id);
+  } finally {
+    submitting.value = false;
+  }
+};
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1320px] flex-col gap-6">
-    <AdminPageHeader
-      eyebrow="collections"
-      title="馆藏内容管理"
-      description="后台先把文物、展厅、标签和媒体资源整理为标准化内容资产，后续谜题与路线才能稳定复用。"
-    />
+  <div class="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
+    <div v-if="error" class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+      {{ error.message || '馆藏数据加载失败。' }}
+    </div>
 
-    <section class="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-      <AdminSectionCard title="馆藏数据结构建议" description="对应产品方案 7.1，用于约束后台录入字段。">
-        <AdminSimpleTable :columns="collectionColumns" :rows="collectionFields" />
-      </AdminSectionCard>
-
-      <AdminSectionCard title="内容资产化原则" description="这部分决定后台内容模型的边界。">
-        <AdminInfoList :items="conceptRows.slice(0, 3)" />
-      </AdminSectionCard>
-    </section>
-
-    <AdminSectionCard title="录入优先级" description="建议先做能直接支撑路线编排与出题的字段，而不是一次性堆完整 CMS。">
-      <div class="grid gap-3 md:grid-cols-3">
-        <div class="rounded-xl border border-border bg-secondary/40 p-4">
-          <p class="text-sm font-semibold text-foreground">第一层：基础识别</p>
-          <p class="pt-2 text-xs leading-5 text-muted-foreground">
-            名称、编号、年代、作者、材质、朝代、展厅、展柜号。
-          </p>
+    <section class="warm-panel warm-outline rounded-[0.95rem] border border-border/70 px-4 py-4">
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="w-[280px] space-y-2">
+          <label class="text-sm font-medium text-foreground">所属博物馆</label>
+          <Select :model-value="selectedMuseumId" :disabled="museumPending || !museumOptions.length" @update:model-value="selectedMuseumId = $event">
+            <option v-for="option in museumOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </Select>
         </div>
-        <div class="rounded-xl border border-border bg-secondary/40 p-4">
-          <p class="text-sm font-semibold text-foreground">第二层：内容表达</p>
-          <p class="pt-2 text-xs leading-5 text-muted-foreground">
-            封面图、细节图、音频讲解、故事摘要、标签、推荐停留时长。
-          </p>
+        <div class="min-w-[260px] flex-1 space-y-2">
+          <label class="text-sm font-medium text-foreground">关键词</label>
+          <Input v-model="filters.keyword" placeholder="搜索馆藏名称、编码、类别" />
         </div>
-        <div class="rounded-xl border border-border bg-secondary/40 p-4">
-          <p class="text-sm font-semibold text-foreground">第三层：互动支撑</p>
-          <p class="pt-2 text-xs leading-5 text-muted-foreground">
-            线索要素、可观察细节、对比差异、可反转的剧情素材。
-          </p>
+        <div class="w-[180px] space-y-2">
+          <label class="text-sm font-medium text-foreground">年代筛选</label>
+          <Input v-model="filters.dynasty" placeholder="如 商晚期 / 北宋" />
+        </div>
+        <div class="w-[180px] space-y-2">
+          <label class="text-sm font-medium text-foreground">重点筛选</label>
+          <Select :model-value="String(filters.isHighlight)" @update:model-value="filters.isHighlight = Number($event)">
+            <option value="-1">全部类型</option>
+            <option value="1">重点展品</option>
+            <option value="0">普通馆藏</option>
+          </Select>
+        </div>
+        <div class="flex flex-wrap items-end gap-2 xl:ml-auto">
+          <Button variant="outline" :disabled="submitting" @click="resetFilters">
+            重置筛选
+          </Button>
+          <Button variant="outline" :disabled="submitting" @click="refresh()">
+            刷新
+          </Button>
+          <Button :disabled="submitting || !museumId" @click="startCreate">
+            新增馆藏
+          </Button>
         </div>
       </div>
-    </AdminSectionCard>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex items-center justify-between gap-3 px-1">
+        <div class="min-w-0 truncate text-sm text-muted-foreground">
+          共 {{ total }} 条，当前第 {{ pageIndex }} / {{ Math.max(totalPages, 1) }} 页
+        </div>
+        <div class="flex shrink-0 flex-nowrap items-center gap-2 text-sm text-muted-foreground">
+          <span class="whitespace-nowrap">每页</span>
+          <Select :model-value="String(pageSize)" class="w-[78px] shrink-0" @update:model-value="setPageSize(Number($event))">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+          </Select>
+          <Button variant="outline" class="shrink-0 whitespace-nowrap" :disabled="pageIndex <= 1 || pending" @click="setPage(pageIndex - 1)">
+            上一页
+          </Button>
+          <Button variant="outline" class="shrink-0 whitespace-nowrap" :disabled="pageIndex >= Math.max(totalPages, 1) || pending" @click="setPage(pageIndex + 1)">
+            下一页
+          </Button>
+        </div>
+      </div>
+
+      <CollectionExhibitTable
+        :rows="rows"
+        :pending="pending"
+        :sorting="sorting"
+        :gallery-label-by-id="galleryLabelById"
+        @sort="toggleSort"
+        @edit="startEdit"
+        @remove="handleRemove" />
+    </section>
+
+    <CollectionExhibitDialog
+      :open="dialogOpen"
+      :mode="formMode"
+      :initial-value="draftState"
+      :submitting="submitting"
+      :gallery-options="galleryOptions"
+      @update:open="dialogOpen = $event"
+      @save="handleSave" />
   </div>
 </template>

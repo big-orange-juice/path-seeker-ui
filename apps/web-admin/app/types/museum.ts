@@ -129,6 +129,140 @@ export interface MuseumResponseListTotalPageResult<T> {
   totalPages: number;
 }
 
+export interface ExhibitExtraItem {
+  attrKey: string;
+  attrValue: string | null;
+  valueType: number;
+  groupName: string | null;
+  sortOrder: number;
+}
+
+export interface ExhibitExtraResponse {
+  attrKey: string | null;
+  attrValue: string | null;
+  valueType: number;
+  groupName: string | null;
+  sortOrder: number;
+}
+
+export interface ExhibitMediaItem {
+  mediaType: number;
+  mediaUrl: string | null;
+  title: string | null;
+  sortOrder: number;
+  status: number;
+}
+
+export interface ExhibitMediaResponse {
+  id: string | null;
+  mediaType: number;
+  mediaUrl: string | null;
+  title: string | null;
+  sortOrder: number;
+  status: number;
+}
+
+export interface ExhibitPageRequest {
+  pageIndex: number;
+  pageSize: number;
+  museumId?: string | null;
+  galleryId?: string | null;
+  dynasty?: string | null;
+  isHighlight?: number | null;
+  keyword?: string | null;
+}
+
+export interface ExhibitResponseListTotalPageResult<T> {
+  list: T[];
+  pageIndex: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ExhibitResponse {
+  id: string | null;
+  museumId: string | null;
+  galleryId: string | null;
+  exhibitCode: string | null;
+  name: string | null;
+  dynasty: string | null;
+  material: string | null;
+  category: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  qrCode: string | null;
+  isHighlight: number;
+  showcaseNo: string | null;
+  recommendedMinutes: number | null;
+  sortOrder: number;
+  extraList: ExhibitExtraResponse[] | null;
+  mediaList: ExhibitMediaResponse[] | null;
+}
+
+export interface CreateExhibitPayload {
+  museumId: string;
+  galleryId: string | null;
+  exhibitCode: string;
+  name: string;
+  dynasty: string | null;
+  material: string | null;
+  category: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  isHighlight: number;
+  showcaseNo: string | null;
+  recommendedMinutes: number | null;
+  sortOrder: number;
+  extraList: ExhibitExtraItem[] | null;
+  mediaList: ExhibitMediaItem[] | null;
+}
+
+export interface UpdateExhibitPayload extends CreateExhibitPayload {
+  id: string;
+}
+
+export interface ExhibitRecord {
+  id: string;
+  museumId: string;
+  galleryId: string | null;
+  exhibitCode: string;
+  name: string;
+  dynasty: string;
+  material: string;
+  category: string;
+  description: string;
+  imageUrl: string | null;
+  imageFileId: string | null;
+  qrCode: string;
+  isHighlight: number;
+  showcaseNo: string;
+  recommendedMinutes: number | null;
+  sortOrder: number;
+  extraList: ExhibitExtraResponse[];
+  mediaList: ExhibitMediaResponse[];
+}
+
+export interface ExhibitDraft {
+  id?: string;
+  museumId: string;
+  galleryId: string | null;
+  exhibitCode: string;
+  name: string;
+  dynasty: string;
+  material: string;
+  category: string;
+  description: string;
+  imageUrl: string | null;
+  imageFileId: string | null;
+  isHighlight: number;
+  showcaseNo: string;
+  recommendedMinutes: number | null;
+  sortOrder: number;
+  extraList: ExhibitExtraItem[];
+  mediaList: ExhibitMediaItem[];
+}
+
 export interface MuseumResponse {
   id: string | null;
   museumCode: string | null;

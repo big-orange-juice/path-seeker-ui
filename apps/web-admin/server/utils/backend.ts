@@ -293,7 +293,7 @@ export const backendFetch = async <T>(
   const normalizedBody = normalizeRequestBody(rawBody);
   const url = buildBackendUrl(backendBaseUrl, path, query);
   const method = String(requestOptions.method || 'GET').toUpperCase();
-  const headers = {
+  const headers: Record<string, string> = {
     accept: 'application/json',
     ...((event.context.backendHeaders as Record<string, string> | undefined) ?? {}),
     ...((optionHeaders as Record<string, string> | undefined) ?? {}),

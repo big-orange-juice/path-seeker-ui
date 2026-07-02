@@ -1,22 +1,28 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
+import ShadcnInput from '@/components/shadcn/input/Input.vue';
+
+defineOptions({ inheritAttrs: false });
+
 const model = defineModel<string>({ default: '' });
 
 interface Props {
   type?: string;
   placeholder?: string;
+  class?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   type: 'text',
   placeholder: '',
+  class: '',
 });
 </script>
 
 <template>
-  <input
+  <ShadcnInput
     v-model="model"
     :type="props.type"
     :placeholder="props.placeholder"
-    class="h-9 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent"
-  >
+    :class="props.class"
+    v-bind="$attrs" />
 </template>

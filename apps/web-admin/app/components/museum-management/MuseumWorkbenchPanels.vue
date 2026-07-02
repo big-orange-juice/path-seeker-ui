@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
+import Button from '@/components/shadcn/button/Button.vue';
+import Input from '@/components/shadcn/input/Input.vue';
+import Select from '@/components/shadcn/select/Select.vue';
+import Textarea from '@/components/shadcn/textarea/Textarea.vue';
 import MapPhonePreview from '@/components/map-management/MapPhonePreview.vue';
 import MapVenueListEditor from '@/components/map-management/MapVenueListEditor.vue';
 import MuseumFloorDialog from '@/components/museum-management/MuseumFloorDialog.vue';
@@ -437,9 +441,9 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
         description="维护当前主体下的楼层编号、层级、底图与排序。">
         <div class="space-y-3">
           <div class="flex justify-end">
-            <UiButton size="sm" :disabled="props.disabled || floorSubmitting" @click="openCreateFloor">
+            <Button size="sm" :disabled="props.disabled || floorSubmitting" @click="openCreateFloor">
               新增楼层
-            </UiButton>
+            </Button>
           </div>
 
           <div
@@ -478,12 +482,12 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
                 </p>
               </div>
               <div class="flex items-end justify-end gap-2">
-                <UiButton variant="secondary" size="sm" @click="openEditFloor(floor)">
+                <Button variant="secondary" size="sm" @click="openEditFloor(floor)">
                   编辑
-                </UiButton>
-                <UiButton variant="ghost" size="sm" @click="removeFloor(floor)">
+                </Button>
+                <Button variant="ghost" size="sm" @click="removeFloor(floor)">
                   删除
-                </UiButton>
+                </Button>
               </div>
             </article>
           </div>
@@ -516,19 +520,19 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
               <span class="text-xs text-muted-foreground">
                 当前楼层 {{ selectedFloorVenueCount }} 个场馆
               </span>
-              <UiButton
+              <Button
                 size="sm"
                 variant="secondary"
                 :disabled="props.disabled || !selectedFloorId"
                 @click="addVenue">
                 新增场馆
-              </UiButton>
-              <UiButton
+              </Button>
+              <Button
                 size="sm"
                 :disabled="props.disabled || galleryPointSubmitting || !selectedFloorId"
                 @click="saveCurrentFloorGalleries">
                 {{ galleryPointSubmitting ? '保存中...' : '保存当前楼层' }}
-              </UiButton>
+              </Button>
             </div>
           </div>
 
@@ -577,9 +581,9 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
         description="维护当前主体下的公共设施，并可关联到指定楼层。">
         <div class="space-y-3">
           <div class="flex justify-end">
-            <UiButton size="sm" :disabled="props.disabled || facilitySubmitting" @click="openCreateFacility">
+            <Button size="sm" :disabled="props.disabled || facilitySubmitting" @click="openCreateFacility">
               新增设施
-            </UiButton>
+            </Button>
           </div>
 
           <div
@@ -613,12 +617,12 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
                 </p>
               </div>
               <div class="flex items-end justify-end gap-2">
-                <UiButton variant="secondary" size="sm" @click="openEditFacility(facility)">
+                <Button variant="secondary" size="sm" @click="openEditFacility(facility)">
                   编辑
-                </UiButton>
-                <UiButton variant="ghost" size="sm" @click="removeFacility(facility)">
+                </Button>
+                <Button variant="ghost" size="sm" @click="removeFacility(facility)">
                   删除
-                </UiButton>
+                </Button>
               </div>
             </article>
           </div>
@@ -631,10 +635,10 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
       :mode="floorDialogMode"
       :initial-value="floorDraft"
       :submitting="floorSubmitting"
-      @update:open="floorDialogOpen = $event"
+      @update:open="(...args) => floorDialogOpen = Boolean(args[0])"
       @save="saveFloor" />
 
-    <Dialog :open="facilityDialogOpen" @update:open="facilityDialogOpen = $event">
+    <Dialog :open="facilityDialogOpen" @update:open="(...args) => facilityDialogOpen = Boolean(args[0])">
       <DialogContent class="max-w-[760px] overflow-hidden p-0">
         <div class="border-b border-border/70 px-5 py-3">
           <DialogHeader class="space-y-0.5">
@@ -650,48 +654,42 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
           <section class="grid gap-3 md:grid-cols-2">
             <div class="space-y-2">
               <label class="text-sm font-medium text-foreground">设施名称</label>
-              <UiInput v-model="facilityDraft.name" placeholder="请输入设施名称" />
+              <Input v-model="facilityDraft.name" placeholder="请输入设施名称" />
             </div>
             <div class="space-y-2">
               <label class="text-sm font-medium text-foreground">所属楼层</label>
-              <select
-                v-model="facilityDraft.floorId"
-                class="h-9 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent">
-                <option :value="null">未绑定楼层</option>
+              <Select :model-value="facilityDraft.floorId ?? ''" @update:model-value="facilityDraft.floorId = $event || null">
+                <option value="">未绑定楼层</option>
                 <option v-for="option in floorOptions" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
-              </select>
+              </Select>
             </div>
           </section>
 
           <section class="grid gap-3 md:grid-cols-2">
             <div class="space-y-2">
               <label class="text-sm font-medium text-foreground">设施类型</label>
-              <select
-                v-model="facilityDraft.facilityType"
-                class="h-9 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent">
-                <option v-for="option in facilityTypeOptions" :key="option.value" :value="option.value">
+              <Select :model-value="String(facilityDraft.facilityType)" @update:model-value="facilityDraft.facilityType = Number($event)">
+                <option v-for="option in facilityTypeOptions" :key="option.value" :value="String(option.value)">
                   {{ option.label }}
                 </option>
-              </select>
+              </Select>
             </div>
             <div class="space-y-2">
               <label class="text-sm font-medium text-foreground">排序号</label>
-              <input
-                :value="facilityDraft.sortOrder"
+              <Input
+                :model-value="String(facilityDraft.sortOrder)"
                 type="number"
-                class="h-9 w-full rounded-md border border-border bg-secondary px-3 text-sm text-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent"
-                @input="updateFacilitySortOrder(($event.target as HTMLInputElement).value)">
+                @update:model-value="updateFacilitySortOrder($event)" />
             </div>
           </section>
 
           <section class="space-y-2">
             <label class="text-sm font-medium text-foreground">位置描述</label>
-            <textarea
+            <Textarea
               v-model="facilityDraft.locationDesc"
               rows="3"
-              class="w-full rounded-lg border border-border bg-secondary px-3 py-2 text-sm leading-6 text-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent"
               placeholder="请输入位置描述" />
           </section>
 
@@ -705,15 +703,20 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
             @uploaded="handleFacilityUploaded" />
 
           <div class="flex justify-end gap-2 border-t border-border/70 pt-3">
-            <UiButton variant="ghost" type="button" @click="facilityDialogOpen = false">取消</UiButton>
-            <UiButton type="submit" :disabled="facilitySubmitting">
+            <Button variant="ghost" type="button" @click="facilityDialogOpen = false">取消</Button>
+            <Button type="submit" :disabled="facilitySubmitting">
               {{ facilitySubmitting ? '保存中...' : '保存设施' }}
-            </UiButton>
+            </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
   </div>
 </template>
+
+
+
+
+
 
 

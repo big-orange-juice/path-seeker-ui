@@ -283,10 +283,9 @@ const submitForm = () => {
 
                 <div class="space-y-2">
                   <label class="text-sm font-medium text-foreground">楼层描述</label>
-                  <textarea
+                  <UiTextarea
                     v-model="formState.description"
                     rows="4"
-                    class="w-full rounded-md border border-border bg-secondary px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-200 focus:border-primary/45 focus:bg-accent"
                     placeholder="例如：连接中庭与东展区的主通道" />
                 </div>
 
@@ -337,4 +336,7 @@ const submitForm = () => {
     </DialogContent>
   </Dialog>
 </template>
+
+
+
 

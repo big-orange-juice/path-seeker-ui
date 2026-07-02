@@ -2077,7 +2077,7 @@
     "/api/Gameplay/StagePageList": {
       "post": {
         "tags": ["Gameplay"],
-        "summary": "Admin: page route_stage nodes for manual route skeleton maintenance.",
+        "summary": "Admin：分页获取路线节点列表，用于后台手动维护路线骨架。",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2124,7 +2124,7 @@
     "/api/Gameplay/StageGet": {
       "get": {
         "tags": ["Gameplay"],
-        "summary": "Admin: get one route_stage node.",
+        "summary": "Admin：根据ID获取单个路线节点详情。",
         "parameters": [
           {
             "name": "id",
@@ -2162,7 +2162,7 @@
     "/api/Gameplay/StageCreate": {
       "post": {
         "tags": ["Gameplay"],
-        "summary": "Admin: create one route_stage node manually.",
+        "summary": "Admin：手动创建一个路线节点。",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2206,10 +2206,104 @@
         }
       }
     },
+    "/api/Gameplay/AgentStageCreate": {
+      "post": {
+        "tags": ["Gameplay"],
+        "summary": "Admin：由 Agent 按路线 + 文物 + 玩法类型单步生成一个 route_stage 节点。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Gameplay/AgentBuildStages": {
+      "post": {
+        "tags": ["Gameplay"],
+        "summary": "Admin：由 Agent 按路线 + 文物列表 + 玩法类型批量追加 route_stage 节点。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Gameplay/StageUpdate": {
       "post": {
         "tags": ["Gameplay"],
-        "summary": "Admin: update one route_stage node manually.",
+        "summary": "Admin：手动更新一个路线节点。",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2256,7 +2350,7 @@
     "/api/Gameplay/StageDelete": {
       "post": {
         "tags": ["Gameplay"],
-        "summary": "Admin: soft-delete one route_stage node manually.",
+        "summary": "Admin：手动软删除一个路线节点。",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2311,8 +2405,7 @@
             "description": "路线 ID",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             }
           },
           {
@@ -2320,8 +2413,7 @@
             "in": "query",
             "description": "队伍 ID（组队游玩时透传；可空）",
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             }
           }
         ],
@@ -2407,8 +2499,7 @@
             "description": "路线 ID",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             }
           },
           {
@@ -2417,8 +2508,7 @@
             "description": "步骤 ID",
             "required": true,
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             }
           },
           {
@@ -2426,8 +2516,7 @@
             "in": "query",
             "description": "队伍 ID（组队游玩时透传；可空）",
             "schema": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             }
           }
         ],
@@ -3336,26 +3425,27 @@
         }
       }
     },
-    "/api/Puzzle/Personas": {
+    "/api/Puzzle/Gameplays": {
       "get": {
         "tags": ["Puzzle"],
+        "summary": "查看系统内置玩法目录。玩法来自新链路 route_type / interaction_type 映射，不再来自 puzzle_type 表。",
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/PersonaResponseListApiResponse"
+                  "$ref": "#/components/schemas/GameplayDefinitionResponseListApiResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PersonaResponseListApiResponse"
+                  "$ref": "#/components/schemas/GameplayDefinitionResponseListApiResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PersonaResponseListApiResponse"
+                  "$ref": "#/components/schemas/GameplayDefinitionResponseListApiResponse"
                 }
               }
             }
@@ -3363,365 +3453,27 @@
         }
       }
     },
-    "/api/Puzzle/CreatePersona": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePersonaRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePersonaRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePersonaRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/UpdatePersona": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePersonaRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePersonaRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePersonaRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/DeletePersona": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/Types": {
+    "/api/Puzzle/Skill": {
       "get": {
         "tags": ["Puzzle"],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/PuzzleTypeResponseListApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PuzzleTypeResponseListApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PuzzleTypeResponseListApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/CreateType": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePuzzleTypeRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePuzzleTypeRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePuzzleTypeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/UpdateType": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePuzzleTypeRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePuzzleTypeRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePuzzleTypeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/DeleteType": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/PageList": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PuzzlePageRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PuzzlePageRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/PuzzlePageRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/PuzzleAdminResponseListTotalPageResultApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PuzzleAdminResponseListTotalPageResultApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PuzzleAdminResponseListTotalPageResultApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/Get": {
-      "get": {
-        "tags": ["Puzzle"],
+        "summary": "读取指定玩法的 skill.md 内容。",
         "parameters": [
           {
-            "name": "id",
+            "name": "RouteType",
             "in": "query",
+            "description": "玩法类型 route_type",
+            "required": true,
             "schema": {
               "type": "integer",
-              "format": "int64"
+              "format": "int32"
+            }
+          },
+          {
+            "name": "SkillFile",
+            "in": "query",
+            "description": "skill 文件名。一个玩法有多个 skill 时必传，必须来自玩法目录返回的 SkillFiles。",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -3731,17 +3483,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/PuzzleAdminResponseApiResponse"
+                  "$ref": "#/components/schemas/GameplaySkillResponseApiResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PuzzleAdminResponseApiResponse"
+                  "$ref": "#/components/schemas/GameplaySkillResponseApiResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PuzzleAdminResponseApiResponse"
+                  "$ref": "#/components/schemas/GameplaySkillResponseApiResponse"
                 }
               }
             }
@@ -3749,24 +3501,25 @@
         }
       }
     },
-    "/api/Puzzle/Create": {
+    "/api/Puzzle/UpdateSkill": {
       "post": {
         "tags": ["Puzzle"],
+        "summary": "更新指定玩法的 skill.md 内容。",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreatePuzzleRequest"
+                "$ref": "#/components/schemas/UpdateGameplaySkillRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreatePuzzleRequest"
+                "$ref": "#/components/schemas/UpdateGameplaySkillRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/CreatePuzzleRequest"
+                "$ref": "#/components/schemas/UpdateGameplaySkillRequest"
               }
             }
           }
@@ -3777,293 +3530,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
+                  "$ref": "#/components/schemas/GameplaySkillResponseApiResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
+                  "$ref": "#/components/schemas/GameplaySkillResponseApiResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/Update": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePuzzleRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePuzzleRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdatePuzzleRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/Delete": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/AddClue": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateClueRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateClueRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateClueRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StringApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/DeleteClue": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/SubmitAudit": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/IdRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Puzzle/Audit": {
-      "post": {
-        "tags": ["Puzzle"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuditContentRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuditContentRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/AuditContentRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
+                  "$ref": "#/components/schemas/GameplaySkillResponseApiResponse"
                 }
               }
             }
@@ -4429,17 +3906,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateRouteRequest"
+                "$ref": "#/components/schemas/CreateRouteContainerRequest"
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateRouteRequest"
+                "$ref": "#/components/schemas/CreateRouteContainerRequest"
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateRouteRequest"
+                "$ref": "#/components/schemas/CreateRouteContainerRequest"
               }
             }
           }
@@ -5538,6 +5015,191 @@
           }
         }
       }
+    },
+    "/api/Upload/GetTaskDetail": {
+      "get": {
+        "tags": ["Upload"],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskDetailResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskDetailResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskDetailResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Upload/GetTaskStatus": {
+      "get": {
+        "tags": ["Upload"],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskStatusResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskStatusResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskStatusResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Upload/GetFileDetail": {
+      "get": {
+        "tags": ["Upload"],
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentDetailResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentDetailResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentDetailResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Upload/GetTaskOutputs": {
+      "get": {
+        "tags": ["Upload"],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskOutputResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskOutputResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssetGenerationTaskOutputResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Upload/GetTaskAttachments": {
+      "get": {
+        "tags": ["Upload"],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentDetailResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentDetailResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentDetailResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5650,6 +5312,110 @@
         "additionalProperties": false,
         "description": "数据看板 — 分龄分布（按路线年龄段统计参与/完成）"
       },
+      "AgentBuildGameplayStagesRequest": {
+        "required": ["items", "routeId"],
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "目标路线 ID"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExhibitGameplayItem"
+            },
+            "description": "文物-玩法绑定列表：每个文物绑定其专属玩法类型"
+          },
+          "difficulty": {
+            "type": "integer",
+            "description": "难度等级：1=简单 2=普通 3=困难",
+            "format": "int32"
+          },
+          "nodesPerExhibit": {
+            "type": "integer",
+            "description": "每件文物生成节点数，默认 1",
+            "format": "int32"
+          },
+          "requirement": {
+            "type": "string",
+            "description": "可选：额外生成要求，会随入参提供给 Agent",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Agent 批量创建路线节点请求。每个文物可指定独立的玩法类型，追加节点，不覆盖已有 route_stage。"
+      },
+      "AgentBuildGameplayStagesResponse": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "description": "目标路线 ID",
+            "nullable": true
+          },
+          "gameplayType": {
+            "type": "integer",
+            "description": "本次使用的玩法类型/创建预设",
+            "format": "int32"
+          },
+          "interactionType": {
+            "type": "integer",
+            "description": "实际运行交互类型 route_stage.interaction_type",
+            "format": "int32"
+          },
+          "stageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本次新增的 route_stage 节点 ID 列表",
+            "nullable": true
+          },
+          "puzzleIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Answer 节点可能同时创建 puzzle 资源；互动玩法通常为空",
+            "nullable": true
+          },
+          "createdCount": {
+            "type": "integer",
+            "description": "本次新增节点数量",
+            "format": "int32"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Agent 执行说明",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Agent 创建 route_stage 节点结果。"
+      },
+      "AgentBuildGameplayStagesResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/AgentBuildGameplayStagesResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "AgentBuildRouteFromExhibitsRequest": {
         "required": ["exhibitIds"],
         "type": "object",
@@ -5660,9 +5426,8 @@
             "format": "int32"
           },
           "routeId": {
-            "type": "integer",
+            "type": "string",
             "description": "已有路线 ID；为空则新建路线",
-            "format": "int64",
             "nullable": true
           },
           "title": {
@@ -5676,9 +5441,8 @@
             "nullable": true
           },
           "museumId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属博物馆 ID（新建时使用）",
-            "format": "int64",
             "nullable": true
           },
           "ageGroup": {
@@ -5690,8 +5454,7 @@
           "exhibitIds": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             },
             "description": "文物 ID 列表"
           },
@@ -5720,9 +5483,8 @@
             "format": "int32"
           },
           "routeId": {
-            "type": "integer",
+            "type": "string",
             "description": "已有路线 ID；为空则新建路线",
-            "format": "int64",
             "nullable": true
           },
           "title": {
@@ -5736,9 +5498,8 @@
             "nullable": true
           },
           "museumId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属博物馆 ID（新建时使用）",
-            "format": "int64",
             "nullable": true
           },
           "ageGroup": {
@@ -5822,19 +5583,52 @@
         },
         "additionalProperties": false
       },
+      "AgentCreateGameplayStageRequest": {
+        "required": ["exhibitId", "gameplayType", "routeId"],
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "目标路线 ID"
+          },
+          "exhibitId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "关联文物 ID"
+          },
+          "gameplayType": {
+            "type": "integer",
+            "description": "玩法类型/创建预设：1=观察选择题，2~9=互动玩法",
+            "format": "int32"
+          },
+          "difficulty": {
+            "type": "integer",
+            "description": "难度等级：1=简单 2=普通 3=困难",
+            "format": "int32"
+          },
+          "requirement": {
+            "type": "string",
+            "description": "可选：额外生成要求，会随入参提供给 Agent",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Agent 单步创建路线节点请求。gameplayType 来自 /api/Puzzle/Gameplays 的 routeType，仅用于选择 skill。"
+      },
       "AgentCreatePuzzleRequest": {
         "required": ["exhibitId", "puzzleTypeId"],
         "type": "object",
         "properties": {
           "puzzleTypeId": {
-            "type": "integer",
-            "description": "谜题类型 ID（puzzle_type）",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "谜题类型 ID（puzzle_type）"
           },
           "exhibitId": {
-            "type": "integer",
-            "description": "关联文物 ID（museum_exhibit）",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "关联文物 ID（museum_exhibit）"
           },
           "difficultyLevel": {
             "type": "integer",
@@ -6065,14 +5859,254 @@
         "additionalProperties": false,
         "description": "后台游客分页查询"
       },
+      "AssetGenerationTaskDetailResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "businessType": {
+            "type": "string",
+            "nullable": true
+          },
+          "sceneType": {
+            "type": "string",
+            "nullable": true
+          },
+          "assetKind": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusText": {
+            "type": "string",
+            "nullable": true
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "prompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "modelName": {
+            "type": "string",
+            "nullable": true
+          },
+          "inputSourceType": {
+            "type": "string",
+            "nullable": true
+          },
+          "outputUsage": {
+            "type": "string",
+            "nullable": true
+          },
+          "attemptCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "remark": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetGenerationTaskDetailResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/AssetGenerationTaskDetailResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetGenerationTaskOutputResponse": {
+        "type": "object",
+        "properties": {
+          "outputId": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "outputIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "remoteUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "storageMode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "localPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "publicUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "ossObjectKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "ossUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileExt": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileSize": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "sha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "attachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetGenerationTaskOutputResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssetGenerationTaskOutputResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetGenerationTaskStatusResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusText": {
+            "type": "string",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AssetGenerationTaskStatusResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/AssetGenerationTaskStatusResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "AssignPermissionsRequest": {
         "required": ["roleId"],
         "type": "object",
         "properties": {
           "roleId": {
-            "type": "integer",
-            "description": "角色 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "角色 ID"
           },
           "permissionCodes": {
             "type": "array",
@@ -6086,14 +6120,113 @@
         "additionalProperties": false,
         "description": "分配权限请求"
       },
+      "AttachmentDetailResponse": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "originalName": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileSize": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "mimeType": {
+            "type": "string",
+            "nullable": true
+          },
+          "fileExt": {
+            "type": "string",
+            "nullable": true
+          },
+          "storageType": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "width": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AttachmentDetailResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttachmentDetailResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AttachmentDetailResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentDetailResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "AuditContentRequest": {
         "required": ["id"],
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer",
-            "description": "目标 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "目标 ID"
           },
           "pass": {
             "type": "boolean",
@@ -6113,9 +6246,9 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer",
-            "description": "评价 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "评价 ID"
           },
           "status": {
             "type": "integer",
@@ -6342,9 +6475,9 @@
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "integer",
-            "description": "路线 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "路线 ID"
           },
           "stages": {
             "type": "array",
@@ -6363,9 +6496,9 @@
         "type": "object",
         "properties": {
           "userId": {
-            "type": "integer",
-            "description": "用户 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "用户 ID"
           },
           "status": {
             "type": "integer",
@@ -6375,131 +6508,6 @@
         },
         "additionalProperties": false,
         "description": "变更用户状态请求"
-      },
-      "ClueInput": {
-        "type": "object",
-        "properties": {
-          "clueNo": {
-            "type": "integer",
-            "description": "线索编号（从 1 开始）",
-            "format": "int32"
-          },
-          "clueType": {
-            "type": "integer",
-            "description": "线索类型：1=文本 2=图片 3=音频 4=视频 5=AR/地图",
-            "format": "int32"
-          },
-          "content": {
-            "type": "string",
-            "description": "线索内容",
-            "nullable": true
-          },
-          "mediaUrl": {
-            "type": "integer",
-            "description": "媒体附件 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "unlockMode": {
-            "type": "integer",
-            "description": "解锁模式：1=默认可见 2=答错N次后 3=消耗积分 4=超时后",
-            "format": "int32"
-          },
-          "unlockValue": {
-            "type": "integer",
-            "description": "解锁阈值（答错次数/积分消耗/超时秒数）",
-            "format": "int32"
-          },
-          "penaltyScore": {
-            "type": "integer",
-            "description": "查看线索扣除积分",
-            "format": "int32"
-          },
-          "hintLevel": {
-            "type": "integer",
-            "description": "提示层级：0=普通线索 1=观察提示 2=故事提示 3=直接提示",
-            "format": "int32"
-          },
-          "isHidden": {
-            "type": "integer",
-            "description": "是否隐藏线索：0=否 1=是",
-            "format": "int32"
-          },
-          "sortOrder": {
-            "type": "integer",
-            "description": "排序号",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false,
-        "description": "线索输入项"
-      },
-      "ClueResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "线索 ID",
-            "nullable": true
-          },
-          "puzzleId": {
-            "type": "string",
-            "description": "所属谜题 ID",
-            "nullable": true
-          },
-          "clueNo": {
-            "type": "integer",
-            "description": "线索编号",
-            "format": "int32"
-          },
-          "clueType": {
-            "type": "integer",
-            "description": "线索类型",
-            "format": "int32"
-          },
-          "content": {
-            "type": "string",
-            "description": "线索内容",
-            "nullable": true
-          },
-          "mediaUrl": {
-            "type": "string",
-            "description": "媒体附件 ID",
-            "nullable": true
-          },
-          "unlockMode": {
-            "type": "integer",
-            "description": "解锁模式",
-            "format": "int32"
-          },
-          "unlockValue": {
-            "type": "integer",
-            "description": "解锁阈值",
-            "format": "int32"
-          },
-          "penaltyScore": {
-            "type": "integer",
-            "description": "扣除积分",
-            "format": "int32"
-          },
-          "hintLevel": {
-            "type": "integer",
-            "description": "提示层级：0=普通线索 1=观察提示 2=故事提示 3=直接提示",
-            "format": "int32"
-          },
-          "isHidden": {
-            "type": "integer",
-            "description": "是否隐藏线索：0=否 1=是",
-            "format": "int32"
-          },
-          "sortOrder": {
-            "type": "integer",
-            "description": "排序号",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false,
-        "description": "线索响应"
       },
       "CollectiblePageRequest": {
         "type": "object",
@@ -6745,9 +6753,8 @@
             "nullable": true
           },
           "roleId": {
-            "type": "integer",
+            "type": "string",
             "description": "角色 ID",
-            "format": "int64",
             "nullable": true
           }
         },
@@ -6774,15 +6781,13 @@
             "nullable": true
           },
           "iconUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "彩色图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "iconGrayUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "灰色（未获得）图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "rarity": {
@@ -6796,9 +6801,8 @@
             "format": "int32"
           },
           "conditionRouteId": {
-            "type": "integer",
+            "type": "string",
             "description": "条件关联路线 ID（ConditionType=1 时使用）",
-            "format": "int64",
             "nullable": true
           },
           "conditionValue": {
@@ -6809,8 +6813,7 @@
           "conditionBadgeIds": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             },
             "description": "大成就前置徽章 ID 列表（ConditionType=10「集齐指定徽章」时使用，集齐全部即解锁）",
             "nullable": true
@@ -6833,70 +6836,6 @@
         },
         "additionalProperties": false,
         "description": "创建徽章请求"
-      },
-      "CreateClueRequest": {
-        "required": ["puzzleId"],
-        "type": "object",
-        "properties": {
-          "clueNo": {
-            "type": "integer",
-            "description": "线索编号（从 1 开始）",
-            "format": "int32"
-          },
-          "clueType": {
-            "type": "integer",
-            "description": "线索类型：1=文本 2=图片 3=音频 4=视频 5=AR/地图",
-            "format": "int32"
-          },
-          "content": {
-            "type": "string",
-            "description": "线索内容",
-            "nullable": true
-          },
-          "mediaUrl": {
-            "type": "integer",
-            "description": "媒体附件 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "unlockMode": {
-            "type": "integer",
-            "description": "解锁模式：1=默认可见 2=答错N次后 3=消耗积分 4=超时后",
-            "format": "int32"
-          },
-          "unlockValue": {
-            "type": "integer",
-            "description": "解锁阈值（答错次数/积分消耗/超时秒数）",
-            "format": "int32"
-          },
-          "penaltyScore": {
-            "type": "integer",
-            "description": "查看线索扣除积分",
-            "format": "int32"
-          },
-          "hintLevel": {
-            "type": "integer",
-            "description": "提示层级：0=普通线索 1=观察提示 2=故事提示 3=直接提示",
-            "format": "int32"
-          },
-          "isHidden": {
-            "type": "integer",
-            "description": "是否隐藏线索：0=否 1=是",
-            "format": "int32"
-          },
-          "sortOrder": {
-            "type": "integer",
-            "description": "排序号",
-            "format": "int32"
-          },
-          "puzzleId": {
-            "type": "integer",
-            "description": "所属谜题 ID",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false,
-        "description": "创建线索请求"
       },
       "CreateCollectibleRequest": {
         "required": ["collectibleCode", "name"],
@@ -6923,15 +6862,13 @@
             "format": "int32"
           },
           "iconUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "彩色图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "iconGrayUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "灰色（未获得）图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "description": {
@@ -6945,21 +6882,18 @@
             "format": "int32"
           },
           "sourceRouteId": {
-            "type": "integer",
+            "type": "string",
             "description": "来源路线 ID",
-            "format": "int64",
             "nullable": true
           },
           "sourcePuzzleId": {
-            "type": "integer",
+            "type": "string",
             "description": "来源谜题 ID",
-            "format": "int64",
             "nullable": true
           },
           "exhibitId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联展品 ID",
-            "format": "int64",
             "nullable": true
           },
           "sortOrder": {
@@ -6981,14 +6915,13 @@
         "type": "object",
         "properties": {
           "museumId": {
-            "type": "integer",
-            "description": "所属博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属博物馆 ID"
           },
           "galleryId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属展馆 ID",
-            "format": "int64",
             "nullable": true
           },
           "exhibitCode": {
@@ -7022,9 +6955,8 @@
             "nullable": true
           },
           "imageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "主图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "isHighlight": {
@@ -7073,14 +7005,13 @@
         "type": "object",
         "properties": {
           "museumId": {
-            "type": "integer",
-            "description": "所属博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属博物馆 ID"
           },
           "floorId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属楼层 ID",
-            "format": "int64",
             "nullable": true
           },
           "name": {
@@ -7099,9 +7030,8 @@
             "nullable": true
           },
           "iconUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "sortOrder": {
@@ -7129,9 +7059,8 @@
             "nullable": true
           },
           "targetId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联目标 ID",
-            "format": "int64",
             "nullable": true
           },
           "content": {
@@ -7158,9 +7087,9 @@
         "type": "object",
         "properties": {
           "museumId": {
-            "type": "integer",
-            "description": "所属博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属博物馆 ID"
           },
           "floorCode": {
             "minLength": 1,
@@ -7183,9 +7112,8 @@
             "nullable": true
           },
           "mapImageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "楼层地图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "sortOrder": {
@@ -7202,14 +7130,13 @@
         "type": "object",
         "properties": {
           "museumId": {
-            "type": "integer",
-            "description": "所属博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属博物馆 ID"
           },
           "floorId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属楼层 ID",
-            "format": "int64",
             "nullable": true
           },
           "galleryCode": {
@@ -7250,9 +7177,8 @@
             "nullable": true
           },
           "coverImageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "封面图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "openStatus": {
@@ -7451,9 +7377,8 @@
             "nullable": true
           },
           "coverImageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "封面图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "status": {
@@ -7465,202 +7390,6 @@
         "additionalProperties": false,
         "description": "创建博物馆请求"
       },
-      "CreatePersonaRequest": {
-        "required": ["name", "personaCode"],
-        "type": "object",
-        "properties": {
-          "personaCode": {
-            "minLength": 1,
-            "type": "string",
-            "description": "形象编码"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string",
-            "description": "形象名称"
-          },
-          "avatarUrl": {
-            "type": "integer",
-            "description": "头像附件 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "intro": {
-            "type": "string",
-            "description": "形象简介",
-            "nullable": true
-          },
-          "voiceStyle": {
-            "type": "string",
-            "description": "语音风格描述",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态：1=启用 2=禁用",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false,
-        "description": "创建发布形象请求"
-      },
-      "CreatePuzzleRequest": {
-        "required": ["content", "correctAnswer", "puzzleCode", "title"],
-        "type": "object",
-        "properties": {
-          "puzzleCode": {
-            "minLength": 1,
-            "type": "string",
-            "description": "谜题编码"
-          },
-          "title": {
-            "minLength": 1,
-            "type": "string",
-            "description": "谜题标题"
-          },
-          "content": {
-            "minLength": 1,
-            "type": "string",
-            "description": "谜题内容/题干"
-          },
-          "puzzleTypeId": {
-            "type": "integer",
-            "description": "谜题类型 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "scaleType": {
-            "type": "integer",
-            "description": "规模类型：1=小型 2=中型 3=大型",
-            "format": "int32"
-          },
-          "difficultyLevel": {
-            "type": "integer",
-            "description": "难度等级：1=简单 2=普通 3=困难",
-            "format": "int32"
-          },
-          "ageGroup": {
-            "type": "integer",
-            "description": "目标年龄段：0=通用/不限 1=4-6岁 2=6-10岁 3=10-15岁 4=15岁以上",
-            "format": "int32"
-          },
-          "personaId": {
-            "type": "integer",
-            "description": "发布形象 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "galleryId": {
-            "type": "integer",
-            "description": "关联展馆 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "exhibitId": {
-            "type": "integer",
-            "description": "关联展品 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "answerType": {
-            "type": "integer",
-            "description": "答案类型：1=文本 2=单选项 3=数字 4=定位坐标 5=扫码/口令",
-            "format": "int32"
-          },
-          "correctAnswer": {
-            "minLength": 1,
-            "type": "string",
-            "description": "正确答案"
-          },
-          "answerMatchMode": {
-            "type": "integer",
-            "description": "答案匹配模式：1=完全相等 2=忽略大小写空格 3=包含 4=正则",
-            "format": "int32"
-          },
-          "answerExtra": {
-            "type": "string",
-            "description": "答案扩展信息（选项 JSON 等）",
-            "nullable": true
-          },
-          "baseScore": {
-            "type": "integer",
-            "description": "基础得分",
-            "format": "int32"
-          },
-          "timeLimitSec": {
-            "type": "integer",
-            "description": "时间限制（秒）",
-            "format": "int32",
-            "nullable": true
-          },
-          "maxAttempts": {
-            "type": "integer",
-            "description": "最大尝试次数",
-            "format": "int32",
-            "nullable": true
-          },
-          "mediaUrl": {
-            "type": "integer",
-            "description": "媒体附件 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态：1=启用 2=禁用",
-            "format": "int32"
-          },
-          "clues": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ClueInput"
-            },
-            "description": "可选：随谜题一并创建的线索",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false,
-        "description": "创建谜题请求"
-      },
-      "CreatePuzzleTypeRequest": {
-        "required": ["typeCode", "typeName"],
-        "type": "object",
-        "properties": {
-          "typeCode": {
-            "minLength": 1,
-            "type": "string",
-            "description": "类型编码"
-          },
-          "typeName": {
-            "minLength": 1,
-            "type": "string",
-            "description": "类型名称"
-          },
-          "description": {
-            "type": "string",
-            "description": "类型描述",
-            "nullable": true
-          },
-          "iconUrl": {
-            "type": "integer",
-            "description": "图标附件 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "sortOrder": {
-            "type": "integer",
-            "description": "排序号",
-            "format": "int32"
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态：1=启用 2=禁用",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false,
-        "description": "创建谜题类型请求"
-      },
       "CreateReviewRequest": {
         "required": ["targetId", "targetType"],
         "type": "object",
@@ -7671,9 +7400,9 @@
             "format": "int32"
           },
           "targetId": {
-            "type": "integer",
-            "description": "目标 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "目标 ID"
           },
           "rating": {
             "maximum": 5,
@@ -7729,7 +7458,7 @@
         "additionalProperties": false,
         "description": "创建角色请求"
       },
-      "CreateRouteRequest": {
+      "CreateRouteContainerRequest": {
         "required": ["routeCode", "title"],
         "type": "object",
         "properties": {
@@ -7738,15 +7467,9 @@
             "type": "string",
             "description": "路线编码"
           },
-          "routeType": {
-            "type": "integer",
-            "description": "玩法类型：1=线性答题(解谜闯关) 2=定位寻宝 3=剧情分支 …（决定创建工作流与运行引擎）",
-            "format": "int32"
-          },
           "museumId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属博物馆 ID",
-            "format": "int64",
             "nullable": true
           },
           "title": {
@@ -7760,15 +7483,13 @@
             "nullable": true
           },
           "coverImageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "封面图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "personaId": {
-            "type": "integer",
+            "type": "string",
             "description": "发布形象 ID",
-            "format": "int64",
             "nullable": true
           },
           "scaleType": {
@@ -7824,7 +7545,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "创建路线请求"
+        "description": "创建路线容器请求（新链路手动后台入口，不绑定具体玩法）"
       },
       "CreateRouteStageRequest": {
         "required": ["routeId"],
@@ -7852,19 +7573,17 @@
           },
           "interactionType": {
             "type": "integer",
-            "description": "交互类型：1=答题；其余待新玩法定义",
+            "description": "交互类型：1=Answer 2=Password 3=Sequence 4=Match 5=Select 6=Jigsaw 7=SoundMatch 8=SpotDiff 9=ShadowMatch",
             "format": "int32"
           },
           "refPuzzleId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联谜题 ID（答题型节点复用现有 puzzle）",
-            "format": "int64",
             "nullable": true
           },
           "refExhibitId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联文物 ID（寻宝/打卡型节点）",
-            "format": "int64",
             "nullable": true
           },
           "unlockRule": {
@@ -7893,8 +7612,8 @@
             "nullable": true
           },
           "routeId": {
-            "type": "integer",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -7904,9 +7623,9 @@
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "integer",
-            "description": "所属路线 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属路线 ID"
           },
           "chapterNo": {
             "type": "integer",
@@ -7924,15 +7643,13 @@
             "description": "故事内容"
           },
           "imageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "配图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "audioUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "音频附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "triggerType": {
@@ -7941,9 +7658,8 @@
             "format": "int32"
           },
           "triggerPuzzleId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联触发谜题 ID（TriggerType=4 时使用）",
-            "format": "int64",
             "nullable": true
           },
           "sortOrder": {
@@ -8003,9 +7719,9 @@
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "integer",
-            "description": "路线 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "路线 ID"
           },
           "teamName": {
             "type": "string",
@@ -8207,6 +7923,24 @@
         "additionalProperties": false,
         "description": "展品扩展属性响应项"
       },
+      "ExhibitGameplayItem": {
+        "required": ["exhibitId", "gameplayType"],
+        "type": "object",
+        "properties": {
+          "exhibitId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "关联文物 ID"
+          },
+          "gameplayType": {
+            "type": "integer",
+            "description": "玩法类型/创建预设：1=观察选择题，2~9=互动玩法",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "文物-玩法绑定项：每个文物绑定其专属玩法类型。"
+      },
       "ExhibitMediaItem": {
         "type": "object",
         "properties": {
@@ -8216,9 +7950,8 @@
             "format": "int32"
           },
           "mediaUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "媒体附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "title": {
@@ -8291,15 +8024,13 @@
             "format": "int32"
           },
           "museumId": {
-            "type": "integer",
+            "type": "string",
             "description": "博物馆 ID 筛选",
-            "format": "int64",
             "nullable": true
           },
           "galleryId": {
-            "type": "integer",
+            "type": "string",
             "description": "展馆 ID 筛选",
-            "format": "int64",
             "nullable": true
           },
           "dynasty": {
@@ -8825,15 +8556,13 @@
             "format": "int32"
           },
           "museumId": {
-            "type": "integer",
+            "type": "string",
             "description": "博物馆 ID 筛选",
-            "format": "int64",
             "nullable": true
           },
           "floorId": {
-            "type": "integer",
+            "type": "string",
             "description": "楼层 ID 筛选",
-            "format": "int64",
             "nullable": true
           },
           "category": {
@@ -9015,19 +8744,183 @@
         },
         "additionalProperties": false
       },
+      "GameplayDefinitionResponse": {
+        "type": "object",
+        "properties": {
+          "routeType": {
+            "type": "integer",
+            "description": "玩法类型 route_type",
+            "format": "int32"
+          },
+          "routeCode": {
+            "type": "string",
+            "description": "玩法编码",
+            "nullable": true
+          },
+          "routeName": {
+            "type": "string",
+            "description": "玩法名称",
+            "nullable": true
+          },
+          "interactionType": {
+            "type": "integer",
+            "description": "运行交互类型 route_stage.interaction_type",
+            "format": "int32"
+          },
+          "interactionCode": {
+            "type": "string",
+            "description": "交互编码",
+            "nullable": true
+          },
+          "componentKey": {
+            "type": "string",
+            "description": "前端组件键",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "description": "玩法说明",
+            "nullable": true
+          },
+          "agentEnabled": {
+            "type": "boolean",
+            "description": "是否支持 Agent 生成"
+          },
+          "skillFiles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "该玩法允许查看/编辑的 skill.md 文件名",
+            "nullable": true
+          },
+          "configSchemaVersion": {
+            "type": "string",
+            "description": "配置协议版本",
+            "nullable": true
+          },
+          "payloadSchemaVersion": {
+            "type": "string",
+            "description": "提交载荷协议版本",
+            "nullable": true
+          },
+          "requiredConfigFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "配置必填字段",
+            "nullable": true
+          },
+          "requiredPayloadFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "提交必填字段",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "新链路玩法定义响应"
+      },
+      "GameplayDefinitionResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GameplayDefinitionResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GameplaySkillResponse": {
+        "type": "object",
+        "properties": {
+          "routeType": {
+            "type": "integer",
+            "description": "玩法类型 route_type",
+            "format": "int32"
+          },
+          "routeName": {
+            "type": "string",
+            "description": "玩法名称",
+            "nullable": true
+          },
+          "skillFile": {
+            "type": "string",
+            "description": "skill 文件名",
+            "nullable": true
+          },
+          "skillsRoot": {
+            "type": "string",
+            "description": "当前 skill 根目录",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "description": "skill.md 文件内容",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "最后修改时间",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "玩法 skill.md 内容响应"
+      },
+      "GameplaySkillResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GameplaySkillResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "GrantBadgeRequest": {
         "required": ["badgeId", "userId"],
         "type": "object",
         "properties": {
           "userId": {
-            "type": "integer",
-            "description": "用户 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "用户 ID"
           },
           "badgeId": {
-            "type": "integer",
-            "description": "徽章 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "徽章 ID"
           }
         },
         "additionalProperties": false,
@@ -9038,14 +8931,14 @@
         "type": "object",
         "properties": {
           "userId": {
-            "type": "integer",
-            "description": "用户 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "用户 ID"
           },
           "collectibleId": {
-            "type": "integer",
-            "description": "收集品 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "收集品 ID"
           }
         },
         "additionalProperties": false,
@@ -9183,9 +9076,9 @@
         "type": "object",
         "properties": {
           "nodeId": {
-            "type": "integer",
+            "type": "string",
             "description": "起始节点 ID",
-            "format": "int64"
+            "nullable": true
           },
           "edgeDims": {
             "type": "array",
@@ -9330,9 +9223,8 @@
         "type": "object",
         "properties": {
           "nodeId": {
-            "type": "integer",
+            "type": "string",
             "description": "节点 ID",
-            "format": "int64",
             "nullable": true
           },
           "nodeName": {
@@ -9402,14 +9294,14 @@
         "type": "object",
         "properties": {
           "sourceNodeId": {
-            "type": "integer",
+            "type": "string",
             "description": "起始节点 ID",
-            "format": "int64"
+            "nullable": true
           },
           "targetNodeId": {
-            "type": "integer",
+            "type": "string",
             "description": "目标节点 ID",
-            "format": "int64"
+            "nullable": true
           },
           "maxHops": {
             "type": "integer",
@@ -9553,9 +9445,9 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer",
-            "description": "实体主键 ID（雪花 ID）",
-            "format": "int64"
+            "type": "string",
+            "description": "实体主键 ID（雪花 ID，JavaScript 兼容为 string）",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -9592,9 +9484,8 @@
             "nullable": true
           },
           "teamId": {
-            "type": "integer",
+            "type": "string",
             "description": "队伍 ID（与 InviteCode 二选一）",
-            "format": "int64",
             "nullable": true
           }
         },
@@ -10082,39 +9973,14 @@
         "additionalProperties": false,
         "description": "发布形象响应"
       },
-      "PersonaResponseListApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PersonaResponse"
-            },
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
       "PublishRouteRequest": {
         "required": ["routeId"],
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "integer",
-            "description": "路线 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "路线 ID"
           },
           "publishStatus": {
             "type": "integer",
@@ -10139,9 +10005,8 @@
             "format": "int32"
           },
           "museumId": {
-            "type": "integer",
+            "type": "string",
             "description": "博物馆 ID 筛选",
-            "format": "int64",
             "nullable": true
           },
           "scaleType": {
@@ -10170,263 +10035,6 @@
         },
         "additionalProperties": false,
         "description": "C端已发布路线查询请求"
-      },
-      "PuzzleAdminResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "谜题 ID",
-            "nullable": true
-          },
-          "puzzleCode": {
-            "type": "string",
-            "description": "谜题编码",
-            "nullable": true
-          },
-          "title": {
-            "type": "string",
-            "description": "谜题标题",
-            "nullable": true
-          },
-          "content": {
-            "type": "string",
-            "description": "谜题内容/题干",
-            "nullable": true
-          },
-          "puzzleTypeId": {
-            "type": "string",
-            "description": "谜题类型 ID",
-            "nullable": true
-          },
-          "scaleType": {
-            "type": "integer",
-            "description": "规模类型：1=小型 2=中型 3=大型",
-            "format": "int32"
-          },
-          "difficultyLevel": {
-            "type": "integer",
-            "description": "难度等级：1=简单 2=普通 3=困难",
-            "format": "int32"
-          },
-          "ageGroup": {
-            "type": "integer",
-            "description": "目标年龄段：0=通用 1=4-6 2=6-10 3=10-15 4=15+",
-            "format": "int32"
-          },
-          "personaId": {
-            "type": "string",
-            "description": "发布形象 ID",
-            "nullable": true
-          },
-          "galleryId": {
-            "type": "string",
-            "description": "关联展馆 ID",
-            "nullable": true
-          },
-          "exhibitId": {
-            "type": "string",
-            "description": "关联展品 ID",
-            "nullable": true
-          },
-          "answerType": {
-            "type": "integer",
-            "description": "答案类型",
-            "format": "int32"
-          },
-          "correctAnswer": {
-            "type": "string",
-            "description": "正确答案",
-            "nullable": true
-          },
-          "answerMatchMode": {
-            "type": "integer",
-            "description": "答案匹配模式",
-            "format": "int32"
-          },
-          "answerExtra": {
-            "type": "string",
-            "description": "答案扩展信息",
-            "nullable": true
-          },
-          "baseScore": {
-            "type": "integer",
-            "description": "基础得分",
-            "format": "int32"
-          },
-          "timeLimitSec": {
-            "type": "integer",
-            "description": "时间限制（秒）",
-            "format": "int32",
-            "nullable": true
-          },
-          "maxAttempts": {
-            "type": "integer",
-            "description": "最大尝试次数",
-            "format": "int32",
-            "nullable": true
-          },
-          "mediaUrl": {
-            "type": "string",
-            "description": "媒体附件 ID",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态：1=启用 2=禁用",
-            "format": "int32"
-          },
-          "auditStatus": {
-            "type": "integer",
-            "description": "审核状态：0=草稿 1=待审核 2=通过 3=驳回",
-            "format": "int32"
-          },
-          "auditRemark": {
-            "type": "string",
-            "description": "审核备注",
-            "nullable": true
-          },
-          "clues": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ClueResponse"
-            },
-            "description": "线索列表",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false,
-        "description": "谜题（后台视角，含答案）"
-      },
-      "PuzzleAdminResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/PuzzleAdminResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "PuzzleAdminResponseListTotalPageResult": {
-        "type": "object",
-        "properties": {
-          "list": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PuzzleAdminResponse"
-            },
-            "nullable": true
-          },
-          "pageIndex": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "pageSize": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "total": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "totalPages": {
-            "type": "integer",
-            "format": "int32",
-            "readOnly": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "PuzzleAdminResponseListTotalPageResultApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/PuzzleAdminResponseListTotalPageResult"
-          }
-        },
-        "additionalProperties": false
-      },
-      "PuzzlePageRequest": {
-        "type": "object",
-        "properties": {
-          "pageIndex": {
-            "type": "integer",
-            "description": "页码，从 1 开始",
-            "format": "int32"
-          },
-          "pageSize": {
-            "type": "integer",
-            "description": "每页条数，默认 10",
-            "format": "int32"
-          },
-          "puzzleTypeId": {
-            "type": "integer",
-            "description": "谜题类型 ID 筛选",
-            "format": "int64",
-            "nullable": true
-          },
-          "scaleType": {
-            "type": "integer",
-            "description": "规模类型筛选",
-            "format": "int32",
-            "nullable": true
-          },
-          "difficultyLevel": {
-            "type": "integer",
-            "description": "难度等级筛选",
-            "format": "int32",
-            "nullable": true
-          },
-          "ageGroup": {
-            "type": "integer",
-            "description": "目标年龄段筛选",
-            "format": "int32",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态筛选",
-            "format": "int32",
-            "nullable": true
-          },
-          "auditStatus": {
-            "type": "integer",
-            "description": "审核状态筛选：0=草稿 1=待审核 2=通过 3=驳回",
-            "format": "int32",
-            "nullable": true
-          },
-          "keyword": {
-            "type": "string",
-            "description": "关键字搜索",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false,
-        "description": "谜题分页查询请求"
       },
       "PuzzleStuckResponse": {
         "type": "object",
@@ -10459,73 +10067,6 @@
         },
         "additionalProperties": false,
         "description": "数据看板 — 卡点谜题（正确率低/尝试多）"
-      },
-      "PuzzleTypeResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "谜题类型 ID",
-            "nullable": true
-          },
-          "typeCode": {
-            "type": "string",
-            "description": "类型编码",
-            "nullable": true
-          },
-          "typeName": {
-            "type": "string",
-            "description": "类型名称",
-            "nullable": true
-          },
-          "description": {
-            "type": "string",
-            "description": "类型描述",
-            "nullable": true
-          },
-          "iconUrl": {
-            "type": "string",
-            "description": "图标附件 ID",
-            "nullable": true
-          },
-          "sortOrder": {
-            "type": "integer",
-            "description": "排序号",
-            "format": "int32"
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态：1=启用 2=禁用",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false,
-        "description": "谜题类型响应"
-      },
-      "PuzzleTypeResponseListApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PuzzleTypeResponse"
-            },
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
       },
       "RefreshTokenRequest": {
         "required": ["refreshToken"],
@@ -10594,9 +10135,9 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "integer",
-            "description": "反馈 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "反馈 ID"
           },
           "replyContent": {
             "minLength": 1,
@@ -10656,9 +10197,9 @@
             "format": "int32"
           },
           "targetId": {
-            "type": "integer",
-            "description": "目标 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "目标 ID"
           }
         },
         "additionalProperties": false,
@@ -11337,9 +10878,8 @@
             "format": "int32"
           },
           "museumId": {
-            "type": "integer",
+            "type": "string",
             "description": "博物馆 ID 筛选",
-            "format": "int64",
             "nullable": true
           },
           "scaleType": {
@@ -11530,8 +11070,8 @@
             "format": "int32"
           },
           "routeId": {
-            "type": "integer",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string"
           },
           "interactionType": {
             "type": "integer",
@@ -11539,13 +11079,11 @@
             "nullable": true
           },
           "refPuzzleId": {
-            "type": "integer",
-            "format": "int64",
+            "type": "string",
             "nullable": true
           },
           "refExhibitId": {
-            "type": "integer",
-            "format": "int64",
+            "type": "string",
             "nullable": true
           },
           "keyword": {
@@ -11602,15 +11140,14 @@
             "format": "int32"
           },
           "targetId": {
-            "type": "integer",
-            "description": "关联目标 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "关联目标 ID"
           },
           "tagIds": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             },
             "description": "标签 ID 列表",
             "nullable": true
@@ -11745,19 +11282,17 @@
           },
           "interactionType": {
             "type": "integer",
-            "description": "交互类型：1=答题；其余待新玩法定义",
+            "description": "交互类型：1=Answer 2=Password 3=Sequence 4=Match 5=Select 6=Jigsaw 7=SoundMatch 8=SpotDiff 9=ShadowMatch",
             "format": "int32"
           },
           "refPuzzleId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联谜题 ID（答题型节点复用现有 puzzle）",
-            "format": "int64",
             "nullable": true
           },
           "refExhibitId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联文物 ID（寻宝/打卡型节点）",
-            "format": "int64",
             "nullable": true
           },
           "unlockRule": {
@@ -11819,7 +11354,7 @@
           },
           "interactionType": {
             "type": "integer",
-            "description": "交互类型：1=答题；其余待新玩法定义",
+            "description": "交互类型：1=Answer 2=Password 3=Sequence 4=Match 5=Select 6=Jigsaw 7=SoundMatch 8=SpotDiff 9=ShadowMatch",
             "format": "int32"
           },
           "refPuzzleId": {
@@ -11962,19 +11497,18 @@
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "integer",
-            "description": "路线 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "路线 ID"
           },
           "stageId": {
-            "type": "integer",
-            "description": "步骤 ID（线性答题玩法下等于谜题 ID）",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "步骤 ID（线性答题玩法下等于谜题 ID）"
           },
           "teamId": {
-            "type": "integer",
+            "type": "string",
             "description": "队伍 ID（组队游玩时透传；可空）",
-            "format": "int64",
             "nullable": true
           },
           "payload": {
@@ -12432,25 +11966,29 @@
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "integer",
-            "description": "路线 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "路线 ID"
           },
           "stageId": {
-            "type": "integer",
-            "description": "步骤 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "步骤 ID"
           },
           "teamId": {
-            "type": "integer",
+            "type": "string",
             "description": "队伍 ID（组队游玩时透传；可空）",
-            "format": "int64",
             "nullable": true
           },
           "clueId": {
-            "type": "integer",
-            "description": "线索 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "线索 ID（答题节点 puzzle_clue 使用）"
+          },
+          "hintId": {
+            "type": "string",
+            "description": "互动节点 config.hints 使用的字符串提示 ID，如 h1",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -12521,15 +12059,13 @@
             "nullable": true
           },
           "iconUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "彩色图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "iconGrayUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "灰色（未获得）图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "rarity": {
@@ -12543,9 +12079,8 @@
             "format": "int32"
           },
           "conditionRouteId": {
-            "type": "integer",
+            "type": "string",
             "description": "条件关联路线 ID（ConditionType=1 时使用）",
-            "format": "int64",
             "nullable": true
           },
           "conditionValue": {
@@ -12556,8 +12091,7 @@
           "conditionBadgeIds": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int64"
+              "type": "string"
             },
             "description": "大成就前置徽章 ID 列表（ConditionType=10「集齐指定徽章」时使用，集齐全部即解锁）",
             "nullable": true
@@ -12578,9 +12112,9 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "徽章 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "徽章 ID"
           }
         },
         "additionalProperties": false,
@@ -12611,15 +12145,13 @@
             "format": "int32"
           },
           "iconUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "彩色图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "iconGrayUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "灰色（未获得）图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "description": {
@@ -12633,21 +12165,18 @@
             "format": "int32"
           },
           "sourceRouteId": {
-            "type": "integer",
+            "type": "string",
             "description": "来源路线 ID",
-            "format": "int64",
             "nullable": true
           },
           "sourcePuzzleId": {
-            "type": "integer",
+            "type": "string",
             "description": "来源谜题 ID",
-            "format": "int64",
             "nullable": true
           },
           "exhibitId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联展品 ID",
-            "format": "int64",
             "nullable": true
           },
           "sortOrder": {
@@ -12661,9 +12190,9 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "收集品 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "收集品 ID"
           }
         },
         "additionalProperties": false,
@@ -12674,14 +12203,13 @@
         "type": "object",
         "properties": {
           "museumId": {
-            "type": "integer",
-            "description": "所属博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属博物馆 ID"
           },
           "galleryId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属展馆 ID",
-            "format": "int64",
             "nullable": true
           },
           "exhibitCode": {
@@ -12715,9 +12243,8 @@
             "nullable": true
           },
           "imageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "主图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "isHighlight": {
@@ -12758,9 +12285,9 @@
             "nullable": true
           },
           "id": {
-            "type": "integer",
-            "description": "展品 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "展品 ID"
           }
         },
         "additionalProperties": false,
@@ -12771,14 +12298,13 @@
         "type": "object",
         "properties": {
           "museumId": {
-            "type": "integer",
-            "description": "所属博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属博物馆 ID"
           },
           "floorId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属楼层 ID",
-            "format": "int64",
             "nullable": true
           },
           "name": {
@@ -12797,9 +12323,8 @@
             "nullable": true
           },
           "iconUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "图标附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "sortOrder": {
@@ -12808,9 +12333,9 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "设施 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "设施 ID"
           }
         },
         "additionalProperties": false,
@@ -12821,9 +12346,9 @@
         "type": "object",
         "properties": {
           "museumId": {
-            "type": "integer",
-            "description": "所属博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属博物馆 ID"
           },
           "floorCode": {
             "minLength": 1,
@@ -12846,9 +12371,8 @@
             "nullable": true
           },
           "mapImageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "楼层地图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "sortOrder": {
@@ -12857,9 +12381,9 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "楼层 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "楼层 ID"
           }
         },
         "additionalProperties": false,
@@ -12870,14 +12394,13 @@
         "type": "object",
         "properties": {
           "museumId": {
-            "type": "integer",
-            "description": "所属博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属博物馆 ID"
           },
           "floorId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属楼层 ID",
-            "format": "int64",
             "nullable": true
           },
           "galleryCode": {
@@ -12918,9 +12441,8 @@
             "nullable": true
           },
           "coverImageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "封面图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "openStatus": {
@@ -12946,13 +12468,36 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "展馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "展馆 ID"
           }
         },
         "additionalProperties": false,
         "description": "更新展馆请求"
+      },
+      "UpdateGameplaySkillRequest": {
+        "required": ["content", "routeType"],
+        "type": "object",
+        "properties": {
+          "routeType": {
+            "type": "integer",
+            "description": "玩法类型 route_type",
+            "format": "int32"
+          },
+          "skillFile": {
+            "type": "string",
+            "description": "skill 文件名。一个玩法有多个 skill 时必传，必须来自玩法目录返回的 SkillFiles。",
+            "nullable": true
+          },
+          "content": {
+            "minLength": 1,
+            "type": "string",
+            "description": "skill.md 文件内容"
+          }
+        },
+        "additionalProperties": false,
+        "description": "玩法 skill 更新请求"
       },
       "UpdateMuseumRequest": {
         "required": ["id", "museumCode", "name"],
@@ -13051,9 +12596,8 @@
             "nullable": true
           },
           "coverImageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "封面图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "status": {
@@ -13062,57 +12606,13 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "博物馆 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "博物馆 ID"
           }
         },
         "additionalProperties": false,
         "description": "更新博物馆请求"
-      },
-      "UpdatePersonaRequest": {
-        "required": ["id", "name", "personaCode"],
-        "type": "object",
-        "properties": {
-          "personaCode": {
-            "minLength": 1,
-            "type": "string",
-            "description": "形象编码"
-          },
-          "name": {
-            "minLength": 1,
-            "type": "string",
-            "description": "形象名称"
-          },
-          "avatarUrl": {
-            "type": "integer",
-            "description": "头像附件 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "intro": {
-            "type": "string",
-            "description": "形象简介",
-            "nullable": true
-          },
-          "voiceStyle": {
-            "type": "string",
-            "description": "语音风格描述",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态：1=启用 2=禁用",
-            "format": "int32"
-          },
-          "id": {
-            "type": "integer",
-            "description": "形象 ID",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false,
-        "description": "更新发布形象请求"
       },
       "UpdateProfileRequest": {
         "type": "object",
@@ -13123,9 +12623,8 @@
             "nullable": true
           },
           "avatarUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "头像附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "gender": {
@@ -13154,173 +12653,6 @@
         "additionalProperties": false,
         "description": "更新用户资料请求"
       },
-      "UpdatePuzzleRequest": {
-        "required": ["content", "correctAnswer", "id", "puzzleCode", "title"],
-        "type": "object",
-        "properties": {
-          "puzzleCode": {
-            "minLength": 1,
-            "type": "string",
-            "description": "谜题编码"
-          },
-          "title": {
-            "minLength": 1,
-            "type": "string",
-            "description": "谜题标题"
-          },
-          "content": {
-            "minLength": 1,
-            "type": "string",
-            "description": "谜题内容/题干"
-          },
-          "puzzleTypeId": {
-            "type": "integer",
-            "description": "谜题类型 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "scaleType": {
-            "type": "integer",
-            "description": "规模类型：1=小型 2=中型 3=大型",
-            "format": "int32"
-          },
-          "difficultyLevel": {
-            "type": "integer",
-            "description": "难度等级：1=简单 2=普通 3=困难",
-            "format": "int32"
-          },
-          "ageGroup": {
-            "type": "integer",
-            "description": "目标年龄段：0=通用/不限 1=4-6岁 2=6-10岁 3=10-15岁 4=15岁以上",
-            "format": "int32"
-          },
-          "personaId": {
-            "type": "integer",
-            "description": "发布形象 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "galleryId": {
-            "type": "integer",
-            "description": "关联展馆 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "exhibitId": {
-            "type": "integer",
-            "description": "关联展品 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "answerType": {
-            "type": "integer",
-            "description": "答案类型：1=文本 2=单选项 3=数字 4=定位坐标 5=扫码/口令",
-            "format": "int32"
-          },
-          "correctAnswer": {
-            "minLength": 1,
-            "type": "string",
-            "description": "正确答案"
-          },
-          "answerMatchMode": {
-            "type": "integer",
-            "description": "答案匹配模式：1=完全相等 2=忽略大小写空格 3=包含 4=正则",
-            "format": "int32"
-          },
-          "answerExtra": {
-            "type": "string",
-            "description": "答案扩展信息（选项 JSON 等）",
-            "nullable": true
-          },
-          "baseScore": {
-            "type": "integer",
-            "description": "基础得分",
-            "format": "int32"
-          },
-          "timeLimitSec": {
-            "type": "integer",
-            "description": "时间限制（秒）",
-            "format": "int32",
-            "nullable": true
-          },
-          "maxAttempts": {
-            "type": "integer",
-            "description": "最大尝试次数",
-            "format": "int32",
-            "nullable": true
-          },
-          "mediaUrl": {
-            "type": "integer",
-            "description": "媒体附件 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态：1=启用 2=禁用",
-            "format": "int32"
-          },
-          "clues": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ClueInput"
-            },
-            "description": "可选：随谜题一并创建的线索",
-            "nullable": true
-          },
-          "id": {
-            "type": "integer",
-            "description": "谜题 ID",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false,
-        "description": "更新谜题请求"
-      },
-      "UpdatePuzzleTypeRequest": {
-        "required": ["id", "typeCode", "typeName"],
-        "type": "object",
-        "properties": {
-          "typeCode": {
-            "minLength": 1,
-            "type": "string",
-            "description": "类型编码"
-          },
-          "typeName": {
-            "minLength": 1,
-            "type": "string",
-            "description": "类型名称"
-          },
-          "description": {
-            "type": "string",
-            "description": "类型描述",
-            "nullable": true
-          },
-          "iconUrl": {
-            "type": "integer",
-            "description": "图标附件 ID",
-            "format": "int64",
-            "nullable": true
-          },
-          "sortOrder": {
-            "type": "integer",
-            "description": "排序号",
-            "format": "int32"
-          },
-          "status": {
-            "type": "integer",
-            "description": "状态：1=启用 2=禁用",
-            "format": "int32"
-          },
-          "id": {
-            "type": "integer",
-            "description": "谜题类型 ID",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false,
-        "description": "更新谜题类型请求"
-      },
       "UpdateRoleRequest": {
         "required": ["id", "roleCode", "roleName"],
         "type": "object",
@@ -13346,9 +12678,9 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "角色 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "角色 ID"
           }
         },
         "additionalProperties": false,
@@ -13363,15 +12695,9 @@
             "type": "string",
             "description": "路线编码"
           },
-          "routeType": {
-            "type": "integer",
-            "description": "玩法类型：1=线性答题(解谜闯关) 2=定位寻宝 3=剧情分支 …（决定创建工作流与运行引擎）",
-            "format": "int32"
-          },
           "museumId": {
-            "type": "integer",
+            "type": "string",
             "description": "所属博物馆 ID",
-            "format": "int64",
             "nullable": true
           },
           "title": {
@@ -13385,15 +12711,13 @@
             "nullable": true
           },
           "coverImageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "封面图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "personaId": {
-            "type": "integer",
+            "type": "string",
             "description": "发布形象 ID",
-            "format": "int64",
             "nullable": true
           },
           "scaleType": {
@@ -13448,9 +12772,9 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "路线 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "路线 ID"
           }
         },
         "additionalProperties": false,
@@ -13482,19 +12806,17 @@
           },
           "interactionType": {
             "type": "integer",
-            "description": "交互类型：1=答题；其余待新玩法定义",
+            "description": "交互类型：1=Answer 2=Password 3=Sequence 4=Match 5=Select 6=Jigsaw 7=SoundMatch 8=SpotDiff 9=ShadowMatch",
             "format": "int32"
           },
           "refPuzzleId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联谜题 ID（答题型节点复用现有 puzzle）",
-            "format": "int64",
             "nullable": true
           },
           "refExhibitId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联文物 ID（寻宝/打卡型节点）",
-            "format": "int64",
             "nullable": true
           },
           "unlockRule": {
@@ -13523,12 +12845,12 @@
             "nullable": true
           },
           "routeId": {
-            "type": "integer",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string"
           },
           "id": {
-            "type": "integer",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -13538,9 +12860,9 @@
         "type": "object",
         "properties": {
           "routeId": {
-            "type": "integer",
-            "description": "所属路线 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "所属路线 ID"
           },
           "chapterNo": {
             "type": "integer",
@@ -13558,15 +12880,13 @@
             "description": "故事内容"
           },
           "imageUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "配图附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "audioUrl": {
-            "type": "integer",
+            "type": "string",
             "description": "音频附件 ID",
-            "format": "int64",
             "nullable": true
           },
           "triggerType": {
@@ -13575,9 +12895,8 @@
             "format": "int32"
           },
           "triggerPuzzleId": {
-            "type": "integer",
+            "type": "string",
             "description": "关联触发谜题 ID（TriggerType=4 时使用）",
-            "format": "int64",
             "nullable": true
           },
           "sortOrder": {
@@ -13586,9 +12905,9 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "故事 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "故事 ID"
           }
         },
         "additionalProperties": false,
@@ -13634,9 +12953,9 @@
             "format": "int32"
           },
           "id": {
-            "type": "integer",
-            "description": "标签 ID",
-            "format": "int64"
+            "minLength": 1,
+            "type": "string",
+            "description": "标签 ID"
           }
         },
         "additionalProperties": false,
@@ -14009,7 +13328,7 @@
     },
     {
       "name": "Puzzle",
-      "description": "策展后台 — 谜题/线索/发布形象/谜题类型 内容管理 (需登录)"
+      "description": "策展后台 — 新链路玩法目录与 skill.md 管理。\n旧 puzzle_type / puzzle CRUD 不再从本控制器暴露；路线与节点请走 RouteController / GameplayController，\nAgent 生成请走 AgentController。"
     },
     {
       "name": "Review",
