@@ -94,6 +94,7 @@ function buildFloorLayout(
   const floorCode = trimText(floor.floorCode)
   const floorName = trimText(floor.floorName)
   const label = floorName ? `${floorCode || '楼层'} · ${floorName}` : (floorCode || '未命名楼层')
+  const mapImageUrl = trimText(floor.mapImageUrl)
   const { worldWidth, worldHeight } = buildFloorWorld(halls)
 
   return {
@@ -101,7 +102,7 @@ function buildFloorLayout(
     label,
     summary: trimText(floor.description) || `${label} 当前已配置 ${halls.length} 个点位。`,
     axisLabel: floorName || floorCode || '馆内楼层',
-    mapImageUrl: trimText(floor.mapImageUrl),
+    mapImageUrl,
     sortOrder: floor.sortOrder ?? 0,
     floorLevel: floor.floorLevel ?? 0,
     worldWidth,

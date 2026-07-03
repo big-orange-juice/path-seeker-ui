@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { getDifficultyLabel } from "@/utils/puzzleLabels"
 import type { MissionRouteCard } from "@/types/mission"
 
 interface Props {
@@ -18,8 +17,8 @@ const emit = defineEmits<{
   open: [routeId: string]
 }>()
 
-const routeDots = computed(() => Array.from({ length: props.route.chapterCount }, (_, index) => index))
-const visibleTags = computed(() => props.route.taglines.slice(0, 2))
+const visibleTags = computed(() => props.route.taglines.slice(0, 1))
+const scoreLabel = computed(() => `${props.route.totalScore ?? 0}`)
 const statusLabel = computed(() => {
   if (props.status === "in-progress") {
     return "进行中"
@@ -38,36 +37,31 @@ const statusLabel = computed(() => {
     <view class="mission-card" :class="`is-${status}`">
       <view class="mission-top">
         <text class="mission-status">{{ statusLabel }}</text>
-        <text class="mission-time">{{ route.estimatedMinutes }} 分钟</text>
+        <text class="mission-time">{{ scoreLabel }} 分</text>
       </view>
 
       <view class="mission-plate">
         <view class="plate-copy">
-          <text class="mission-kicker">{{ route.theme }} / {{ getDifficultyLabel(route.difficultyLevel) }}</text>
+          <text class="mission-kicker">{{ route.theme }} / {{ route.difficultyLevel }}</text>
           <text class="mission-title">{{ route.title }}</text>
         </view>
-        <view class="mission-seal">{{ route.persona.avatar }}</view>
       </view>
 
-      <view class="route-strip">
-        <view v-for="dot in routeDots" :key="dot" class="route-dot" :class="{ 'is-first': dot === 0 }"></view>
-      </view>
+      <view class="route-divider"></view>
 
       <view class="mission-bottom">
         <view class="mission-start">
-          <text class="metric-label">起点</text>
-          <text class="mission-meta-value">{{ route.startLocation }}</text>
+          <text class="metric-label">主题</text>
+          <text class="mission-meta-value">{{ route.theme }}</text>
         </view>
         <view class="mission-stats">
-          <text>{{ route.taskKind === "family_adventure" ? "亲子探索" : route.taskKind === "story_detective" ? "剧情推理" : "深度推理" }}</text>
-          <text>{{ route.chapterCount }} 站</text>
+          <text>{{ route.puzzleCount }} 题</text>
         </view>
       </view>
 
       <view class="chip-row mission-tags">
         <text v-if="showResume || status === 'in-progress'" class="chip is-active">继续探索</text>
         <text v-else-if="status === 'completed'" class="chip is-active">已通关</text>
-        <text class="chip is-active">{{ route.recommendedAgeBand }}</text>
         <text v-for="tag in visibleTags" :key="tag" class="chip">{{ tag }}</text>
       </view>
     </view>
@@ -180,34 +174,21 @@ const statusLabel = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60rpx;
+  min-width: 90rpx;
   height: 60rpx;
-  border-radius: 18rpx;
+  padding: 0 16rpx;
+  border-radius: 999rpx;
   background: rgba(209, 178, 111, 0.14);
   color: #fff8ea;
-  font-size: 26rpx;
+  font-size: 24rpx;
   font-weight: 900;
 }
 
-.route-strip {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
+.route-divider {
+  height: 2rpx;
   margin: 18rpx 0 16rpx;
-  padding: 10rpx 12rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.route-dot {
-  flex: 1;
-  height: 6rpx;
-  border-radius: 999rpx;
-  background: rgba(247, 239, 221, 0.12);
-}
-
-.route-dot.is-first {
-  background: linear-gradient(90deg, #d1b26f, #f2d999);
+  background: linear-gradient(90deg, rgba(209, 178, 111, 0.75), rgba(255, 255, 255, 0.08));
 }
 
 .mission-start {
@@ -234,6 +215,8 @@ const statusLabel = computed(() => {
   color: rgba(247, 239, 221, 0.68);
   font-size: 21rpx;
   font-weight: 800;
+  text-align: right;
+  max-width: 240rpx;
 }
 
 .mission-tags {

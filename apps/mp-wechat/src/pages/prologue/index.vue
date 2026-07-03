@@ -53,7 +53,7 @@ function enterMap() {
         </view>
       </view>
 
-      <button class="primary-button" @click="enterMap">打开大地图</button>
+      <button class="primary-button" @click="enterMap">查看任务路线</button>
     </view>
   </PageScaffold>
 </template>

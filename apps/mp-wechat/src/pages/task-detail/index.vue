@@ -2,23 +2,29 @@
 import { computed, shallowRef } from "vue"
 import { onLoad } from "@dcloudio/uni-app"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
+import { getCachedRemoteRouteCard } from "@/composables/useRemoteRouteCards"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
 import { getDifficultyLabel, getPuzzleTypeGlyph, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
 import { toSingleSentence } from "@/utils/copy"
-import type { AgeBand, MissionDetail } from "@/types/mission"
+import type { AgeBand, MissionDetail, MissionRouteCard } from "@/types/mission"
 
 const missionStore = useMissionStore()
 const routeId = shallowRef("")
 const mission = shallowRef<MissionDetail | null>(null)
+const remoteRoute = shallowRef<MissionRouteCard | null>(null)
 const selectedAgeBand = shallowRef<AgeBand>("6-10")
 
 const canResumeCurrent = computed(
-  () => missionStore.activeSession?.routeId === mission.value?.id && missionStore.activeSession?.status === "in_progress",
+  () => {
+    const currentId = mission.value?.id || remoteRoute.value?.id || ""
+    return missionStore.activeSession?.routeId === currentId && missionStore.activeSession?.status === "in_progress"
+  },
 )
 
 const routePreview = computed(() => mission.value?.chapters.slice(0, 6) ?? [])
 const summaryCopy = computed(() => toSingleSentence(mission.value?.summary || ""))
+const cardSummaryCopy = computed(() => toSingleSentence(remoteRoute.value?.summary || ""))
 
 function startMission() {
   if (!mission.value) {
@@ -36,9 +42,15 @@ function continueMission() {
 onLoad((query) => {
   routeId.value = String(query?.routeId || "")
   mission.value = missionStore.getMission(routeId.value)
+  remoteRoute.value = getCachedRemoteRouteCard(routeId.value)
 
   if (mission.value) {
     selectedAgeBand.value = mission.value.recommendedAgeBand
+    return
+  }
+
+  if (remoteRoute.value) {
+    selectedAgeBand.value = remoteRoute.value.recommendedAgeBand
   }
 })
 </script>
@@ -122,8 +134,51 @@ onLoad((query) => {
       </view>
 
       <view class="button-row action-row">
-        <button v-if="canResumeCurrent" class="secondary-button" @click="continueMission">回到地图</button>
+        <button v-if="canResumeCurrent" class="secondary-button" @click="continueMission">回到任务</button>
         <button class="primary-button" @click="startMission">拿任务牌出发</button>
+      </view>
+    </view>
+
+    <view v-else-if="remoteRoute" class="content-stack bottom-safe">
+      <view class="detail-ticket">
+        <view class="ticket-topline">
+          <text class="eyebrow">{{ remoteRoute.badgeLabel }}</text>
+          <text class="ticket-time">{{ remoteRoute.estimatedMinutes || "-" }} 分钟</text>
+        </view>
+        <text class="display-title detail-title">{{ remoteRoute.title }}</text>
+        <view class="ticket-meta">
+          <text>{{ remoteRoute.theme }}</text>
+          <text>{{ getDifficultyLabel(remoteRoute.difficultyLevel) }}</text>
+          <text>{{ remoteRoute.puzzleCount }} 题</text>
+        </view>
+      </view>
+
+      <view class="panel note-card">
+        <text class="section-title note-title">{{ cardSummaryCopy || "暂无简介" }}</text>
+      </view>
+
+      <view class="info-pair">
+        <view class="panel info-card">
+          <text class="metric-label">适龄</text>
+          <text class="info-value">{{ remoteRoute.recommendedAgeBand }}</text>
+        </view>
+        <view class="panel info-card">
+          <text class="metric-label">奖励</text>
+          <text class="info-value">{{ remoteRoute.rewardTitle }}</text>
+        </view>
+      </view>
+
+      <view class="panel age-card">
+        <text class="eyebrow">年龄档</text>
+        <view class="chip-row age-row">
+          <text class="chip is-active">{{ remoteRoute.recommendedAgeBand }}</text>
+          <text v-for="tag in remoteRoute.taglines" :key="tag" class="chip">{{ tag }}</text>
+        </view>
+      </view>
+
+      <button v-if="canResumeCurrent" class="secondary-button" @click="continueMission">继续当前任务</button>
+      <view v-else class="panel note-card">
+        <text class="muted-copy">该任务详情流程暂未接入，当前先展示列表基础信息。</text>
       </view>
     </view>
   </PageScaffold>

@@ -56,6 +56,7 @@ export interface MissionRouteCard {
   difficultyLevel: DifficultyLevel
   taskKind: TaskKind
   estimatedMinutes: number
+  totalScore?: number
   puzzleCount: number
   chapterCount: number
   allowTeam: boolean
@@ -207,4 +208,3 @@ export interface MissionArchiveEntry {
   puzzleCount: number
   usedHintCount: number
 }
-

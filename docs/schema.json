@@ -338,100 +338,6 @@
         }
       }
     },
-    "/api/Agent/CreatePuzzle": {
-      "post": {
-        "tags": ["Agent"],
-        "summary": "① 根据选中题型 + 关联文物，自动生成一道谜题（草稿）",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentCreatePuzzleRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentCreatePuzzleRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentCreatePuzzleRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentCreatePuzzleResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentCreatePuzzleResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentCreatePuzzleResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Agent/BuildRouteFromExhibits": {
-      "post": {
-        "tags": ["Agent"],
-        "summary": "② 根据文物 ID 列表 + 难度，自动选题型、随机组合生成谜题并组卷进路线（RouteId 为空则新建）",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentBuildRouteFromExhibitsRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentBuildRouteFromExhibitsRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentBuildRouteFromExhibitsRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildRouteResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildRouteResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildRouteResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/Agent/BuildRouteFromTheme": {
       "post": {
         "tags": ["Agent"],
@@ -472,6 +378,194 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AgentBuildRouteResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Agent/AgentStageCreate": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "Admin：由 Agent 按路线 + 文物 + 玩法类型单步生成一个 route_stage 节点。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Agent/AgentBuildStages": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "Admin：由 Agent 按路线 + 文物列表 + 玩法类型批量追加 route_stage 节点。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Agent/AgentStageEdit": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "Admin：由 Agent 编辑一个已有 route_stage 节点。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentUpdateGameplayStageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentUpdateGameplayStageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentUpdateGameplayStageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEditGameplayStagesResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEditGameplayStagesResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEditGameplayStagesResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Agent/AgentEditStages": {
+      "post": {
+        "tags": ["Agent"],
+        "summary": "Admin：由 Agent 批量编辑已有 route_stage 节点。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentEditGameplayStagesRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentEditGameplayStagesRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentEditGameplayStagesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEditGameplayStagesResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEditGameplayStagesResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentEditGameplayStagesResponseApiResponse"
                 }
               }
             }
@@ -2199,100 +2293,6 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StringApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Gameplay/AgentStageCreate": {
-      "post": {
-        "tags": ["Gameplay"],
-        "summary": "Admin：由 Agent 按路线 + 文物 + 玩法类型单步生成一个 route_stage 节点。",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentCreateGameplayStageRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Gameplay/AgentBuildStages": {
-      "post": {
-        "tags": ["Gameplay"],
-        "summary": "Admin：由 Agent 按路线 + 文物列表 + 玩法类型批量追加 route_stage 节点。",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/AgentBuildGameplayStagesRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentBuildGameplayStagesResponseApiResponse"
                 }
               }
             }
@@ -5416,63 +5416,6 @@
         },
         "additionalProperties": false
       },
-      "AgentBuildRouteFromExhibitsRequest": {
-        "required": ["exhibitIds"],
-        "type": "object",
-        "properties": {
-          "routeType": {
-            "type": "integer",
-            "description": "玩法类型：1=线性答题 2=定位寻宝 3=剧情分支 …（决定 Agent 选哪份 skill 与工具集）。新建路线时生效。",
-            "format": "int32"
-          },
-          "routeId": {
-            "type": "string",
-            "description": "已有路线 ID；为空则新建路线",
-            "nullable": true
-          },
-          "title": {
-            "type": "string",
-            "description": "路线标题（新建时使用，留空自动生成）",
-            "nullable": true
-          },
-          "theme": {
-            "type": "string",
-            "description": "路线主题（新建时使用）",
-            "nullable": true
-          },
-          "museumId": {
-            "type": "string",
-            "description": "所属博物馆 ID（新建时使用）",
-            "nullable": true
-          },
-          "ageGroup": {
-            "type": "integer",
-            "description": "目标年龄段：0=通用 1=4-6 2=6-10 3=10-15 4=15+",
-            "format": "int32",
-            "nullable": true
-          },
-          "exhibitIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "文物 ID 列表"
-          },
-          "difficulty": {
-            "type": "integer",
-            "description": "难度等级：1=简单 2=普通 3=困难",
-            "format": "int32"
-          },
-          "puzzlesPerExhibit": {
-            "type": "integer",
-            "description": "每件文物生成谜题数量（不传由 Agent 按难度决定）",
-            "format": "int32",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false,
-        "description": "Agent 接口② — 根据提交的文物 ID 列表 + 难度，自动选题型、随机组合生成谜题并组卷进路线"
-      },
       "AgentBuildRouteFromThemeRequest": {
         "required": ["themeQuery"],
         "type": "object",
@@ -5539,6 +5482,29 @@
             "type": "string",
             "description": "路线 ID（新建或追加的目标路线）",
             "nullable": true
+          },
+          "gameplayType": {
+            "type": "integer",
+            "description": "本次使用的玩法类型/创建预设",
+            "format": "int32"
+          },
+          "interactionType": {
+            "type": "integer",
+            "description": "实际写入 route_stage.interaction_type 的运行交互类型",
+            "format": "int32"
+          },
+          "stageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本次新增的 route_stage 节点 ID 列表",
+            "nullable": true
+          },
+          "stageCount": {
+            "type": "integer",
+            "description": "本次新增 route_stage 节点数量",
+            "format": "int32"
           },
           "puzzleIds": {
             "type": "array",
@@ -5616,68 +5582,67 @@
         "additionalProperties": false,
         "description": "Agent 单步创建路线节点请求。gameplayType 来自 /api/Puzzle/Gameplays 的 routeType，仅用于选择 skill。"
       },
-      "AgentCreatePuzzleRequest": {
-        "required": ["exhibitId", "puzzleTypeId"],
+      "AgentEditGameplayStagesRequest": {
+        "required": ["routeId", "stageIds"],
         "type": "object",
         "properties": {
-          "puzzleTypeId": {
+          "routeId": {
             "minLength": 1,
             "type": "string",
-            "description": "谜题类型 ID（puzzle_type）"
+            "description": "目标路线 ID"
           },
-          "exhibitId": {
-            "minLength": 1,
-            "type": "string",
-            "description": "关联文物 ID（museum_exhibit）"
+          "stageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "目标节点 ID 列表"
           },
-          "difficultyLevel": {
+          "difficulty": {
             "type": "integer",
-            "description": "难度等级：1=简单 2=普通 3=困难（不传默认普通）",
-            "format": "int32",
-            "nullable": true
+            "description": "难度等级：1=简单 2=普通 3=困难",
+            "format": "int32"
           },
           "requirement": {
             "type": "string",
-            "description": "额外出题要求/补充提示（可选，将作为约束传给 Agent）",
+            "description": "可选：额外编辑要求，会随入参提供给 Agent",
             "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "Agent 接口① — 根据选中题型 + 关联文物自动生成一道谜题"
+        "description": "Agent 批量编辑请求。基于已有 route_stage 重新生成节点内容，不做跨玩法类型转换。"
       },
-      "AgentCreatePuzzleResponse": {
+      "AgentEditGameplayStagesResponse": {
         "type": "object",
         "properties": {
-          "puzzleId": {
+          "routeId": {
             "type": "string",
-            "description": "新创建谜题 ID",
+            "description": "目标路线 ID",
             "nullable": true
           },
-          "title": {
-            "type": "string",
-            "description": "谜题标题",
+          "stageIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "本次更新的 route_stage 节点 ID 列表",
             "nullable": true
           },
-          "content": {
-            "type": "string",
-            "description": "谜题题干",
-            "nullable": true
-          },
-          "correctAnswer": {
-            "type": "string",
-            "description": "正确答案",
-            "nullable": true
+          "updatedCount": {
+            "type": "integer",
+            "description": "本次更新节点数量",
+            "format": "int32"
           },
           "summary": {
             "type": "string",
-            "description": "Agent 执行说明（自然语言总结）",
+            "description": "Agent 执行说明",
             "nullable": true
           }
         },
         "additionalProperties": false,
-        "description": "Agent 创建单题结果"
+        "description": "Agent 编辑 route_stage 节点结果。"
       },
-      "AgentCreatePuzzleResponseApiResponse": {
+      "AgentEditGameplayStagesResponseApiResponse": {
         "type": "object",
         "properties": {
           "code": {
@@ -5693,10 +5658,38 @@
             "nullable": true
           },
           "data": {
-            "$ref": "#/components/schemas/AgentCreatePuzzleResponse"
+            "$ref": "#/components/schemas/AgentEditGameplayStagesResponse"
           }
         },
         "additionalProperties": false
+      },
+      "AgentUpdateGameplayStageRequest": {
+        "required": ["routeId", "stageId"],
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "目标路线 ID"
+          },
+          "stageId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "目标节点 ID"
+          },
+          "difficulty": {
+            "type": "integer",
+            "description": "难度等级：1=简单 2=普通 3=困难",
+            "format": "int32"
+          },
+          "requirement": {
+            "type": "string",
+            "description": "可选：额外编辑要求，会随入参提供给 Agent",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Agent 单节点编辑请求。基于已有 route_stage 重新生成节点内容，不做跨玩法类型转换。"
       },
       "ApiResponse": {
         "type": "object",
@@ -7858,6 +7851,93 @@
         },
         "additionalProperties": false
       },
+      "ExhibitAIArchiveResponse": {
+        "type": "object",
+        "properties": {
+          "formalName": {
+            "type": "string",
+            "description": "正式学术定名",
+            "nullable": true
+          },
+          "era": {
+            "type": "string",
+            "description": "年代（含考古学文化）",
+            "nullable": true
+          },
+          "dimensions": {
+            "type": "string",
+            "description": "尺寸",
+            "nullable": true
+          },
+          "materialCraft": {
+            "type": "string",
+            "description": "材质与工艺详细描述",
+            "nullable": true
+          },
+          "excavationSite": {
+            "type": "string",
+            "description": "出土地点",
+            "nullable": true
+          },
+          "currentCollection": {
+            "type": "string",
+            "description": "现收藏机构",
+            "nullable": true
+          },
+          "formFunction": {
+            "type": "string",
+            "description": "形制与功能描述",
+            "nullable": true
+          },
+          "originStory": {
+            "type": "string",
+            "description": "诞生背景故事（纹饰解读、社会背景、制作工艺）",
+            "nullable": true
+          },
+          "keyPersonTimeline": {
+            "type": "string",
+            "description": "关键人物与时间线（JSON数组）",
+            "nullable": true
+          },
+          "coreMemoryPoints": {
+            "type": "string",
+            "description": "核心记忆点（JSON数组）",
+            "nullable": true
+          },
+          "historicalValueSummary": {
+            "type": "string",
+            "description": "历史终极价值总结（JSON字符串数组）",
+            "nullable": true
+          },
+          "backgroundStories": {
+            "type": "string",
+            "description": "背景故事/志怪传说/历史轶事",
+            "nullable": true
+          },
+          "culturalContext": {
+            "type": "string",
+            "description": "深层文化背景解读",
+            "nullable": true
+          },
+          "historicalSignificance": {
+            "type": "string",
+            "description": "历史进程中的历史意义",
+            "nullable": true
+          },
+          "influenceLevel": {
+            "type": "integer",
+            "description": "影响等级：0=未评级 1=世界级 2=国家级 3=区域级 4=一般",
+            "format": "int32"
+          },
+          "relationshipClues": {
+            "type": "string",
+            "description": "AI识别的关联线索JSON",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "AI 文物档案响应（来自 exhibit_ai_archive）"
+      },
       "ExhibitExtraItem": {
         "required": ["attrKey"],
         "type": "object",
@@ -8147,6 +8227,9 @@
             },
             "description": "媒体资源列表（细节图/音频/短视频/360图）",
             "nullable": true
+          },
+          "aiArchive": {
+            "$ref": "#/components/schemas/ExhibitAIArchiveResponse"
           }
         },
         "additionalProperties": false,

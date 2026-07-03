@@ -26,8 +26,8 @@ interface TabItem {
 const missionStore = useMissionStore();
 
 const items: TabItem[] = [
-  { label: '地图', value: 'hall', icon: 'map' },
-  { label: '任务', value: 'playing', icon: 'route' },
+  { label: '首页', value: 'hall', icon: 'map' },
+  { label: '继续', value: 'playing', icon: 'route' },
   { label: '收获', value: 'archive', icon: 'archive' }
 ];
 

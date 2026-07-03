@@ -25,7 +25,7 @@ const emit = defineEmits<{
   save: [value: MuseumDraft];
 }>();
 
-const activeTab = defineModel<'basic' | 'floors' | 'galleries' | 'facilities'>('activeTab', {
+const activeTab = defineModel<'basic' | 'floors' | 'facilities'>('activeTab', {
   default: 'basic',
 });
 
@@ -55,14 +55,13 @@ const formState = reactive<MuseumDraft>({
 const dialogTitle = computed(() => (props.mode === 'create' ? '新增主体' : '主体工作台'));
 const dialogDescription = computed(() =>
   props.mode === 'create'
-    ? '先保存主体基础信息，再继续维护楼层、场馆和设施。'
-    : '在同一个主体工作台中维护基础信息、楼层、场馆和设施。'
+    ? '先保存主体基础信息，再继续维护楼层和设施。'
+    : '在同一个主体工作台中维护基础信息、楼层和设施。'
 );
 
 const tabItems = [
   { key: 'basic', label: '基础信息' },
   { key: 'floors', label: '楼层地图' },
-  { key: 'galleries', label: '场馆点位' },
   { key: 'facilities', label: '设施' },
 ] as const;
 
@@ -123,9 +122,9 @@ const submitBasic = (...args: unknown[]) => {
   emit('save', value);
 };
 
-const activeWorkbenchSection = computed<'floors' | 'galleries' | 'facilities'>(() => {
-  if (activeTab.value === 'galleries' || activeTab.value === 'facilities') {
-    return activeTab.value;
+const activeWorkbenchSection = computed<'floors' | 'facilities'>(() => {
+  if (activeTab.value === 'facilities') {
+    return 'facilities';
   }
 
   return 'floors';

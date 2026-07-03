@@ -28,7 +28,7 @@ const draftState = shallowRef<MuseumDraft>(createEmptyDraft());
 const dialogOpen = shallowRef(false);
 const detailDialogOpen = shallowRef(false);
 const detailRecord = shallowRef<MuseumRecord | null>(null);
-const workspaceTab = shallowRef<'basic' | 'floors' | 'galleries' | 'facilities'>('basic');
+const workspaceTab = shallowRef<'basic' | 'floors' | 'facilities'>('basic');
 
 const startCreate = () => {
   formMode.value = 'create';
@@ -149,4 +149,3 @@ const handleRemove = async (record: MuseumRecord) => {
       @update:open="detailDialogOpen = $event" />
   </div>
 </template>
-

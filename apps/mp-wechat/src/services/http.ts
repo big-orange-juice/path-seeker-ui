@@ -1,5 +1,6 @@
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 const API_PREFIX = ''
+const FIXED_BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyMDczMDQ1OTE0MzIyMzQxODg4IiwianRpIjoiN2JkMGQ2NGVlN2UxNDUyOGIxMTNjYTZmMmJhMzkzODIiLCJ1c2VyX25vIjoiVTM0ODQ5NDgwMzQ2NzYzNjczNyIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiMjA3MzA0NTkxNDMyMjM0MTg4OCIsImh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vd3MvMjAwOC8wNi9pZGVudGl0eS9jbGFpbXMvcm9sZSI6InVzZXIiLCJleHAiOjE3ODMxNzQwODUsImlzcyI6IkN1bHR1cmFsVG91cmlzbVN5c3RlbSIsImF1ZCI6IkN1bHR1cmFsVG91cmlzbVN5c3RlbS5DbGllbnQifQ.nFcsEbPBQnDMdu7MIR_t_IDV3Hzz9hNOjcRr7ufLuV8'
 
 type RequestMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'OPTIONS' | 'HEAD'
 type RequestPayload = string | Record<string, unknown> | ArrayBuffer | undefined
@@ -134,6 +135,7 @@ export async function request<T>(path: string, options: RequestOptions = {}) {
     data,
     header: {
       'content-type': 'application/json',
+      Authorization: `Bearer ${FIXED_BEARER_TOKEN}`,
       ...header,
     },
   })

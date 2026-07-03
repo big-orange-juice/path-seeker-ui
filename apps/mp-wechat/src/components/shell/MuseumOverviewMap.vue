@@ -54,8 +54,6 @@ const worldMetrics = reactive({
   scaleBoost: 1,
 })
 let selectedMarkerTween: gsap.core.Tween | null = null
-let inertiaTween: gsap.core.Tween | null = null
-const dragSamples: Array<{ x: number; y: number; at: number }> = []
 
 const scaledWorldWidth = computed(() => worldMetrics.worldWidth * scale.value)
 const scaledWorldHeight = computed(() => worldMetrics.worldHeight * scale.value)
@@ -198,84 +196,6 @@ function getMarkerStyle(hall: MuseumHallBlock) {
   }
 }
 
-function clampToBounds(value: number, min: number, max: number) {
-  return Math.min(Math.max(value, min), max)
-}
-
-function recordDragSample(x: number, y: number) {
-  const now = Date.now()
-  dragSamples.push({ x, y, at: now })
-
-  while (dragSamples.length > 5) {
-    dragSamples.shift()
-  }
-
-  while (dragSamples.length > 1 && now - dragSamples[0]!.at > 140) {
-    dragSamples.shift()
-  }
-}
-
-function clearDragSamples() {
-  dragSamples.length = 0
-}
-
-function stopInertia() {
-  inertiaTween?.kill()
-  inertiaTween = null
-}
-
-function runInertia() {
-  if (dragSamples.length < 2) {
-    return
-  }
-
-  const first = dragSamples[0]
-  const last = dragSamples[dragSamples.length - 1]
-
-  if (!first || !last) {
-    return
-  }
-
-  const elapsed = Math.max(last.at - first.at, 16)
-  const velocityX = (last.x - first.x) / elapsed
-  const velocityY = (last.y - first.y) / elapsed
-  const speed = Math.hypot(velocityX, velocityY)
-
-  if (speed < 0.08) {
-    return
-  }
-
-  const bounds = getPanBounds()
-  const glideDistance = Math.min(520, Math.max(180, speed * 780))
-  const targetX = clampToBounds(offsetX.value + velocityX * glideDistance, bounds.minX, bounds.maxX)
-  const targetY = clampToBounds(offsetY.value + velocityY * glideDistance, bounds.minY, bounds.maxY)
-
-  if (Math.abs(targetX - offsetX.value) < 2 && Math.abs(targetY - offsetY.value) < 2) {
-    return
-  }
-
-  const tweenState = {
-    x: offsetX.value,
-    y: offsetY.value,
-  }
-
-  stopInertia()
-  inertiaTween = gsap.to(tweenState, {
-    x: targetX,
-    y: targetY,
-    duration: Math.min(0.7, Math.max(0.32, speed * 0.24)),
-    ease: 'power3.out',
-    overwrite: true,
-    onUpdate: () => {
-      offsetX.value = tweenState.x
-      offsetY.value = tweenState.y
-    },
-    onComplete: () => {
-      inertiaTween = null
-    },
-  })
-}
-
 function playSelectedMarkerGlow() {
   selectedMarkerTween?.kill()
 
@@ -301,37 +221,15 @@ function playSelectedMarkerGlow() {
 }
 
 function handleViewportTouchStart(event: TouchEvent) {
-  stopInertia()
-
-  if (event.touches.length < 2) {
-    clearDragSamples()
-    handleTouchStart(event)
-    recordDragSample(offsetX.value, offsetY.value)
-    return
-  }
-
   handleTouchStart(event)
 }
 
 function handleViewportTouchMove(event: TouchEvent) {
   handleTouchMove(event)
-
-  if (event.touches.length < 2) {
-    recordDragSample(offsetX.value, offsetY.value)
-  }
 }
 
 function handleViewportTouchEnd(event: TouchEvent) {
-  const remainingTouches = event.touches?.length || 0
   handleTouchEnd(event)
-
-  if (remainingTouches > 0) {
-    clearDragSamples()
-    return
-  }
-
-  runInertia()
-  clearDragSamples()
 }
 
 function selectHall(hallId: string) {
@@ -389,7 +287,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   selectedMarkerTween?.kill()
-  stopInertia()
 })
 </script>
 
