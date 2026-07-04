@@ -10,6 +10,7 @@ import {
 import AppIcon from '@/components/ui/AppIcon.vue';
 import { gsap } from 'gsap';
 import { useMissionStore } from '@/stores/useMissionStore';
+import { requireAuthForTab } from '@/utils/authGuard';
 import {
   MINI_ROUTES,
   isFabTopLevelRoute,
@@ -20,7 +21,7 @@ import type { ShellTab } from '@/types/mission';
 interface TabItem {
   label: string;
   value: ShellTab;
-  icon: 'map' | 'route' | 'archive';
+  icon: 'map' | 'route' | 'archive' | 'user';
 }
 
 const missionStore = useMissionStore();
@@ -28,7 +29,8 @@ const missionStore = useMissionStore();
 const items: TabItem[] = [
   { label: '首页', value: 'hall', icon: 'map' },
   { label: '继续', value: 'playing', icon: 'route' },
-  { label: '收获', value: 'archive', icon: 'archive' }
+  { label: '收获', value: 'archive', icon: 'archive' },
+  { label: '我的', value: 'mine', icon: 'user' }
 ];
 
 const TAB_WIDTH = 148;
@@ -61,6 +63,10 @@ const activeTab = computed<ShellTab>(() => {
 
   if (isMiniRoute(route, MINI_ROUTES.archive) || isMiniRoute(route, MINI_ROUTES.finale)) {
     return 'archive';
+  }
+
+  if (isMiniRoute(route, MINI_ROUTES.auth)) {
+    return 'mine';
   }
 
   if (
@@ -134,6 +140,10 @@ function collapseThen(action: () => void) {
 function switchToTab(tab: ShellTab) {
   const route = currentRoute.value;
 
+  if (tab !== 'mine' && !requireAuthForTab()) {
+    return;
+  }
+
   if (tab === 'playing' && !missionStore.activeSession) {
     openTopLevelPage(MINI_ROUTES.home);
     return;
@@ -154,6 +164,15 @@ function switchToTab(tab: ShellTab) {
     }
 
     openTopLevelPage(MINI_ROUTES.archive);
+    return;
+  }
+
+  if (tab === 'mine') {
+    if (isMiniRoute(route, MINI_ROUTES.auth)) {
+      return;
+    }
+
+    openTopLevelPage(MINI_ROUTES.auth);
     return;
   }
 

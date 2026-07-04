@@ -1,7 +1,22 @@
 ﻿import { computed, reactive, ref, shallowRef, watch } from "vue"
 import { defineStore } from "pinia"
+import {
+  adaptRouteDetailToMission,
+  encodeStageSubmitPayload,
+  getSolvedStageIds,
+  resolveCurrentChapterIndex,
+} from "@/adapters/gameplayMissionAdapter"
 import { MOCK_MISSION_MAP, MOCK_MISSIONS, MOCK_ROUTE_CARDS } from "@/mock/missions"
 import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, TASK_KIND_OPTIONS } from "@/mock/schema"
+import {
+  fetchGameplayStages,
+  fetchRouteDetail,
+  fetchStageHints,
+  joinGameplayRoute,
+  submitGameplayStage,
+  unlockStageHint,
+} from "@/services/gameplay"
+import { resolveRequestErrorMessage } from "@/services/http"
 import { getDifficultyLabel } from "@/utils/puzzleLabels"
 import type {
   AgeBand,
@@ -163,6 +178,12 @@ function createArchiveEntry(session: MissionSession, mission: MissionDetail): Mi
 export const useMissionStore = defineStore("mission", () => {
   const missions = shallowRef(MOCK_MISSIONS)
   const routeCards = shallowRef(MOCK_ROUTE_CARDS)
+  const remoteMissionMap = shallowRef<Record<string, MissionDetail>>({})
+  const remoteHintTextMap = shallowRef<Record<string, string>>({})
+  const detailPending = shallowRef(false)
+  const detailError = shallowRef("")
+  const gameplayPending = shallowRef(false)
+  const gameplayError = shallowRef("")
   const activeSession = ref<MissionSession | null>(readStorage<MissionSession | null>(STORAGE_KEY_SESSION, null))
   const archiveEntries = shallowRef<MissionArchiveEntry[]>(readStorage<MissionArchiveEntry[]>(STORAGE_KEY_ARCHIVE, []))
   const filters = reactive<{
@@ -193,7 +214,7 @@ export const useMissionStore = defineStore("mission", () => {
       return null
     }
 
-    return MOCK_MISSION_MAP[activeSession.value.routeId] || null
+    return remoteMissionMap.value[activeSession.value.routeId] || MOCK_MISSION_MAP[activeSession.value.routeId] || null
   })
 
   const currentChapter = computed<MissionChapter | null>(() => {
@@ -225,7 +246,7 @@ export const useMissionStore = defineStore("mission", () => {
       return ""
     }
 
-    return currentPuzzle.value.hintPayload[currentHintLevel.value]
+    return remoteHintTextMap.value[currentPuzzle.value.id] || currentPuzzle.value.hintPayload[currentHintLevel.value]
   })
 
   const progressPercent = computed(() => {
@@ -268,7 +289,7 @@ export const useMissionStore = defineStore("mission", () => {
   }
 
   function getMission(routeId: string) {
-    return MOCK_MISSION_MAP[routeId] || null
+    return remoteMissionMap.value[routeId] || MOCK_MISSION_MAP[routeId] || null
   }
 
   function getMissionDraft(puzzleId: string) {
@@ -289,6 +310,8 @@ export const useMissionStore = defineStore("mission", () => {
     activeSession.value = {
       sessionId: `session-${routeId}-${Date.now()}`,
       routeId,
+      source: remoteMissionMap.value[routeId] ? "remote" : "mock",
+      teamId: null,
       selectedAgeBand: selectedAgeBand || mission.recommendedAgeBand,
       currentChapterIndex: 0,
       solvedChapterIds: [],
@@ -305,7 +328,92 @@ export const useMissionStore = defineStore("mission", () => {
     return activeSession.value
   }
 
-  function requestHint() {
+  async function loadMissionDetail(routeId: string) {
+    const cachedMission = getMission(routeId)
+    if (cachedMission) {
+      return cachedMission
+    }
+
+    detailPending.value = true
+    detailError.value = ""
+
+    try {
+      const detail = await fetchRouteDetail(routeId)
+      const mission = adaptRouteDetailToMission(detail)
+
+      if (!mission) {
+        detailError.value = "任务详情数据不完整"
+        return null
+      }
+
+      remoteMissionMap.value = {
+        ...remoteMissionMap.value,
+        [mission.id]: mission,
+      }
+
+      return mission
+    } catch (error) {
+      detailError.value = resolveRequestErrorMessage(error, "任务详情加载失败")
+      return null
+    } finally {
+      detailPending.value = false
+    }
+  }
+
+  async function startRemoteMission(routeId: string, selectedAgeBand?: AgeBand, teamId?: string | null) {
+    gameplayPending.value = true
+    gameplayError.value = ""
+
+    try {
+      const [detail, joinResult, stages] = await Promise.all([
+        fetchRouteDetail(routeId),
+        joinGameplayRoute(routeId, teamId),
+        fetchGameplayStages(routeId, teamId),
+      ])
+      const mission = adaptRouteDetailToMission(detail, stages)
+
+      if (!mission) {
+        gameplayError.value = "任务节点数据不完整"
+        return null
+      }
+
+      remoteMissionMap.value = {
+        ...remoteMissionMap.value,
+        [mission.id]: mission,
+      }
+
+      const solvedChapterIds = getSolvedStageIds(stages)
+      const restoredIndex = resolveCurrentChapterIndex(mission, joinResult)
+      const firstUnsolvedIndex = mission.chapters.findIndex((chapter) => !solvedChapterIds.includes(chapter.id))
+
+      activeSession.value = {
+        sessionId: joinResult.progressId || `remote-session-${routeId}-${Date.now()}`,
+        routeId,
+        source: "remote",
+        teamId: teamId || null,
+        selectedAgeBand: selectedAgeBand || mission.recommendedAgeBand,
+        currentChapterIndex: joinResult.currentStageId ? restoredIndex : Math.max(firstUnsolvedIndex, 0),
+        solvedChapterIds,
+        unlockedClueIds: solvedChapterIds.map((id) => `clue-${id}`),
+        unlockedRewardIds: solvedChapterIds.map((id) => `fragment-${id}`),
+        hintHistory: {},
+        draftHistory: {},
+        totalScore: joinResult.myTotalScore ?? 0,
+        startedAt: joinResult.startedAt || new Date().toISOString(),
+        status: solvedChapterIds.length >= mission.chapterCount && mission.chapterCount > 0 ? "completed" : "in_progress",
+        latestChapterResult: null,
+      }
+
+      return activeSession.value
+    } catch (error) {
+      gameplayError.value = resolveRequestErrorMessage(error, "任务开始失败")
+      return null
+    } finally {
+      gameplayPending.value = false
+    }
+  }
+
+  async function requestHint() {
     if (!activeSession.value || !currentPuzzle.value) {
       return null
     }
@@ -315,6 +423,36 @@ export const useMissionStore = defineStore("mission", () => {
 
     if (!nextLevel) {
       return null
+    }
+
+    if (activeSession.value.source === "remote") {
+      try {
+        const hints = await fetchStageHints(activeSession.value.routeId, currentPuzzle.value.id, activeSession.value.teamId)
+        const sortedHints = [...hints].sort((left, right) => Number(left.sortOrder ?? left.clueNo ?? 0) - Number(right.sortOrder ?? right.clueNo ?? 0))
+        const targetHint = sortedHints[used.length] || sortedHints.find((hint) => !hint.isUnlocked) || sortedHints[0]
+
+        if (targetHint?.clueId) {
+          const unlocked = targetHint.isUnlocked
+            ? { hint: targetHint, message: null }
+            : await unlockStageHint({
+                routeId: activeSession.value.routeId,
+                stageId: currentPuzzle.value.id,
+                teamId: activeSession.value.teamId,
+                clueId: targetHint.clueId,
+                hintId: targetHint.clueId,
+              })
+          const hintText = unlocked.hint?.content || targetHint.content || unlocked.message || ""
+
+          if (hintText) {
+            remoteHintTextMap.value = {
+              ...remoteHintTextMap.value,
+              [currentPuzzle.value.id]: hintText,
+            }
+          }
+        }
+      } catch (error) {
+        gameplayError.value = resolveRequestErrorMessage(error, "提示加载失败")
+      }
     }
 
     activeSession.value = {
@@ -366,7 +504,7 @@ export const useMissionStore = defineStore("mission", () => {
     const nextSession: MissionSession = {
       ...activeSession.value,
       totalScore: activeSession.value.totalScore + gainedScore,
-      solvedChapterIds: [...activeSession.value.solvedChapterIds, currentChapter.value.id],
+      solvedChapterIds: [...new Set([...activeSession.value.solvedChapterIds, currentChapter.value.id])],
       unlockedClueIds: [...new Set([...activeSession.value.unlockedClueIds, currentPuzzle.value.reward.clueId])],
       unlockedRewardIds: [...new Set([...activeSession.value.unlockedRewardIds, currentPuzzle.value.reward.fragmentId])],
       latestChapterResult: snapshot,
@@ -383,7 +521,7 @@ export const useMissionStore = defineStore("mission", () => {
     return snapshot
   }
 
-  function submitCurrentDraft(draft: MissionAnswerDraft) {
+  async function submitCurrentDraft(draft: MissionAnswerDraft) {
     if (!activeSession.value || !currentPuzzle.value) {
       return {
         isCorrect: false,
@@ -393,6 +531,51 @@ export const useMissionStore = defineStore("mission", () => {
     }
 
     saveDraft(draft)
+
+    if (activeSession.value.source === "remote") {
+      gameplayPending.value = true
+      gameplayError.value = ""
+
+      try {
+        const response = await submitGameplayStage({
+          routeId: activeSession.value.routeId,
+          stageId: currentPuzzle.value.id,
+          teamId: activeSession.value.teamId,
+          payload: encodeStageSubmitPayload(currentPuzzle.value, draft.value),
+        })
+
+        if (!response.success) {
+          return {
+            isCorrect: false,
+            message: response.message || currentPuzzle.value.failureCopy,
+            snapshot: null,
+          }
+        }
+
+        const snapshot = finalizeSolve(false)
+        if (response.routeCompleted && activeSession.value) {
+          activeSession.value = {
+            ...activeSession.value,
+            status: "completed",
+          }
+        }
+
+        return {
+          isCorrect: true,
+          message: response.message || currentPuzzle.value.successCopy,
+          snapshot,
+        }
+      } catch (error) {
+        gameplayError.value = resolveRequestErrorMessage(error, "答案提交失败")
+        return {
+          isCorrect: false,
+          message: gameplayError.value,
+          snapshot: null,
+        }
+      } finally {
+        gameplayPending.value = false
+      }
+    }
 
     const isCorrect = compareAnswer(currentPuzzle.value, draft)
 
@@ -413,6 +596,11 @@ export const useMissionStore = defineStore("mission", () => {
 
   function skipCurrentPuzzle() {
     if (!activeSession.value || !currentPuzzle.value) {
+      return null
+    }
+
+    if (activeSession.value.source === "remote") {
+      gameplayError.value = "在线任务需要完成当前节点后继续。"
       return null
     }
 
@@ -496,11 +684,17 @@ export const useMissionStore = defineStore("mission", () => {
     unlockedClueTitles,
     archiveEntries,
     coverageSummary,
+    detailPending,
+    detailError,
+    gameplayPending,
+    gameplayError,
     hasActiveSession,
     setFilters,
     getMission,
+    loadMissionDetail,
     getMissionDraft,
     startMission,
+    startRemoteMission,
     requestHint,
     saveDraft,
     submitCurrentDraft,

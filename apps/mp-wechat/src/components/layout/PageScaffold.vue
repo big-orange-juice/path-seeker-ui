@@ -35,9 +35,11 @@ const contentStyle = computed(() => ({
       </template>
     </MiniNavBar>
 
-    <view class="page-content" :style="contentStyle">
-      <slot></slot>
-    </view>
+    <scroll-view class="page-content" :style="contentStyle" scroll-y enable-flex>
+      <view class="page-inner">
+        <slot></slot>
+      </view>
+    </scroll-view>
 
     <MiniTabBar v-if="showTabBar" />
   </view>
@@ -49,5 +51,10 @@ const contentStyle = computed(() => ({
   inset: 0;
   overflow: hidden;
   background: transparent;
+}
+
+.page-inner {
+  min-height: 100%;
+  padding: 16rpx 20rpx 176rpx;
 }
 </style>

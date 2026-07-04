@@ -19,7 +19,7 @@ export type DifficultyLevel = "L1" | "L2" | "L3"
 
 export type TaskKind = "family_adventure" | "story_detective" | "deep_reasoning"
 
-export type ShellTab = "hall" | "playing" | "archive"
+export type ShellTab = "hall" | "playing" | "archive" | "mine"
 
 export interface SchemaMappedOption<TValue extends string> {
   label: string
@@ -183,6 +183,8 @@ export interface ChapterResultSnapshot {
 export interface MissionSession {
   sessionId: string
   routeId: string
+  source?: "mock" | "remote"
+  teamId?: string | null
   selectedAgeBand: AgeBand
   currentChapterIndex: number
   solvedChapterIds: string[]

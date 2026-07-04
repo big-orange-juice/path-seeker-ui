@@ -33,8 +33,8 @@ button {
   padding: 0;
   margin: 0;
   border: 0;
-  background: transparent !important;
-  background-color: transparent !important;
+  background: transparent;
+  background-color: transparent;
   appearance: none;
   -webkit-appearance: none;
   color: inherit;
@@ -205,10 +205,22 @@ button::after {
   box-shadow: 0 12rpx 30rpx rgba(209, 178, 111, 0.24);
 }
 
+.primary-button[disabled] {
+  border: 1px solid rgba(209, 178, 111, 0.22);
+  background: rgba(209, 178, 111, 0.12);
+  color: rgba(247, 239, 221, 0.42);
+  box-shadow: none;
+}
+
 .secondary-button {
   border: 1px solid rgba(209, 178, 111, 0.3);
   background: rgba(209, 178, 111, 0.08);
   color: #fff1cf;
+}
+
+.secondary-button[disabled],
+.ghost-button[disabled] {
+  opacity: 0.5;
 }
 
 .ghost-button {

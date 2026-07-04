@@ -121,16 +121,16 @@ const hintCaption = computed(() => {
   return "按提示回到展品上再看一眼。"
 })
 
-function useHint() {
-  missionStore.requestHint()
+async function useHint() {
+  await missionStore.requestHint()
 }
 
-function submitAnswer() {
+async function submitAnswer() {
   if (!draft.value) {
     return
   }
 
-  const result = missionStore.submitCurrentDraft(draft.value)
+  const result = await missionStore.submitCurrentDraft(draft.value)
   feedbackMessage.value = result.message
   feedbackVisible.value = true
   feedbackCanAdvance.value = result.isCorrect
@@ -195,10 +195,13 @@ function nextStep() {
         <view class="panel action-dock">
           <text class="section-title">本轮操作</text>
           <view class="button-row">
-            <button class="secondary-button" @click="useHint">看提示</button>
+            <button class="secondary-button" :disabled="missionStore.gameplayPending" @click="useHint">看提示</button>
             <button class="ghost-button" @click="skipAnswer">跳过</button>
           </view>
-          <button class="primary-button" @click="submitAnswer">提交答案</button>
+          <button class="primary-button" :disabled="missionStore.gameplayPending" @click="submitAnswer">
+            {{ missionStore.gameplayPending ? '提交中...' : '提交答案' }}
+          </button>
+          <text v-if="missionStore.gameplayError" class="muted-copy">{{ missionStore.gameplayError }}</text>
         </view>
       </view>
     </view>

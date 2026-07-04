@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue"
+import { onShow } from "@dcloudio/uni-app"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import MissionCard from "@/components/mission/MissionCard.vue"
 import { useRemoteRouteCards } from "@/composables/useRemoteRouteCards"
 import { DIFFICULTY_OPTIONS } from "@/mock/schema"
 import { useMissionStore } from "@/stores/useMissionStore"
+import { requireAuthForTab } from "@/utils/authGuard"
 import { MINI_ROUTES, withQuery } from "@/utils/navigation"
 
 const missionStore = useMissionStore()
@@ -53,81 +55,77 @@ function getRouteStatus(routeId: string) {
 
   return "available" as const
 }
+
+onShow(() => {
+  requireAuthForTab()
+})
 </script>
 
 <template>
   <PageScaffold title="任务大厅" :show-back="false">
-    <scroll-view class="home-scroll" scroll-y enable-flex>
-      <view class="screen">
-        <view class="content-stack bottom-safe home-stack">
-          <view class="panel filter-panel">
-            <view class="filter-head">
-              <text class="section-title">筛选任务</text>
-              <text class="muted-copy">{{ routeSummary }}</text>
-            </view>
+    <view class="content-stack bottom-safe home-stack">
+      <view class="panel filter-panel">
+        <view class="filter-head">
+          <text class="section-title">筛选任务</text>
+          <text class="muted-copy">{{ routeSummary }}</text>
+        </view>
 
-            <view class="filter-group">
-              <text class="metric-label">难度</text>
-              <view class="chip-row">
-                <button
-                  class="filter-chip"
-                  :class="{ 'is-active': missionStore.filters.difficulty === 'all' }"
-                  @click="missionStore.setFilters({ difficulty: 'all' })">
-                  全部
-                </button>
-                <button
-                  v-for="option in DIFFICULTY_OPTIONS"
-                  :key="option.value"
-                  class="filter-chip"
-                  :class="{ 'is-active': missionStore.filters.difficulty === option.value }"
-                  @click="missionStore.setFilters({ difficulty: option.value })">
-                  {{ option.label }}
-                </button>
-              </view>
-            </view>
-          </view>
-
-          <button
-            v-if="missionStore.activeMission && missionStore.activeSession"
-            class="secondary-button continue-button"
-            @click="continueMission">
-            继续当前任务
-          </button>
-
-          <view v-if="remoteError" class="panel notice-card">
-            <text class="notice-copy">{{ remoteError }}</text>
-          </view>
-
-          <view v-if="remotePending && !displayRoutes.length" class="panel state-card">
-            <text class="section-title">正在同步任务列表</text>
-            <text class="muted-copy">稍等一下，马上把接口任务拉下来。</text>
-          </view>
-
-          <view v-else-if="displayRoutes.length" class="route-list">
-            <MissionCard
-              v-for="route in displayRoutes"
-              :key="route.id"
-              :route="route"
-              :show-resume="route.id === missionStore.activeSession?.routeId"
-              :status="getRouteStatus(route.id)"
-              @open="openRoute" />
-          </view>
-
-          <view v-else class="panel state-card">
-            <text class="section-title">当前没有可进入任务</text>
-            <text class="muted-copy">可以切换筛选条件，或者稍后再看新路线。</text>
+        <view class="filter-group">
+          <text class="metric-label">难度</text>
+          <view class="chip-row">
+            <button
+              class="filter-chip"
+              :class="{ 'is-active': missionStore.filters.difficulty === 'all' }"
+              @click="missionStore.setFilters({ difficulty: 'all' })">
+              全部
+            </button>
+            <button
+              v-for="option in DIFFICULTY_OPTIONS"
+              :key="option.value"
+              class="filter-chip"
+              :class="{ 'is-active': missionStore.filters.difficulty === option.value }"
+              @click="missionStore.setFilters({ difficulty: option.value })">
+              {{ option.label }}
+            </button>
           </view>
         </view>
       </view>
-    </scroll-view>
+
+      <button
+        v-if="missionStore.activeMission && missionStore.activeSession"
+        class="secondary-button continue-button"
+        @click="continueMission">
+        继续当前任务
+      </button>
+
+      <view v-if="remoteError" class="panel notice-card">
+        <text class="notice-copy">{{ remoteError }}</text>
+      </view>
+
+      <view v-if="remotePending && !displayRoutes.length" class="panel state-card">
+        <text class="section-title">正在同步任务列表</text>
+        <text class="muted-copy">稍等一下，马上把接口任务拉下来。</text>
+      </view>
+
+      <view v-else-if="displayRoutes.length" class="route-list">
+        <MissionCard
+          v-for="route in displayRoutes"
+          :key="route.id"
+          :route="route"
+          :show-resume="route.id === missionStore.activeSession?.routeId"
+          :status="getRouteStatus(route.id)"
+          @open="openRoute" />
+      </view>
+
+      <view v-else class="panel state-card">
+        <text class="section-title">当前没有可进入任务</text>
+        <text class="muted-copy">可以切换筛选条件，或者稍后再看新路线。</text>
+      </view>
+    </view>
   </PageScaffold>
 </template>
 
 <style scoped lang="scss">
-.home-scroll {
-  height: 100%;
-}
-
 .home-stack {
   padding-top: 24rpx;
 }

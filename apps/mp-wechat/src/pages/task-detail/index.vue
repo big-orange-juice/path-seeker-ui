@@ -22,27 +22,18 @@ const canResumeCurrent = computed(
   },
 )
 
+const isMockMission = computed(() => missionStore.missions.some((item) => item.id === routeId.value))
 const routePreview = computed(() => mission.value?.chapters.slice(0, 6) ?? [])
 const summaryCopy = computed(() => toSingleSentence(mission.value?.summary || ""))
 const cardSummaryCopy = computed(() => toSingleSentence(remoteRoute.value?.summary || ""))
 
-function startMission() {
-  if (!mission.value) {
-    return
-  }
-
-  missionStore.startMission(mission.value.id, selectedAgeBand.value)
-  uni.redirectTo({ url: MINI_ROUTES.prologue })
-}
-
-function continueMission() {
-  uni.redirectTo({ url: MINI_ROUTES.chapterMap })
-}
-
-onLoad((query) => {
-  routeId.value = String(query?.routeId || "")
+async function loadDetail() {
   mission.value = missionStore.getMission(routeId.value)
   remoteRoute.value = getCachedRemoteRouteCard(routeId.value)
+
+  if (!mission.value) {
+    mission.value = await missionStore.loadMissionDetail(routeId.value)
+  }
 
   if (mission.value) {
     selectedAgeBand.value = mission.value.recommendedAgeBand
@@ -52,6 +43,31 @@ onLoad((query) => {
   if (remoteRoute.value) {
     selectedAgeBand.value = remoteRoute.value.recommendedAgeBand
   }
+}
+
+async function startMission() {
+  if (!mission.value) {
+    return
+  }
+
+  const session = isMockMission.value
+    ? missionStore.startMission(mission.value.id, selectedAgeBand.value)
+    : await missionStore.startRemoteMission(mission.value.id, selectedAgeBand.value)
+
+  if (!session) {
+    return
+  }
+
+  uni.redirectTo({ url: MINI_ROUTES.prologue })
+}
+
+function continueMission() {
+  uni.redirectTo({ url: MINI_ROUTES.chapterMap })
+}
+
+onLoad((query) => {
+  routeId.value = String(query?.routeId || "")
+  void loadDetail()
 })
 </script>
 
@@ -135,7 +151,20 @@ onLoad((query) => {
 
       <view class="button-row action-row">
         <button v-if="canResumeCurrent" class="secondary-button" @click="continueMission">回到任务</button>
-        <button class="primary-button" @click="startMission">拿任务牌出发</button>
+        <button class="primary-button" :disabled="missionStore.gameplayPending" @click="startMission">
+          {{ missionStore.gameplayPending ? '准备中...' : '拿任务牌出发' }}
+        </button>
+      </view>
+
+      <view v-if="missionStore.gameplayError" class="panel note-card">
+        <text class="muted-copy">{{ missionStore.gameplayError }}</text>
+      </view>
+    </view>
+
+    <view v-else-if="missionStore.detailPending" class="content-stack bottom-safe">
+      <view class="panel note-card">
+        <text class="section-title note-title">正在读取任务详情</text>
+        <text class="muted-copy">路线节点马上就绪。</text>
       </view>
     </view>
 
@@ -178,7 +207,7 @@ onLoad((query) => {
 
       <button v-if="canResumeCurrent" class="secondary-button" @click="continueMission">继续当前任务</button>
       <view v-else class="panel note-card">
-        <text class="muted-copy">该任务详情流程暂未接入，当前先展示列表基础信息。</text>
+        <text class="muted-copy">{{ missionStore.detailError || "任务详情暂时不可用，请稍后再试。" }}</text>
       </view>
     </view>
   </PageScaffold>

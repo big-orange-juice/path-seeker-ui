@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { onShow } from "@dcloudio/uni-app"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import PlayTab from "@/components/shell/PlayTab.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
+import { requireAuthForTab } from "@/utils/authGuard"
 import { MINI_ROUTES, withQuery } from "@/utils/navigation"
 
 const missionStore = useMissionStore()
@@ -33,6 +35,10 @@ function replayMission(routeId: string) {
   missionStore.replayMission(routeId)
   uni.redirectTo({ url: MINI_ROUTES.prologue })
 }
+
+onShow(() => {
+  requireAuthForTab()
+})
 </script>
 
 <template>

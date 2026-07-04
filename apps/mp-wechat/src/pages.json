@@ -23,6 +23,13 @@
       }
     },
     {
+      "path": "pages/auth/index",
+      "style": {
+        "navigationStyle": "custom",
+        "backgroundColor": "#0B0C0F"
+      }
+    },
+    {
       "path": "pages/task-detail/index",
       "style": {
         "navigationStyle": "custom",

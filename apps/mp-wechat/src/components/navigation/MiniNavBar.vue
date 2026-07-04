@@ -101,19 +101,17 @@ function handleBack() {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 4rpx;
-  min-height: 68rpx;
-  padding: 0 10rpx;
+  gap: 6rpx;
+  min-height: 64rpx;
+  padding: 0;
   border: 0;
-  border-radius: 22rpx;
-  background: rgba(255, 255, 255, 0.02);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
   color: rgba(247, 239, 221, 0.82);
   font-size: 25rpx;
   font-weight: 800;
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
 }
 
 .nav-back::after {
