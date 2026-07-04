@@ -33,6 +33,30 @@ export const FIXED_PUZZLE_TEMPLATE_TYPES = [
 export type PuzzleTemplateType = (typeof FIXED_PUZZLE_TEMPLATE_TYPES)[number]
 
 /**
+ * 后端路线节点的玩法类型。
+ *
+ * 这组名称来自 PC 端路线详情预览，小程序也优先按这里展示，避免同一个
+ * interactionType 在 B/C 两端出现不同叫法。
+ */
+export const INTERACTION_TYPE_META = {
+  1: { label: "线性答题", className: "answer" },
+  2: { label: "密符解锁", className: "password" },
+  3: { label: "时序重构", className: "sequence" },
+  4: { label: "档案配对", className: "match" },
+  5: { label: "颜色寻宝", className: "select" },
+  6: { label: "纹样拼图", className: "jigsaw" },
+  7: { label: "听声配对", className: "sound" },
+  8: { label: "大家来找茬", className: "spot" },
+  9: { label: "影子归位", className: "shadow" },
+} as const
+
+export type InteractionType = keyof typeof INTERACTION_TYPE_META
+
+export function getInteractionTypeMeta(interactionType?: number | null) {
+  return INTERACTION_TYPE_META[interactionType as InteractionType] ?? null
+}
+
+/**
  * 渲染器侧的提示层级。
  */
 export type HintLevel = "observe" | "relation" | "direct"
@@ -225,6 +249,7 @@ export interface PuzzlePayloadMap {
 export interface BasePuzzleDefinition<TTemplate extends PuzzleTemplateType> {
   id: string
   templateType: TTemplate
+  interactionType?: number | null
   title: string
   prompt?: string
   introText?: string

@@ -15,9 +15,19 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <SharedPuzzleRendererHost
-    :puzzle="props.puzzle"
-    :model-value="props.modelValue"
-    @update:model-value="emit('update:modelValue', $event)"
-  />
+  <view class="puzzle-renderer-host">
+    <SharedPuzzleRendererHost
+      :puzzle="props.puzzle"
+      :model-value="props.modelValue"
+      @update:model-value="emit('update:modelValue', $event)"
+    />
+  </view>
 </template>
+
+<style scoped>
+.puzzle-renderer-host {
+  display: block;
+  width: 100%;
+  min-height: 1rpx;
+}
+</style>

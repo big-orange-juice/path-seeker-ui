@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
+import { getInteractionTypeMeta } from "../contracts"
 import type { GameplayPreviewStage } from "../contracts"
 
 interface PreviewItem {
@@ -23,20 +24,8 @@ const props = defineProps<{
   stage: GameplayPreviewStage | null
 }>()
 
-const interactionMeta: Record<number, { label: string; className: string }> = {
-  1: { label: "线性答题", className: "answer" },
-  2: { label: "密符解锁", className: "password" },
-  3: { label: "时序重构", className: "sequence" },
-  4: { label: "档案配对", className: "match" },
-  5: { label: "颜色寻宝", className: "select" },
-  6: { label: "纹样拼图", className: "jigsaw" },
-  7: { label: "听声配对", className: "sound" },
-  8: { label: "大家来找茬", className: "spot" },
-  9: { label: "影子归位", className: "shadow" },
-}
-
 const config = computed(() => props.stage?.config ?? {})
-const meta = computed(() => interactionMeta[props.stage?.interactionType ?? 0] ?? { label: "未知玩法", className: "unknown" })
+const meta = computed(() => getInteractionTypeMeta(props.stage?.interactionType) ?? { label: "未知玩法", className: "unknown" })
 
 const content = computed(() => readString("content") || props.stage?.subtitle || "当前节点暂无题面。")
 const ruleHint = computed(() => readString("rule_hint") || "根据节点线索完成本关挑战。")

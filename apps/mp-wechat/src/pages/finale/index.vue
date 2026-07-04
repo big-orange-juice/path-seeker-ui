@@ -1,9 +1,8 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
 import { getDifficultyLabel } from "@/utils/puzzleLabels"
-import { toSingleSentence } from "@/utils/copy"
 
 const missionStore = useMissionStore()
 
@@ -11,26 +10,29 @@ function backToArchive() {
   uni.redirectTo({ url: MINI_ROUTES.archive })
 }
 
-function replayMission() {
+async function replayMission() {
   if (!missionStore.activeMission) {
     return
   }
 
-  missionStore.replayMission(missionStore.activeMission.id)
-  uni.redirectTo({ url: MINI_ROUTES.prologue })
+  const session = await missionStore.replayMission(missionStore.activeMission.id)
+  if (!session) {
+    return
+  }
+
+  uni.redirectTo({ url: missionStore.activeMission.prologue.length ? MINI_ROUTES.prologue : MINI_ROUTES.chapterMap })
 }
 </script>
 
 <template>
   <PageScaffold title="任务完成">
-    <view v-if="missionStore.activeMission && missionStore.activeSession" class="content-stack">
-      <view class="panel glow-banner section-pad finale-hero">
-        <text class="eyebrow">{{ missionStore.activeMission.rewardTitle }}</text>
-        <text class="display-title">{{ missionStore.activeMission.finale.title }}</text>
-        <text class="body-copy">{{ toSingleSentence(missionStore.activeMission.finale.truth) }}</text>
+    <view v-if="missionStore.activeMission && missionStore.activeSession" class="content-stack bottom-safe">
+      <view class="finish-card">
+        <text v-if="missionStore.activeMission.rewardTitle" class="eyebrow">{{ missionStore.activeMission.rewardTitle }}</text>
+        <text class="display-title finish-title">{{ missionStore.activeMission.title }}</text>
       </view>
 
-      <view class="panel section-pad score-card">
+      <view class="panel score-card">
         <text class="section-title">成绩</text>
         <view class="metric-grid finale-grid">
           <view class="metric-cell">
@@ -42,64 +44,40 @@ function replayMission() {
             <text class="metric-value">{{ missionStore.activeSession.solvedChapterIds.length }}/{{ missionStore.activeMission.chapterCount }}</text>
           </view>
           <view class="metric-cell">
-            <text class="metric-label">称号</text>
-            <text class="metric-value title-value">{{ missionStore.activeMission.rewardTitle }}</text>
-          </view>
-          <view class="metric-cell">
             <text class="metric-label">难度</text>
             <text class="metric-value">{{ getDifficultyLabel(missionStore.activeMission.difficultyLevel) }}</text>
           </view>
         </view>
       </view>
 
-      <view class="panel section-pad route-line">
-        <view v-for="note in missionStore.activeMission.finale.knowledgeNotes" :key="note" class="route-line-item">
-          <text class="muted-copy">{{ note }}</text>
-        </view>
-      </view>
-
-      <view class="panel section-pad share-card">
-        <text class="eyebrow">结案</text>
-        <text class="section-title">{{ missionStore.activeMission.finale.debrief }}</text>
-        <view class="chip-row">
-          <text v-for="clue in missionStore.unlockedClueTitles" :key="clue" class="chip is-active">{{ clue }}</text>
-        </view>
-        <text class="muted-copy share-line">{{ toSingleSentence(missionStore.activeMission.finale.shareLine) }}</text>
-      </view>
-
       <view class="button-row">
-        <button class="secondary-button" @click="backToArchive">看收获</button>
-        <button class="primary-button" @click="replayMission">再玩一次</button>
+        <button class="secondary-button" @click="backToArchive">看记录</button>
+        <button class="primary-button" @click="replayMission">重新开始</button>
       </view>
     </view>
   </PageScaffold>
 </template>
 
 <style scoped lang="scss">
-.finale-hero,
+.finish-card,
 .score-card {
   display: flex;
   flex-direction: column;
   gap: 14rpx;
+  padding: 28rpx;
+}
+
+.finish-card {
+  border: 1px solid rgba(209, 178, 111, 0.26);
+  border-radius: 30rpx;
+  background: linear-gradient(180deg, rgba(38, 34, 27, 0.98), rgba(14, 16, 20, 0.98));
+}
+
+.finish-title {
+  display: block;
 }
 
 .finale-grid {
   margin-top: 2rpx;
-}
-
-.share-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-
-.share-line {
-  display: block;
-  margin-top: 4rpx;
-}
-
-.title-value {
-  font-size: 24rpx;
-  line-height: 1.28;
 }
 </style>

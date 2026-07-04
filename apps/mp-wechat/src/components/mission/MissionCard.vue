@@ -18,7 +18,12 @@ const emit = defineEmits<{
 }>()
 
 const visibleTags = computed(() => props.route.taglines.slice(0, 1))
-const scoreLabel = computed(() => `${props.route.totalScore ?? 0}`)
+const metaItems = computed(() => [
+  props.route.theme,
+  props.route.difficultyLevel,
+  props.route.puzzleCount ? `${props.route.puzzleCount} 题` : "",
+  props.route.totalScore ? `${props.route.totalScore} 分` : "",
+].filter(Boolean))
 const statusLabel = computed(() => {
   if (props.status === "in-progress") {
     return "进行中"
@@ -37,31 +42,20 @@ const statusLabel = computed(() => {
     <view class="mission-card" :class="`is-${status}`">
       <view class="mission-top">
         <text class="mission-status">{{ statusLabel }}</text>
-        <text class="mission-time">{{ scoreLabel }} 分</text>
+        <text v-if="route.estimatedMinutes" class="mission-time">{{ route.estimatedMinutes }} 分钟</text>
       </view>
 
-      <view class="mission-plate">
-        <view class="plate-copy">
-          <text class="mission-kicker">{{ route.theme }} / {{ route.difficultyLevel }}</text>
-          <text class="mission-title">{{ route.title }}</text>
-        </view>
+      <text v-if="route.theme" class="mission-kicker">{{ route.theme }}</text>
+      <text class="mission-title">{{ route.title }}</text>
+      <text v-if="route.summary" class="muted-copy mission-summary">{{ route.summary }}</text>
+
+      <view v-if="metaItems.length" class="meta-row">
+        <text v-for="item in metaItems" :key="item" class="meta-pill">{{ item }}</text>
       </view>
 
-      <view class="route-divider"></view>
-
-      <view class="mission-bottom">
-        <view class="mission-start">
-          <text class="metric-label">主题</text>
-          <text class="mission-meta-value">{{ route.theme }}</text>
-        </view>
-        <view class="mission-stats">
-          <text>{{ route.puzzleCount }} 题</text>
-        </view>
-      </view>
-
-      <view class="chip-row mission-tags">
-        <text v-if="showResume || status === 'in-progress'" class="chip is-active">继续探索</text>
-        <text v-else-if="status === 'completed'" class="chip is-active">已通关</text>
+      <view v-if="showResume || status !== 'available' || visibleTags.length" class="chip-row mission-tags">
+        <text v-if="showResume || status === 'in-progress'" class="chip is-active">继续</text>
+        <text v-else-if="status === 'completed'" class="chip is-active">已完成</text>
         <text v-for="tag in visibleTags" :key="tag" class="chip">{{ tag }}</text>
       </view>
     </view>
@@ -92,20 +86,16 @@ const statusLabel = computed(() => {
 .mission-card {
   position: relative;
   overflow: hidden;
-  padding: 20rpx 22rpx 22rpx;
+  padding: 22rpx;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 28rpx;
-  background:
-    radial-gradient(circle at 88% 10%, rgba(209, 178, 111, 0.16), transparent 26%),
-    linear-gradient(180deg, rgba(28, 29, 32, 0.98), rgba(14, 16, 20, 0.98));
+  background: linear-gradient(180deg, rgba(28, 29, 32, 0.98), rgba(14, 16, 20, 0.98));
   box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.24);
 }
 
 .mission-card.is-in-progress {
   border-color: rgba(243, 217, 157, 0.28);
-  background:
-    radial-gradient(circle at 88% 10%, rgba(243, 217, 157, 0.18), transparent 26%),
-    linear-gradient(180deg, rgba(45, 38, 26, 0.98), rgba(16, 17, 20, 0.98));
+  background: linear-gradient(180deg, rgba(45, 38, 26, 0.98), rgba(16, 17, 20, 0.98));
 }
 
 .mission-card.is-completed {
@@ -117,10 +107,12 @@ const statusLabel = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
+  margin-bottom: 14rpx;
 }
 
 .mission-status,
-.mission-time {
+.mission-time,
+.meta-pill {
   display: inline-flex;
   align-items: center;
   min-height: 42rpx;
@@ -135,23 +127,10 @@ const statusLabel = computed(() => {
   color: #f3d99d;
 }
 
-.mission-time {
+.mission-time,
+.meta-pill {
   background: rgba(255, 255, 255, 0.05);
   color: rgba(247, 239, 221, 0.62);
-}
-
-.mission-plate,
-.mission-bottom {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14rpx;
-}
-
-.plate-copy {
-  flex: 1;
-  min-width: 0;
-  padding-top: 12rpx;
 }
 
 .mission-kicker {
@@ -165,63 +144,21 @@ const statusLabel = computed(() => {
   margin-top: 8rpx;
   color: #fff8ea;
   font-size: 34rpx;
-  line-height: 1.16;
+  line-height: 1.18;
   font-weight: 900;
 }
 
-.mission-seal {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 90rpx;
-  height: 60rpx;
-  padding: 0 16rpx;
-  border-radius: 999rpx;
-  background: rgba(209, 178, 111, 0.14);
-  color: #fff8ea;
-  font-size: 24rpx;
-  font-weight: 900;
-}
-
-.route-divider {
-  height: 2rpx;
-  margin: 18rpx 0 16rpx;
-  border-radius: 999rpx;
-  background: linear-gradient(90deg, rgba(209, 178, 111, 0.75), rgba(255, 255, 255, 0.08));
-}
-
-.mission-start {
-  flex: 1;
-  min-width: 0;
-}
-
-.mission-meta-value {
+.mission-summary {
   display: block;
-  margin-top: 4rpx;
-  overflow: hidden;
-  color: #fff8ea;
-  font-size: 24rpx;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-top: 10rpx;
 }
 
-.mission-stats {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4rpx;
-  color: rgba(247, 239, 221, 0.68);
-  font-size: 21rpx;
-  font-weight: 800;
-  text-align: right;
-  max-width: 240rpx;
-}
-
+.meta-row,
 .mission-tags {
-  margin-top: 14rpx;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8rpx;
+  margin-top: 16rpx;
 }
 
 .mission-tags :deep(.chip) {

@@ -1,9 +1,9 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from "vue"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
-import { getPuzzleTypeAction, getPuzzleTypeGlyph, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
+import { getPuzzleTypeLabel } from "@/utils/puzzleLabels"
 
 const missionStore = useMissionStore()
 
@@ -33,205 +33,138 @@ function goArtifact() {
 </script>
 
 <template>
-  <PageScaffold title="任务路线">
+  <PageScaffold title="查看任务">
     <view v-if="missionStore.activeMission && missionStore.activeSession" class="content-stack bottom-safe">
-      <view class="map-board">
-        <view class="map-board-head">
+      <view class="current-card">
+        <view class="current-head">
           <view>
-            <text class="eyebrow">路线进度 {{ currentStepLabel }}</text>
-            <text class="display-title map-title">{{ missionStore.currentChapter?.targetLocation }}</text>
+            <text class="eyebrow">{{ currentStepLabel }}</text>
+            <text class="display-title current-title">{{ missionStore.currentChapter?.title }}</text>
           </view>
-          <view class="progress-ring">
-            <text class="progress-value">{{ missionStore.progressPercent }}%</text>
-            <text class="progress-label">完成</text>
-          </view>
+          <view class="progress-pill">{{ missionStore.progressPercent }}%</view>
         </view>
-
-        <view class="map-path">
-          <view
-            v-for="chapter in chapterStatuses"
-            :key="chapter.id"
-            class="waypoint"
-            :class="{ 'is-active': chapter.active, 'is-solved': chapter.solved }"
-          >
-            <view class="waypoint-pin">{{ chapter.solved ? '✓' : getPuzzleTypeGlyph(chapter.puzzle.templateType) }}</view>
-            <view class="waypoint-copy">
-              <text class="waypoint-title text-clip-1">{{ chapter.stageNo }}. {{ chapter.targetLocation }}</text>
-              <text class="waypoint-type">{{ getPuzzleTypeLabel(chapter.puzzle.templateType) }} · {{ getPuzzleTypeAction(chapter.puzzle.templateType) }}</text>
-            </view>
-            <text v-if="chapter.active" class="waypoint-state">现在</text>
-            <text v-else-if="chapter.solved" class="waypoint-state muted">完成</text>
-          </view>
-        </view>
+        <text v-if="missionStore.currentChapter?.targetLocation" class="body-copy current-copy">{{ missionStore.currentChapter.targetLocation }}</text>
+        <text v-if="missionStore.currentPuzzle" class="type-copy">{{ getPuzzleTypeLabel(missionStore.currentPuzzle.templateType, missionStore.currentPuzzle.interactionType) }}</text>
+        <button class="primary-button current-button" @click="goArtifact">进入当前节点</button>
       </view>
 
-      <view v-if="missionStore.unlockedClueTitles.length" class="panel clue-dock">
-        <text class="section-title">线索袋</text>
-        <view class="chip-row clue-row">
-          <text v-for="clue in missionStore.unlockedClueTitles" :key="clue" class="chip is-active">{{ clue }}</text>
-        </view>
-      </view>
-
-      <view class="next-card panel">
-        <text class="eyebrow">当前任务</text>
-        <text class="section-title">{{ missionStore.currentChapter?.objective }}</text>
-        <button class="primary-button" @click="goArtifact">开始观察</button>
+      <view v-if="chapterStatuses.length" class="panel stage-board">
+        <button
+          v-for="chapter in chapterStatuses"
+          :key="chapter.id"
+          class="stage-row"
+          :class="{ 'is-active': chapter.active, 'is-solved': chapter.solved }"
+          hover-class="stage-row-hover"
+          @click="chapter.active && goArtifact()">
+          <text class="stage-dot">{{ chapter.solved ? '✓' : chapter.stageNo }}</text>
+          <view class="stage-copy">
+            <text class="stage-title text-clip-1">{{ chapter.title }}</text>
+            <text v-if="chapter.targetLocation" class="muted-copy text-clip-1">{{ chapter.targetLocation }}</text>
+          </view>
+          <text class="stage-state">{{ chapter.active ? '当前' : chapter.solved ? '完成' : '' }}</text>
+        </button>
       </view>
     </view>
   </PageScaffold>
 </template>
 
 <style scoped lang="scss">
-.map-board {
-  overflow: hidden;
-  padding: 28rpx;
+.current-card {
+  padding: 30rpx;
   border: 1px solid rgba(209, 178, 111, 0.26);
-  border-radius: 38rpx;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(209, 178, 111, 0.2), transparent 28%),
-    radial-gradient(circle at 88% 92%, rgba(243, 217, 157, 0.08), transparent 30%),
-    linear-gradient(180deg, rgba(31, 30, 28, 0.98), rgba(13, 15, 19, 0.98));
+  border-radius: 30rpx;
+  background: linear-gradient(180deg, rgba(38, 34, 27, 0.98), rgba(14, 16, 20, 0.98));
 }
 
-.map-board-head {
+.current-head,
+.stage-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 18rpx;
+  gap: 16rpx;
 }
 
-.map-title {
+.current-title,
+.current-copy,
+.type-copy {
   display: block;
-  margin-top: 10rpx;
-  font-size: 42rpx;
+  margin-top: 14rpx;
 }
 
-.progress-ring {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 999rpx;
-  border: 1px solid rgba(209, 178, 111, 0.42);
-  background: rgba(209, 178, 111, 0.12);
-  color: #fff8ea;
-}
-
-.progress-value {
-  font-size: 25rpx;
-  font-weight: 900;
-}
-
-.progress-label {
-  margin-top: 2rpx;
+.type-copy {
   color: rgba(247, 239, 221, 0.58);
-  font-size: 18rpx;
+  font-size: 23rpx;
+  font-weight: 800;
+}
+
+.progress-pill {
+  flex: 0 0 auto;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(209, 178, 111, 0.16);
+  color: #f3d99d;
+  font-size: 22rpx;
   font-weight: 900;
 }
 
-.map-path {
-  position: relative;
+.current-button {
+  margin-top: 24rpx;
+}
+
+.stage-board {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
-  margin-top: 30rpx;
+  padding: 12rpx 22rpx;
 }
 
-.map-path::before {
-  content: "";
-  position: absolute;
-  left: 34rpx;
-  top: 42rpx;
-  bottom: 42rpx;
-  width: 4rpx;
-  border-radius: 999rpx;
-  background: linear-gradient(180deg, rgba(209, 178, 111, 0.72), rgba(255, 255, 255, 0.08));
+.stage-row {
+  width: 100%;
+  min-height: 88rpx;
+  padding: 14rpx 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #fff8ea;
+  text-align: left;
 }
 
-.waypoint {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
-  min-height: 104rpx;
-  padding: 16rpx 16rpx 16rpx 0;
-  border-radius: 28rpx;
+.stage-row:last-child {
+  border-bottom: 0;
 }
 
-.waypoint.is-active {
-  background: rgba(209, 178, 111, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(243, 217, 157, 0.12);
-}
-
-.waypoint-pin {
-  z-index: 1;
-  flex: 0 0 auto;
+.stage-dot {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 24rpx;
-  background: rgba(247, 239, 221, 0.1);
-  color: rgba(247, 239, 221, 0.72);
-  font-size: 24rpx;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(247, 239, 221, 0.7);
+  font-size: 20rpx;
   font-weight: 900;
 }
 
-.waypoint.is-active .waypoint-pin,
-.waypoint.is-solved .waypoint-pin {
+.stage-row.is-active .stage-dot,
+.stage-row.is-solved .stage-dot {
   background: linear-gradient(135deg, #d1b26f, #f3d99d);
   color: #171310;
 }
 
-.waypoint-copy {
+.stage-copy {
   flex: 1;
   min-width: 0;
 }
 
-.waypoint-title {
+.stage-title {
   color: #fff8ea;
-  font-size: 30rpx;
+  font-size: 27rpx;
   font-weight: 900;
 }
 
-.waypoint-type {
-  display: block;
-  margin-top: 8rpx;
-  color: rgba(247, 239, 221, 0.58);
-  font-size: 23rpx;
-  font-weight: 700;
-}
-
-.waypoint-state {
-  flex: 0 0 auto;
-  min-width: 62rpx;
+.stage-state {
+  min-width: 58rpx;
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 21rpx;
   font-weight: 900;
   text-align: right;
-}
-
-.waypoint-state.muted {
-  color: rgba(247, 239, 221, 0.42);
-}
-
-.clue-dock,
-.next-card {
-  display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  padding: 26rpx;
-}
-
-.next-card {
-  border-color: rgba(209, 178, 111, 0.2);
-}
-
-.next-card .primary-button {
-  margin-top: 6rpx;
 }
 </style>

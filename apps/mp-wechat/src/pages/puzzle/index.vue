@@ -1,10 +1,10 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, shallowRef, watch } from "vue"
 import PageScaffold from "@/components/layout/PageScaffold.vue"
 import PuzzleRendererHost from "@/components/puzzle/PuzzleRendererHost.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
-import { getPuzzleTypeAction, getPuzzleTypeGlyph, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
+import { getPuzzleTypeLabel } from "@/utils/puzzleLabels"
 import type { MissionAnswerDraft, MissionPuzzle } from "@/types/mission"
 
 const missionStore = useMissionStore()
@@ -32,34 +32,22 @@ function createDraft(puzzle: MissionPuzzle): MissionAnswerDraft {
   if (puzzle.templateType === "sort") {
     return {
       templateType: "sort",
-      value: createDeterministicShuffle(
-        puzzle.questionPayload.items.map((item) => item.id),
-        puzzle.id,
-      ),
+      value: createDeterministicShuffle(puzzle.questionPayload.items.map((item) => item.id), puzzle.id),
     }
   }
 
   if (puzzle.templateType === "match") {
-    return {
-      templateType: "match",
-      value: [],
-    }
+    return { templateType: "match", value: [] }
   }
 
   if (puzzle.templateType === "select") {
-    return {
-      templateType: "select",
-      value: [],
-    }
+    return { templateType: "select", value: [] }
   }
 
   if (puzzle.templateType === "image_puzzle") {
     return {
       templateType: "image_puzzle",
-      value: createDeterministicShuffle(
-        puzzle.questionPayload.pieces.map((item) => item.id),
-        `${puzzle.id}:image`,
-      ),
+      value: createDeterministicShuffle(puzzle.questionPayload.pieces.map((item) => item.id), `${puzzle.id}:image`),
     }
   }
 
@@ -101,31 +89,50 @@ const puzzleLabel = computed(() => {
     return ""
   }
 
-  return getPuzzleTypeLabel(missionStore.currentPuzzle.templateType)
+  return getPuzzleTypeLabel(missionStore.currentPuzzle.templateType, missionStore.currentPuzzle.interactionType)
 })
 
-const puzzleAction = computed(() => {
-  if (!missionStore.currentPuzzle) {
-    return ""
+const canUseHint = computed(() => !missionStore.currentHintText && !missionStore.gameplayPending)
+
+const canSubmit = computed(() => {
+  const puzzle = missionStore.currentPuzzle
+  if (!puzzle || missionStore.gameplayPending) {
+    return false
   }
 
-  return getPuzzleTypeAction(missionStore.currentPuzzle.templateType)
-})
-
-const puzzleGlyph = computed(() => {
-  if (!missionStore.currentPuzzle) {
-    return ""
+  if (puzzle.templateType === "observe_choice") {
+    return puzzle.questionPayload.options.length > 0
   }
 
-  return getPuzzleTypeGlyph(missionStore.currentPuzzle.templateType)
-})
-
-const hintCaption = computed(() => {
-  if (!missionStore.currentHintLevel) {
-    return "卡住时再看提示。"
+  if (puzzle.templateType === "select") {
+    return puzzle.questionPayload.candidates.length > 0
   }
 
-  return "按提示回到展品上再看一眼。"
+  if (puzzle.templateType === "sort") {
+    return puzzle.questionPayload.items.length > 0
+  }
+
+  if (puzzle.templateType === "match") {
+    return puzzle.questionPayload.left.length > 0 && puzzle.questionPayload.right.length > 0
+  }
+
+  if (puzzle.templateType === "image_puzzle") {
+    return puzzle.questionPayload.pieces.length > 0
+  }
+
+  if (puzzle.templateType === "clue_find") {
+    return puzzle.questionPayload.hotspots.length > 0
+  }
+
+  if (puzzle.templateType === "multi_step_reasoning") {
+    return puzzle.questionPayload.evidence.length > 0 && puzzle.questionPayload.conclusions.length > 0
+  }
+
+  if (puzzle.templateType === "story_branch") {
+    return puzzle.questionPayload.options.length > 0
+  }
+
+  return true
 })
 
 async function useHint() {
@@ -144,82 +151,49 @@ async function submitAnswer() {
   feedbackFinal.value = Boolean(result.snapshot?.finalChapter)
 }
 
-function skipAnswer() {
-  const snapshot = missionStore.skipCurrentPuzzle()
-
-  if (!snapshot) {
-    return
-  }
-
-  feedbackMessage.value = snapshot.narrative
-  feedbackVisible.value = true
-  feedbackCanAdvance.value = true
-  feedbackFinal.value = snapshot.finalChapter
-}
-
 function nextStep() {
   if (!feedbackCanAdvance.value) {
     feedbackVisible.value = false
     return
   }
 
-  const path = feedbackFinal.value ? MINI_ROUTES.finale : MINI_ROUTES.chapterResult
-  uni.redirectTo({ url: path })
+  uni.redirectTo({ url: feedbackFinal.value ? MINI_ROUTES.finale : MINI_ROUTES.chapterResult })
 }
 </script>
 
 <template>
-  <PageScaffold title="解谜">
+  <PageScaffold title="游玩任务">
     <view v-if="missionStore.currentPuzzle" class="content-stack bottom-safe">
       <view class="puzzle-card">
-        <view class="puzzle-badge">
-          <text class="badge-glyph">{{ puzzleGlyph }}</text>
-          <view>
-            <text class="eyebrow">{{ puzzleLabel }}</text>
-            <text class="badge-action">{{ puzzleAction }}</text>
-          </view>
-        </view>
+        <text v-if="puzzleLabel" class="eyebrow">{{ puzzleLabel }}</text>
         <text class="display-title puzzle-title">{{ missionStore.currentPuzzle.prompt }}</text>
       </view>
 
       <view class="renderer-panel panel">
-        <view class="renderer-head">
-          <text class="section-title">互动操作台</text>
-          <text class="muted-copy">先动手，再看提示，最后提交。</text>
-        </view>
         <PuzzleRendererHost v-if="draft" :puzzle="missionStore.currentPuzzle" :model-value="draft" @update:model-value="draft = $event" />
       </view>
 
-      <view class="support-grid">
-        <view class="hint-card panel-soft">
-          <view class="hint-head">
-            <text class="section-title">提示</text>
-            <text class="muted-copy">{{ hintCaption }}</text>
-          </view>
-          <text v-if="missionStore.currentHintText" class="body-copy hint-text">{{ missionStore.currentHintText }}</text>
-        </view>
+      <view v-if="missionStore.currentHintText" class="panel hint-card">
+        <text class="section-title">提示</text>
+        <text class="body-copy hint-text">{{ missionStore.currentHintText }}</text>
+      </view>
 
-        <view class="panel action-dock">
-          <text class="section-title">本轮操作</text>
-          <view class="button-row">
-            <button class="secondary-button" :disabled="missionStore.gameplayPending" @click="useHint">看提示</button>
-            <button class="ghost-button" @click="skipAnswer">跳过</button>
-          </view>
-          <button class="primary-button" :disabled="missionStore.gameplayPending" @click="submitAnswer">
-            {{ missionStore.gameplayPending ? '提交中...' : '提交答案' }}
-          </button>
-          <text v-if="missionStore.gameplayError" class="muted-copy">{{ missionStore.gameplayError }}</text>
-        </view>
+      <view class="panel action-dock">
+        <button class="secondary-button" :disabled="!canUseHint" @click="useHint">看提示</button>
+        <button class="primary-button" :disabled="!canSubmit" @click="submitAnswer">
+          {{ missionStore.gameplayPending ? '提交中...' : '提交答案' }}
+        </button>
+        <text v-if="missionStore.gameplayError" class="muted-copy">{{ missionStore.gameplayError }}</text>
       </view>
     </view>
 
     <transition name="pop-in">
       <view v-if="feedbackVisible" class="feedback-mask">
         <view class="panel feedback-card">
-          <text class="section-title">{{ feedbackCanAdvance ? '找到了' : '再试一次' }}</text>
-          <text class="body-copy">{{ feedbackMessage }}</text>
+          <text class="section-title">{{ feedbackCanAdvance ? '已通过' : '未通过' }}</text>
+          <text v-if="feedbackMessage" class="body-copy">{{ feedbackMessage }}</text>
           <button class="primary-button feedback-button" @click="nextStep">
-            {{ feedbackCanAdvance ? (feedbackFinal ? '查看结局' : '收下线索') : '回去观察' }}
+            {{ feedbackCanAdvance ? (feedbackFinal ? '查看完成结果' : '继续') : '返回修改' }}
           </button>
         </view>
       </view>
@@ -231,88 +205,30 @@ function nextStep() {
 .puzzle-card {
   padding: 28rpx;
   border: 1px solid rgba(209, 178, 111, 0.26);
-  border-radius: 34rpx;
-  background:
-    radial-gradient(circle at 88% 12%, rgba(209, 178, 111, 0.22), transparent 26%),
-    linear-gradient(180deg, rgba(38, 34, 27, 0.98), rgba(14, 16, 20, 0.98));
-}
-
-.puzzle-badge {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-}
-
-.badge-glyph {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 62rpx;
-  height: 62rpx;
-  border-radius: 20rpx;
-  background: linear-gradient(135deg, #d1b26f, #f1d89c);
-  color: #171310;
-  font-size: 24rpx;
-  font-weight: 900;
-}
-
-.badge-action {
-  display: block;
-  margin-top: 4rpx;
-  color: rgba(247, 239, 221, 0.58);
-  font-size: 22rpx;
-  font-weight: 700;
+  border-radius: 30rpx;
+  background: linear-gradient(180deg, rgba(38, 34, 27, 0.98), rgba(14, 16, 20, 0.98));
 }
 
 .puzzle-title {
   display: block;
-  margin-top: 24rpx;
+  margin-top: 12rpx;
   font-size: 36rpx;
-  line-height: 1.22;
+  line-height: 1.25;
 }
 
 .renderer-panel,
 .hint-card,
+.action-dock,
 .feedback-card {
   padding: 24rpx;
 }
 
-.renderer-head {
+.hint-card,
+.action-dock,
+.feedback-card {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 16rpx;
-  margin-bottom: 18rpx;
-}
-
-.hint-card {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-
-.support-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-
-.hint-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-
-.hint-text {
-  margin-top: 2rpx;
-}
-
-.action-dock {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-  padding: 24rpx;
 }
 
 .feedback-mask {
@@ -328,12 +244,8 @@ function nextStep() {
 
 .feedback-card {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-
-.feedback-button {
-  margin-top: 2rpx;
 }
 </style>
+
+
+

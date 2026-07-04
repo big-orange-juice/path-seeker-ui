@@ -1,4 +1,4 @@
-﻿import { computed, reactive, ref, shallowRef, watch } from "vue"
+import { computed, reactive, ref, shallowRef, watch } from "vue"
 import { defineStore } from "pinia"
 import {
   adaptRouteDetailToMission,
@@ -6,7 +6,6 @@ import {
   getSolvedStageIds,
   resolveCurrentChapterIndex,
 } from "@/adapters/gameplayMissionAdapter"
-import { MOCK_MISSION_MAP, MOCK_MISSIONS, MOCK_ROUTE_CARDS } from "@/mock/missions"
 import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, TASK_KIND_OPTIONS } from "@/mock/schema"
 import {
   fetchGameplayStages,
@@ -28,6 +27,7 @@ import type {
   MissionChapter,
   MissionDetail,
   MissionPuzzle,
+  MissionRouteCard,
   MissionSession,
   ReasoningAnswerValue,
   TaskKind,
@@ -38,6 +38,11 @@ const STORAGE_KEY_ARCHIVE = "path-seeker:mission-archive"
 const STORAGE_KEY_FILTERS = "path-seeker:mission-filters"
 
 const HINT_LEVELS: HintLevel[] = ["observe", "relation", "direct"]
+
+function readStoredSession() {
+  const session = readStorage<MissionSession | null>(STORAGE_KEY_SESSION, null)
+  return session?.source === "mock" ? null : session
+}
 
 function readStorage<T>(key: string, fallback: T): T {
   try {
@@ -184,15 +189,14 @@ function createArchiveEntry(session: MissionSession, mission: MissionDetail): Mi
 }
 
 export const useMissionStore = defineStore("mission", () => {
-  const missions = shallowRef(MOCK_MISSIONS)
-  const routeCards = shallowRef(MOCK_ROUTE_CARDS)
+  const routeCards = shallowRef<MissionRouteCard[]>([])
   const remoteMissionMap = shallowRef<Record<string, MissionDetail>>({})
   const remoteHintTextMap = shallowRef<Record<string, string>>({})
   const detailPending = shallowRef(false)
   const detailError = shallowRef("")
   const gameplayPending = shallowRef(false)
   const gameplayError = shallowRef("")
-  const activeSession = ref<MissionSession | null>(readStorage<MissionSession | null>(STORAGE_KEY_SESSION, null))
+  const activeSession = ref<MissionSession | null>(readStoredSession())
   const archiveEntries = shallowRef<MissionArchiveEntry[]>(readStorage<MissionArchiveEntry[]>(STORAGE_KEY_ARCHIVE, []))
   const filters = reactive<{
     ageBand: AgeBand | "all"
@@ -222,7 +226,7 @@ export const useMissionStore = defineStore("mission", () => {
       return null
     }
 
-    return remoteMissionMap.value[activeSession.value.routeId] || MOCK_MISSION_MAP[activeSession.value.routeId] || null
+    return remoteMissionMap.value[activeSession.value.routeId] || null
   })
 
   const currentChapter = computed<MissionChapter | null>(() => {
@@ -279,7 +283,7 @@ export const useMissionStore = defineStore("mission", () => {
     ageBands: AGE_BAND_OPTIONS.length,
     difficulties: DIFFICULTY_OPTIONS.length,
     taskKinds: TASK_KIND_OPTIONS.length,
-    missionCount: missions.value.length,
+    missionCount: routeCards.value.length,
   }))
 
   function setFilters(payload: Partial<typeof filters>) {
@@ -297,7 +301,7 @@ export const useMissionStore = defineStore("mission", () => {
   }
 
   function getMission(routeId: string) {
-    return remoteMissionMap.value[routeId] || MOCK_MISSION_MAP[routeId] || null
+    return remoteMissionMap.value[routeId] || null
   }
 
   function getMissionDraft(puzzleId: string) {
@@ -306,34 +310,6 @@ export const useMissionStore = defineStore("mission", () => {
     }
 
     return activeSession.value.draftHistory[puzzleId] || null
-  }
-
-  function startMission(routeId: string, selectedAgeBand?: AgeBand) {
-    const mission = getMission(routeId)
-
-    if (!mission) {
-      return null
-    }
-
-    activeSession.value = {
-      sessionId: `session-${routeId}-${Date.now()}`,
-      routeId,
-      source: remoteMissionMap.value[routeId] ? "remote" : "mock",
-      teamId: null,
-      selectedAgeBand: selectedAgeBand || mission.recommendedAgeBand,
-      currentChapterIndex: 0,
-      solvedChapterIds: [],
-      unlockedClueIds: [],
-      unlockedRewardIds: [],
-      hintHistory: {},
-      draftHistory: {},
-      totalScore: 0,
-      startedAt: new Date().toISOString(),
-      status: "in_progress",
-      latestChapterResult: null,
-    }
-
-    return activeSession.value
   }
 
   async function loadMissionDetail(routeId: string) {
@@ -368,6 +344,56 @@ export const useMissionStore = defineStore("mission", () => {
     }
   }
 
+  async function restoreActiveMission() {
+    if (!activeSession.value) {
+      return null
+    }
+
+    if (remoteMissionMap.value[activeSession.value.routeId]) {
+      return remoteMissionMap.value[activeSession.value.routeId]
+    }
+
+    gameplayPending.value = true
+    gameplayError.value = ""
+
+    try {
+      const [detail, stages] = await Promise.all([
+        fetchRouteDetail(activeSession.value.routeId),
+        fetchGameplayStages(activeSession.value.routeId, activeSession.value.teamId),
+      ])
+      const mission = adaptRouteDetailToMission(detail, stages)
+
+      if (!mission) {
+        gameplayError.value = "任务节点数据不完整"
+        return null
+      }
+
+      remoteMissionMap.value = {
+        ...remoteMissionMap.value,
+        [mission.id]: mission,
+      }
+
+      const solvedChapterIds = getSolvedStageIds(stages)
+      if (solvedChapterIds.length) {
+        const firstUnsolvedIndex = mission.chapters.findIndex((chapter) => !solvedChapterIds.includes(chapter.id))
+        activeSession.value = {
+          ...activeSession.value,
+          solvedChapterIds,
+          unlockedClueIds: solvedChapterIds.map((id) => `clue-${id}`),
+          unlockedRewardIds: solvedChapterIds.map((id) => `fragment-${id}`),
+          currentChapterIndex: Math.max(firstUnsolvedIndex, 0),
+          status: solvedChapterIds.length >= mission.chapterCount && mission.chapterCount > 0 ? "completed" : "in_progress",
+        }
+      }
+
+      return mission
+    } catch (error) {
+      gameplayError.value = resolveRequestErrorMessage(error, "任务恢复失败")
+      return null
+    } finally {
+      gameplayPending.value = false
+    }
+  }
   async function startRemoteMission(routeId: string, selectedAgeBand?: AgeBand, teamId?: string | null) {
     gameplayPending.value = true
     gameplayError.value = ""
@@ -488,20 +514,18 @@ export const useMissionStore = defineStore("mission", () => {
     }
   }
 
-  function finalizeSolve(skipped = false) {
+  function finalizeSolve(skipped = false, scoreOverride?: number, narrativeOverride = "") {
     if (!activeSession.value || !activeMission.value || !currentChapter.value || !currentPuzzle.value) {
       return null
     }
 
     const hints = activeSession.value.hintHistory[currentPuzzle.value.id] || []
-    const gainedScore = scoreForPuzzle(currentPuzzle.value, hints.length, skipped)
+    const gainedScore = typeof scoreOverride === "number" ? scoreOverride : scoreForPuzzle(currentPuzzle.value, hints.length, skipped)
     const snapshot = {
       routeId: activeMission.value.id,
       chapterId: currentChapter.value.id,
       chapterTitle: currentChapter.value.title,
-      narrative: skipped
-        ? `${currentChapter.value.title} 已跳过，你仍然拿到了基础情报，但本章不计完美通关。`
-        : currentChapter.value.resultNarrative,
+      narrative: narrativeOverride || (skipped ? `${currentChapter.value.title} 已跳过。` : currentChapter.value.resultNarrative),
       unlockedClue: currentPuzzle.value.reward,
       gainedScore,
       usedHints: hints,
@@ -560,8 +584,8 @@ export const useMissionStore = defineStore("mission", () => {
           }
         }
 
-        const snapshot = finalizeSolve(false)
-        if (response.routeCompleted && activeSession.value) {
+        const snapshot = finalizeSolve(false, response.scoreGained ?? 0, response.message || '')
+        if ((response.routeCompleted || response.teamRouteCompleted) && activeSession.value) {
           activeSession.value = {
             ...activeSession.value,
             status: "completed",
@@ -641,14 +665,14 @@ export const useMissionStore = defineStore("mission", () => {
     }
   }
 
-  function replayMission(routeId?: string) {
+  async function replayMission(routeId?: string) {
     const mission = routeId ? getMission(routeId) : activeMission.value
 
     if (!mission) {
       return null
     }
 
-    return startMission(mission.id)
+    return startRemoteMission(mission.id, mission.recommendedAgeBand)
   }
 
   watch(
@@ -677,7 +701,6 @@ export const useMissionStore = defineStore("mission", () => {
 
   return {
     routeCards,
-    missions,
     filteredRoutes,
     filters,
     activeSession,
@@ -701,8 +724,8 @@ export const useMissionStore = defineStore("mission", () => {
     getMission,
     loadMissionDetail,
     getMissionDraft,
-    startMission,
     startRemoteMission,
+    restoreActiveMission,
     requestHint,
     saveDraft,
     submitCurrentDraft,
@@ -711,3 +734,5 @@ export const useMissionStore = defineStore("mission", () => {
     replayMission,
   }
 })
+
+

@@ -9,10 +9,12 @@ import type {
 } from "@/types/mission"
 
 interface RouteFilters {
+  ageBand: AgeBand | "all"
   difficulty: DifficultyLevel | "all"
+  taskKind: TaskKind | "all"
 }
 
-interface PublishedRouteQueryRequest {
+interface RoutePageQueryRequest {
   pageIndex: number
   pageSize: number
   museumId?: string | null
@@ -94,14 +96,33 @@ const TASK_KIND_VALUE_MAP: Record<number, TaskKind> = {
   3: "deep_reasoning",
 }
 
-const TASK_KIND_LABEL_MAP: Record<TaskKind, string> = {
-  family_adventure: "亲子冒险",
-  story_detective: "剧情推理",
-  deep_reasoning: "深度推理",
-}
+const DEFAULT_MUSEUM_ID = String(import.meta.env.VITE_MUSEUM_ID || "345536575083515904").trim()
 
 const remoteRouteCache = shallowRef<MissionRouteCard[]>([])
 
+function resolveRouteList(response: RoutePageResult | unknown): RouteAdminResponse[] {
+  const source = response && typeof response === "object" ? response as Record<string, unknown> : {}
+  const candidate = source.list ?? source.items ?? source.records ?? []
+
+  if (Array.isArray(candidate)) {
+    return candidate as RouteAdminResponse[]
+  }
+
+  if (candidate && typeof candidate === "object" && Array.isArray((candidate as { $values?: unknown[] }).$values)) {
+    return (candidate as { $values: RouteAdminResponse[] }).$values
+  }
+
+  return []
+}
+
+function resolveTotal(response: RoutePageResult | unknown, fallback: number) {
+  if (!response || typeof response !== "object") {
+    return fallback
+  }
+
+  const value = (response as RoutePageResult).total
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback
+}
 function normalizeText(value: string | null | undefined) {
   return String(value || "").trim()
 }
@@ -118,11 +139,11 @@ function resolveTaskKind(scaleType?: number | null) {
   return TASK_KIND_VALUE_MAP[scaleType || 0] ?? "story_detective"
 }
 
-function buildTaglines(route: RouteAdminResponse, taskKind: TaskKind) {
+function buildTaglines(route: RouteAdminResponse) {
   const taglines: string[] = []
 
   if ((route.allowTeam ?? 0) === 1) {
-    taglines.push("支持组队")
+    taglines.push('支持组队')
   }
 
   return taglines
@@ -151,8 +172,8 @@ function adaptRemoteRoute(route: RouteAdminResponse): MissionRouteCard | null {
     hallId: "",
     routeCode: normalizeText(route.routeCode) || title,
     title,
-    theme: normalizeText(route.theme) || TASK_KIND_LABEL_MAP[taskKind],
-    summary: normalizeText(route.intro) || "暂无简介",
+    theme: normalizeText(route.theme),
+    summary: normalizeText(route.intro),
     highlight: "",
     recommendedAgeBand,
     availableAgeBands: [recommendedAgeBand],
@@ -163,18 +184,18 @@ function adaptRemoteRoute(route: RouteAdminResponse): MissionRouteCard | null {
     puzzleCount,
     chapterCount: puzzleCount,
     allowTeam: (route.allowTeam ?? 0) === 1,
-    rewardTitle: normalizeText(route.rewardTitle) || "完成任务",
+    rewardTitle: normalizeText(route.rewardTitle),
     startLocation: "",
-    badgeLabel: route.publishStatus === 2 ? "已发布" : "草稿",
+    badgeLabel: route.publishStatus === 2 ? "已发布" : "",
     persona: {
-      id: normalizeText(route.personaId) || "remote-persona",
-      code: "remote-persona",
-      name: "任务",
+      id: normalizeText(route.personaId),
+      code: "",
+      name: "",
       intro: "",
-      avatar: "任",
+      avatar: "",
       voiceStyle: "",
     },
-    taglines: buildTaglines(route, taskKind),
+    taglines: buildTaglines(route),
     schemaMeta,
   }
 }
@@ -195,23 +216,29 @@ export function useRemoteRouteCards(getFilters: () => RouteFilters) {
 
     try {
       const filters = getFilters()
-      const response = await request<RoutePageResult>("/api/Route/Published", {
+      const response = await request<RoutePageResult>("/api/Route/PageList", {
         method: "POST",
         data: {
           pageIndex: 1,
           pageSize: 100,
+          museumId: DEFAULT_MUSEUM_ID || null,
+          scaleType: filters.taskKind === "all" ? null : TASK_KIND_FILTER_MAP[filters.taskKind],
           difficultyLevel: filters.difficulty === "all" ? null : DIFFICULTY_FILTER_MAP[filters.difficulty],
+          ageGroup: filters.ageBand === "all" ? null : AGE_GROUP_FILTER_MAP[filters.ageBand],
+          publishStatus: 2,
+          auditStatus: null,
           keyword: null,
-        } satisfies PublishedRouteQueryRequest,
+        } satisfies RoutePageQueryRequest,
       })
 
-      const nextRoutes = (Array.isArray(response?.list) ? response.list : [])
+      const routeList = resolveRouteList(response)
+      const nextRoutes = routeList
         .map(adaptRemoteRoute)
         .filter((route): route is MissionRouteCard => Boolean(route))
 
       routes.value = nextRoutes
       remoteRouteCache.value = nextRoutes
-      total.value = Number(response?.total || nextRoutes.length)
+      total.value = resolveTotal(response, nextRoutes.length)
     } catch (fetchError) {
       routes.value = []
       remoteRouteCache.value = []
@@ -238,3 +265,5 @@ export function useRemoteRouteCards(getFilters: () => RouteFilters) {
     reload: fetchRemoteRoutes,
   }
 }
+
+

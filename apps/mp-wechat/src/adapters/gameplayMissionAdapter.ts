@@ -65,42 +65,73 @@ const INTERACTION_TEMPLATE_MAP: Record<number, PuzzleTemplateType> = {
   9: "match",
 }
 
-const HINT_TEXT_FALLBACK: Record<HintLevel, string> = {
-  observe: "先回到展品本体，找最显眼但又和题面有关的细节。",
-  relation: "把标题、副标题和展品位置连起来看，通常能得到第二层线索。",
-  direct: "如果仍然卡住，先提交你最有把握的答案，系统会按节点规则判定。",
-}
-
 function normalizeText(value: unknown, fallback = "") {
   const text = typeof value === "string" ? value.trim() : ""
   return text || fallback
 }
 
-function parseJsonObject(value: unknown): Record<string, any> {
-  if (!value) {
-    return {}
-  }
-
-  if (typeof value === "object") {
-    return value as Record<string, any>
-  }
-
+function parseJsonValue(value: unknown): unknown {
   if (typeof value !== "string") {
-    return {}
+    return value
+  }
+
+  const text = value.trim()
+  if (!text) {
+    return null
   }
 
   try {
-    const parsed = JSON.parse(value)
-    return parsed && typeof parsed === "object" ? parsed : {}
+    const parsed = JSON.parse(text) as unknown
+    return typeof parsed === "string" ? parseJsonValue(parsed) : parsed
   } catch {
-    return {}
+    return value
   }
 }
 
-function asArray<T = any>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : []
+function parseJsonObject(value: unknown): Record<string, any> {
+  const parsed = parseJsonValue(value)
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, any> : {}
 }
 
+function asArray<T = any>(value: unknown): T[] {
+  const parsed = parseJsonValue(value)
+
+  if (Array.isArray(parsed)) {
+    return parsed as T[]
+  }
+
+  if (parsed && typeof parsed === "object" && Array.isArray((parsed as { $values?: unknown[] }).$values)) {
+    return (parsed as { $values: T[] }).$values
+  }
+
+  return []
+}
+
+function pickValue(source: Record<string, any>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = source[key]
+    if (value !== undefined && value !== null) {
+      return value
+    }
+  }
+
+  return undefined
+}
+
+function readItemText(item: any, ...keys: string[]) {
+  for (const key of keys) {
+    const value = item?.[key]
+    if (typeof value === "string" && value.trim()) {
+      return value.trim()
+    }
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value)
+    }
+  }
+
+  return ""
+}
 function resolveAgeBand(ageGroup?: number | null): AgeBand {
   return AGE_GROUP_VALUE_MAP[ageGroup || 0] ?? "10-15"
 }
@@ -135,7 +166,7 @@ function getStageConfig(stage: StageLike) {
 
 function getAnswerExtra(stage: StageLike, config: Record<string, any>) {
   const answerExtra = "answerExtra" in stage ? parseJsonObject((stage as StagePlayResponse).answerExtra) : {}
-  return parseJsonObject(config.answer_extra || config.answerExtra || answerExtra)
+  return parseJsonObject(pickValue(config, "answer_extra", "answerExtra", "AnswerExtra") || answerExtra)
 }
 
 function makeChoiceOptions(rawOptions: any[], fallbackPrefix: string): ChoiceOption[] {
@@ -152,19 +183,14 @@ function makeChoiceOptions(rawOptions: any[], fallbackPrefix: string): ChoiceOpt
     })
     .filter((item) => item.id && item.label)
 
-  return options.length
-    ? options
-    : [
-        { id: "A", label: "A", imageUrl: null, description: null },
-        { id: "B", label: "B", imageUrl: null, description: null },
-      ]
+  return options
 }
 
 function mapCommonEntry(item: any, index: number) {
   return {
-    id: normalizeText(item?.id ?? item?.key ?? item?.value, `item-${index + 1}`),
-    label: normalizeText(item?.label ?? item?.text ?? item?.title, `项目 ${index + 1}`),
-    imageUrl: item?.image_url ?? item?.imageUrl ?? item?.silhouette_url ?? null,
+    id: readItemText(item, "id", "Id", "key", "Key", "value", "Value") || `item-${index + 1}`,
+    label: readItemText(item, "label", "Label", "text", "Text", "title", "Title", "name", "Name") || `项目 ${index + 1}`,
+    imageUrl: pickValue(item ?? {}, "image_url", "imageUrl", "ImageUrl", "silhouette_url", "silhouetteUrl", "url", "Url") ?? null,
   }
 }
 
@@ -173,7 +199,7 @@ function makeReward(stageId: string, stageTitle: string): PuzzleReward {
     clueId: `clue-${stageId}`,
     clueTitle: stageTitle,
     fragmentId: `fragment-${stageId}`,
-    fragmentTitle: `${stageTitle}碎片`,
+    fragmentTitle: stageTitle,
   }
 }
 
@@ -183,9 +209,9 @@ function buildHintPayload(config: Record<string, any>): Record<HintLevel, string
   const values = sorted.map((item) => normalizeText(item?.content)).filter(Boolean)
 
   return {
-    observe: values[0] || HINT_TEXT_FALLBACK.observe,
-    relation: values[1] || HINT_TEXT_FALLBACK.relation,
-    direct: values[2] || HINT_TEXT_FALLBACK.direct,
+    observe: values[0] || "",
+    relation: values[1] || "",
+    direct: values[2] || "",
   }
 }
 
@@ -195,24 +221,26 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
   const stageTitle = normalizeText(stage.title, `第 ${index + 1} 站`)
   const content = normalizeText(
     "puzzleContent" in stage ? (stage as StagePlayResponse).puzzleContent : "",
-    normalizeText(config.content ?? config.prompt ?? config.theme ?? config.rule_hint, stageTitle),
+    normalizeText(pickValue(config, "content", "Content", "prompt", "Prompt", "theme", "Theme", "rule_hint", "ruleHint", "RuleHint"), stageTitle),
   )
-  const templateType = INTERACTION_TEMPLATE_MAP[Number(stage.interactionType || stage.puzzleType || 1)] ?? "observe_choice"
+  const interactionType = Number(stage.interactionType || stage.puzzleType || 1)
+  const templateType = INTERACTION_TEMPLATE_MAP[interactionType] ?? "observe_choice"
   const difficultyLevel = resolveDifficultyLevel(stage.difficultyLevel ?? route?.difficultyLevel)
   const schemaMeta = buildSchemaMeta(route, stage)
   const base = {
     id: stageId,
     puzzleTypeId: PUZZLE_TYPE_MAP[templateType],
+    interactionType,
     templateType,
     title: stageTitle,
-    introText: normalizeText(stage.subtitle, "观察展品后完成这一站。"),
+    introText: normalizeText(stage.subtitle),
     prompt: content,
     difficultyLevel,
     schemaMeta,
     hintPayload: buildHintPayload(config),
     reward: makeReward(stageId, stageTitle),
-    successCopy: "节点已完成，新的线索已经收入任务袋。",
-    failureCopy: "还差一点，回到展品细节再确认一次。",
+    successCopy: "节点已完成。",
+    failureCopy: "本次未通过。",
   }
 
   if (templateType === "code_break") {
@@ -224,16 +252,16 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
         prompt: content,
         codeLength: digits,
         acceptedCode: "",
-        clueFragments: asArray(config.clue_images).map((item, clueIndex) => normalizeText(item?.hint, `线索 ${clueIndex + 1}`)),
+        clueFragments: asArray(config.clue_images).map((item) => normalizeText(item?.hint)).filter(Boolean),
         derivationSteps: [],
-        clueSourceTitle: normalizeText(config.rule_hint, "密码规则"),
+        clueSourceTitle: normalizeText(config.rule_hint),
         maskCharacter: "•",
       },
     }
   }
 
   if (templateType === "sort") {
-    const items = asArray(config.items).map(mapCommonEntry)
+    const items = asArray(pickValue(config, "items", "Items", "options", "Options", "candidates", "Candidates")).map(mapCommonEntry).filter((item) => item.id && item.label)
     return {
       ...base,
       templateType,
@@ -246,8 +274,8 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
   }
 
   if (templateType === "match") {
-    const left = asArray(config.left).map(mapCommonEntry)
-    const right = asArray(config.right).map(mapCommonEntry)
+    const left = asArray(pickValue(config, "left", "Left", "sources", "Sources")).map(mapCommonEntry).filter((item) => item.id && item.label)
+    const right = asArray(pickValue(config, "right", "Right", "targets", "Targets")).map(mapCommonEntry).filter((item) => item.id && item.label)
     return {
       ...base,
       templateType,
@@ -264,40 +292,42 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
   }
 
   if (templateType === "image_puzzle") {
-    const pieces = asArray(config.pieces).map((item, pieceIndex) => ({
+    const pieces = asArray(pickValue(config, "pieces", "Pieces", "items", "Items")).map((item, pieceIndex) => ({
       id: normalizeText(item?.id ?? item?.key, `piece-${pieceIndex + 1}`),
-      label: normalizeText(item?.label ?? item?.hint, `碎片 ${pieceIndex + 1}`),
+      label: normalizeText(item?.label ?? item?.hint),
       hint: item?.hint ?? null,
-    }))
+    })).filter((item) => item.id && item.label)
 
     return {
       ...base,
       templateType,
       questionPayload: {
         prompt: content,
-        imageUrl: config.base_image_url ?? config.baseImageUrl ?? null,
-        gridSize: Math.max(2, Number(config.grid_cols ?? config.gridCols ?? Math.ceil(Math.sqrt(pieces.length || 4)))),
+        imageUrl: pickValue(config, "base_image_url", "baseImageUrl", "BaseImageUrl") ?? null,
+        gridSize: Math.max(2, Number(pickValue(config, "grid_cols", "gridCols", "GridCols") ?? Math.ceil(Math.sqrt(pieces.length || 4)))),
         pieces,
         correctOrder: pieces.map((item) => item.id),
-        revealTitle: "拼回纹样",
-        trayTitle: "碎片托盘",
+        revealTitle: normalizeText(pickValue(config, "reveal_title", "revealTitle", "RevealTitle")),
+        trayTitle: normalizeText(pickValue(config, "tray_title", "trayTitle", "TrayTitle")),
       },
     }
   }
 
   if (templateType === "select") {
-    const candidates = asArray(config.candidates ?? config.options).map((item, candidateIndex) => ({
-      id: normalizeText(item?.id ?? item?.key ?? item?.value, `candidate-${candidateIndex + 1}`),
-      label: normalizeText(item?.label ?? item?.text ?? item?.title, `候选 ${candidateIndex + 1}`),
-      imageUrl: item?.image_url ?? item?.imageUrl ?? null,
-      description: item?.description ?? item?.summary ?? item?.hint ?? null,
-    }))
-    const minPick = Math.max(1, Number(config.min_pick ?? config.minPick ?? 1))
-    const rawMaxPick = config.max_pick ?? config.maxPick
+    const answerExtra = getAnswerExtra(stage, config)
+    const rawCandidates = pickValue(config, "candidates", "Candidates", "candidateList", "CandidateList", "options", "Options", "items", "Items") ?? pickValue(answerExtra, "options", "Options", "candidates", "Candidates")
+    const candidates = asArray(rawCandidates).map((item, candidateIndex) => ({
+      id: readItemText(item, "id", "Id", "key", "Key", "value", "Value", "exhibit_id", "exhibitId", "ExhibitId") || `candidate-${candidateIndex + 1}`,
+      label: readItemText(item, "label", "Label", "text", "Text", "title", "Title", "name", "Name", "exhibit_name", "exhibitName", "ExhibitName", "exhibit_id", "exhibitId", "ExhibitId") || `候选 ${candidateIndex + 1}`,
+      imageUrl: pickValue(item ?? {}, "image_url", "imageUrl", "ImageUrl", "url", "Url", "coverImageUrl", "CoverImageUrl") ?? null,
+      description: pickValue(item ?? {}, "description", "Description", "summary", "Summary", "hint", "Hint") ?? null,
+    })).filter((item) => item.id && item.label)
+    const minPick = Math.max(1, Number(pickValue(config, "min_pick", "minPick", "MinPick") ?? 1))
+    const rawMaxPick = pickValue(config, "max_pick", "maxPick", "MaxPick")
     const maxPick = rawMaxPick == null
       ? Math.max(minPick, candidates.length || minPick)
       : Math.max(minPick, Number(rawMaxPick) || minPick)
-    const theme = normalizeText(config.theme)
+    const theme = normalizeText(pickValue(config, "theme", "Theme"))
 
     return {
       ...base,
@@ -308,19 +338,19 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
         minPick,
         maxPick,
         candidates,
-        pickedTitle: "候选展品",
+        pickedTitle: normalizeText(pickValue(config, "picked_title", "pickedTitle", "PickedTitle")),
       },
     }
   }
 
   if (templateType === "multi_step_reasoning") {
-    const candidates = asArray(config.candidates).map((item, evidenceIndex) => ({
+    const candidates = asArray(pickValue(config, "candidates", "Candidates", "evidence", "Evidence", "items", "Items")).map((item, evidenceIndex) => ({
       id: normalizeText(item?.id ?? item?.key, `evidence-${evidenceIndex + 1}`),
-      label: normalizeText(item?.label ?? item?.text, `证据 ${evidenceIndex + 1}`),
+      label: normalizeText(item?.label ?? item?.text),
       note: item?.description ?? item?.hint ?? null,
       tag: null,
-    }))
-    const evidence = candidates.length ? candidates : [{ id: "evidence-1", label: content, note: null, tag: null }]
+    })).filter((item) => item.id && item.label)
+    const evidence = candidates
 
     return {
       ...base,
@@ -332,44 +362,44 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
         conclusions: [
           {
             id: "picked",
-            label: normalizeText(config.theme, "选择的证据可以支持当前判断"),
+            label: normalizeText(pickValue(config, "theme", "Theme")),
             summary: null,
           },
-        ],
+        ].filter((item) => item.label),
         correctConclusionId: "picked",
-        chainTitle: "证据链",
+        chainTitle: normalizeText(pickValue(config, "chain_title", "chainTitle", "ChainTitle")),
         slotLabels: [],
-        conclusionTitle: "结论",
+        conclusionTitle: normalizeText(pickValue(config, "conclusion_title", "conclusionTitle", "ConclusionTitle")),
       },
     }
   }
 
   if (templateType === "clue_find") {
-    const diffs = asArray(config.diffs)
+    const diffs = asArray(pickValue(config, "diffs", "Diffs", "hotspots", "Hotspots"))
     const hotspots = diffs.map((item, hotspotIndex) => ({
       id: normalizeText(item?.id ?? item?.key, `diff-${hotspotIndex + 1}`),
       x: Number(item?.x ?? 0.4) * 100,
       y: Number(item?.y ?? 0.4) * 100,
       width: Number(item?.r ?? 0.08) * 200,
       height: Number(item?.r ?? 0.08) * 200,
-      label: normalizeText(item?.label, `差异 ${hotspotIndex + 1}`),
-    }))
+      label: normalizeText(item?.label),
+    })).filter((item) => item.id && item.label)
 
     return {
       ...base,
       templateType,
       questionPayload: {
         prompt: content,
-        imageUrl: config.altered_image_url ?? config.base_image_url ?? null,
-        targetDescription: normalizeText(config.theme, "找出关键差异"),
-        hotspots: hotspots.length ? hotspots : [{ id: "hotspot-1", x: 40, y: 40, width: 18, height: 18, label: "线索区域" }],
-        correctHotspotId: hotspots[0]?.id ?? "hotspot-1",
+        imageUrl: pickValue(config, "altered_image_url", "alteredImageUrl", "AlteredImageUrl", "base_image_url", "baseImageUrl", "BaseImageUrl") ?? null,
+        targetDescription: normalizeText(pickValue(config, "theme", "Theme")),
+        hotspots,
+        correctHotspotId: hotspots[0]?.id ?? "",
       },
     }
   }
 
   const answerExtra = getAnswerExtra(stage, config)
-  const options = makeChoiceOptions(asArray(answerExtra.options ?? config.options), `${stageId}-option`)
+  const options = makeChoiceOptions(asArray(pickValue(answerExtra, "options", "Options") ?? pickValue(config, "options", "Options")), `${stageId}-option`)
 
   return {
     ...base,
@@ -384,19 +414,19 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
 
 function buildArtifact(stage: StageLike, index: number, puzzle: MissionPuzzle): ArtifactClue {
   const config = getStageConfig(stage)
-  const location = normalizeText(stage.galleryName, `第 ${index + 1} 站`)
+  const location = normalizeText(stage.galleryName)
   const exhibitName = normalizeText(stage.exhibitName, normalizeText(stage.title, `展品 ${index + 1}`))
 
   return {
     id: normalizeText(stage.refExhibitId, `artifact-${puzzle.id}`),
     title: exhibitName,
-    subtitle: normalizeText(stage.subtitle, "路线节点"),
+    subtitle: normalizeText(stage.subtitle),
     location,
-    observationPoint: normalizeText(config.rule_hint ?? config.theme, "先看展品，再开始互动。"),
-    storyFragment: normalizeText(stage.subtitle, "这一站会把路线线索推进一步。"),
-    suspiciousPoint: "不要急着提交，先把题面和展品细节对齐。",
-    checklist: ["确认展品位置", "阅读题面", "找出关键细节"],
-    detailCallout: normalizeText(config.rule_hint ?? config.theme, "题面提到的细节最值得先看。"),
+    observationPoint: normalizeText(pickValue(config, "rule_hint", "ruleHint", "RuleHint", "theme", "Theme")),
+    storyFragment: normalizeText(stage.subtitle),
+    suspiciousPoint: "",
+    checklist: [],
+    detailCallout: normalizeText(pickValue(config, "rule_hint", "ruleHint", "RuleHint", "theme", "Theme")),
   }
 }
 
@@ -418,8 +448,8 @@ export function adaptRouteCard(route: RouteCardResponse, intro?: string | null):
     hallId: "",
     routeCode: id,
     title,
-    theme: normalizeText(route.theme, TASK_KIND_LABEL_MAP[taskKind]),
-    summary: normalizeText(intro, "暂无简介"),
+    theme: normalizeText(route.theme),
+    summary: normalizeText(intro),
     highlight: "",
     recommendedAgeBand,
     availableAgeBands: [recommendedAgeBand],
@@ -430,18 +460,18 @@ export function adaptRouteCard(route: RouteCardResponse, intro?: string | null):
     puzzleCount: route.puzzleCount ?? 0,
     chapterCount: route.puzzleCount ?? 0,
     allowTeam: (route.allowTeam ?? 0) === 1,
-    rewardTitle: "完成任务",
+    rewardTitle: "",
     startLocation: "",
     badgeLabel: "已发布",
     persona: {
-      id: normalizeText(route.persona?.id, "remote-persona"),
-      code: normalizeText(route.persona?.personaCode, "remote-persona"),
-      name: normalizeText(route.persona?.name, "任务向导"),
+      id: normalizeText(route.persona?.id),
+      code: normalizeText(route.persona?.personaCode),
+      name: normalizeText(route.persona?.name),
       intro: "",
-      avatar: normalizeText(route.persona?.name, "任").slice(0, 1),
+      avatar: normalizeText(route.persona?.name).slice(0, 1),
       voiceStyle: "",
     },
-    taglines: (route.allowTeam ?? 0) === 1 ? ["支持组队"] : ["单人游玩"],
+    taglines: (route.allowTeam ?? 0) === 1 ? ["支持组队"] : [],
     schemaMeta,
   }
 }
@@ -464,9 +494,9 @@ export function adaptRouteDetailToMission(detail: RouteDetailResponse, stages?: 
       id: puzzle.id,
       stageNo: stage.stageNo ?? index + 1,
       title: normalizeText(stage.title, `第 ${index + 1} 站`),
-      objective: normalizeText(stage.subtitle, `完成${normalizeText(stage.title, `第 ${index + 1} 站`)}`),
+      objective: normalizeText(stage.subtitle),
       targetLocation: artifact.location,
-      resultNarrative: `${normalizeText(stage.title, `第 ${index + 1} 站`)}已经完成，路线线索继续向前推进。`,
+      resultNarrative: "",
       nextTarget: "",
       artifact,
       puzzle,
@@ -477,9 +507,9 @@ export function adaptRouteDetailToMission(detail: RouteDetailResponse, stages?: 
     ...routeCard,
     puzzleCount: chapters.length || routeCard.puzzleCount,
     chapterCount: chapters.length || routeCard.chapterCount,
-    startLocation: chapters[0]?.targetLocation || "路线起点",
-    rewardTitle: routeCard.rewardTitle || "路线完成奖励",
-    museumName: "Path Seeker 博物探索馆",
+    startLocation: chapters[0]?.targetLocation || "",
+    rewardTitle: routeCard.rewardTitle,
+    museumName: "",
     prologue: (detail.stories ?? []).map((story, index) => ({
       eyebrow: `故事 ${index + 1}`,
       title: normalizeText(story.title, `线索 ${index + 1}`),
@@ -487,17 +517,17 @@ export function adaptRouteDetailToMission(detail: RouteDetailResponse, stages?: 
     })).slice(0, 3),
     introPanel: {
       narrative: routeCard.summary,
-      playbook: ["先观察展品", "按节点完成互动", "卡住时使用提示", "完成全部节点解锁终局"],
-      rewardPreview: [routeCard.rewardTitle || "路线完成奖励"],
+      playbook: [],
+      rewardPreview: routeCard.rewardTitle ? [routeCard.rewardTitle] : [],
     },
     chapters,
     finale: {
       title: `${routeCard.title}完成`,
-      truth: "你已经按节点完成整条路线。",
-      debrief: "所有关键线索已经收束，可以回顾你的路线成绩。",
-      knowledgeNotes: ["路线节点来自后端配置", "完成状态会由游玩接口记录", "提示与得分由后端规则判定"],
+      truth: "",
+      debrief: "",
+      knowledgeNotes: [],
       scoreTitle: "路线成绩",
-      shareLine: `我完成了「${routeCard.title}」。`,
+      shareLine: "",
     },
   }
 }
@@ -566,3 +596,9 @@ export function encodeStageSubmitPayload(puzzle: MissionPuzzle, value: unknown):
 
   return JSON.stringify(value ?? {})
 }
+
+
+
+
+
+

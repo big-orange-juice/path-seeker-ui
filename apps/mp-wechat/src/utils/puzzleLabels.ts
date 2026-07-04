@@ -1,3 +1,4 @@
+import { getInteractionTypeMeta } from "@path-seeker/game-renderer"
 import type { DifficultyLevel, PuzzleTemplateType } from "@/types/mission"
 
 export function getDifficultyLabel(level: DifficultyLevel) {
@@ -10,7 +11,12 @@ export function getDifficultyLabel(level: DifficultyLevel) {
   return labels[level]
 }
 
-export function getPuzzleTypeLabel(type: PuzzleTemplateType) {
+export function getPuzzleTypeLabel(type: PuzzleTemplateType, interactionType?: number | null) {
+  const interactionMeta = getInteractionTypeMeta(interactionType)
+  if (interactionMeta) {
+    return interactionMeta.label
+  }
+
   const labels: Record<PuzzleTemplateType, string> = {
     observe_choice: "观察选择",
     select: "颜色寻宝",
@@ -26,7 +32,22 @@ export function getPuzzleTypeLabel(type: PuzzleTemplateType) {
   return labels[type]
 }
 
-export function getPuzzleTypeAction(type: PuzzleTemplateType) {
+export function getPuzzleTypeAction(type: PuzzleTemplateType, interactionType?: number | null) {
+  const interactionLabels: Record<number, string> = {
+    1: "阅读题面，选出答案",
+    2: "根据线索输入密符",
+    3: "拖动卡片重构时序",
+    4: "把左右档案配对",
+    5: "选择符合条件的展品",
+    6: "将纹样碎片拼回原位",
+    7: "听声音，找对应图像",
+    8: "找出图中的关键差异",
+    9: "把剪影与原图配对",
+  }
+
+  if (interactionType && interactionLabels[interactionType]) {
+    return interactionLabels[interactionType]
+  }
   const labels: Record<PuzzleTemplateType, string> = {
     observe_choice: "看细节，选答案",
     select: "选择符合条件的展品",
@@ -42,7 +63,12 @@ export function getPuzzleTypeAction(type: PuzzleTemplateType) {
   return labels[type]
 }
 
-export function getPuzzleTypeGlyph(type: PuzzleTemplateType) {
+export function getPuzzleTypeGlyph(type: PuzzleTemplateType, interactionType?: number | null) {
+  const interactionMeta = getInteractionTypeMeta(interactionType)
+  if (interactionMeta) {
+    return interactionMeta.label.slice(0, 1)
+  }
+
   const labels: Record<PuzzleTemplateType, string> = {
     observe_choice: "看",
     select: "选",

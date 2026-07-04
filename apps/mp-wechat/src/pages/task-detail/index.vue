@@ -5,7 +5,7 @@ import PageScaffold from "@/components/layout/PageScaffold.vue"
 import { getCachedRemoteRouteCard } from "@/composables/useRemoteRouteCards"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { MINI_ROUTES } from "@/utils/navigation"
-import { getDifficultyLabel, getPuzzleTypeGlyph, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
+import { getDifficultyLabel, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
 import { toSingleSentence } from "@/utils/copy"
 import type { AgeBand, MissionDetail, MissionRouteCard } from "@/types/mission"
 
@@ -15,17 +15,28 @@ const mission = shallowRef<MissionDetail | null>(null)
 const remoteRoute = shallowRef<MissionRouteCard | null>(null)
 const selectedAgeBand = shallowRef<AgeBand>("6-10")
 
-const canResumeCurrent = computed(
-  () => {
-    const currentId = mission.value?.id || remoteRoute.value?.id || ""
-    return missionStore.activeSession?.routeId === currentId && missionStore.activeSession?.status === "in_progress"
-  },
-)
+const displayRoute = computed(() => mission.value || remoteRoute.value)
+const summaryCopy = computed(() => toSingleSentence(displayRoute.value?.summary || ""))
+const routePreview = computed(() => mission.value?.chapters ?? [])
+const canResumeCurrent = computed(() => {
+  const currentId = displayRoute.value?.id || ""
+  return missionStore.activeSession?.routeId === currentId && missionStore.activeSession?.status === "in_progress"
+})
+const metaItems = computed(() => {
+  const route = displayRoute.value
+  if (!route) {
+    return []
+  }
 
-const isMockMission = computed(() => missionStore.missions.some((item) => item.id === routeId.value))
-const routePreview = computed(() => mission.value?.chapters.slice(0, 6) ?? [])
-const summaryCopy = computed(() => toSingleSentence(mission.value?.summary || ""))
-const cardSummaryCopy = computed(() => toSingleSentence(remoteRoute.value?.summary || ""))
+  return [
+    route.theme,
+    getDifficultyLabel(route.difficultyLevel),
+    route.estimatedMinutes ? `${route.estimatedMinutes} 分钟` : "",
+    route.puzzleCount ? `${route.puzzleCount} 题` : "",
+    route.totalScore ? `${route.totalScore} 分` : "",
+    route.allowTeam ? "支持组队" : "",
+  ].filter(Boolean)
+})
 
 async function loadDetail() {
   mission.value = missionStore.getMission(routeId.value)
@@ -35,30 +46,24 @@ async function loadDetail() {
     mission.value = await missionStore.loadMissionDetail(routeId.value)
   }
 
-  if (mission.value) {
-    selectedAgeBand.value = mission.value.recommendedAgeBand
-    return
-  }
-
-  if (remoteRoute.value) {
-    selectedAgeBand.value = remoteRoute.value.recommendedAgeBand
+  const route = mission.value || remoteRoute.value
+  if (route) {
+    selectedAgeBand.value = route.recommendedAgeBand
   }
 }
 
 async function startMission() {
-  if (!mission.value) {
+  const route = displayRoute.value
+  if (!route) {
     return
   }
 
-  const session = isMockMission.value
-    ? missionStore.startMission(mission.value.id, selectedAgeBand.value)
-    : await missionStore.startRemoteMission(mission.value.id, selectedAgeBand.value)
-
+  const session = await missionStore.startRemoteMission(route.id, selectedAgeBand.value)
   if (!session) {
     return
   }
 
-  uni.redirectTo({ url: MINI_ROUTES.prologue })
+  uni.redirectTo({ url: missionStore.activeMission?.prologue.length ? MINI_ROUTES.prologue : MINI_ROUTES.chapterMap })
 }
 
 function continueMission() {
@@ -72,335 +77,166 @@ onLoad((query) => {
 </script>
 
 <template>
-  <PageScaffold title="准备出发">
-    <view v-if="mission" class="content-stack bottom-safe">
-      <view class="detail-ticket">
-        <view class="ticket-topline">
-          <text class="eyebrow">{{ mission.badgeLabel }}</text>
-          <text class="ticket-time">{{ mission.estimatedMinutes }} 分钟</text>
-        </view>
-        <text class="display-title detail-title">{{ mission.title }}</text>
-        <view class="ticket-meta">
-          <text>{{ mission.theme }}</text>
-          <text>{{ getDifficultyLabel(mission.difficultyLevel) }}</text>
-          <text>{{ mission.chapterCount }} 站地图</text>
+  <PageScaffold title="任务详情">
+    <view v-if="displayRoute" class="content-stack bottom-safe">
+      <view class="detail-card">
+        <text v-if="displayRoute.badgeLabel" class="eyebrow">{{ displayRoute.badgeLabel }}</text>
+        <text class="display-title detail-title">{{ displayRoute.title }}</text>
+        <text v-if="summaryCopy" class="body-copy detail-copy">{{ summaryCopy }}</text>
+        <view v-if="metaItems.length" class="meta-row">
+          <text v-for="item in metaItems" :key="item" class="meta-pill">{{ item }}</text>
         </view>
       </view>
 
-      <view class="panel route-preview">
-        <view class="preview-head">
-          <view>
-            <text class="eyebrow">路线预览</text>
-            <text class="section-title preview-title">从起点一路到终点</text>
-          </view>
-          <text class="muted-copy">{{ mission.chapterCount }} 站</text>
+      <view v-if="routePreview.length" class="panel section-card">
+        <view class="section-head">
+          <text class="section-title">任务节点</text>
+          <text class="muted-copy">{{ routePreview.length }} 站</text>
         </view>
-        <scroll-view class="preview-scroll" scroll-x enable-flex show-scrollbar="false">
-          <view class="preview-map">
-            <view v-for="chapter in routePreview" :key="chapter.id" class="preview-node">
-              <text class="node-step">{{ chapter.stageNo }}</text>
-              <text class="node-glyph">{{ getPuzzleTypeGlyph(chapter.puzzle.templateType) }}</text>
-              <text class="node-title text-clip-1">{{ chapter.targetLocation }}</text>
-              <text class="node-type">{{ getPuzzleTypeLabel(chapter.puzzle.templateType) }}</text>
+        <view class="stage-list">
+          <view v-for="chapter in routePreview" :key="chapter.id" class="stage-row">
+            <text class="stage-no">{{ chapter.stageNo }}</text>
+            <view class="stage-copy">
+              <text class="stage-title text-clip-1">{{ chapter.title }}</text>
+              <text v-if="chapter.targetLocation" class="muted-copy text-clip-1">{{ chapter.targetLocation }}</text>
             </view>
+            <text class="stage-type">{{ getPuzzleTypeLabel(chapter.puzzle.templateType, chapter.puzzle.interactionType) }}</text>
           </view>
-        </scroll-view>
-      </view>
-
-      <view class="info-pair">
-        <view class="panel info-card">
-          <text class="metric-label">第一站</text>
-          <text class="info-value">{{ mission.startLocation }}</text>
-        </view>
-        <view class="panel info-card">
-          <text class="metric-label">通关奖励</text>
-          <text class="info-value">{{ mission.rewardTitle }}</text>
         </view>
       </view>
 
-      <view class="panel age-card">
-        <text class="eyebrow">年龄档</text>
-        <text class="section-title age-title">选择讲述方式</text>
-        <view class="chip-row age-row">
+      <view v-if="displayRoute.availableAgeBands.length > 1" class="panel section-card">
+        <text class="section-title">年龄档</text>
+        <view class="chip-row">
           <button
-            v-for="band in mission.availableAgeBands"
+            v-for="band in displayRoute.availableAgeBands"
             :key="band"
             class="age-chip"
             :class="{ 'is-active': selectedAgeBand === band }"
-            @click="selectedAgeBand = band"
-          >
+            @click="selectedAgeBand = band">
             {{ band }}
           </button>
         </view>
       </view>
 
-      <view class="panel note-card">
-        <text class="eyebrow">任务摘要</text>
-        <text class="section-title note-title">{{ summaryCopy }}</text>
-      </view>
-
-      <view class="panel story-preview">
-        <text class="eyebrow">开场</text>
-        <view class="route-line">
-          <view v-for="beat in mission.prologue" :key="beat.title" class="route-line-item">
-            <text class="section-title beat-title">{{ beat.title }}</text>
-            <text class="muted-copy">{{ toSingleSentence(beat.content) }}</text>
-          </view>
-        </view>
-      </view>
-
       <view class="button-row action-row">
-        <button v-if="canResumeCurrent" class="secondary-button" @click="continueMission">回到任务</button>
+        <button v-if="canResumeCurrent" class="secondary-button" @click="continueMission">继续任务</button>
         <button class="primary-button" :disabled="missionStore.gameplayPending" @click="startMission">
-          {{ missionStore.gameplayPending ? '准备中...' : '拿任务牌出发' }}
+          {{ missionStore.gameplayPending ? '开始中...' : '开始任务' }}
         </button>
       </view>
 
-      <view v-if="missionStore.gameplayError" class="panel note-card">
-        <text class="muted-copy">{{ missionStore.gameplayError }}</text>
+      <view v-if="missionStore.gameplayError || missionStore.detailError" class="panel notice-card">
+        <text class="muted-copy">{{ missionStore.gameplayError || missionStore.detailError }}</text>
       </view>
     </view>
 
     <view v-else-if="missionStore.detailPending" class="content-stack bottom-safe">
-      <view class="panel note-card">
-        <text class="section-title note-title">正在读取任务详情</text>
-        <text class="muted-copy">路线节点马上就绪。</text>
+      <view class="panel notice-card">
+        <text class="section-title">正在读取任务详情</text>
       </view>
     </view>
 
-    <view v-else-if="remoteRoute" class="content-stack bottom-safe">
-      <view class="detail-ticket">
-        <view class="ticket-topline">
-          <text class="eyebrow">{{ remoteRoute.badgeLabel }}</text>
-          <text class="ticket-time">{{ remoteRoute.estimatedMinutes || "-" }} 分钟</text>
-        </view>
-        <text class="display-title detail-title">{{ remoteRoute.title }}</text>
-        <view class="ticket-meta">
-          <text>{{ remoteRoute.theme }}</text>
-          <text>{{ getDifficultyLabel(remoteRoute.difficultyLevel) }}</text>
-          <text>{{ remoteRoute.puzzleCount }} 题</text>
-        </view>
-      </view>
-
-      <view class="panel note-card">
-        <text class="section-title note-title">{{ cardSummaryCopy || "暂无简介" }}</text>
-      </view>
-
-      <view class="info-pair">
-        <view class="panel info-card">
-          <text class="metric-label">适龄</text>
-          <text class="info-value">{{ remoteRoute.recommendedAgeBand }}</text>
-        </view>
-        <view class="panel info-card">
-          <text class="metric-label">奖励</text>
-          <text class="info-value">{{ remoteRoute.rewardTitle }}</text>
-        </view>
-      </view>
-
-      <view class="panel age-card">
-        <text class="eyebrow">年龄档</text>
-        <view class="chip-row age-row">
-          <text class="chip is-active">{{ remoteRoute.recommendedAgeBand }}</text>
-          <text v-for="tag in remoteRoute.taglines" :key="tag" class="chip">{{ tag }}</text>
-        </view>
-      </view>
-
-      <button v-if="canResumeCurrent" class="secondary-button" @click="continueMission">继续当前任务</button>
-      <view v-else class="panel note-card">
-        <text class="muted-copy">{{ missionStore.detailError || "任务详情暂时不可用，请稍后再试。" }}</text>
+    <view v-else class="content-stack bottom-safe">
+      <view class="panel notice-card">
+        <text class="section-title">任务详情不可用</text>
+        <text v-if="missionStore.detailError" class="muted-copy">{{ missionStore.detailError }}</text>
       </view>
     </view>
   </PageScaffold>
 </template>
 
 <style scoped lang="scss">
-.detail-ticket {
-  overflow: hidden;
-  padding: 32rpx;
-  border: 1px solid rgba(209, 178, 111, 0.28);
-  border-radius: 36rpx;
-  background:
-    radial-gradient(circle at 90% 0, rgba(209, 178, 111, 0.25), transparent 28%),
-    radial-gradient(circle at 10% 100%, rgba(243, 217, 157, 0.1), transparent 32%),
-    linear-gradient(180deg, rgba(39, 35, 27, 0.96), rgba(16, 17, 20, 0.98));
+.detail-card {
+  padding: 30rpx;
+  border: 1px solid rgba(209, 178, 111, 0.26);
+  border-radius: 30rpx;
+  background: linear-gradient(180deg, rgba(38, 34, 27, 0.98), rgba(14, 16, 20, 0.98));
 }
 
-.ticket-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.ticket-time {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 44rpx;
-  padding: 0 16rpx;
-  border-radius: 999rpx;
-  background: rgba(209, 178, 111, 0.14);
-  color: #f3d99d;
-  font-size: 22rpx;
-  font-weight: 900;
-}
-
-.detail-title {
+.detail-title,
+.detail-copy {
   display: block;
   margin-top: 14rpx;
 }
 
-.ticket-meta {
+.meta-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10rpx;
-  margin-top: 24rpx;
-  color: rgba(247, 239, 221, 0.78);
-  font-size: 24rpx;
-  font-weight: 900;
+  margin-top: 22rpx;
 }
 
-.ticket-meta text {
-  padding: 10rpx 16rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.055);
-}
-
-.route-preview,
-.note-card,
-.story-preview,
-.age-card {
-  padding: 26rpx;
-}
-
-.preview-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18rpx;
-}
-
-.preview-title,
-.note-title {
-  display: block;
-  margin-top: 8rpx;
-}
-
-.preview-scroll {
-  margin-top: 24rpx;
-  white-space: nowrap;
-}
-
-.preview-map {
-  display: inline-flex;
-  gap: 12rpx;
-}
-
-.preview-node {
-  position: relative;
-  width: 156rpx;
-  min-height: 160rpx;
-  padding: 18rpx 10rpx 14rpx;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.045);
-  text-align: center;
-}
-
-.preview-node::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  right: -12rpx;
-  width: 12rpx;
-  height: 4rpx;
-  border-radius: 999rpx;
-  background: rgba(209, 178, 111, 0.42);
-}
-
-.preview-node:last-child::after {
-  display: none;
-}
-
-.node-step {
-  position: absolute;
-  left: 10rpx;
-  top: 10rpx;
-  color: rgba(247, 239, 221, 0.5);
-  font-size: 18rpx;
-  font-weight: 900;
-}
-
-.node-glyph {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 52rpx;
-  height: 52rpx;
-  margin: 16rpx auto 12rpx;
-  border-radius: 999rpx;
-  background: rgba(209, 178, 111, 0.18);
-  color: #fff8ea;
-  font-size: 22rpx;
-  font-weight: 900;
-}
-
-.node-title {
-  color: #fff8ea;
-  font-size: 22rpx;
-  font-weight: 900;
-}
-
-.node-type {
-  display: block;
-  margin-top: 8rpx;
-  color: rgba(247, 239, 221, 0.56);
-  font-size: 20rpx;
-  font-weight: 800;
-}
-
-.info-pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14rpx;
-}
-
-.info-card {
-  padding: 22rpx;
-}
-
-.info-value {
-  display: block;
-  margin-top: 12rpx;
-  color: #fff8ea;
-  font-size: 28rpx;
-  font-weight: 900;
-  line-height: 1.35;
-}
-
-.age-card,
-.story-preview,
-.note-card {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-
-.age-title {
-  display: block;
-  margin-top: 6rpx;
-}
-
+.meta-pill,
 .age-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 52rpx;
-  padding: 0 18rpx;
+  min-height: 48rpx;
+  padding: 0 16rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(247, 239, 221, 0.72);
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(247, 239, 221, 0.78);
   font-size: 22rpx;
+  font-weight: 800;
+}
+
+.section-card,
+.notice-card {
+  padding: 24rpx;
+}
+
+.section-head,
+.stage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.stage-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16rpx;
+}
+
+.stage-row {
+  min-height: 82rpx;
+  padding: 14rpx 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.stage-row:last-child {
+  border-bottom: 0;
+}
+
+.stage-no {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46rpx;
+  height: 46rpx;
+  border-radius: 999rpx;
+  background: rgba(209, 178, 111, 0.14);
+  color: #f3d99d;
+  font-size: 20rpx;
+  font-weight: 900;
+}
+
+.stage-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.stage-title {
+  color: #fff8ea;
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.stage-type {
+  color: rgba(247, 239, 221, 0.58);
+  font-size: 21rpx;
   font-weight: 800;
 }
 
@@ -408,17 +244,6 @@ onLoad((query) => {
   background: rgba(209, 178, 111, 0.18);
   color: #fff8ea;
   box-shadow: inset 0 0 0 1px rgba(209, 178, 111, 0.38);
-}
-
-.beat-title {
-  display: block;
-  margin-bottom: 8rpx;
-  font-size: 28rpx;
-}
-
-.note-copy {
-  color: rgba(247, 239, 221, 0.72);
-  font-size: 25rpx;
 }
 
 .action-row {

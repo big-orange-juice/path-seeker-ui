@@ -31,13 +31,19 @@ function continueMission() {
   uni.redirectTo({ url: path })
 }
 
-function replayMission(routeId: string) {
-  missionStore.replayMission(routeId)
+async function replayMission(routeId: string) {
+  const session = await missionStore.replayMission(routeId)
+
+  if (!session) {
+    return
+  }
+
   uni.redirectTo({ url: MINI_ROUTES.prologue })
 }
 
 onShow(() => {
   requireAuthForTab()
+  void missionStore.restoreActiveMission()
 })
 </script>
 

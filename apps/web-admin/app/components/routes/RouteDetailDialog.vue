@@ -2,7 +2,7 @@
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { VueFlow, type Edge, type Node } from '@vue-flow/core';
-import { GameplayPreviewHost, type GameplayPreviewStage } from '@path-seeker/game-renderer';
+import { GameplayPreviewHost, getInteractionTypeMeta, type GameplayPreviewStage } from '@path-seeker/game-renderer';
 import { computed, shallowRef, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
@@ -32,18 +32,6 @@ const emit = defineEmits<{
 }>();
 
 const selectedStageId = shallowRef('');
-
-const interactionTypeNameMap: Record<number, string> = {
-  1: '线性答题',
-  2: '密符解锁',
-  3: '时序重构',
-  4: '档案配对',
-  5: '颜色寻宝',
-  6: '纹样拼图',
-  7: '听声配对',
-  8: '大家来找茬',
-  9: '影子归位',
-};
 
 const isOpen = computed({
   get: () => props.open,
@@ -153,7 +141,7 @@ function selectListNode(node: RouteNodeResponse) {
 }
 
 function getInteractionTypeName(interactionType: number) {
-  return interactionTypeNameMap[interactionType] || `未知玩法 ${interactionType}`;
+  return getInteractionTypeMeta(interactionType)?.label || `未知玩法 ${interactionType}`;
 }
 
 function closeDialog() {

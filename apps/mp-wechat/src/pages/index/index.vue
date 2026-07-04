@@ -58,6 +58,7 @@ function getRouteStatus(routeId: string) {
 
 onShow(() => {
   requireAuthForTab()
+  void missionStore.restoreActiveMission()
 })
 </script>
 

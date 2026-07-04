@@ -112,6 +112,7 @@ export interface PuzzleReward {
 export interface BaseMissionPuzzle<TTemplate extends PuzzleTemplateType> {
   id: string
   puzzleTypeId: number
+  interactionType?: number | null
   templateType: TTemplate
   title: string
   introText: string

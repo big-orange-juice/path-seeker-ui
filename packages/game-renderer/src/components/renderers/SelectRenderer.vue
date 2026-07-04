@@ -40,13 +40,19 @@ const pickedIds = computed<string[]>(() => {
   return Array.isArray(value) ? (value as unknown[]).filter((item): item is string => typeof item === "string") : []
 })
 
+const hasCandidates = computed(() => props.puzzle.questionPayload.candidates.length > 0)
 const minPick = computed(() => Math.max(1, props.puzzle.questionPayload.minPick || 1))
 const maxPick = computed(() => {
   const max = props.puzzle.questionPayload.maxPick
-  return typeof max === "number" && max > 0 ? max : props.puzzle.questionPayload.candidates.length
+  const candidateCount = props.puzzle.questionPayload.candidates.length
+  return typeof max === "number" && max > 0 ? max : candidateCount
 })
 
 const pickCopy = computed(() => {
+  if (!hasCandidates.value) {
+    return "暂无候选项"
+  }
+
   if (minPick.value === maxPick.value) {
     return `请选择 ${minPick.value} 项`
   }
@@ -116,13 +122,12 @@ watch(
 
     <text class="select-rule">{{ pickCopy }}</text>
 
-    <view class="select-grid">
-      <button
+    <view v-if="hasCandidates" class="select-grid">
+      <view
         v-for="candidate in puzzle.questionPayload.candidates"
         :key="candidate.id"
         class="select-card"
-        :class="{ 'is-active': pickedIds.includes(candidate.id) }"
-        :disabled="readonlyMode"
+        :class="{ 'is-active': pickedIds.includes(candidate.id), 'is-readonly': readonlyMode }"
         @click="toggleCandidate(candidate.id)"
       >
         <view class="select-image-wrap">
@@ -137,7 +142,11 @@ watch(
         </view>
         <text class="select-title">{{ candidate.label }}</text>
         <text v-if="candidate.description" class="select-desc">{{ candidate.description }}</text>
-      </button>
+      </view>
+    </view>
+    <view v-else class="select-empty">
+      <text class="select-empty-title">当前节点暂不可操作</text>
+      <text class="select-empty-copy">请返回任务列表后重新进入。</text>
     </view>
   </view>
 </template>
@@ -194,31 +203,57 @@ watch(
 }
 
 .select-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 14rpx;
+  width: 100%;
+}
+.select-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 22rpx;
+  border-radius: 22rpx;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.select-empty-title {
+  color: #fff8ea;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.select-empty-copy {
+  color: rgba(247, 239, 221, 0.58);
+  font-size: 21rpx;
+  line-height: 1.4;
 }
 
 .select-card {
+  box-sizing: border-box;
   display: flex;
+  flex: 0 0 calc(50% - 7rpx);
   flex-direction: column;
   gap: 12rpx;
+  min-width: 0;
   min-height: 292rpx;
   padding: 12rpx;
   border-radius: 24rpx;
   background: rgba(255, 255, 255, 0.045);
   text-align: left;
 }
-
 .select-card.is-active {
   background: rgba(209, 178, 111, 0.14);
   box-shadow: inset 0 0 0 1px rgba(209, 178, 111, 0.42);
 }
 
+.select-card.is-readonly {
+  opacity: 0.72;
+}
 .select-image-wrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 1.12;
+  height: 178rpx;
   overflow: hidden;
   border-radius: 18rpx;
   background:
@@ -227,6 +262,7 @@ watch(
 }
 
 .select-image {
+  display: block;
   width: 100%;
   height: 100%;
 }
@@ -255,6 +291,7 @@ watch(
 }
 
 .select-title {
+  display: block;
   color: #fff8ea;
   font-size: 25rpx;
   font-weight: 900;
@@ -266,3 +303,9 @@ watch(
   font-size: 20rpx;
 }
 </style>
+
+
+
+
+
+
