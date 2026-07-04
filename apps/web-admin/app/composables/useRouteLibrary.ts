@@ -3,6 +3,8 @@ import { useApiClient } from '@/composables/useApiClient';
 import type {
   RouteAdminResponse,
   RouteAdminResponseListTotalPageResult,
+  RouteDetailResponse,
+  RouteMutationPayload,
   RoutePageRequest,
   RouteRecord,
 } from '@/types/route';
@@ -11,28 +13,10 @@ const DEFAULT_PAGE_SIZE = 10;
 
 const normalizeText = (value: string | null | undefined) => String(value ?? '').trim();
 
-export const ROUTE_AGE_GROUP_OPTIONS = [
-  { label: '全部年龄', value: -1 },
-  { label: '通用', value: 0 },
-  { label: '4-6 岁', value: 1 },
-  { label: '6-10 岁', value: 2 },
-  { label: '10-15 岁', value: 3 },
-  { label: '15 岁以上', value: 4 },
-] as const;
-
 export const ROUTE_PUBLISH_STATUS_OPTIONS = [
   { label: '全部状态', value: -1 },
-  { label: '草稿', value: 1 },
+  { label: '未发布', value: 1 },
   { label: '已发布', value: 2 },
-  { label: '已下线', value: 3 },
-] as const;
-
-export const ROUTE_AUDIT_STATUS_OPTIONS = [
-  { label: '全部审核', value: -1 },
-  { label: '草稿', value: 0 },
-  { label: '待审核', value: 1 },
-  { label: '已通过', value: 2 },
-  { label: '已驳回', value: 3 },
 ] as const;
 
 export const useRouteLibrary = (
@@ -44,15 +28,14 @@ export const useRouteLibrary = (
       ? runtimeConfig.public.museumId
       : toValue(museumIdSource);
 
-    return String(sourceValue || '1').trim();
+    return String(sourceValue ?? '').trim();
   });
   const { request } = useApiClient();
+  const hasSelectedMuseum = computed(() => Boolean(museumId.value));
 
   const filters = reactive({
     keyword: '',
-    ageGroup: -1,
     publishStatus: -1,
-    auditStatus: -1,
   });
 
   const pageIndex = shallowRef(1);
@@ -63,9 +46,7 @@ export const useRouteLibrary = (
     pageIndex: pageIndex.value,
     pageSize: pageSize.value,
     museumId: museumId.value || null,
-    ageGroup: filters.ageGroup < 0 ? null : filters.ageGroup,
     publishStatus: filters.publishStatus < 0 ? null : filters.publishStatus,
-    auditStatus: filters.auditStatus < 0 ? null : filters.auditStatus,
     keyword: filters.keyword.trim() || null,
   }));
 
@@ -83,8 +64,21 @@ export const useRouteLibrary = (
         total: 0,
         totalPages: 0,
       }),
+      immediate: false,
       watch: [queryPayload],
     }
+  );
+
+  watch(
+    hasSelectedMuseum,
+    (selected) => {
+      if (!selected) {
+        return;
+      }
+
+      void refresh();
+    },
+    { immediate: true }
   );
 
   const rows = computed<RouteRecord[]>(() => {
@@ -110,6 +104,7 @@ export const useRouteLibrary = (
       auditStatus: item.auditStatus ?? 0,
       auditRemark: normalizeText(item.auditRemark),
       sortOrder: item.sortOrder ?? 0,
+      isGenerating: Boolean(item.isGenerating),
     }));
 
     const currentSorting = sorting.value[0];
@@ -147,9 +142,7 @@ export const useRouteLibrary = (
 
   const resetFilters = () => {
     filters.keyword = '';
-    filters.ageGroup = -1;
     filters.publishStatus = -1;
-    filters.auditStatus = -1;
     pageIndex.value = 1;
   };
 
@@ -168,7 +161,30 @@ export const useRouteLibrary = (
     sorting.value = [{ id: 'sortOrder', desc: false }];
   };
 
-  watch([museumId, () => filters.keyword, () => filters.ageGroup, () => filters.publishStatus, () => filters.auditStatus], () => {
+  const publishRoute = async (payload: RouteMutationPayload) => {
+    await request('/api/route/publish', {
+      method: 'POST',
+      body: payload,
+    });
+
+    await refresh();
+  };
+
+  const deleteRoute = async (id: string) => {
+    await request(`/api/route/${id}`, {
+      method: 'DELETE',
+    });
+
+    await refresh();
+  };
+
+  const fetchRouteDetail = (id: string) =>
+    request<RouteDetailResponse>('/api/route/detail', {
+      method: 'GET',
+      query: { id },
+    });
+
+  watch([museumId, () => filters.keyword, () => filters.publishStatus], () => {
     pageIndex.value = 1;
   });
 
@@ -188,5 +204,8 @@ export const useRouteLibrary = (
     setPageSize,
     resetFilters,
     toggleSort,
+    publishRoute,
+    deleteRoute,
+    fetchRouteDetail,
   };
 };

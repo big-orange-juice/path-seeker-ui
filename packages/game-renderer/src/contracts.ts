@@ -250,3 +250,14 @@ export interface PuzzleAnswerDraft {
   templateType: PuzzleTemplateType
   value: string | string[] | MatchPair[] | ReasoningAnswerValue | null
 }
+
+export interface GameplayPreviewStage {
+  stageId: string
+  interactionType: number
+  title: string
+  subtitle?: string | null
+  exhibitName?: string | null
+  galleryName?: string | null
+  score?: number
+  config: Record<string, unknown>
+}

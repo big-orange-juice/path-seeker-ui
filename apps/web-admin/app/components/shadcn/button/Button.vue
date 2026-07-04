@@ -22,7 +22,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: 'bg-foreground text-background hover:bg-foreground/90',
+  default: 'bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(209,178,111,0.22)] hover:bg-primary/92',
   secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
   ghost: 'text-foreground hover:bg-accent hover:text-accent-foreground',
   outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',

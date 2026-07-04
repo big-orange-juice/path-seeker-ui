@@ -68,6 +68,7 @@ export const useExhibitManagement = (
     keyword: '',
     dynasty: '',
     isHighlight: -1,
+    galleryId: '',
   });
 
   const pageIndex = shallowRef(1);
@@ -78,6 +79,7 @@ export const useExhibitManagement = (
     pageIndex: pageIndex.value,
     pageSize: pageSize.value,
     museumId: museumId.value,
+    galleryId: filters.galleryId.trim() || null,
     dynasty: filters.dynasty.trim() || null,
     isHighlight: filters.isHighlight < 0 ? null : filters.isHighlight,
     keyword: filters.keyword.trim() || null,
@@ -102,26 +104,31 @@ export const useExhibitManagement = (
   );
 
   const rows = computed<ExhibitRecord[]>(() => {
-    const list = (data.value.list ?? []).map((item) => ({
-      id: item.id ?? crypto.randomUUID(),
-      museumId: item.museumId ?? museumId.value,
-      galleryId: item.galleryId ?? null,
-      exhibitCode: item.exhibitCode ?? '',
-      name: item.name ?? '',
-      dynasty: item.dynasty ?? '',
-      material: item.material ?? '',
-      category: item.category ?? '',
-      description: item.description ?? '',
-      imageUrl: item.imageUrl,
-      imageFileId: toNullableId(item.imageUrl),
-      qrCode: item.qrCode ?? '',
-      isHighlight: item.isHighlight ?? 0,
-      showcaseNo: item.showcaseNo ?? '',
-      recommendedMinutes: item.recommendedMinutes,
-      sortOrder: item.sortOrder ?? 0,
-      extraList: item.extraList ?? [],
-      mediaList: item.mediaList ?? [],
-    }));
+    const list = (data.value.list ?? []).map((item) => {
+      const rawItem = item as ExhibitResponse & Record<string, unknown>;
+
+      return {
+        id: item.id ?? crypto.randomUUID(),
+        museumId: item.museumId ?? museumId.value,
+        galleryId: item.galleryId ?? null,
+        exhibitCode: item.exhibitCode ?? '',
+        name: item.name ?? '',
+        dynasty: item.dynasty ?? '',
+        material: item.material ?? '',
+        category: item.category ?? '',
+        description: item.description ?? '',
+        imageUrl: item.imageUrl,
+        imageFileId: toNullableId(item.imageUrl),
+        qrCode: item.qrCode ?? '',
+        isHighlight: item.isHighlight ?? 0,
+        showcaseNo: item.showcaseNo ?? '',
+        recommendedMinutes: item.recommendedMinutes,
+        sortOrder: item.sortOrder ?? 0,
+        extraList: item.extraList ?? [],
+        mediaList: item.mediaList ?? [],
+        aiArchive: item.aiArchive ?? rawItem.aiAchive ?? rawItem.AIachive ?? null,
+      };
+    });
 
     const currentSorting = sorting.value[0];
     if (!currentSorting) {
@@ -205,6 +212,7 @@ export const useExhibitManagement = (
     filters.keyword = '';
     filters.dynasty = '';
     filters.isHighlight = -1;
+    filters.galleryId = '';
     pageIndex.value = 1;
   };
 
@@ -255,7 +263,7 @@ export const useExhibitManagement = (
     await refresh();
   };
 
-  watch([museumId, () => filters.keyword, () => filters.dynasty, () => filters.isHighlight], () => {
+  watch([museumId, () => filters.keyword, () => filters.dynasty, () => filters.isHighlight, () => filters.galleryId], () => {
     pageIndex.value = 1;
   });
 

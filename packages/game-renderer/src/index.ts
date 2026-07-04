@@ -5,4 +5,5 @@
  */
 export * from "./contracts"
 export { default as PuzzleRendererHost } from "./components/PuzzleRendererHost.vue"
+export { default as GameplayPreviewHost } from "./components/GameplayPreviewHost.vue"
 export * from "./components/renderers"

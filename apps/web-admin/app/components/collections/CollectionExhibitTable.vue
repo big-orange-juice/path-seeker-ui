@@ -21,6 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   sort: [columnId: string];
+  detail: [record: ExhibitRecord];
   edit: [record: ExhibitRecord];
   remove: [record: ExhibitRecord];
 }>();
@@ -106,6 +107,11 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
     header: () => h('span', { class: 'sr-only' }, '操作'),
     cell: ({ row }) =>
       h('div', { class: 'flex items-center justify-end gap-2' }, [
+        h(
+          Button,
+          { variant: 'ghost', size: 'sm', onClick: () => emit('detail', row.original) },
+          { default: () => '详情' }
+        ),
         h(
           Button,
           { variant: 'secondary', size: 'sm', onClick: () => emit('edit', row.original) },

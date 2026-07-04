@@ -3,6 +3,7 @@ import { computed, nextTick, shallowRef } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
 import type { PuzzleAnswerDraft, SortPuzzleDefinition } from "../../contracts"
+import type { ComponentPublicInstance } from "vue"
 
 interface Props {
   puzzle: SortPuzzleDefinition
@@ -62,14 +63,16 @@ const orderedItems = computed(() =>
 
 const slotHeight = computed(() => {
   if (layoutRects.value.length > 1) {
-    return layoutRects.value[1].top - layoutRects.value[0].top
+    const current = layoutRects.value[0]
+    const next = layoutRects.value[1]
+    return current && next ? next.top - current.top : 108
   }
 
   return layoutRects.value[0]?.height || 108
 })
 
 function registerItem(id: string) {
-  return (element: Element | null) => {
+  return (element: Element | ComponentPublicInstance | null) => {
     if (!(element instanceof HTMLElement)) {
       itemElements.delete(id)
       return
@@ -164,6 +167,10 @@ async function finishDrag() {
   if (toIndex !== fromIndex) {
     const next = [...order.value]
     const [current] = next.splice(fromIndex, 1)
+    if (!current) {
+      return
+    }
+
     next.splice(toIndex, 0, current)
     updateOrder(next)
 

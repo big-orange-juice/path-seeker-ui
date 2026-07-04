@@ -3,6 +3,7 @@ import { computed, nextTick, shallowRef } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
 import type { MatchPair, MatchPuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
+import type { ComponentPublicInstance } from "vue"
 
 interface Props {
   puzzle: MatchPuzzleDefinition
@@ -67,7 +68,7 @@ const rightAssignments = computed(() =>
 )
 
 function registerSlot(id: string) {
-  return (element: Element | null) => {
+  return (element: Element | ComponentPublicInstance | null) => {
     if (!(element instanceof HTMLElement)) {
       slotElements.delete(id)
       return
@@ -78,7 +79,7 @@ function registerSlot(id: string) {
 }
 
 function registerCard(id: string) {
-  return (element: Element | null) => {
+  return (element: Element | ComponentPublicInstance | null) => {
     if (!(element instanceof HTMLElement)) {
       cardElements.delete(id)
       return
@@ -205,7 +206,15 @@ function evidenceStyle(leftId: string) {
 }
 
 function leftLabel(leftId: string) {
+  if (!leftId) {
+    return ""
+  }
+
   return props.puzzle.questionPayload.left.find((item) => item.id === leftId)?.label || ""
+}
+
+function assignedLeftLabel(rightId: string) {
+  return leftLabel(rightAssignments.value[rightId] || "")
 }
 </script>
 
@@ -245,7 +254,7 @@ function leftLabel(leftId: string) {
       >
         <text class="slot-label">{{ item.label }}</text>
         <view v-if="rightAssignments[item.id]" class="slot-badge">
-          <text class="slot-badge-copy">{{ leftLabel(rightAssignments[item.id]) }}</text>
+          <text class="slot-badge-copy">{{ assignedLeftLabel(item.id) }}</text>
         </view>
         <text v-else class="slot-empty">拖动证据放这里</text>
       </button>

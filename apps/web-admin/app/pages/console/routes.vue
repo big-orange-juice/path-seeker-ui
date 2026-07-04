@@ -1,24 +1,44 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
+import RouteCreateDialog from '@/components/routes/RouteCreateDialog.vue';
 import RouteDataTable from '@/components/routes/RouteDataTable.vue';
+import RouteDetailDialog from '@/components/routes/RouteDetailDialog.vue';
 import Button from '@/components/shadcn/button/Button.vue';
+import Dialog from '@/components/shadcn/dialog/Dialog.vue';
+import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
+import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
+import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
+import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
+import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import Input from '@/components/shadcn/input/Input.vue';
 import Select from '@/components/shadcn/select/Select.vue';
+import AppIcon from '@/components/ui/AppIcon.vue';
 import {
-  ROUTE_AGE_GROUP_OPTIONS,
-  ROUTE_AUDIT_STATUS_OPTIONS,
   ROUTE_PUBLISH_STATUS_OPTIONS,
   useRouteLibrary,
 } from '@/composables/useRouteLibrary';
+import type { BuildRouteFromThemePayload, RouteDetailResponse, RouteRecord } from '@/types/route';
 import type { MuseumResponse, MuseumResponseListTotalPageResult } from '@/types/museum';
 
 definePageMeta({
   middleware: 'admin-auth',
 });
 
-const runtimeConfig = useRuntimeConfig();
-const selectedMuseumId = shallowRef(String(runtimeConfig.public.museumId || '1').trim());
+const selectedMuseumId = shallowRef('');
 const { request } = useApiClient();
+const createDialogOpen = shallowRef(false);
+const createSubmitting = shallowRef(false);
+const createError = shallowRef('');
+const actionPendingIds = shallowRef<string[]>([]);
+const actionFeedback = shallowRef('');
+const actionError = shallowRef('');
+const confirmDialogOpen = shallowRef(false);
+const confirmActionType = shallowRef<'publish' | 'delete'>('publish');
+const confirmRecord = shallowRef<RouteRecord | null>(null);
+const detailDialogOpen = shallowRef(false);
+const detailPending = shallowRef(false);
+const detailRecord = shallowRef<RouteRecord | null>(null);
+const routeDetail = shallowRef<RouteDetailResponse | null>(null);
 
 const { data: museumData, pending: museumPending } = useAsyncData(
   'route-library:museums',
@@ -83,13 +103,179 @@ const {
   setPageSize,
   resetFilters,
   toggleSort,
+  publishRoute,
+  deleteRoute,
+  fetchRouteDetail,
 } = useRouteLibrary(() => selectedMuseumId.value);
+
+const handleCreateByAi = async (payload: BuildRouteFromThemePayload) => {
+  createSubmitting.value = true;
+  createError.value = '';
+
+  try {
+    await request<string>('/api/route/build-from-theme', {
+      method: 'POST',
+      body: payload,
+    });
+    createDialogOpen.value = false;
+    await refresh();
+  } catch (caughtError) {
+    createError.value = caughtError instanceof Error ? caughtError.message : '主题路线创建失败。';
+  } finally {
+    createSubmitting.value = false;
+  }
+};
+
+const startRowAction = (routeId: string) => {
+  if (actionPendingIds.value.includes(routeId)) {
+    return;
+  }
+
+  actionPendingIds.value = [...actionPendingIds.value, routeId];
+};
+
+const finishRowAction = (routeId: string) => {
+  actionPendingIds.value = actionPendingIds.value.filter((item) => item !== routeId);
+};
+
+const resolveActionErrorMessage = (caughtError: unknown, fallback: string) =>
+  caughtError instanceof Error ? caughtError.message : fallback;
+
+const confirmDialogTitle = computed(() => {
+  return confirmActionType.value === 'publish' ? '确认发布路线' : '确认删除路线';
+});
+
+const confirmDialogDescription = computed(() => {
+  const record = confirmRecord.value;
+  const routeName = record?.title || record?.routeCode || record?.id || '当前路线';
+
+  if (confirmActionType.value === 'publish') {
+    return `确认发布“${routeName}”吗？发布后将按当前状态提交。`;
+  }
+
+  return `确认删除“${routeName}”吗？删除后不可恢复。`;
+});
+
+const confirmActionLabel = computed(() => {
+  return confirmActionType.value === 'publish' ? '确认发布' : '确认删除';
+});
+
+const openConfirmDialog = (type: 'publish' | 'delete', record: RouteRecord) => {
+  confirmActionType.value = type;
+  confirmRecord.value = record;
+  confirmDialogOpen.value = true;
+};
+
+const resetConfirmDialog = () => {
+  confirmDialogOpen.value = false;
+  confirmRecord.value = null;
+};
+
+const handleDetail = async (record: RouteRecord) => {
+  actionFeedback.value = '';
+  actionError.value = '';
+  detailRecord.value = record;
+  detailDialogOpen.value = true;
+  detailPending.value = true;
+  startRowAction(record.id);
+
+  try {
+    routeDetail.value = await fetchRouteDetail(record.id);
+  } catch (caughtError) {
+    actionError.value = resolveActionErrorMessage(caughtError, '主题路线详情获取失败。');
+  } finally {
+    detailPending.value = false;
+    finishRowAction(record.id);
+  }
+};
+
+const refreshRouteRow = async (record: RouteRecord) => {
+  actionFeedback.value = '';
+  actionError.value = '';
+  startRowAction(record.id);
+
+  try {
+    await refresh();
+    actionFeedback.value = `已刷新“${record.title || record.routeCode || record.id}”。`;
+  } catch (caughtError) {
+    actionError.value = resolveActionErrorMessage(caughtError, '主题路线刷新失败。');
+  } finally {
+    finishRowAction(record.id);
+  }
+};
+
+const refreshRouteDetail = async () => {
+  const record = detailRecord.value;
+  if (!record) {
+    return;
+  }
+
+  detailPending.value = true;
+  actionError.value = '';
+
+  try {
+    routeDetail.value = await fetchRouteDetail(record.id);
+  } catch (caughtError) {
+    actionError.value = resolveActionErrorMessage(caughtError, '主题路线详情刷新失败。');
+  } finally {
+    detailPending.value = false;
+  }
+};
+
+const handlePublish = async (record: RouteRecord) => {
+  openConfirmDialog('publish', record);
+};
+
+const handleRemove = async (record: RouteRecord) => {
+  openConfirmDialog('delete', record);
+};
+
+const submitConfirmedAction = async () => {
+  const record = confirmRecord.value;
+  if (!record) {
+    return;
+  }
+
+  actionFeedback.value = '';
+  actionError.value = '';
+  startRowAction(record.id);
+
+  try {
+    if (confirmActionType.value === 'publish') {
+      await publishRoute({
+        id: record.id,
+        publishStatus: record.publishStatus,
+      });
+      actionFeedback.value = `已发布“${record.title || record.routeCode || record.id}”。`;
+    } else {
+      await deleteRoute(record.id);
+      actionFeedback.value = `已删除“${record.title || record.routeCode || record.id}”。`;
+    }
+    resetConfirmDialog();
+  } catch (caughtError) {
+    actionError.value = resolveActionErrorMessage(
+      caughtError,
+      confirmActionType.value === 'publish' ? '主题路线发布失败。' : '主题路线删除失败。'
+    );
+  } finally {
+    finishRowAction(record.id);
+  }
+};
 </script>
 
 <template>
   <div class="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
     <div v-if="error" class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
       {{ error.message || '主题路线数据加载失败。' }}
+    </div>
+    <div v-if="createError" class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+      {{ createError }}
+    </div>
+    <div v-if="actionError" class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+      {{ actionError }}
+    </div>
+    <div v-if="actionFeedback" class="rounded-[0.85rem] border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+      {{ actionFeedback }}
     </div>
 
     <section class="warm-panel warm-outline rounded-[0.95rem] border border-border/70 px-4 py-4">
@@ -107,30 +293,18 @@ const {
           <Input v-model="filters.keyword" placeholder="搜索路线标题、编码、主题" />
         </div>
         <div class="w-[160px] space-y-2">
-          <label class="text-sm font-medium text-foreground">年龄段</label>
-          <Select :model-value="String(filters.ageGroup)" @update:model-value="filters.ageGroup = Number($event)">
-            <option v-for="option in ROUTE_AGE_GROUP_OPTIONS" :key="option.value" :value="String(option.value)">
-              {{ option.label }}
-            </option>
-          </Select>
-        </div>
-        <div class="w-[160px] space-y-2">
-          <label class="text-sm font-medium text-foreground">发布状态</label>
+          <label class="text-sm font-medium text-foreground">状态</label>
           <Select :model-value="String(filters.publishStatus)" @update:model-value="filters.publishStatus = Number($event)">
             <option v-for="option in ROUTE_PUBLISH_STATUS_OPTIONS" :key="option.value" :value="String(option.value)">
               {{ option.label }}
             </option>
           </Select>
         </div>
-        <div class="w-[160px] space-y-2">
-          <label class="text-sm font-medium text-foreground">审核状态</label>
-          <Select :model-value="String(filters.auditStatus)" @update:model-value="filters.auditStatus = Number($event)">
-            <option v-for="option in ROUTE_AUDIT_STATUS_OPTIONS" :key="option.value" :value="String(option.value)">
-              {{ option.label }}
-            </option>
-          </Select>
-        </div>
         <div class="flex flex-wrap items-end gap-2 xl:ml-auto">
+          <Button :disabled="!selectedMuseumId || createSubmitting" @click="createDialogOpen = true">
+            <AppIcon name="route" class="h-4 w-4" />
+            新增路线
+          </Button>
           <Button variant="outline" @click="resetFilters">
             重置筛选
           </Button>
@@ -166,7 +340,47 @@ const {
         :rows="rows"
         :pending="pending"
         :sorting="sorting"
-        @sort="toggleSort" />
+        :acting-ids="actionPendingIds"
+        @sort="toggleSort"
+        @detail="handleDetail"
+        @publish="handlePublish"
+        @refresh-row="refreshRouteRow"
+        @remove="handleRemove" />
     </section>
+
+    <RouteCreateDialog
+      v-model:open="createDialogOpen"
+      :museum-options="museumOptions"
+      :default-museum-id="selectedMuseumId"
+      :submitting="createSubmitting"
+      @submit-ai="handleCreateByAi" />
+
+    <RouteDetailDialog
+      v-model:open="detailDialogOpen"
+      :detail="routeDetail"
+      :pending="detailPending"
+      @refresh="refreshRouteDetail" />
+
+    <Dialog v-model:open="confirmDialogOpen">
+      <DialogContent class="w-[min(92vw,28rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
+        <DialogHeader class="border-b border-border/70 px-5 py-4">
+          <DialogTitle>{{ confirmDialogTitle }}</DialogTitle>
+          <DialogDescription>{{ confirmDialogDescription }}</DialogDescription>
+        </DialogHeader>
+
+        <DialogFooter class="px-5 py-4">
+          <Button variant="outline" type="button" @click="resetConfirmDialog">
+            取消
+          </Button>
+          <Button
+            :variant="confirmActionType === 'delete' ? 'secondary' : 'default'"
+            type="button"
+            :disabled="!confirmRecord || actionPendingIds.includes(confirmRecord.id)"
+            @click="submitConfirmedAction">
+            {{ confirmActionLabel }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

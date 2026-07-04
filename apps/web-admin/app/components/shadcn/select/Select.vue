@@ -119,13 +119,14 @@ onClickOutside(rootRef, () => {
       type="button"
       :disabled="props.disabled"
       :class="cn(
-        'flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-9 w-full min-w-0 items-center justify-between overflow-hidden rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
         open && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
         props.class,
       )"
+      :title="triggerLabel"
       v-bind="$attrs"
       @click="toggleOpen">
-      <span :class="selectedOption ? 'text-foreground' : 'text-muted-foreground'">
+      <span :class="cn('min-w-0 flex-1 truncate text-left', selectedOption ? 'text-foreground' : 'text-muted-foreground')">
         {{ triggerLabel }}
       </span>
       <AppIcon name="arrow-up-down" class="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -133,21 +134,21 @@ onClickOutside(rootRef, () => {
 
     <div
       v-if="open"
-      class="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
+      class="absolute left-0 z-50 mt-1 max-h-72 w-max min-w-full max-w-[min(520px,calc(100vw-2rem))] overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
       <button
         v-for="option in options"
         :key="`${option.value}:${option.label}`"
         type="button"
+        :title="option.label"
         :disabled="option.disabled"
         :class="cn(
-          'flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors',
+          'flex w-full min-w-0 items-center rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors',
           option.value === model ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-accent hover:text-accent-foreground',
           option.disabled && 'pointer-events-none opacity-50',
         )"
         @click="selectOption(option)">
-        {{ option.label }}
+        <span class="block min-w-0 max-w-full truncate whitespace-nowrap">{{ option.label }}</span>
       </button>
     </div>
   </div>
 </template>
-

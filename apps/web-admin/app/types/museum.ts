@@ -162,6 +162,10 @@ export interface ExhibitMediaResponse {
   status: number;
 }
 
+export interface ExhibitAiArchive {
+  [key: string]: unknown;
+}
+
 export interface ExhibitPageRequest {
   pageIndex: number;
   pageSize: number;
@@ -198,6 +202,9 @@ export interface ExhibitResponse {
   sortOrder: number;
   extraList: ExhibitExtraResponse[] | null;
   mediaList: ExhibitMediaResponse[] | null;
+  aiArchive?: ExhibitAiArchive | null;
+  aiAchive?: ExhibitAiArchive | string | null;
+  AIachive?: ExhibitAiArchive | string | null;
 }
 
 export interface CreateExhibitPayload {
@@ -241,6 +248,7 @@ export interface ExhibitRecord {
   sortOrder: number;
   extraList: ExhibitExtraResponse[];
   mediaList: ExhibitMediaResponse[];
+  aiArchive?: ExhibitAiArchive | string | null;
 }
 
 export interface ExhibitDraft {
@@ -415,4 +423,3 @@ export interface MuseumFacilityRecord extends MuseumFacilityDraft {
   museumId: string;
   floorName: string;
 }
-

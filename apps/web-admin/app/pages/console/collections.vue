@@ -4,6 +4,7 @@ import Button from '@/components/shadcn/button/Button.vue';
 import Input from '@/components/shadcn/input/Input.vue';
 import Select from '@/components/shadcn/select/Select.vue';
 import CollectionExhibitDialog from '@/components/collections/CollectionExhibitDialog.vue';
+import CollectionExhibitDetailDialog from '@/components/collections/CollectionExhibitDetailDialog.vue';
 import CollectionExhibitTable from '@/components/collections/CollectionExhibitTable.vue';
 import type {
   ExhibitDraft,
@@ -123,6 +124,22 @@ const galleryOptions = computed(() =>
     }))
 );
 
+watch(
+  [() => selectedMuseumId.value, galleryOptions],
+  ([, options]) => {
+    if (!filters.galleryId || filters.galleryId === '0') {
+      return;
+    }
+
+    if (options.some((option) => option.value === filters.galleryId)) {
+      return;
+    }
+
+    filters.galleryId = '';
+  },
+  { immediate: true }
+);
+
 const galleryLabelById = computed(() =>
   Object.fromEntries(galleryOptions.value.map((option) => [option.value, option.label]))
 );
@@ -132,6 +149,8 @@ const activeRecordId = shallowRef('');
 const submitting = shallowRef(false);
 const draftState = shallowRef<ExhibitDraft>(createEmptyDraft());
 const dialogOpen = shallowRef(false);
+const detailRecord = shallowRef<ExhibitRecord | null>(null);
+const detailDialogOpen = shallowRef(false);
 
 const startCreate = () => {
   formMode.value = 'create';
@@ -145,6 +164,11 @@ const startEdit = (record: ExhibitRecord) => {
   activeRecordId.value = record.id;
   draftState.value = createDraftFromRecord(record);
   dialogOpen.value = true;
+};
+
+const openDetail = (record: ExhibitRecord) => {
+  detailRecord.value = record;
+  detailDialogOpen.value = true;
 };
 
 const handleSave = async (draft: ExhibitDraft) => {
@@ -204,6 +228,16 @@ const handleRemove = async (record: ExhibitRecord) => {
           <label class="text-sm font-medium text-foreground">年代筛选</label>
           <Input v-model="filters.dynasty" placeholder="如 商晚期 / 北宋" />
         </div>
+        <div class="w-[260px] space-y-2">
+          <label class="text-sm font-medium text-foreground">场馆筛选</label>
+          <Select :model-value="filters.galleryId" @update:model-value="filters.galleryId = $event">
+            <option value="">全部场馆</option>
+            <option value="0">未展览</option>
+            <option v-for="option in galleryOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </Select>
+        </div>
         <div class="w-[180px] space-y-2">
           <label class="text-sm font-medium text-foreground">重点筛选</label>
           <Select :model-value="String(filters.isHighlight)" @update:model-value="filters.isHighlight = Number($event)">
@@ -253,6 +287,7 @@ const handleRemove = async (record: ExhibitRecord) => {
         :sorting="sorting"
         :gallery-label-by-id="galleryLabelById"
         @sort="toggleSort"
+        @detail="openDetail"
         @edit="startEdit"
         @remove="handleRemove" />
     </section>
@@ -265,5 +300,11 @@ const handleRemove = async (record: ExhibitRecord) => {
       :gallery-options="galleryOptions"
       @update:open="dialogOpen = $event"
       @save="handleSave" />
+
+    <CollectionExhibitDetailDialog
+      :open="detailDialogOpen"
+      :record="detailRecord"
+      :gallery-label-by-id="galleryLabelById"
+      @update:open="detailDialogOpen = $event" />
   </div>
 </template>

@@ -3,6 +3,7 @@ import { computed, nextTick, shallowRef } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
 import type { ImagePuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
+import type { ComponentPublicInstance } from "vue"
 
 interface Props {
   puzzle: ImagePuzzleDefinition
@@ -75,7 +76,7 @@ function updateOrder(nextOrder: string[]) {
 }
 
 function registerTile(id: string) {
-  return (element: Element | null) => {
+  return (element: Element | ComponentPublicInstance | null) => {
     if (!(element instanceof HTMLElement)) {
       tileElements.delete(id)
       return
@@ -166,7 +167,12 @@ async function finishDrag() {
   if (dragTargetIndex.value >= 0 && dragTargetIndex.value !== dragStartIndex.value) {
     const next = [...currentOrder.value]
     const swapPiece = next[dragTargetIndex.value]
-    next[dragTargetIndex.value] = next[dragStartIndex.value]
+    const draggedPiece = next[dragStartIndex.value]
+    if (!swapPiece || !draggedPiece) {
+      return
+    }
+
+    next[dragTargetIndex.value] = draggedPiece
     next[dragStartIndex.value] = swapPiece
     updateOrder(next)
 

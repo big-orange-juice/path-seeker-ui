@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Bot,
   ChartColumn,
   ImageUp,
   Library,
@@ -11,6 +12,7 @@ import {
   Map,
   Megaphone,
   Puzzle,
+  RefreshCw,
   Route,
   Trash2,
   UserRound,
@@ -23,12 +25,14 @@ export type AppIconName =
   | 'arrow-up'
   | 'arrow-up-down'
   | 'bar-chart-3'
+  | 'bot'
   | 'image-up'
   | 'library'
   | 'library-big'
   | 'map'
   | 'megaphone'
   | 'puzzle'
+  | 'refresh-cw'
   | 'route'
   | 'trash-2'
   | 'user-round'
@@ -50,12 +54,14 @@ const iconMap: Record<AppIconName, LucideIcon> = {
   'arrow-up': ArrowUp,
   'arrow-up-down': ArrowUpDown,
   'bar-chart-3': ChartColumn,
+  bot: Bot,
   'image-up': ImageUp,
   library: Library,
   'library-big': LibraryBig,
   map: Map,
   megaphone: Megaphone,
   puzzle: Puzzle,
+  'refresh-cw': RefreshCw,
   route: Route,
   'trash-2': Trash2,
   'user-round': UserRound,
