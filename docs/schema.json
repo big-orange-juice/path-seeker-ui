@@ -8,7 +8,9 @@
   "paths": {
     "/api/Admin/Login": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "summary": "后台登录",
         "requestBody": {
           "content": {
@@ -55,7 +57,9 @@
     },
     "/api/Admin/CreateAdmin": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -101,7 +105,9 @@
     },
     "/api/Admin/Roles": {
       "get": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -128,7 +134,9 @@
     },
     "/api/Admin/CreateRole": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -174,7 +182,9 @@
     },
     "/api/Admin/UpdateRole": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -220,7 +230,9 @@
     },
     "/api/Admin/DeleteRole": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -266,7 +278,9 @@
     },
     "/api/Admin/AssignPermissions": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -312,7 +326,9 @@
     },
     "/api/Admin/Dashboard": {
       "get": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "summary": "数据看板",
         "responses": {
           "200": {
@@ -340,7 +356,9 @@
     },
     "/api/Agent/BuildRouteFromTheme": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "③ 根据主题检索相关文物，随机选取后按难度组卷生成路线（RouteId 为空则新建）",
         "requestBody": {
           "content": {
@@ -385,9 +403,87 @@
         }
       }
     },
+    "/api/Agent/GetRouteBuildTask": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRouteBuildTaskResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRouteBuildTaskResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRouteBuildTaskResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Agent/GetLatestRouteBuildTaskByRoute": {
+      "get": {
+        "tags": [
+          "Agent"
+        ],
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRouteBuildTaskResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRouteBuildTaskResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentRouteBuildTaskResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Agent/AgentStageCreate": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "Admin：由 Agent 按路线 + 文物 + 玩法类型单步生成一个 route_stage 节点。",
         "requestBody": {
           "content": {
@@ -434,7 +530,9 @@
     },
     "/api/Agent/AgentBuildStages": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "Admin：由 Agent 按路线 + 文物列表 + 玩法类型批量追加 route_stage 节点。",
         "requestBody": {
           "content": {
@@ -481,7 +579,9 @@
     },
     "/api/Agent/AgentStageEdit": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "Admin：由 Agent 编辑一个已有 route_stage 节点。",
         "requestBody": {
           "content": {
@@ -528,7 +628,9 @@
     },
     "/api/Agent/AgentEditStages": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "Admin：由 Agent 批量编辑已有 route_stage 节点。",
         "requestBody": {
           "content": {
@@ -575,7 +677,9 @@
     },
     "/api/AppUser/Register": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "注册 (用户名/手机/邮箱 + 密码)",
         "requestBody": {
           "content": {
@@ -622,7 +726,9 @@
     },
     "/api/AppUser/Login": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "密码登录",
         "requestBody": {
           "content": {
@@ -669,7 +775,9 @@
     },
     "/api/AppUser/GuestLogin": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "游客登录 (扫码即用，无需注册)",
         "requestBody": {
           "content": {
@@ -716,7 +824,9 @@
     },
     "/api/AppUser/RefreshToken": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "刷新令牌",
         "requestBody": {
           "content": {
@@ -763,7 +873,9 @@
     },
     "/api/AppUser/Profile": {
       "get": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "获取当前用户资料",
         "responses": {
           "200": {
@@ -791,7 +903,9 @@
     },
     "/api/AppUser/UpdateProfile": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "更新当前用户资料",
         "requestBody": {
           "content": {
@@ -838,7 +952,9 @@
     },
     "/api/AppUser/PageList": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "后台游客分页查询",
         "requestBody": {
           "content": {
@@ -885,7 +1001,9 @@
     },
     "/api/AppUser/ChangeStatus": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "后台启用/禁用游客",
         "requestBody": {
           "content": {
@@ -932,7 +1050,9 @@
     },
     "/api/Badge/List": {
       "get": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "summary": "徽章列表 (公开，用于展示墙)",
         "responses": {
           "200": {
@@ -960,7 +1080,9 @@
     },
     "/api/Badge/MyBadges": {
       "get": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "summary": "我的徽章 (含未点亮)",
         "responses": {
           "200": {
@@ -988,7 +1110,9 @@
     },
     "/api/Badge/PageList": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1034,7 +1158,9 @@
     },
     "/api/Badge/Create": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1080,7 +1206,9 @@
     },
     "/api/Badge/Update": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1126,7 +1254,9 @@
     },
     "/api/Badge/Delete": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1172,7 +1302,9 @@
     },
     "/api/Badge/Grant": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1218,7 +1350,9 @@
     },
     "/api/Collection/List": {
       "get": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "summary": "收集图鉴定义 (可按类型筛选: 1=印章 2=碎片 3=角色卡 4=文物卡)",
         "parameters": [
           {
@@ -1256,7 +1390,9 @@
     },
     "/api/Collection/MyCollection": {
       "get": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "summary": "我的收集图鉴 (含未获得)",
         "responses": {
           "200": {
@@ -1284,7 +1420,9 @@
     },
     "/api/Collection/PageList": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1330,7 +1468,9 @@
     },
     "/api/Collection/Create": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1376,7 +1516,9 @@
     },
     "/api/Collection/Update": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1422,7 +1564,9 @@
     },
     "/api/Collection/Delete": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1468,7 +1612,9 @@
     },
     "/api/Collection/Grant": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1514,7 +1660,9 @@
     },
     "/api/Exhibit/PageList": {
       "post": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1560,7 +1708,9 @@
     },
     "/api/Exhibit/Get": {
       "get": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1597,7 +1747,9 @@
     },
     "/api/Exhibit/Create": {
       "post": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1643,7 +1795,9 @@
     },
     "/api/Exhibit/Update": {
       "post": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1689,7 +1843,9 @@
     },
     "/api/Exhibit/Delete": {
       "post": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1735,7 +1891,9 @@
     },
     "/api/Feedback/Create": {
       "post": {
-        "tags": ["Feedback"],
+        "tags": [
+          "Feedback"
+        ],
         "summary": "提交反馈 (可匿名)",
         "requestBody": {
           "content": {
@@ -1782,7 +1940,9 @@
     },
     "/api/Feedback/MyFeedback": {
       "get": {
-        "tags": ["Feedback"],
+        "tags": [
+          "Feedback"
+        ],
         "summary": "我的反馈",
         "responses": {
           "200": {
@@ -1810,7 +1970,9 @@
     },
     "/api/Feedback/PageList": {
       "post": {
-        "tags": ["Feedback"],
+        "tags": [
+          "Feedback"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1856,7 +2018,9 @@
     },
     "/api/Feedback/Reply": {
       "post": {
-        "tags": ["Feedback"],
+        "tags": [
+          "Feedback"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1902,7 +2066,9 @@
     },
     "/api/Gallery/PageList": {
       "post": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1948,7 +2114,9 @@
     },
     "/api/Gallery/Get": {
       "get": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -1985,7 +2153,9 @@
     },
     "/api/Gallery/Create": {
       "post": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2031,7 +2201,9 @@
     },
     "/api/Gallery/Update": {
       "post": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2077,7 +2249,9 @@
     },
     "/api/Gallery/Delete": {
       "post": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2123,7 +2297,9 @@
     },
     "/api/Gameplay/BuildStages": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "编排：把节点（可混合 interaction_type）写入路线",
         "requestBody": {
           "content": {
@@ -2170,7 +2346,9 @@
     },
     "/api/Gameplay/StagePageList": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：分页获取路线节点列表，用于后台手动维护路线骨架。",
         "requestBody": {
           "content": {
@@ -2217,7 +2395,9 @@
     },
     "/api/Gameplay/StageGet": {
       "get": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：根据ID获取单个路线节点详情。",
         "parameters": [
           {
@@ -2255,7 +2435,9 @@
     },
     "/api/Gameplay/StageCreate": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：手动创建一个路线节点。",
         "requestBody": {
           "content": {
@@ -2302,7 +2484,9 @@
     },
     "/api/Gameplay/StageUpdate": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：手动更新一个路线节点。",
         "requestBody": {
           "content": {
@@ -2349,7 +2533,9 @@
     },
     "/api/Gameplay/StageDelete": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：手动软删除一个路线节点。",
         "requestBody": {
           "content": {
@@ -2396,7 +2582,9 @@
     },
     "/api/Gameplay/Stages": {
       "get": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：获取路线全部节点（含当前用户达成状态）",
         "parameters": [
           {
@@ -2443,7 +2631,9 @@
     },
     "/api/Gameplay/Submit": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：提交一个节点的交互结果（按节点 interaction_type 判定）",
         "requestBody": {
           "content": {
@@ -2490,7 +2680,9 @@
     },
     "/api/Gameplay/Hints": {
       "get": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：获取步骤提示列表（含已解锁状态）",
         "parameters": [
           {
@@ -2546,7 +2738,9 @@
     },
     "/api/Gameplay/UnlockHint": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：解锁一条提示/线索",
         "requestBody": {
           "content": {
@@ -2593,7 +2787,9 @@
     },
     "/api/Graph/GetNode": {
       "post": {
-        "tags": ["Graph"],
+        "tags": [
+          "Graph"
+        ],
         "summary": "查询节点详情 (含关联边和相邻节点)",
         "requestBody": {
           "content": {
@@ -2640,7 +2836,9 @@
     },
     "/api/Graph/Expand": {
       "post": {
-        "tags": ["Graph"],
+        "tags": [
+          "Graph"
+        ],
         "summary": "从节点出发沿指定维度扩展遍历",
         "requestBody": {
           "content": {
@@ -2687,7 +2885,9 @@
     },
     "/api/Graph/FindPath": {
       "post": {
-        "tags": ["Graph"],
+        "tags": [
+          "Graph"
+        ],
         "summary": "查找两点间最短路径",
         "requestBody": {
           "content": {
@@ -2734,7 +2934,9 @@
     },
     "/api/Graph/NaturalSearch": {
       "post": {
-        "tags": ["Graph"],
+        "tags": [
+          "Graph"
+        ],
         "summary": "自然语言图查询\n示例: \"黄飞虎相关的文物有哪些\" / \"大克鼎和哪些青铜器有纹样关联\"",
         "requestBody": {
           "content": {
@@ -2781,7 +2983,9 @@
     },
     "/api/Leaderboard/Query": {
       "post": {
-        "tags": ["Leaderboard"],
+        "tags": [
+          "Leaderboard"
+        ],
         "summary": "查询排行榜 (Type: 1=路线积分榜 2=用户总分榜 3=路线用时榜)",
         "requestBody": {
           "content": {
@@ -2828,7 +3032,9 @@
     },
     "/api/Museum/Health": {
       "get": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "summary": "健康检查 — 无需鉴权",
         "responses": {
           "200": {
@@ -2856,7 +3062,9 @@
     },
     "/api/Museum/Get": {
       "get": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -2893,7 +3101,9 @@
     },
     "/api/Museum/PageList": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2939,7 +3149,9 @@
     },
     "/api/Museum/Floors": {
       "get": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "parameters": [
           {
             "name": "museumId",
@@ -2976,7 +3188,9 @@
     },
     "/api/Museum/Facilities": {
       "get": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "parameters": [
           {
             "name": "museumId",
@@ -3013,7 +3227,9 @@
     },
     "/api/Museum/Create": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3059,7 +3275,9 @@
     },
     "/api/Museum/Update": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3105,7 +3323,9 @@
     },
     "/api/Museum/Delete": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3151,7 +3371,9 @@
     },
     "/api/Museum/CreateFloor": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3197,7 +3419,9 @@
     },
     "/api/Museum/UpdateFloor": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3243,7 +3467,9 @@
     },
     "/api/Museum/DeleteFloor": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3289,7 +3515,9 @@
     },
     "/api/Museum/CreateFacility": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3335,7 +3563,9 @@
     },
     "/api/Museum/UpdateFacility": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3381,7 +3611,9 @@
     },
     "/api/Museum/DeleteFacility": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3427,7 +3659,9 @@
     },
     "/api/Puzzle/Gameplays": {
       "get": {
-        "tags": ["Puzzle"],
+        "tags": [
+          "Puzzle"
+        ],
         "summary": "查看系统内置玩法目录。玩法来自新链路 route_type / interaction_type 映射，不再来自 puzzle_type 表。",
         "responses": {
           "200": {
@@ -3455,7 +3689,9 @@
     },
     "/api/Puzzle/Skill": {
       "get": {
-        "tags": ["Puzzle"],
+        "tags": [
+          "Puzzle"
+        ],
         "summary": "读取指定玩法的 skill.md 内容。",
         "parameters": [
           {
@@ -3503,7 +3739,9 @@
     },
     "/api/Puzzle/UpdateSkill": {
       "post": {
-        "tags": ["Puzzle"],
+        "tags": [
+          "Puzzle"
+        ],
         "summary": "更新指定玩法的 skill.md 内容。",
         "requestBody": {
           "content": {
@@ -3550,7 +3788,9 @@
     },
     "/api/Review/Create": {
       "post": {
-        "tags": ["Review"],
+        "tags": [
+          "Review"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3596,7 +3836,9 @@
     },
     "/api/Review/ListByTarget": {
       "post": {
-        "tags": ["Review"],
+        "tags": [
+          "Review"
+        ],
         "summary": "按目标查看评价 (公开)",
         "requestBody": {
           "content": {
@@ -3643,7 +3885,9 @@
     },
     "/api/Review/PageList": {
       "post": {
-        "tags": ["Review"],
+        "tags": [
+          "Review"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3689,7 +3933,9 @@
     },
     "/api/Review/Audit": {
       "post": {
-        "tags": ["Review"],
+        "tags": [
+          "Review"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3735,7 +3981,9 @@
     },
     "/api/Route/Published": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3781,7 +4029,9 @@
     },
     "/api/Route/Detail": {
       "get": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3818,7 +4068,9 @@
     },
     "/api/Route/PageList": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3864,7 +4116,9 @@
     },
     "/api/Route/Get": {
       "get": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3901,7 +4155,9 @@
     },
     "/api/Route/Create": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3947,7 +4203,9 @@
     },
     "/api/Route/Update": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3993,7 +4251,9 @@
     },
     "/api/Route/Delete": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4039,7 +4299,9 @@
     },
     "/api/Route/Publish": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4085,7 +4347,9 @@
     },
     "/api/Route/SubmitAudit": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4131,7 +4395,9 @@
     },
     "/api/Route/Audit": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4177,7 +4443,9 @@
     },
     "/api/Route/CreateStory": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4223,7 +4491,9 @@
     },
     "/api/Route/UpdateStory": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4269,7 +4539,9 @@
     },
     "/api/Route/DeleteStory": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4315,7 +4587,9 @@
     },
     "/api/Tag/List": {
       "get": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "summary": "标签列表 (可按分类筛选)",
         "parameters": [
           {
@@ -4353,7 +4627,9 @@
     },
     "/api/Tag/Targets": {
       "get": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "summary": "查询某业务对象的标签 (targetType: 1=展品 2=路线 3=谜题)",
         "parameters": [
           {
@@ -4399,7 +4675,9 @@
     },
     "/api/Tag/PageList": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4445,7 +4723,9 @@
     },
     "/api/Tag/Create": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4491,7 +4771,9 @@
     },
     "/api/Tag/Update": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4537,7 +4819,9 @@
     },
     "/api/Tag/Delete": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4583,7 +4867,9 @@
     },
     "/api/Tag/SetTargets": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "summary": "覆盖式设置某业务对象的标签",
         "requestBody": {
           "content": {
@@ -4630,7 +4916,9 @@
     },
     "/api/Team/Create": {
       "post": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4676,7 +4964,9 @@
     },
     "/api/Team/Join": {
       "post": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4722,7 +5012,9 @@
     },
     "/api/Team/Leave": {
       "post": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4768,7 +5060,9 @@
     },
     "/api/Team/Disband": {
       "post": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4814,7 +5108,9 @@
     },
     "/api/Team/Detail": {
       "get": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -4851,7 +5147,9 @@
     },
     "/api/Team/MyTeams": {
       "get": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -4878,7 +5176,9 @@
     },
     "/api/Upload/UploadImage": {
       "post": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -4925,7 +5225,9 @@
     },
     "/api/Upload/UploadFile": {
       "post": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -4972,7 +5274,9 @@
     },
     "/api/Upload/CreateImageTask": {
       "post": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5018,7 +5322,9 @@
     },
     "/api/Upload/GetTaskDetail": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -5055,7 +5361,9 @@
     },
     "/api/Upload/GetTaskStatus": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -5092,7 +5400,9 @@
     },
     "/api/Upload/GetFileDetail": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -5129,7 +5439,9 @@
     },
     "/api/Upload/GetTaskOutputs": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -5166,7 +5478,9 @@
     },
     "/api/Upload/GetTaskAttachments": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -5205,7 +5519,10 @@
   "components": {
     "schemas": {
       "AdminLoginRequest": {
-        "required": ["password", "username"],
+        "required": [
+          "password",
+          "username"
+        ],
         "type": "object",
         "properties": {
           "username": {
@@ -5313,7 +5630,10 @@
         "description": "数据看板 — 分龄分布（按路线年龄段统计参与/完成）"
       },
       "AgentBuildGameplayStagesRequest": {
-        "required": ["items", "routeId"],
+        "required": [
+          "items",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -5417,7 +5737,9 @@
         "additionalProperties": false
       },
       "AgentBuildRouteFromThemeRequest": {
-        "required": ["themeQuery"],
+        "required": [
+          "themeQuery"
+        ],
         "type": "object",
         "properties": {
           "routeType": {
@@ -5482,6 +5804,22 @@
             "type": "string",
             "description": "路线 ID（新建或追加的目标路线）",
             "nullable": true
+          },
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "expectedStageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdStageCount": {
+            "type": "integer",
+            "format": "int32"
           },
           "gameplayType": {
             "type": "integer",
@@ -5550,7 +5888,11 @@
         "additionalProperties": false
       },
       "AgentCreateGameplayStageRequest": {
-        "required": ["exhibitId", "gameplayType", "routeId"],
+        "required": [
+          "exhibitId",
+          "gameplayType",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -5583,7 +5925,10 @@
         "description": "Agent 单步创建路线节点请求。gameplayType 来自 /api/Puzzle/Gameplays 的 routeType，仅用于选择 skill。"
       },
       "AgentEditGameplayStagesRequest": {
-        "required": ["routeId", "stageIds"],
+        "required": [
+          "routeId",
+          "stageIds"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -5663,8 +6008,181 @@
         },
         "additionalProperties": false
       },
+      "AgentRouteBuildTaskItemResponse": {
+        "type": "object",
+        "properties": {
+          "taskItemId": {
+            "type": "string",
+            "nullable": true
+          },
+          "seqNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "exhibitId": {
+            "type": "string",
+            "nullable": true
+          },
+          "exhibitName": {
+            "type": "string",
+            "nullable": true
+          },
+          "gameplayType": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "gameplayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusName": {
+            "type": "string",
+            "nullable": true
+          },
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "puzzleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "attemptCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "nextRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AgentRouteBuildTaskResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusName": {
+            "type": "string",
+            "nullable": true
+          },
+          "themeQuery": {
+            "type": "string",
+            "nullable": true
+          },
+          "pickCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "expectedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "candidateCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "difficulty": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "nextRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentRouteBuildTaskItemResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AgentRouteBuildTaskResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/AgentRouteBuildTaskResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "AgentUpdateGameplayStageRequest": {
-        "required": ["routeId", "stageId"],
+        "required": [
+          "routeId",
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -6093,7 +6611,9 @@
         "additionalProperties": false
       },
       "AssignPermissionsRequest": {
-        "required": ["roleId"],
+        "required": [
+          "roleId"
+        ],
         "type": "object",
         "properties": {
           "roleId": {
@@ -6213,7 +6733,9 @@
         "additionalProperties": false
       },
       "AuditContentRequest": {
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -6235,7 +6757,9 @@
         "description": "内容审核（谜题/路线通用）"
       },
       "AuditReviewRequest": {
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -6464,7 +6988,9 @@
         "additionalProperties": false
       },
       "BuildRouteStagesRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -6485,7 +7011,9 @@
         "description": "构建路线步骤（组卷）请求 — 玩法无关入口，由对应玩法的创建策略解释"
       },
       "ChangeUserStatusRequest": {
-        "required": ["userId"],
+        "required": [
+          "userId"
+        ],
         "type": "object",
         "properties": {
           "userId": {
@@ -6717,7 +7245,10 @@
         "additionalProperties": false
       },
       "CreateAdminRequest": {
-        "required": ["password", "username"],
+        "required": [
+          "password",
+          "username"
+        ],
         "type": "object",
         "properties": {
           "username": {
@@ -6755,7 +7286,10 @@
         "description": "创建管理员请求"
       },
       "CreateBadgeRequest": {
-        "required": ["badgeCode", "name"],
+        "required": [
+          "badgeCode",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "badgeCode": {
@@ -6831,7 +7365,10 @@
         "description": "创建徽章请求"
       },
       "CreateCollectibleRequest": {
-        "required": ["collectibleCode", "name"],
+        "required": [
+          "collectibleCode",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "collectibleCode": {
@@ -6904,7 +7441,11 @@
         "description": "创建收集品请求"
       },
       "CreateExhibitRequest": {
-        "required": ["exhibitCode", "museumId", "name"],
+        "required": [
+          "exhibitCode",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -6994,7 +7535,10 @@
         "description": "创建展品请求"
       },
       "CreateFacilityRequest": {
-        "required": ["museumId", "name"],
+        "required": [
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -7037,7 +7581,9 @@
         "description": "创建服务设施请求"
       },
       "CreateFeedbackRequest": {
-        "required": ["content"],
+        "required": [
+          "content"
+        ],
         "type": "object",
         "properties": {
           "feedbackType": {
@@ -7076,7 +7622,10 @@
         "description": "创建反馈请求"
       },
       "CreateFloorRequest": {
-        "required": ["floorCode", "museumId"],
+        "required": [
+          "floorCode",
+          "museumId"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -7119,7 +7668,11 @@
         "description": "创建楼层请求"
       },
       "CreateGalleryRequest": {
-        "required": ["galleryCode", "museumId", "name"],
+        "required": [
+          "galleryCode",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -7201,7 +7754,9 @@
         "description": "创建展馆请求"
       },
       "CreateImageGenerationTaskRequest": {
-        "required": ["prompt"],
+        "required": [
+          "prompt"
+        ],
         "type": "object",
         "properties": {
           "prompt": {
@@ -7274,7 +7829,10 @@
         "additionalProperties": false
       },
       "CreateMuseumRequest": {
-        "required": ["museumCode", "name"],
+        "required": [
+          "museumCode",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumCode": {
@@ -7384,7 +7942,10 @@
         "description": "创建博物馆请求"
       },
       "CreateReviewRequest": {
-        "required": ["targetId", "targetType"],
+        "required": [
+          "targetId",
+          "targetType"
+        ],
         "type": "object",
         "properties": {
           "targetType": {
@@ -7424,7 +7985,10 @@
         "description": "创建评价请求"
       },
       "CreateRoleRequest": {
-        "required": ["roleCode", "roleName"],
+        "required": [
+          "roleCode",
+          "roleName"
+        ],
         "type": "object",
         "properties": {
           "roleCode": {
@@ -7452,7 +8016,10 @@
         "description": "创建角色请求"
       },
       "CreateRouteContainerRequest": {
-        "required": ["routeCode", "title"],
+        "required": [
+          "routeCode",
+          "title"
+        ],
         "type": "object",
         "properties": {
           "routeCode": {
@@ -7541,7 +8108,9 @@
         "description": "创建路线容器请求（新链路手动后台入口，不绑定具体玩法）"
       },
       "CreateRouteStageRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "stageNo": {
@@ -7612,7 +8181,10 @@
         "additionalProperties": false
       },
       "CreateStoryRequest": {
-        "required": ["content", "routeId"],
+        "required": [
+          "content",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -7665,7 +8237,10 @@
         "description": "创建背景故事请求"
       },
       "CreateTagRequest": {
-        "required": ["name", "tagCode"],
+        "required": [
+          "name",
+          "tagCode"
+        ],
         "type": "object",
         "properties": {
           "tagCode": {
@@ -7708,7 +8283,9 @@
         "description": "创建标签请求"
       },
       "CreateTeamRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -7939,7 +8516,9 @@
         "description": "AI 文物档案响应（来自 exhibit_ai_archive）"
       },
       "ExhibitExtraItem": {
-        "required": ["attrKey"],
+        "required": [
+          "attrKey"
+        ],
         "type": "object",
         "properties": {
           "attrKey": {
@@ -8004,7 +8583,10 @@
         "description": "展品扩展属性响应项"
       },
       "ExhibitGameplayItem": {
-        "required": ["exhibitId", "gameplayType"],
+        "required": [
+          "exhibitId",
+          "gameplayType"
+        ],
         "type": "object",
         "properties": {
           "exhibitId": {
@@ -8992,7 +9574,10 @@
         "additionalProperties": false
       },
       "GrantBadgeRequest": {
-        "required": ["badgeId", "userId"],
+        "required": [
+          "badgeId",
+          "userId"
+        ],
         "type": "object",
         "properties": {
           "userId": {
@@ -9010,7 +9595,10 @@
         "description": "后台手动颁发徽章"
       },
       "GrantCollectibleRequest": {
-        "required": ["collectibleId", "userId"],
+        "required": [
+          "collectibleId",
+          "userId"
+        ],
         "type": "object",
         "properties": {
           "userId": {
@@ -9620,7 +10208,9 @@
         "description": "排行榜单条目"
       },
       "LeaderboardQueryRequest": {
-        "required": ["type"],
+        "required": [
+          "type"
+        ],
         "type": "object",
         "properties": {
           "type": {
@@ -9695,7 +10285,10 @@
         "additionalProperties": false
       },
       "LoginRequest": {
-        "required": ["account", "password"],
+        "required": [
+          "account",
+          "password"
+        ],
         "type": "object",
         "properties": {
           "account": {
@@ -10057,7 +10650,9 @@
         "description": "发布形象响应"
       },
       "PublishRouteRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -10152,7 +10747,9 @@
         "description": "数据看板 — 卡点谜题（正确率低/尝试多）"
       },
       "RefreshTokenRequest": {
-        "required": ["refreshToken"],
+        "required": [
+          "refreshToken"
+        ],
         "type": "object",
         "properties": {
           "refreshToken": {
@@ -10165,7 +10762,9 @@
         "description": "刷新令牌请求"
       },
       "RegisterRequest": {
-        "required": ["password"],
+        "required": [
+          "password"
+        ],
         "type": "object",
         "properties": {
           "username": {
@@ -10214,7 +10813,10 @@
         "description": "注册请求 (用户名/手机号/邮箱 至少其一 + 密码)"
       },
       "ReplyFeedbackRequest": {
-        "required": ["id", "replyContent"],
+        "required": [
+          "id",
+          "replyContent"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -10261,7 +10863,10 @@
         "description": "评价分页查询请求（后台）"
       },
       "ReviewQueryRequest": {
-        "required": ["targetId", "targetType"],
+        "required": [
+          "targetId",
+          "targetType"
+        ],
         "type": "object",
         "properties": {
           "pageIndex": {
@@ -11139,7 +11744,9 @@
         "additionalProperties": false
       },
       "RouteStagePageRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "pageIndex": {
@@ -11214,7 +11821,10 @@
         "description": "数据看板 — 路线维度"
       },
       "SetTargetTagsRequest": {
-        "required": ["targetId", "targetType"],
+        "required": [
+          "targetId",
+          "targetType"
+        ],
         "type": "object",
         "properties": {
           "targetType": {
@@ -11576,7 +12186,10 @@
         "description": "前端节点协议元信息"
       },
       "StageSubmitRequest": {
-        "required": ["routeId", "stageId"],
+        "required": [
+          "routeId",
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -12045,7 +12658,11 @@
         "additionalProperties": false
       },
       "UnlockHintRequest": {
-        "required": ["clueId", "routeId", "stageId"],
+        "required": [
+          "clueId",
+          "routeId",
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -12123,7 +12740,11 @@
         "additionalProperties": false
       },
       "UpdateBadgeRequest": {
-        "required": ["badgeCode", "id", "name"],
+        "required": [
+          "badgeCode",
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "badgeCode": {
@@ -12204,7 +12825,11 @@
         "description": "更新徽章请求"
       },
       "UpdateCollectibleRequest": {
-        "required": ["collectibleCode", "id", "name"],
+        "required": [
+          "collectibleCode",
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "collectibleCode": {
@@ -12282,7 +12907,12 @@
         "description": "更新收集品请求"
       },
       "UpdateExhibitRequest": {
-        "required": ["exhibitCode", "id", "museumId", "name"],
+        "required": [
+          "exhibitCode",
+          "id",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -12377,7 +13007,11 @@
         "description": "更新展品请求"
       },
       "UpdateFacilityRequest": {
-        "required": ["id", "museumId", "name"],
+        "required": [
+          "id",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -12425,7 +13059,11 @@
         "description": "更新服务设施请求"
       },
       "UpdateFloorRequest": {
-        "required": ["floorCode", "id", "museumId"],
+        "required": [
+          "floorCode",
+          "id",
+          "museumId"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -12473,7 +13111,12 @@
         "description": "更新楼层请求"
       },
       "UpdateGalleryRequest": {
-        "required": ["galleryCode", "id", "museumId", "name"],
+        "required": [
+          "galleryCode",
+          "id",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -12560,7 +13203,10 @@
         "description": "更新展馆请求"
       },
       "UpdateGameplaySkillRequest": {
-        "required": ["content", "routeType"],
+        "required": [
+          "content",
+          "routeType"
+        ],
         "type": "object",
         "properties": {
           "routeType": {
@@ -12583,7 +13229,11 @@
         "description": "玩法 skill 更新请求"
       },
       "UpdateMuseumRequest": {
-        "required": ["id", "museumCode", "name"],
+        "required": [
+          "id",
+          "museumCode",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumCode": {
@@ -12737,7 +13387,11 @@
         "description": "更新用户资料请求"
       },
       "UpdateRoleRequest": {
-        "required": ["id", "roleCode", "roleName"],
+        "required": [
+          "id",
+          "roleCode",
+          "roleName"
+        ],
         "type": "object",
         "properties": {
           "roleCode": {
@@ -12770,7 +13424,11 @@
         "description": "更新角色请求"
       },
       "UpdateRouteRequest": {
-        "required": ["id", "routeCode", "title"],
+        "required": [
+          "id",
+          "routeCode",
+          "title"
+        ],
         "type": "object",
         "properties": {
           "routeCode": {
@@ -12864,7 +13522,10 @@
         "description": "更新路线请求"
       },
       "UpdateRouteStageRequest": {
-        "required": ["id", "routeId"],
+        "required": [
+          "id",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "stageNo": {
@@ -12939,7 +13600,11 @@
         "additionalProperties": false
       },
       "UpdateStoryRequest": {
-        "required": ["content", "id", "routeId"],
+        "required": [
+          "content",
+          "id",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -12997,7 +13662,11 @@
         "description": "更新背景故事请求"
       },
       "UpdateTagRequest": {
-        "required": ["id", "name", "tagCode"],
+        "required": [
+          "id",
+          "name",
+          "tagCode"
+        ],
         "type": "object",
         "properties": {
           "tagCode": {
