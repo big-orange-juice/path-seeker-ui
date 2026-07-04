@@ -1,4 +1,5 @@
 export { default as ObserveChoiceRenderer } from "./ObserveChoiceRenderer.vue"
+export { default as SelectRenderer } from "./SelectRenderer.vue"
 export { default as ClueFindRenderer } from "./ClueFindRenderer.vue"
 export { default as SortRenderer } from "./SortRenderer.vue"
 export { default as MatchRenderer } from "./MatchRenderer.vue"

@@ -46,6 +46,13 @@ function createDraft(puzzle: MissionPuzzle): MissionAnswerDraft {
     }
   }
 
+  if (puzzle.templateType === "select") {
+    return {
+      templateType: "select",
+      value: [],
+    }
+  }
+
   if (puzzle.templateType === "image_puzzle") {
     return {
       templateType: "image_puzzle",

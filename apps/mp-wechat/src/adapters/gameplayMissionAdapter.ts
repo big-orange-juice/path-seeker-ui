@@ -58,7 +58,7 @@ const INTERACTION_TEMPLATE_MAP: Record<number, PuzzleTemplateType> = {
   2: "code_break",
   3: "sort",
   4: "match",
-  5: "multi_step_reasoning",
+  5: "select",
   6: "image_puzzle",
   7: "match",
   8: "clue_find",
@@ -281,6 +281,34 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
         correctOrder: pieces.map((item) => item.id),
         revealTitle: "拼回纹样",
         trayTitle: "碎片托盘",
+      },
+    }
+  }
+
+  if (templateType === "select") {
+    const candidates = asArray(config.candidates ?? config.options).map((item, candidateIndex) => ({
+      id: normalizeText(item?.id ?? item?.key ?? item?.value, `candidate-${candidateIndex + 1}`),
+      label: normalizeText(item?.label ?? item?.text ?? item?.title, `候选 ${candidateIndex + 1}`),
+      imageUrl: item?.image_url ?? item?.imageUrl ?? null,
+      description: item?.description ?? item?.summary ?? item?.hint ?? null,
+    }))
+    const minPick = Math.max(1, Number(config.min_pick ?? config.minPick ?? 1))
+    const rawMaxPick = config.max_pick ?? config.maxPick
+    const maxPick = rawMaxPick == null
+      ? Math.max(minPick, candidates.length || minPick)
+      : Math.max(minPick, Number(rawMaxPick) || minPick)
+    const theme = normalizeText(config.theme)
+
+    return {
+      ...base,
+      templateType,
+      questionPayload: {
+        prompt: content,
+        theme: theme || null,
+        minPick,
+        maxPick,
+        candidates,
+        pickedTitle: "候选展品",
       },
     }
   }
@@ -510,6 +538,12 @@ export function encodeStageSubmitPayload(puzzle: MissionPuzzle, value: unknown):
   if (puzzle.templateType === "image_puzzle") {
     return JSON.stringify({
       pieces: Array.isArray(value) ? value : [],
+    })
+  }
+
+  if (puzzle.templateType === "select") {
+    return JSON.stringify({
+      picked: Array.isArray(value) ? value : [],
     })
   }
 

@@ -10,13 +10,14 @@
 /**
  * 首期固定的题型集合。
  *
- * 当前直接对齐后端规划的 8 类核心交互：
+ * 当前直接对齐后端规划的核心交互：
  * - 基础观察与判断
  * - 排序 / 配对 / 密码
  * - 更强调动效反馈的拼图 / 剧情分支 / 多步推理
  */
 export const FIXED_PUZZLE_TEMPLATE_TYPES = [
   "observe_choice",
+  "select",
   "clue_find",
   "sort",
   "match",
@@ -50,6 +51,27 @@ export interface ObserveChoicePayload {
   prompt: string
   options: ChoiceOption[]
   correctOptionId: string
+}
+
+/**
+ * 后端 `select` 玩法使用的候选项。
+ *
+ * key/id 可能来自 int64 或业务 key，渲染器统一按字符串透传。
+ */
+export interface SelectCandidate {
+  id: string
+  label: string
+  imageUrl?: string | null
+  description?: string | null
+}
+
+export interface SelectPayload {
+  prompt: string
+  theme?: string | null
+  minPick: number
+  maxPick?: number | null
+  candidates: SelectCandidate[]
+  pickedTitle?: string | null
 }
 
 /**
@@ -187,6 +209,7 @@ export interface CodeBreakPayload {
  */
 export interface PuzzlePayloadMap {
   observe_choice: ObserveChoicePayload
+  select: SelectPayload
   clue_find: ClueFindPayload
   sort: SortPayload
   match: MatchPayload
@@ -211,6 +234,7 @@ export interface BasePuzzleDefinition<TTemplate extends PuzzleTemplateType> {
 }
 
 export type ObserveChoicePuzzleDefinition = BasePuzzleDefinition<"observe_choice">
+export type SelectPuzzleDefinition = BasePuzzleDefinition<"select">
 export type ClueFindPuzzleDefinition = BasePuzzleDefinition<"clue_find">
 export type SortPuzzleDefinition = BasePuzzleDefinition<"sort">
 export type MatchPuzzleDefinition = BasePuzzleDefinition<"match">
@@ -224,6 +248,7 @@ export type CodeBreakPuzzleDefinition = BasePuzzleDefinition<"code_break">
  */
 export type PuzzleDefinition =
   | ObserveChoicePuzzleDefinition
+  | SelectPuzzleDefinition
   | ClueFindPuzzleDefinition
   | SortPuzzleDefinition
   | MatchPuzzleDefinition

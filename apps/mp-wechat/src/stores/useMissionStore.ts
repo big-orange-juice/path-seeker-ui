@@ -94,6 +94,14 @@ function compareAnswer(puzzle: MissionPuzzle, draft: MissionAnswerDraft | null) 
     return draft.value === puzzle.questionPayload.correctOptionId
   }
 
+  if (puzzle.templateType === "select") {
+    if (!isStringArray(draft.value)) {
+      return false
+    }
+
+    return draft.value.length >= puzzle.questionPayload.minPick
+  }
+
   if (puzzle.templateType === "clue_find") {
     return draft.value === puzzle.questionPayload.correctHotspotId
   }

@@ -77,6 +77,12 @@ export const PUZZLE_TEMPLATE_OPTIONS: Array<SchemaMappedOption<PuzzleTemplateTyp
     description: "首屏与基础章节的高频题型。",
   },
   {
+    value: "select",
+    label: "颜色寻宝",
+    schemaValue: 9,
+    description: "按题面条件从候选展品中选择一个或多个目标。",
+  },
+  {
     value: "clue_find",
     label: "细节找线索",
     schemaValue: 2,

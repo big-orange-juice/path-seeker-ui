@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ObserveChoiceRenderer from "./renderers/ObserveChoiceRenderer.vue"
+import SelectRenderer from "./renderers/SelectRenderer.vue"
 import ClueFindRenderer from "./renderers/ClueFindRenderer.vue"
 import SortRenderer from "./renderers/SortRenderer.vue"
 import MatchRenderer from "./renderers/MatchRenderer.vue"
@@ -25,6 +26,13 @@ const emit = defineEmits<{
 <template>
   <ObserveChoiceRenderer
     v-if="props.puzzle.templateType === 'observe_choice'"
+    :puzzle="props.puzzle"
+    :model-value="props.modelValue"
+    :readonly-mode="props.readonlyMode"
+    @update:model-value="emit('update:modelValue', $event)"
+  />
+  <SelectRenderer
+    v-else-if="props.puzzle.templateType === 'select'"
     :puzzle="props.puzzle"
     :model-value="props.modelValue"
     :readonly-mode="props.readonlyMode"

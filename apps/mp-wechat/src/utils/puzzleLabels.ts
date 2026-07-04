@@ -13,6 +13,7 @@ export function getDifficultyLabel(level: DifficultyLevel) {
 export function getPuzzleTypeLabel(type: PuzzleTemplateType) {
   const labels: Record<PuzzleTemplateType, string> = {
     observe_choice: "观察选择",
+    select: "颜色寻宝",
     clue_find: "找线索",
     sort: "排顺序",
     match: "配关系",
@@ -28,6 +29,7 @@ export function getPuzzleTypeLabel(type: PuzzleTemplateType) {
 export function getPuzzleTypeAction(type: PuzzleTemplateType) {
   const labels: Record<PuzzleTemplateType, string> = {
     observe_choice: "看细节，选答案",
+    select: "选择符合条件的展品",
     clue_find: "在图中点线索",
     sort: "用上下调整顺序",
     match: "先选左边，再配右边",
@@ -43,6 +45,7 @@ export function getPuzzleTypeAction(type: PuzzleTemplateType) {
 export function getPuzzleTypeGlyph(type: PuzzleTemplateType) {
   const labels: Record<PuzzleTemplateType, string> = {
     observe_choice: "看",
+    select: "选",
     clue_find: "找",
     sort: "排",
     match: "配",

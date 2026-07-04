@@ -10,6 +10,7 @@ import type {
   PuzzlePayloadMap,
   PuzzleTemplateType,
   ReasoningAnswerValue,
+  SelectPayload,
   SortPayload,
 } from "@path-seeker/game-renderer"
 
@@ -97,6 +98,7 @@ export type {
   PuzzlePayloadMap,
   PuzzleTemplateType,
   ReasoningAnswerValue,
+  SelectPayload,
   SortPayload,
 }
 
@@ -125,6 +127,7 @@ export interface BaseMissionPuzzle<TTemplate extends PuzzleTemplateType> {
 
 export type MissionPuzzle =
   | BaseMissionPuzzle<"observe_choice">
+  | BaseMissionPuzzle<"select">
   | BaseMissionPuzzle<"clue_find">
   | BaseMissionPuzzle<"sort">
   | BaseMissionPuzzle<"match">
