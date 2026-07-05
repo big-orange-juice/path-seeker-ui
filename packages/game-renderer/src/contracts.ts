@@ -117,6 +117,7 @@ export interface ClueFindPayload {
   imageUrl?: string | null
   targetDescription?: string | null
   hotspots: HotspotArea[]
+  requiredHits?: number
   correctHotspotId: string
 }
 
@@ -159,12 +160,15 @@ export interface ImagePuzzlePiece {
   id: string
   label: string
   hint?: string | null
+  imageUrl?: string | null
 }
 
 export interface ImagePuzzlePayload {
   prompt: string
   imageUrl?: string | null
   gridSize: number
+  gridRows?: number
+  gridCols?: number
   pieces: ImagePuzzlePiece[]
   correctOrder: string[]
   revealTitle?: string | null

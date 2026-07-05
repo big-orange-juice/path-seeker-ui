@@ -36,12 +36,12 @@ function continueMission() {
 
   if (session.latestChapterResult) {
     const path = session.latestChapterResult.finalChapter ? MINI_ROUTES.finale : MINI_ROUTES.chapterResult
-    uni.redirectTo({ url: path })
+    uni.navigateTo({ url: path })
     return
   }
 
   const path = session.status === "completed" ? MINI_ROUTES.finale : MINI_ROUTES.chapterMap
-  uni.redirectTo({ url: path })
+  uni.navigateTo({ url: path })
 }
 
 function getRouteStatus(routeId: string) {

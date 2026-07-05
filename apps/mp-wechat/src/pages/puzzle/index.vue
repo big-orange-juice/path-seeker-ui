@@ -92,11 +92,11 @@ const puzzleLabel = computed(() => {
   return getPuzzleTypeLabel(missionStore.currentPuzzle.templateType, missionStore.currentPuzzle.interactionType)
 })
 
-const canUseHint = computed(() => !missionStore.currentHintText && !missionStore.gameplayPending)
+const canUseHint = computed(() => !missionStore.currentChapterSolved && !missionStore.currentHintText && !missionStore.gameplayPending)
 
 const canSubmit = computed(() => {
   const puzzle = missionStore.currentPuzzle
-  if (!puzzle || missionStore.gameplayPending) {
+  if (!puzzle || missionStore.currentChapterSolved || missionStore.gameplayPending) {
     return false
   }
 
@@ -121,7 +121,14 @@ const canSubmit = computed(() => {
   }
 
   if (puzzle.templateType === "clue_find") {
-    return puzzle.questionPayload.hotspots.length > 0
+    const draftValue = draft.value?.value
+    const requiredHits = Math.max(1, Number((puzzle.questionPayload as any).requiredHits || puzzle.questionPayload.hotspots.length || 1))
+
+    if (puzzle.questionPayload.hotspots.length > 0) {
+      return typeof draftValue === "string" && draftValue.length > 0
+    }
+
+    return Boolean(puzzle.questionPayload.imageUrl) && Array.isArray(draftValue) && draftValue.length >= requiredHits
   }
 
   if (puzzle.templateType === "multi_step_reasoning") {
@@ -140,7 +147,7 @@ async function useHint() {
 }
 
 async function submitAnswer() {
-  if (!draft.value) {
+  if (!draft.value || missionStore.currentChapterSolved) {
     return
   }
 
@@ -157,7 +164,7 @@ function nextStep() {
     return
   }
 
-  uni.redirectTo({ url: feedbackFinal.value ? MINI_ROUTES.finale : MINI_ROUTES.chapterResult })
+  uni.navigateTo({ url: feedbackFinal.value ? MINI_ROUTES.finale : MINI_ROUTES.chapterResult })
 }
 </script>
 
@@ -173,6 +180,11 @@ function nextStep() {
         <PuzzleRendererHost v-if="draft" :puzzle="missionStore.currentPuzzle" :model-value="draft" @update:model-value="draft = $event" />
       </view>
 
+      <view v-if="missionStore.currentChapterSolved" class="panel solved-card">
+        <text class="section-title">此节点已完成</text>
+        <text class="body-copy hint-text">可以返回任务地图选择其他节点。</text>
+      </view>
+
       <view v-if="missionStore.currentHintText" class="panel hint-card">
         <text class="section-title">提示</text>
         <text class="body-copy hint-text">{{ missionStore.currentHintText }}</text>
@@ -181,7 +193,7 @@ function nextStep() {
       <view class="panel action-dock">
         <button class="secondary-button" :disabled="!canUseHint" @click="useHint">看提示</button>
         <button class="primary-button" :disabled="!canSubmit" @click="submitAnswer">
-          {{ missionStore.gameplayPending ? '提交中...' : '提交答案' }}
+          {{ missionStore.currentChapterSolved ? '已完成' : missionStore.gameplayPending ? '提交中...' : '提交答案' }}
         </button>
         <text v-if="missionStore.gameplayError" class="muted-copy">{{ missionStore.gameplayError }}</text>
       </view>
@@ -218,12 +230,14 @@ function nextStep() {
 
 .renderer-panel,
 .hint-card,
+.solved-card,
 .action-dock,
 .feedback-card {
   padding: 24rpx;
 }
 
 .hint-card,
+.solved-card,
 .action-dock,
 .feedback-card {
   display: flex;
@@ -246,6 +260,3 @@ function nextStep() {
   width: 100%;
 }
 </style>
-
-
-

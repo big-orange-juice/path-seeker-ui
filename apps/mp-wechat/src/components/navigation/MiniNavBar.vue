@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import { useChromeMetrics } from '@/composables/useChromeMetrics';
@@ -8,13 +8,11 @@ interface Props {
   title: string;
   subtitle?: string;
   showBack?: boolean;
-  backLabel?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   subtitle: '',
-  showBack: false,
-  backLabel: '返回'
+  showBack: false
 });
 
 const emit = defineEmits<{
@@ -43,7 +41,6 @@ function handleBack() {
     <view class="nav-row">
       <button v-if="showBack" class="nav-back" @click="handleBack">
         <AppIcon name="arrow-left" :size="32" class-name="nav-back-arrow" />
-        <text>{{ backLabel }}</text>
       </button>
       <view v-else class="nav-spacer"></view>
 
@@ -88,11 +85,11 @@ function handleBack() {
 
 .nav-back,
 .nav-spacer {
-  width: 112rpx;
+  width: 72rpx;
 }
 
 .nav-right {
-  width: 112rpx;
+  width: 72rpx;
   display: flex;
   justify-content: flex-end;
 }
@@ -101,21 +98,20 @@ function handleBack() {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 6rpx;
   min-height: 64rpx;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent !important;
   box-shadow: none;
-  color: rgba(247, 239, 221, 0.82);
-  font-size: 25rpx;
-  font-weight: 800;
-  letter-spacing: 0;
 }
 
 .nav-back::after {
   border: 0;
+}
+
+.nav-back-arrow {
+  display: block;
 }
 
 .nav-copy {
@@ -150,3 +146,5 @@ function handleBack() {
   white-space: nowrap;
 }
 </style>
+
+

@@ -14,21 +14,30 @@ function openRoute(routeId: string) {
   })
 }
 
-function continueMission() {
+function continueMission(index?: number) {
   const session = missionStore.activeSession
 
   if (!session) {
     return
   }
 
+  if (typeof index === "number") {
+    if (!missionStore.selectChapter(index)) {
+      return
+    }
+
+    uni.navigateTo({ url: MINI_ROUTES.artifactClue })
+    return
+  }
+
   if (session.latestChapterResult) {
     const path = session.latestChapterResult.finalChapter ? MINI_ROUTES.finale : MINI_ROUTES.chapterResult
-    uni.redirectTo({ url: path })
+    uni.navigateTo({ url: path })
     return
   }
 
   const path = session.status === "completed" ? MINI_ROUTES.finale : MINI_ROUTES.chapterMap
-  uni.redirectTo({ url: path })
+  uni.navigateTo({ url: path })
 }
 
 async function replayMission(routeId: string) {
@@ -38,7 +47,7 @@ async function replayMission(routeId: string) {
     return
   }
 
-  uni.redirectTo({ url: MINI_ROUTES.prologue })
+  uni.navigateTo({ url: MINI_ROUTES.prologue })
 }
 
 onShow(() => {

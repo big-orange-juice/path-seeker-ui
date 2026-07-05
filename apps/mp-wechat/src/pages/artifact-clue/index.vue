@@ -18,7 +18,7 @@ const observeTips = computed(() => {
 })
 
 function goPuzzle() {
-  uni.redirectTo({ url: MINI_ROUTES.puzzle })
+  uni.navigateTo({ url: MINI_ROUTES.puzzle })
 }
 </script>
 

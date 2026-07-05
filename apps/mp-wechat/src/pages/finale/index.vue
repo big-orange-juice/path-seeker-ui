@@ -7,7 +7,7 @@ import { getDifficultyLabel } from "@/utils/puzzleLabels"
 const missionStore = useMissionStore()
 
 function backToArchive() {
-  uni.redirectTo({ url: MINI_ROUTES.archive })
+  uni.navigateTo({ url: MINI_ROUTES.archive })
 }
 
 async function replayMission() {
@@ -20,7 +20,7 @@ async function replayMission() {
     return
   }
 
-  uni.redirectTo({ url: missionStore.activeMission.prologue.length ? MINI_ROUTES.prologue : MINI_ROUTES.chapterMap })
+  uni.navigateTo({ url: missionStore.activeMission.prologue.length ? MINI_ROUTES.prologue : MINI_ROUTES.chapterMap })
 }
 </script>
 

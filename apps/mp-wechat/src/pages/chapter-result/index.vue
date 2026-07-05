@@ -10,7 +10,7 @@ const resultCopy = computed(() => toSingleSentence(missionStore.activeSession?.l
 
 function continueFlow() {
   missionStore.advanceFromChapterResult()
-  uni.redirectTo({ url: MINI_ROUTES.chapterMap })
+  uni.navigateTo({ url: MINI_ROUTES.chapterMap })
 }
 </script>
 

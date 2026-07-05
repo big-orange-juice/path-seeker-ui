@@ -9,7 +9,7 @@ const missionStore = useMissionStore()
 const introCopy = computed(() => toSingleSentence(missionStore.activeMission?.introPanel.narrative || ""))
 
 function enterMap() {
-  uni.redirectTo({ url: MINI_ROUTES.chapterMap })
+  uni.navigateTo({ url: MINI_ROUTES.chapterMap })
 }
 </script>
 

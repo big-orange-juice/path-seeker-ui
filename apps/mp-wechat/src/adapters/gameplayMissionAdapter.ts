@@ -292,11 +292,15 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
   }
 
   if (templateType === "image_puzzle") {
-    const pieces = asArray(pickValue(config, "pieces", "Pieces", "items", "Items")).map((item, pieceIndex) => ({
-      id: normalizeText(item?.id ?? item?.key, `piece-${pieceIndex + 1}`),
-      label: normalizeText(item?.label ?? item?.hint),
-      hint: item?.hint ?? null,
-    })).filter((item) => item.id && item.label)
+    const pieces = asArray(pickValue(config, "pieces", "Pieces", "items", "Items")).map((item, pieceIndex) => {
+      const id = normalizeText(item?.id ?? item?.key, `piece-${pieceIndex + 1}`)
+      return {
+        id,
+        label: normalizeText(item?.label ?? item?.hint, id || `拼图 ${pieceIndex + 1}`),
+        hint: item?.hint ?? null,
+        imageUrl: pickValue(item ?? {}, "image_url", "imageUrl", "ImageUrl", "url", "Url") ?? null,
+      }
+    }).filter((item) => item.id && item.label)
 
     return {
       ...base,
@@ -305,6 +309,8 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
         prompt: content,
         imageUrl: pickValue(config, "base_image_url", "baseImageUrl", "BaseImageUrl") ?? null,
         gridSize: Math.max(2, Number(pickValue(config, "grid_cols", "gridCols", "GridCols") ?? Math.ceil(Math.sqrt(pieces.length || 4)))),
+        gridRows: Math.max(1, Number(pickValue(config, "grid_rows", "gridRows", "GridRows") ?? 2)),
+        gridCols: Math.max(1, Number(pickValue(config, "grid_cols", "gridCols", "GridCols") ?? 2)),
         pieces,
         correctOrder: pieces.map((item) => item.id),
         revealTitle: normalizeText(pickValue(config, "reveal_title", "revealTitle", "RevealTitle")),
@@ -312,7 +318,6 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
       },
     }
   }
-
   if (templateType === "select") {
     const answerExtra = getAnswerExtra(stage, config)
     const rawCandidates = pickValue(config, "candidates", "Candidates", "candidateList", "CandidateList", "options", "Options", "items", "Items") ?? pickValue(answerExtra, "options", "Options", "candidates", "Candidates")
@@ -383,7 +388,8 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
       width: Number(item?.r ?? 0.08) * 200,
       height: Number(item?.r ?? 0.08) * 200,
       label: normalizeText(item?.label),
-    })).filter((item) => item.id && item.label)
+    })).filter((item) => item.id)
+    const requiredHits = Math.max(1, Number(pickValue(config, "required_hits", "requiredHits", "RequiredHits") ?? (hotspots.length || 1)))
 
     return {
       ...base,
@@ -393,6 +399,7 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
         imageUrl: pickValue(config, "altered_image_url", "alteredImageUrl", "AlteredImageUrl", "base_image_url", "baseImageUrl", "BaseImageUrl") ?? null,
         targetDescription: normalizeText(pickValue(config, "theme", "Theme")),
         hotspots,
+        requiredHits,
         correctHotspotId: hotspots[0]?.id ?? "",
       },
     }
@@ -589,16 +596,24 @@ export function encodeStageSubmitPayload(puzzle: MissionPuzzle, value: unknown):
   }
 
   if (puzzle.templateType === "clue_find") {
-    return JSON.stringify({
-      hits: typeof value === "string" ? [{ key: value }] : [],
-    })
+    const hits = Array.isArray(value)
+      ? value
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => {
+            const [key, xText, yText] = item.split(":")
+            const x = Number(xText)
+            const y = Number(yText)
+
+            return Number.isFinite(x) && Number.isFinite(y)
+              ? { key, x: x / 100, y: y / 100 }
+              : { key: item }
+          })
+      : typeof value === "string" && value
+        ? [{ key: value }]
+        : []
+
+    return JSON.stringify({ hits })
   }
 
   return JSON.stringify(value ?? {})
 }
-
-
-
-
-
-

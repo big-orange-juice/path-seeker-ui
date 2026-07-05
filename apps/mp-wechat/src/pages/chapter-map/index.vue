@@ -14,6 +14,7 @@ const chapterStatuses = computed(() => {
 
   return missionStore.activeMission.chapters.map((chapter, index) => ({
     ...chapter,
+    index,
     solved: missionStore.activeSession?.solvedChapterIds.includes(chapter.id),
     active: missionStore.activeSession?.currentChapterIndex === index,
   }))
@@ -24,11 +25,15 @@ const currentStepLabel = computed(() => {
     return ""
   }
 
-  return `${missionStore.activeSession.currentChapterIndex + 1} / ${missionStore.activeMission.chapterCount}`
+  return `已完成 ${missionStore.activeSession.solvedChapterIds.length} / ${missionStore.activeMission.chapterCount}`
 })
 
+function selectChapter(index: number) {
+  missionStore.selectChapter(index)
+}
+
 function goArtifact() {
-  uni.redirectTo({ url: MINI_ROUTES.artifactClue })
+  uni.navigateTo({ url: MINI_ROUTES.artifactClue })
 }
 </script>
 
@@ -45,7 +50,7 @@ function goArtifact() {
         </view>
         <text v-if="missionStore.currentChapter?.targetLocation" class="body-copy current-copy">{{ missionStore.currentChapter.targetLocation }}</text>
         <text v-if="missionStore.currentPuzzle" class="type-copy">{{ getPuzzleTypeLabel(missionStore.currentPuzzle.templateType, missionStore.currentPuzzle.interactionType) }}</text>
-        <button class="primary-button current-button" @click="goArtifact">进入当前节点</button>
+        <button class="primary-button current-button" @click="goArtifact">开始游玩</button>
       </view>
 
       <view v-if="chapterStatuses.length" class="panel stage-board">
@@ -55,13 +60,13 @@ function goArtifact() {
           class="stage-row"
           :class="{ 'is-active': chapter.active, 'is-solved': chapter.solved }"
           hover-class="stage-row-hover"
-          @click="chapter.active && goArtifact()">
+          @click="selectChapter(chapter.index)">
           <text class="stage-dot">{{ chapter.solved ? '✓' : chapter.stageNo }}</text>
           <view class="stage-copy">
             <text class="stage-title text-clip-1">{{ chapter.title }}</text>
             <text v-if="chapter.targetLocation" class="muted-copy text-clip-1">{{ chapter.targetLocation }}</text>
           </view>
-          <text class="stage-state">{{ chapter.active ? '当前' : chapter.solved ? '完成' : '' }}</text>
+          <text class="stage-state">{{ chapter.active ? '已选' : chapter.solved ? '完成' : '可选' }}</text>
         </button>
       </view>
     </view>

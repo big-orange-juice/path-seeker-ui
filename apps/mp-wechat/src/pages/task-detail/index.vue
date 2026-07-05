@@ -63,11 +63,11 @@ async function startMission() {
     return
   }
 
-  uni.redirectTo({ url: missionStore.activeMission?.prologue.length ? MINI_ROUTES.prologue : MINI_ROUTES.chapterMap })
+  uni.navigateTo({ url: missionStore.activeMission?.prologue.length ? MINI_ROUTES.prologue : MINI_ROUTES.chapterMap })
 }
 
 function continueMission() {
-  uni.redirectTo({ url: MINI_ROUTES.chapterMap })
+  uni.navigateTo({ url: MINI_ROUTES.chapterMap })
 }
 
 onLoad((query) => {

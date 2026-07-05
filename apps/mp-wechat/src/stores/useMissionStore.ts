@@ -239,6 +239,13 @@ export const useMissionStore = defineStore("mission", () => {
 
   const currentPuzzle = computed(() => currentChapter.value?.puzzle ?? null)
   const currentArtifact = computed(() => currentChapter.value?.artifact ?? null)
+  const currentChapterSolved = computed(() => {
+    if (!activeSession.value || !currentChapter.value) {
+      return false
+    }
+
+    return activeSession.value.solvedChapterIds.includes(currentChapter.value.id)
+  })
 
   const currentHintLevels = computed(() => {
     if (!activeSession.value || !currentPuzzle.value) {
@@ -520,7 +527,13 @@ export const useMissionStore = defineStore("mission", () => {
     }
 
     const hints = activeSession.value.hintHistory[currentPuzzle.value.id] || []
-    const gainedScore = typeof scoreOverride === "number" ? scoreOverride : scoreForPuzzle(currentPuzzle.value, hints.length, skipped)
+    const wasSolved = activeSession.value.solvedChapterIds.includes(currentChapter.value.id)
+    const calculatedScore = typeof scoreOverride === "number" ? scoreOverride : scoreForPuzzle(currentPuzzle.value, hints.length, skipped)
+    const gainedScore = wasSolved ? 0 : calculatedScore
+    const nextSolvedChapterIds = [...new Set([...activeSession.value.solvedChapterIds, currentChapter.value.id])]
+    const nextUnlockedClueIds = [...new Set([...activeSession.value.unlockedClueIds, currentPuzzle.value.reward.clueId])]
+    const nextUnlockedRewardIds = [...new Set([...activeSession.value.unlockedRewardIds, currentPuzzle.value.reward.fragmentId])]
+    const routeCompleted = nextSolvedChapterIds.length >= activeMission.value.chapterCount && activeMission.value.chapterCount > 0
     const snapshot = {
       routeId: activeMission.value.id,
       chapterId: currentChapter.value.id,
@@ -530,29 +543,28 @@ export const useMissionStore = defineStore("mission", () => {
       gainedScore,
       usedHints: hints,
       perfectClear: !skipped && hints.length === 0,
-      finalChapter: activeSession.value.currentChapterIndex === activeMission.value.chapterCount - 1,
+      finalChapter: routeCompleted,
     }
 
     const nextSession: MissionSession = {
       ...activeSession.value,
       totalScore: activeSession.value.totalScore + gainedScore,
-      solvedChapterIds: [...new Set([...activeSession.value.solvedChapterIds, currentChapter.value.id])],
-      unlockedClueIds: [...new Set([...activeSession.value.unlockedClueIds, currentPuzzle.value.reward.clueId])],
-      unlockedRewardIds: [...new Set([...activeSession.value.unlockedRewardIds, currentPuzzle.value.reward.fragmentId])],
+      solvedChapterIds: nextSolvedChapterIds,
+      unlockedClueIds: nextUnlockedClueIds,
+      unlockedRewardIds: nextUnlockedRewardIds,
       latestChapterResult: snapshot,
-      status: snapshot.finalChapter ? "completed" : activeSession.value.status,
+      status: routeCompleted ? "completed" : activeSession.value.status,
     }
 
     activeSession.value = nextSession
 
-    if (snapshot.finalChapter) {
+    if (routeCompleted) {
       const nextEntry = createArchiveEntry(nextSession, activeMission.value)
       archiveEntries.value = [nextEntry, ...archiveEntries.value.filter((item) => item.routeId !== nextEntry.routeId)].slice(0, 8)
     }
 
     return snapshot
   }
-
   async function submitCurrentDraft(draft: MissionAnswerDraft) {
     if (!activeSession.value || !currentPuzzle.value) {
       return {
@@ -586,12 +598,13 @@ export const useMissionStore = defineStore("mission", () => {
 
         const snapshot = finalizeSolve(false, response.scoreGained ?? 0, response.message || '')
         if ((response.routeCompleted || response.teamRouteCompleted) && activeSession.value) {
+          const latestChapterResult = snapshot ? { ...snapshot, finalChapter: true } : activeSession.value.latestChapterResult
           activeSession.value = {
             ...activeSession.value,
+            latestChapterResult,
             status: "completed",
           }
         }
-
         return {
           isCorrect: true,
           message: response.message || currentPuzzle.value.successCopy,
@@ -651,20 +664,34 @@ export const useMissionStore = defineStore("mission", () => {
     return finalizeSolve(true)
   }
 
+  function selectChapter(index: number) {
+    if (!activeSession.value || !activeMission.value) {
+      return false
+    }
+
+    if (index < 0 || index >= activeMission.value.chapters.length) {
+      return false
+    }
+
+    activeSession.value = {
+      ...activeSession.value,
+      currentChapterIndex: index,
+      latestChapterResult: null,
+    }
+
+    return true
+  }
+
   function advanceFromChapterResult() {
     if (!activeSession.value || !activeSession.value.latestChapterResult) {
       return
     }
 
-    if (!activeSession.value.latestChapterResult.finalChapter) {
-      activeSession.value = {
-        ...activeSession.value,
-        currentChapterIndex: activeSession.value.currentChapterIndex + 1,
-        latestChapterResult: null,
-      }
+    activeSession.value = {
+      ...activeSession.value,
+      latestChapterResult: null,
     }
   }
-
   async function replayMission(routeId?: string) {
     const mission = routeId ? getMission(routeId) : activeMission.value
 
@@ -708,6 +735,7 @@ export const useMissionStore = defineStore("mission", () => {
     currentChapter,
     currentPuzzle,
     currentArtifact,
+    currentChapterSolved,
     currentHintLevel,
     currentHintText,
     currentHintLevels,
@@ -730,6 +758,7 @@ export const useMissionStore = defineStore("mission", () => {
     saveDraft,
     submitCurrentDraft,
     skipCurrentPuzzle,
+    selectChapter,
     advanceFromChapterResult,
     replayMission,
   }

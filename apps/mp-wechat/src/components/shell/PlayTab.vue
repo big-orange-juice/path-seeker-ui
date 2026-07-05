@@ -13,7 +13,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
-  continue: []
+  continue: [index?: number]
   replay: [routeId: string]
   open: [routeId: string]
 }>()
@@ -23,7 +23,7 @@ const currentStep = computed(() => {
     return ""
   }
 
-  return `${props.session.currentChapterIndex + 1} / ${props.mission.chapterCount}`
+  return `已完成 ${props.session.solvedChapterIds.length} / ${props.mission.chapterCount}`
 })
 
 const currentChapter = computed(() => {
@@ -41,6 +41,7 @@ const stageLine = computed(() => {
 
   return props.mission.chapters.map((chapter, index) => ({
     id: chapter.id,
+    index,
     title: chapter.title,
     location: chapter.targetLocation,
     solved: props.session?.solvedChapterIds.includes(chapter.id),
@@ -71,13 +72,13 @@ const stageLine = computed(() => {
           class="stage-row"
           :class="{ 'is-active': stage.active, 'is-solved': stage.solved }"
           hover-class="stage-row-hover"
-          @click="emit('continue')">
-          <view class="stage-dot">{{ stage.active ? '今' : stage.solved ? '✓' : '·' }}</view>
+          @click="emit('continue', stage.index)">
+          <view class="stage-dot">{{ stage.solved ? '✓' : stage.active ? '今' : '·' }}</view>
           <view class="stage-copy">
             <text class="stage-title text-clip-1">{{ stage.title }}</text>
             <text v-if="stage.location" class="stage-objective text-clip-1">{{ stage.location }}</text>
           </view>
-          <text class="stage-state">{{ stage.active ? '继续' : stage.solved ? '完成' : '' }}</text>
+          <text class="stage-state">{{ stage.active ? '已选' : stage.solved ? '完成' : '可选' }}</text>
         </button>
       </view>
 
