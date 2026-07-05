@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, shallowRef, watch } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import MapPhonePreview from '@/components/map-management/MapPhonePreview.vue';
 import MapVenueListEditor from '@/components/map-management/MapVenueListEditor.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
@@ -123,7 +124,7 @@ const updateVenue = ({
 
 const addVenue = () => {
   const nextVenue: VenueDraft = {
-    id: crypto.randomUUID(),
+    id: uuidv4(),
     galleryCode: '',
     name: '',
     subtitle: '',
@@ -336,7 +337,6 @@ const submitForm = () => {
     </DialogContent>
   </Dialog>
 </template>
-
 
 
 

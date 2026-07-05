@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import Button from '@/components/shadcn/button/Button.vue';
 import Input from '@/components/shadcn/input/Input.vue';
 import Select from '@/components/shadcn/select/Select.vue';
@@ -51,7 +52,7 @@ const floorMaps = workbench.floorMaps;
 const hasMuseumId = computed(() => Boolean(String(props.museumId ?? '').trim()));
 
 const createEmptyVenue = (index: number): VenueDraft => ({
-  id: crypto.randomUUID(),
+  id: uuidv4(),
   galleryCode: '',
   name: '',
   subtitle: '',
@@ -713,7 +714,6 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
     </Dialog>
   </div>
 </template>
-
 
 
 

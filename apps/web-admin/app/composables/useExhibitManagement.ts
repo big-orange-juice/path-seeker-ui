@@ -1,4 +1,5 @@
 import { computed, reactive, shallowRef, toValue, watch } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
 import type {
   CreateExhibitPayload,
@@ -108,7 +109,7 @@ export const useExhibitManagement = (
       const rawItem = item as ExhibitResponse & Record<string, unknown>;
 
       return {
-        id: item.id ?? crypto.randomUUID(),
+        id: item.id ?? uuidv4(),
         museumId: item.museumId ?? museumId.value,
         galleryId: item.galleryId ?? null,
         exhibitCode: item.exhibitCode ?? '',

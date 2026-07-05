@@ -1,4 +1,5 @@
 import { computed } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
 import type {
   CreateFloorPayload,
@@ -43,7 +44,7 @@ const normalizePagedList = <T>(value: unknown) => {
 };
 
 const createVenue = (): VenueDraft => ({
-  id: crypto.randomUUID(),
+  id: uuidv4(),
   galleryCode: '',
   name: '',
   subtitle: '',
@@ -155,7 +156,7 @@ export const useMapManagement = () => {
     }
 
     return data.value.floors.map((floor) => {
-      const floorId = floor.id ?? crypto.randomUUID();
+      const floorId = floor.id ?? uuidv4();
       const galleries = (galleriesByFloorId.get(floorId) ?? [])
         .slice()
         .sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0));
@@ -170,7 +171,7 @@ export const useMapManagement = () => {
         mapImageFileId: toNullableId(floor.mapImageUrl),
         sortOrder: floor.sortOrder ?? 0,
         venues: galleries.map((gallery, index) => ({
-          id: gallery.id ?? crypto.randomUUID(),
+          id: gallery.id ?? uuidv4(),
           galleryCode: gallery.galleryCode ?? '',
           name: gallery.name ?? '',
           subtitle: gallery.subtitle ?? '',
@@ -322,5 +323,4 @@ export const useMapManagement = () => {
     deleteMap,
   };
 };
-
 

@@ -1,4 +1,5 @@
 import { computed, shallowRef, toValue, watch } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
 import type { FloorMapDraft, FloorMapRecord, VenueDraft } from '@/types/map-management';
 import type {
@@ -27,7 +28,7 @@ const DEFAULT_OPEN_STATUS = 1;
 const DEFAULT_FACILITY_TYPE = 99;
 
 const createEmptyVenue = (): VenueDraft => ({
-  id: crypto.randomUUID(),
+  id: uuidv4(),
   galleryCode: '',
   name: '',
   subtitle: '',
@@ -284,7 +285,7 @@ export const useMuseumWorkbench = (
 
   const floors = computed<MuseumFloorRecord[]>(() =>
     normalizeList<FloorResponse>(floorsData.value).map((floor) => ({
-      id: floor.id ?? crypto.randomUUID(),
+      id: floor.id ?? uuidv4(),
       floorNumber: floor.floorCode ?? '',
       floorName: floor.floorName ?? '',
       floorLevel: floor.floorLevel ?? 0,
@@ -299,7 +300,7 @@ export const useMuseumWorkbench = (
 
   const galleries = computed<MuseumGalleryRecord[]>(() =>
     normalizeList<GalleryResponse>(galleriesData.value).map((gallery, index) => ({
-      id: gallery.id ?? crypto.randomUUID(),
+      id: gallery.id ?? uuidv4(),
       museumId: gallery.museumId ?? museumId.value,
       floorId: gallery.floorId ?? null,
       floorName: floorNameMap.value.get(gallery.floorId ?? '') ?? '未绑定楼层',
@@ -321,7 +322,7 @@ export const useMuseumWorkbench = (
 
   const facilities = computed<MuseumFacilityRecord[]>(() =>
     normalizeList<FacilityResponse>(facilitiesData.value).map((facility, index) => ({
-      id: facility.id ?? crypto.randomUUID(),
+      id: facility.id ?? uuidv4(),
       museumId: facility.museumId ?? museumId.value,
       floorId: facility.floorId ?? null,
       floorName: floorNameMap.value.get(facility.floorId ?? '') ?? '未绑定楼层',
@@ -758,7 +759,6 @@ export const useMuseumWorkbench = (
     deleteFacility,
   };
 };
-
 
 
 

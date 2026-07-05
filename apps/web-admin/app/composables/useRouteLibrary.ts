@@ -1,4 +1,5 @@
 import { computed, reactive, shallowRef, toValue, watch } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
 import type {
   RouteAdminResponse,
@@ -83,7 +84,7 @@ export const useRouteLibrary = (
 
   const rows = computed<RouteRecord[]>(() => {
     const list = (data.value.list ?? []).map((item) => ({
-      id: normalizeText(item.id) || crypto.randomUUID(),
+      id: normalizeText(item.id) || uuidv4(),
       routeCode: normalizeText(item.routeCode),
       routeType: item.routeType ?? 0,
       museumId: normalizeText(item.museumId) || null,

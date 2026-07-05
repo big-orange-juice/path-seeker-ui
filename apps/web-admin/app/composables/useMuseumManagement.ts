@@ -1,4 +1,5 @@
 import { computed, reactive, toRefs } from 'vue';
+import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
 import type {
   CreateMuseumPayload,
@@ -119,7 +120,7 @@ export const useMuseumManagement = () => {
 
   const museums = computed<MuseumRecord[]>(() =>
     (data.value.list ?? []).map((item) => ({
-      id: item.id ?? crypto.randomUUID(),
+      id: item.id ?? uuidv4(),
       museumCode: item.museumCode ?? '',
       name: item.name ?? '',
       address: item.address ?? '',
