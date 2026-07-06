@@ -1,0 +1,6 @@
+@import "@path-seeker/tailwind-config/theme.css";
+@import "tw-animate-css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

@@ -1,0 +1,34 @@
+{
+  "name": "@path-seeker/h5-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@path-seeker/game-renderer": "workspace:*",
+    "@path-seeker/tailwind-config": "workspace:*",
+    "@path-seeker/ts-shared": "workspace:*",
+    "@path-seeker/ui": "workspace:*",
+    "@vueuse/core": "14.3.0",
+    "gsap": "3.15.0",
+    "lucide-vue-next": "^1.0.0",
+    "pinia": "3.0.4",
+    "pinia-plugin-persistedstate": "^4.7.1",
+    "vue": "^3.5.39",
+    "vue-router": "4.4.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "5.2.4",
+    "autoprefixer": "10.5.2",
+    "postcss": "8.5.16",
+    "tailwindcss": "3.4.17",
+    "typescript": "6.0.3",
+    "vite": "5.2.8",
+    "vue-tsc": "3.3.5"
+  }
+}
