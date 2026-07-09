@@ -1,4 +1,4 @@
-import { getPersistedAccessToken } from "@/stores/useAuthStore"
+import { getAccessToken } from "@/services/authSession"
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
 const API_PREFIX = ""
@@ -137,7 +137,7 @@ export function resolveRequestErrorMessage(error: unknown, fallback = "请求失
 
 export async function request<T>(path: string, options: RequestOptions = {}) {
   const { method = "GET", query, data, header } = options
-  const accessToken = getPersistedAccessToken()
+  const accessToken = getAccessToken()
   const requestHeaders: Record<string, string> = {
     "content-type": "application/json",
     ...header,

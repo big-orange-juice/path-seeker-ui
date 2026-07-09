@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
-import { UiBadge, UiButton, UiCard } from "@path-seeker/ui"
+import { ClientBadge, ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { getPuzzleTypeLabel } from "@/utils/puzzleLabels"
 
@@ -73,11 +73,11 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4">
-    <UiCard v-if="missionStore.activeMission && missionStore.activeSession" class="client-panel overflow-hidden">
+    <ClientCard v-if="missionStore.activeMission && missionStore.activeSession" class="overflow-hidden">
       <div class="space-y-5 p-5">
         <div class="flex items-start justify-between gap-4">
           <div class="space-y-2">
-            <UiBadge>{{ currentStepLabel }}</UiBadge>
+            <ClientBadge>{{ currentStepLabel }}</ClientBadge>
             <h2 class="font-display text-3xl leading-tight text-foreground">{{ missionStore.currentChapter?.title }}</h2>
             <p class="client-page-copy">{{ missionStore.currentChapter?.targetLocation }}</p>
           </div>
@@ -87,11 +87,15 @@ onMounted(() => {
         </div>
 
         <div class="rounded-[1rem] bg-background/70 p-4">
-          <div class="text-sm font-semibold text-foreground">
+          <div v-if="missionStore.currentChapter?.objective" class="text-sm font-semibold text-foreground">
             {{ missionStore.currentChapter?.objective }}
           </div>
-          <div class="mt-2 text-sm leading-6 text-muted-foreground">
-            {{ missionStore.currentChapter?.artifact.observationPoint }}
+          <div
+            v-if="missionStore.currentChapter?.artifact.subtitle"
+            class="text-sm leading-6 text-muted-foreground"
+            :class="missionStore.currentChapter?.objective ? 'mt-2' : ''"
+          >
+            {{ missionStore.currentChapter?.artifact.subtitle }}
           </div>
           <div class="mt-3 text-xs text-muted-foreground">
             {{ missionStore.currentChapter ? getPuzzleTypeLabel(missionStore.currentChapter.puzzle.templateType, missionStore.currentChapter.puzzle.interactionType) : "" }}
@@ -129,27 +133,36 @@ onMounted(() => {
         </div>
 
         <div class="grid gap-3">
-          <UiButton class="w-full" @click="goCurrentChapter()">进入当前章节</UiButton>
-          <UiButton variant="outline" class="w-full" @click="goBackToDetail()">返回任务详情</UiButton>
+          <ClientButton class="w-full" @click="goCurrentChapter()">进入当前章节</ClientButton>
+          <ClientButton variant="outline" class="w-full" @click="goBackToDetail()">返回任务详情</ClientButton>
         </div>
       </div>
-    </UiCard>
+    </ClientCard>
 
-    <UiCard v-else-if="missionStore.gameplayPending || missionStore.detailPending" class="client-panel">
-      <div class="p-5 text-sm leading-6 text-muted-foreground">正在恢复章节地图...</div>
-    </UiCard>
-
-    <UiCard v-else class="client-panel">
+    <ClientCard v-else-if="missionStore.gameplayPending || missionStore.detailPending">
       <div class="space-y-4 p-5">
-        <div class="space-y-2">
-          <h2 class="text-2xl font-display text-foreground">还没有可用的任务会话</h2>
-          <p class="client-page-copy">{{ missionStore.gameplayError || missionStore.detailError || "先回到任务详情重新开始路线。" }}</p>
+        <div class="flex items-start justify-between gap-4">
+          <div class="space-y-2">
+            <ClientSkeleton class="h-6 w-28 rounded-full" />
+            <ClientSkeleton class="h-10 w-48" />
+            <ClientSkeleton class="h-5 w-32" />
+          </div>
+          <ClientSkeleton class="h-8 w-16 rounded-full" />
         </div>
-
-        <RouterLink :to="`/tasks/${routeId}`" class="block">
-          <UiButton variant="outline" class="w-full">返回任务详情</UiButton>
-        </RouterLink>
+        <ClientSkeleton class="h-24 w-full" />
+        <ClientSkeleton class="h-20 w-full" />
+        <ClientSkeleton class="h-20 w-full" />
       </div>
-    </UiCard>
+    </ClientCard>
+
+    <ClientEmptyState
+      v-else
+      title="还没有可用的任务会话"
+      :description="missionStore.gameplayError || missionStore.detailError || '先回到任务详情重新开始路线。'"
+    >
+      <RouterLink :to="`/tasks/${routeId}`" class="block">
+        <ClientButton variant="outline" class="w-full">返回任务详情</ClientButton>
+      </RouterLink>
+    </ClientEmptyState>
   </div>
 </template>

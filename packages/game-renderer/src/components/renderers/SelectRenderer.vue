@@ -111,61 +111,60 @@ watch(
 </script>
 
 <template>
-  <view ref="root" class="select-lab">
-    <view class="select-brief">
-      <view>
-        <text class="select-label">{{ puzzle.questionPayload.pickedTitle || "选择目标" }}</text>
-        <text v-if="puzzle.questionPayload.theme" class="select-theme">{{ puzzle.questionPayload.theme }}</text>
-      </view>
-      <text class="select-count">{{ pickedIds.length }}/{{ maxPick }}</text>
-    </view>
+  <div ref="root" class="select-lab">
+    <div class="select-brief">
+      <div>
+        <span class="select-label">{{ puzzle.questionPayload.pickedTitle || "选择目标" }}</span>
+        <span v-if="puzzle.questionPayload.theme" class="select-theme">{{ puzzle.questionPayload.theme }}</span>
+      </div>
+      <span class="select-count">{{ pickedIds.length }}/{{ maxPick }}</span>
+    </div>
 
-    <text class="select-rule">{{ pickCopy }}</text>
+    <span class="select-rule">{{ pickCopy }}</span>
 
-    <view v-if="hasCandidates" class="select-grid">
-      <view
+    <div v-if="hasCandidates" class="select-grid">
+      <div
         v-for="candidate in puzzle.questionPayload.candidates"
         :key="candidate.id"
         class="select-card"
         :class="{ 'is-active': pickedIds.includes(candidate.id), 'is-readonly': readonlyMode }"
         @click="toggleCandidate(candidate.id)"
       >
-        <view class="select-image-wrap">
-          <image
+        <div class="select-image-wrap">
+          <img
             v-if="candidate.imageUrl"
             class="select-image"
             :src="candidate.imageUrl"
-            mode="aspectFill"
           />
-          <text v-else class="select-image-fallback">{{ candidate.label.slice(0, 1) }}</text>
-          <text class="select-check">{{ pickedIds.includes(candidate.id) ? "已选" : "选择" }}</text>
-        </view>
-        <text class="select-title">{{ candidate.label }}</text>
-        <text v-if="candidate.description" class="select-desc">{{ candidate.description }}</text>
-      </view>
-    </view>
-    <view v-else class="select-empty">
-      <text class="select-empty-title">当前节点暂不可操作</text>
-      <text class="select-empty-copy">请返回任务列表后重新进入。</text>
-    </view>
-  </view>
+          <span v-else class="select-image-fallback">{{ candidate.label.slice(0, 1) }}</span>
+          <span class="select-check">{{ pickedIds.includes(candidate.id) ? "已选" : "选择" }}</span>
+        </div>
+        <span class="select-title">{{ candidate.label }}</span>
+        <span v-if="candidate.description" class="select-desc">{{ candidate.description }}</span>
+      </div>
+    </div>
+    <div v-else class="select-empty">
+      <span class="select-empty-title">当前节点暂不可操作</span>
+      <span class="select-empty-copy">请返回任务列表后重新进入。</span>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .select-lab {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 16px;
 }
 
 .select-brief {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16rpx;
-  padding: 18rpx;
+  gap: 16px;
+  padding: 18px;
   border: 1px solid rgba(209, 178, 111, 0.22);
-  border-radius: 24rpx;
+  border-radius: 24px;
   background:
     radial-gradient(circle at 92% 18%, rgba(209, 178, 111, 0.18), transparent 26%),
     rgba(209, 178, 111, 0.08);
@@ -173,7 +172,7 @@ watch(
 
 .select-label {
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
@@ -182,22 +181,22 @@ watch(
 .select-desc {
   display: block;
   color: rgba(247, 239, 221, 0.62);
-  font-size: 22rpx;
+  font-size: 22px;
   line-height: 1.4;
 }
 
 .select-theme {
-  margin-top: 8rpx;
+  margin-top: 8px;
 }
 
 .select-count {
   flex: 0 0 auto;
-  min-width: 72rpx;
-  padding: 8rpx 12rpx;
-  border-radius: 999rpx;
+  min-width: 72px;
+  padding: 8px 12px;
+  border-radius: 999px;
   background: rgba(247, 239, 221, 0.08);
   color: #fff8ea;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
   text-align: center;
 }
@@ -205,40 +204,40 @@ watch(
 .select-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 14rpx;
+  gap: 14px;
   width: 100%;
 }
 .select-empty {
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
-  padding: 22rpx;
-  border-radius: 22rpx;
+  gap: 8px;
+  padding: 22px;
+  border-radius: 22px;
   background: rgba(255, 255, 255, 0.045);
 }
 
 .select-empty-title {
   color: #fff8ea;
-  font-size: 24rpx;
+  font-size: 24px;
   font-weight: 900;
 }
 
 .select-empty-copy {
   color: rgba(247, 239, 221, 0.58);
-  font-size: 21rpx;
+  font-size: 21px;
   line-height: 1.4;
 }
 
 .select-card {
   box-sizing: border-box;
   display: flex;
-  flex: 0 0 calc(50% - 7rpx);
+  flex: 0 0 calc(50% - 7px);
   flex-direction: column;
-  gap: 12rpx;
+  gap: 12px;
   min-width: 0;
-  min-height: 292rpx;
-  padding: 12rpx;
-  border-radius: 24rpx;
+  min-height: 292px;
+  padding: 12px;
+  border-radius: 24px;
   background: rgba(255, 255, 255, 0.045);
   text-align: left;
 }
@@ -253,9 +252,9 @@ watch(
 .select-image-wrap {
   position: relative;
   width: 100%;
-  height: 178rpx;
+  height: 178px;
   overflow: hidden;
-  border-radius: 18rpx;
+  border-radius: 18px;
   background:
     linear-gradient(135deg, rgba(209, 178, 111, 0.16), rgba(255, 255, 255, 0.04)),
     rgba(0, 0, 0, 0.16);
@@ -274,33 +273,33 @@ watch(
   width: 100%;
   height: 100%;
   color: #d1b26f;
-  font-size: 46rpx;
+  font-size: 46px;
   font-weight: 900;
 }
 
 .select-check {
   position: absolute;
-  right: 10rpx;
-  bottom: 10rpx;
-  padding: 6rpx 10rpx;
-  border-radius: 999rpx;
+  right: 10px;
+  bottom: 10px;
+  padding: 6px 10px;
+  border-radius: 999px;
   background: rgba(14, 16, 20, 0.72);
   color: #f1d89c;
-  font-size: 18rpx;
+  font-size: 18px;
   font-weight: 900;
 }
 
 .select-title {
   display: block;
   color: #fff8ea;
-  font-size: 25rpx;
+  font-size: 25px;
   font-weight: 900;
   line-height: 1.3;
 }
 
 .select-desc {
-  margin-top: -4rpx;
-  font-size: 20rpx;
+  margin-top: -4px;
+  font-size: 20px;
 }
 </style>
 

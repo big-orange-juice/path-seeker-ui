@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { RouterLink, RouterView, useRoute } from "vue-router"
-import ShellTabBar from "@/components/shell/ShellTabBar.vue"
+import FloatingMissionFab from "@/components/shell/FloatingMissionFab.vue"
 import { useAuthStore } from "@/stores/useAuthStore"
 
 const route = useRoute()
@@ -12,7 +12,7 @@ const title = computed(() => String(route.meta.title || "Path Seeker"))
 
 <template>
   <div class="client-shell">
-    <div class="client-frame">
+    <div class="client-frame client-frame-with-fab">
       <header class="mb-6 flex items-start justify-between gap-4">
         <div class="space-y-2">
           <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Path Seeker H5</p>
@@ -31,6 +31,6 @@ const title = computed(() => String(route.meta.title || "Path Seeker"))
       </main>
     </div>
 
-    <ShellTabBar />
+    <FloatingMissionFab />
   </div>
 </template>

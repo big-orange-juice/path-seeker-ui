@@ -47,12 +47,6 @@ const TASK_KIND_VALUE_MAP: Record<number, TaskKind> = {
   3: "deep_reasoning",
 }
 
-const TASK_KIND_LABEL_MAP: Record<TaskKind, string> = {
-  family_adventure: "亲子冒险",
-  story_detective: "剧情推理",
-  deep_reasoning: "深度推理",
-}
-
 const INTERACTION_TEMPLATE_MAP: Record<number, PuzzleTemplateType> = {
   1: "observe_choice",
   2: "code_break",
@@ -222,12 +216,11 @@ function buildHintPayload(config: Record<string, any>): Record<HintLevel, string
 function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefined, index: number): MissionPuzzle {
   const config = getStageConfig(stage)
   const stageId = getStageId(stage, index)
-  const stageTitle = normalizeText(stage.title, `第 ${index + 1} 站`)
+  const stageTitle = normalizeText(stage.title)
   const content = normalizeText(
     "puzzleContent" in stage ? (stage as StagePlayResponse).puzzleContent : "",
     normalizeText(
       pickValue(config, "content", "Content", "prompt", "Prompt", "theme", "Theme", "rule_hint", "ruleHint", "RuleHint"),
-      stageTitle,
     ),
   )
   const interactionType = Number(stage.interactionType || stage.puzzleType || 1)
@@ -429,34 +422,34 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
 function buildArtifact(stage: StageLike, index: number): ArtifactClue {
   const config = getStageConfig(stage)
   const stageId = getStageId(stage, index)
-  const title = normalizeText(stage.title, `第 ${index + 1} 站`)
+  const title = normalizeText(stage.title)
 
   return {
     id: `artifact-${stageId}`,
     title,
-    subtitle: normalizeText(stage.subtitle, title),
-    location: normalizeText(stage.galleryName ?? stage.exhibitName, "馆内任务点"),
-    observationPoint: normalizeText(config.observation_point ?? config.observationPoint, "先观察当前展点中的关键细节。"),
-    storyFragment: normalizeText(config.story_fragment ?? config.storyFragment, "这一站会补全主线中的一段关键信息。"),
-    suspiciousPoint: normalizeText(config.suspicious_point ?? config.suspiciousPoint, "留意看起来最突兀、但又能和前文连上的部分。"),
+    subtitle: normalizeText(stage.subtitle),
+    location: normalizeText(stage.galleryName ?? stage.exhibitName),
+    observationPoint: normalizeText(config.observation_point ?? config.observationPoint) || undefined,
+    storyFragment: normalizeText(config.story_fragment ?? config.storyFragment) || undefined,
+    suspiciousPoint: normalizeText(config.suspicious_point ?? config.suspiciousPoint) || undefined,
     checklist: asArray<string>(config.checklist).map((item) => normalizeText(item)).filter(Boolean),
-    detailCallout: normalizeText(config.detail_callout ?? config.detailCallout, "把你真正看到的细节记下来。"),
+    detailCallout: normalizeText(config.detail_callout ?? config.detailCallout) || undefined,
   }
 }
 
 function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefined, index: number): MissionChapter {
   const config = getStageConfig(stage)
-  const title = normalizeText(stage.title, `第 ${index + 1} 站`)
-  const targetLocation = normalizeText(stage.galleryName ?? stage.exhibitName, "馆内任务点")
+  const title = normalizeText(stage.title)
+  const targetLocation = normalizeText(stage.galleryName ?? stage.exhibitName)
 
   return {
     id: getStageId(stage, index),
     stageNo: Number(stage.stageNo ?? stage.sortOrder ?? index + 1),
     title,
-    objective: normalizeText(config.objective ?? config.goal, "完成当前节点，继续推进路线。"),
+    objective: normalizeText(config.objective ?? config.goal) || undefined,
     targetLocation,
-    resultNarrative: normalizeText(config.result_narrative ?? config.resultNarrative, `${title} 已完成。`),
-    nextTarget: normalizeText(config.next_target ?? config.nextTarget, "继续前往下一站。"),
+    resultNarrative: normalizeText(config.result_narrative ?? config.resultNarrative) || undefined,
+    nextTarget: normalizeText(config.next_target ?? config.nextTarget) || undefined,
     artifact: buildArtifact(stage, index),
     puzzle: buildPuzzle(stage, route, index),
   }
@@ -467,18 +460,15 @@ function buildPrologue(detail: RouteDetailResponse): MissionDetail["prologue"] {
 
   if (stories.length) {
     return stories.map((item, index) => ({
-      eyebrow: `剧情 ${index + 1}`,
-      title: normalizeText(item.title, `开场 ${index + 1}`),
-      content: normalizeText(item.content),
+      title: normalizeText(item.title) || undefined,
+      content: normalizeText(item.content) || undefined,
     }))
   }
 
   if (detail.intro) {
     return [
       {
-        eyebrow: "任务前情",
-        title: "故事开场",
-        content: normalizeText(detail.intro),
+        content: normalizeText(detail.intro) || undefined,
       },
     ]
   }
@@ -495,33 +485,32 @@ function adaptRouteCard(route: RouteCardResponse, detail?: RouteDetailResponse |
 
   return {
     id: routeId,
-    hallId: normalizeText(detail?.museumId, "museum-default"),
+    hallId: normalizeText(detail?.museumId),
     routeCode: routeId,
-    title: normalizeText(route.title, "未命名任务"),
-    theme: normalizeText(route.theme, TASK_KIND_LABEL_MAP[taskKind]),
-    summary: normalizeText(detail?.intro, "沿着线索完成一条完整的馆内任务路线。"),
-    highlight: normalizeText(detail?.intro, "当前路线已接入 H5 的任务详情和章节结构。"),
+    title: normalizeText(route.title),
+    theme: normalizeText(route.theme),
+    summary: normalizeText(detail?.intro ?? route.intro),
     recommendedAgeBand,
     availableAgeBands: [recommendedAgeBand],
     difficultyLevel,
     taskKind,
-    estimatedMinutes: Number(route.estimatedMinutes ?? 30),
-    totalScore: Number(route.totalScore ?? chapterCount * 18),
+    estimatedMinutes: Number(route.estimatedMinutes ?? 0),
+    totalScore: Number(route.totalScore ?? 0),
     puzzleCount: Number(route.puzzleCount ?? chapterCount),
     chapterCount,
     allowTeam: Number(route.allowTeam ?? 0) === 1,
-    rewardTitle: "路线成就奖励",
-    startLocation: "馆内入口",
-    badgeLabel: TASK_KIND_LABEL_MAP[taskKind],
-    persona: {
-      id: normalizeText(route.persona?.id, `persona-${routeId}`),
-      code: normalizeText(route.persona?.personaCode, "default-guide"),
-      name: normalizeText(route.persona?.name, "馆内引导员"),
-      intro: "带你把零散线索重新连成故事。",
-      avatar: normalizeText(route.persona?.avatarUrl, "导"),
-      voiceStyle: "平稳、鼓励式",
-    },
-    taglines: [TASK_KIND_LABEL_MAP[taskKind], `${chapterCount} 章节`, `${Number(route.estimatedMinutes ?? 30)} 分钟`],
+    rewardTitle: normalizeText(route.rewardTitle) || undefined,
+    startLocation: undefined,
+    badgeLabel: undefined,
+    persona: route.persona
+      ? {
+        id: normalizeText(route.persona.id),
+        code: normalizeText(route.persona.personaCode),
+        name: normalizeText(route.persona.name),
+        avatar: normalizeText(route.persona.avatarUrl) || undefined,
+      }
+      : null,
+    taglines: [],
     schemaMeta: buildSchemaMeta(route),
   }
 }
@@ -540,25 +529,16 @@ export function adaptRouteDetailToMission(detail: RouteDetailResponse, stages?: 
     ...baseCard,
     chapterCount: chapters.length,
     puzzleCount: chapters.length,
-    museumName: normalizeText(detail.museumId, "Path Seeker 博物探索馆"),
+    museumName: normalizeText(detail.museumId),
     prologue: buildPrologue(detail),
-    introPanel: {
-      narrative: normalizeText(detail.intro, baseCard.summary),
-      playbook: [
-        "先观察再作答，优先让线索自己说话。",
-        "卡住时先拿观察提示，再逐步升级。",
-        "把每一章获得的信息都当成后文素材。",
-      ],
-      rewardPreview: [baseCard.rewardTitle, "章节线索袋", "终局成绩卡"],
-    },
     chapters,
     finale: {
-      title: "路线完成",
-      truth: "你已经把整条任务路线重新闭合。",
-      debrief: "当前 H5 版本已接通详情、章节地图和会话状态，终局内容会在后续阶段继续迁移。",
-      knowledgeNotes: ["任务中的章节结构和题型信息已经由当前数据契约驱动。"],
-      scoreTitle: "本次路线得分",
-      shareLine: "我完成了一条 Path Seeker 任务路线。",
+      title: "",
+      truth: "",
+      debrief: "",
+      knowledgeNotes: [],
+      scoreTitle: "",
+      shareLine: "",
     },
   }
 

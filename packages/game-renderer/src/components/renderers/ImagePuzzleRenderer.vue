@@ -205,17 +205,17 @@ function tileMeta(index: number) {
 </script>
 
 <template>
-  <view ref="root" class="image-puzzle-stage">
-    <view class="reference-card">
-      <view>
-        <text class="reference-title">{{ puzzle.questionPayload.revealTitle || "碎片复原" }}</text>
-        <text class="reference-copy">{{ puzzle.questionPayload.trayTitle || "拖动拼块，交换位置，还原完整原图。" }}</text>
-      </view>
-      <text class="reference-state">{{ isSolved ? "已复原" : `${gridSize} × ${gridSize}` }}</text>
-    </view>
+  <div ref="root" class="image-puzzle-stage">
+    <div class="reference-card">
+      <div>
+        <span class="reference-title">{{ puzzle.questionPayload.revealTitle || "碎片复原" }}</span>
+        <span class="reference-copy">{{ puzzle.questionPayload.trayTitle || "拖动拼块，交换位置，还原完整原图。" }}</span>
+      </div>
+      <span class="reference-state">{{ isSolved ? "已复原" : `${gridSize} × ${gridSize}` }}</span>
+    </div>
 
-    <view class="puzzle-grid" :style="{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }">
-      <view
+    <div class="puzzle-grid" :style="{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }">
+      <div
         v-for="(pieceId, index) in currentOrder"
         :key="pieceId"
         :ref="registerTile(pieceId)"
@@ -227,29 +227,29 @@ function tileMeta(index: number) {
         @touchend.stop="finishDrag"
         @touchcancel.stop="cancelDrag"
       >
-        <view class="tile-caption">
-          <text class="tile-index">{{ index + 1 }}</text>
-          <text class="tile-label">{{ tileMeta(index)?.label }}</text>
-        </view>
-      </view>
-    </view>
-  </view>
+        <div class="tile-caption">
+          <span class="tile-index">{{ index + 1 }}</span>
+          <span class="tile-label">{{ tileMeta(index)?.label }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .image-puzzle-stage {
   display: flex;
   flex-direction: column;
-  gap: 18rpx;
+  gap: 18px;
 }
 
 .reference-card {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16rpx;
-  padding: 20rpx;
-  border-radius: 24rpx;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 24px;
   background:
     radial-gradient(circle at 92% 14%, rgba(209, 178, 111, 0.18), transparent 26%),
     rgba(255, 255, 255, 0.05);
@@ -257,35 +257,35 @@ function tileMeta(index: number) {
 
 .reference-title {
   color: #fff8ea;
-  font-size: 26rpx;
+  font-size: 26px;
   font-weight: 900;
 }
 
 .reference-copy {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 8px;
   color: rgba(247, 239, 221, 0.58);
-  font-size: 22rpx;
+  font-size: 22px;
   line-height: 1.42;
 }
 
 .reference-state {
   flex: 0 0 auto;
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .puzzle-grid {
   display: grid;
-  gap: 10rpx;
+  gap: 10px;
 }
 
 .puzzle-tile {
   position: relative;
   overflow: hidden;
   aspect-ratio: 1;
-  border-radius: 20rpx;
+  border-radius: 20px;
   background-color: rgba(255, 255, 255, 0.06);
   background-repeat: no-repeat;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
@@ -293,35 +293,35 @@ function tileMeta(index: number) {
 }
 
 .puzzle-tile.is-dragging {
-  box-shadow: 0 16rpx 32rpx rgba(0, 0, 0, 0.24);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.24);
 }
 
 .puzzle-tile.is-target {
-  box-shadow: inset 0 0 0 2rpx rgba(243, 217, 157, 0.42);
+  box-shadow: inset 0 0 0 2px rgba(243, 217, 157, 0.42);
 }
 
 .tile-caption {
   position: absolute;
-  left: 10rpx;
-  right: 10rpx;
-  bottom: 10rpx;
-  padding: 10rpx 12rpx;
-  border-radius: 18rpx;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 18px;
   background: rgba(11, 12, 15, 0.68);
   backdrop-filter: blur(8px);
 }
 
 .tile-index {
   color: #d1b26f;
-  font-size: 18rpx;
+  font-size: 18px;
   font-weight: 900;
 }
 
 .tile-label {
   display: block;
-  margin-top: 4rpx;
+  margin-top: 4px;
   color: #fff8ea;
-  font-size: 20rpx;
+  font-size: 20px;
   line-height: 1.3;
   font-weight: 800;
 }

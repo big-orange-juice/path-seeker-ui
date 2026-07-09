@@ -153,17 +153,17 @@ async function selectConclusion(conclusionId: string) {
 </script>
 
 <template>
-  <view ref="root" class="reasoning-lab">
-    <view class="reasoning-board">
-      <view class="board-head">
-        <view>
-          <text class="board-title">{{ puzzle.questionPayload.chainTitle || "推理链" }}</text>
-          <text class="board-copy">先把证据按逻辑放进槽位，再决定哪条结论真正成立。</text>
-        </view>
-        <text class="board-progress">{{ selectedEvidence.length }}/{{ evidenceLimit }}</text>
-      </view>
+  <div ref="root" class="reasoning-lab">
+    <div class="reasoning-board">
+      <div class="board-head">
+        <div>
+          <span class="board-title">{{ puzzle.questionPayload.chainTitle || "推理链" }}</span>
+          <span class="board-copy">先把证据按逻辑放进槽位，再决定哪条结论真正成立。</span>
+        </div>
+        <span class="board-progress">{{ selectedEvidence.length }}/{{ evidenceLimit }}</span>
+      </div>
 
-      <view class="slot-grid">
+      <div class="slot-grid">
         <button
           v-for="(slotLabel, index) in slotLabels"
           :key="slotLabel"
@@ -171,36 +171,36 @@ async function selectConclusion(conclusionId: string) {
           :class="{ 'is-filled': Boolean(selectedEvidence[index]) }"
           @click="removeEvidence(index)"
         >
-          <text class="slot-step">0{{ index + 1 }}</text>
-          <text class="slot-label">{{ slotLabel }}</text>
-          <view v-if="selectedEvidence[index]" class="slot-card">
-            <text class="slot-card-title">{{ selectedEvidence[index]?.label }}</text>
-            <text v-if="selectedEvidence[index]?.note" class="slot-card-note">{{ selectedEvidence[index]?.note }}</text>
-          </view>
-          <text v-else class="slot-empty">从下方证据池点一条放进来</text>
+          <span class="slot-step">0{{ index + 1 }}</span>
+          <span class="slot-label">{{ slotLabel }}</span>
+          <div v-if="selectedEvidence[index]" class="slot-card">
+            <span class="slot-card-title">{{ selectedEvidence[index]?.label }}</span>
+            <span v-if="selectedEvidence[index]?.note" class="slot-card-note">{{ selectedEvidence[index]?.note }}</span>
+          </div>
+          <span v-else class="slot-empty">从下方证据池点一条放进来</span>
         </button>
-      </view>
-    </view>
+      </div>
+    </div>
 
-    <view class="evidence-pool">
-      <text class="section-label">证据池</text>
-      <view class="evidence-grid">
+    <div class="evidence-pool">
+      <span class="section-label">证据池</span>
+      <div class="evidence-grid">
         <button
           v-for="item in availableEvidence"
           :key="item.id"
           class="evidence-card"
           @click="pushEvidence(item.id)"
         >
-          <text v-if="item.tag" class="evidence-tag">{{ item.tag }}</text>
-          <text class="evidence-title">{{ item.label }}</text>
-          <text v-if="item.note" class="evidence-note">{{ item.note }}</text>
+          <span v-if="item.tag" class="evidence-tag">{{ item.tag }}</span>
+          <span class="evidence-title">{{ item.label }}</span>
+          <span v-if="item.note" class="evidence-note">{{ item.note }}</span>
         </button>
-      </view>
-    </view>
+      </div>
+    </div>
 
-    <view class="conclusion-board">
-      <text class="section-label">{{ puzzle.questionPayload.conclusionTitle || "选择结论" }}</text>
-      <view class="conclusion-list">
+    <div class="conclusion-board">
+      <span class="section-label">{{ puzzle.questionPayload.conclusionTitle || "选择结论" }}</span>
+      <div class="conclusion-list">
         <button
           v-for="item in puzzle.questionPayload.conclusions"
           :key="item.id"
@@ -208,19 +208,19 @@ async function selectConclusion(conclusionId: string) {
           :class="{ 'is-active': currentValue.conclusionId === item.id, 'is-locked': !chainReady }"
           @click="selectConclusion(item.id)"
         >
-          <text class="conclusion-title">{{ item.label }}</text>
-          <text v-if="item.summary" class="conclusion-summary">{{ item.summary }}</text>
+          <span class="conclusion-title">{{ item.label }}</span>
+          <span v-if="item.summary" class="conclusion-summary">{{ item.summary }}</span>
         </button>
-      </view>
-    </view>
-  </view>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .reasoning-lab {
   display: flex;
   flex-direction: column;
-  gap: 18rpx;
+  gap: 18px;
 }
 
 .reasoning-board,
@@ -228,12 +228,12 @@ async function selectConclusion(conclusionId: string) {
 .conclusion-board {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 16px;
 }
 
 .reasoning-board {
-  padding: 20rpx;
-  border-radius: 26rpx;
+  padding: 20px;
+  border-radius: 26px;
   background:
     radial-gradient(circle at 90% 12%, rgba(209, 178, 111, 0.18), transparent 24%),
     rgba(209, 178, 111, 0.08);
@@ -244,43 +244,43 @@ async function selectConclusion(conclusionId: string) {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16rpx;
+  gap: 16px;
 }
 
 .board-title,
 .section-label {
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .board-copy {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 8px;
   color: rgba(247, 239, 221, 0.56);
-  font-size: 21rpx;
+  font-size: 21px;
   line-height: 1.4;
 }
 
 .board-progress {
   color: #fff8ea;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .slot-grid {
   display: grid;
-  gap: 12rpx;
+  gap: 12px;
 }
 
 .reasoning-slot {
   display: flex;
   flex-direction: column;
-  gap: 10rpx;
-  min-height: 118rpx;
-  padding: 16rpx;
+  gap: 10px;
+  min-height: 118px;
+  padding: 16px;
   border: 1px dashed rgba(209, 178, 111, 0.28);
-  border-radius: 22rpx;
+  border-radius: 22px;
   background: rgba(255, 255, 255, 0.04);
   text-align: left;
 }
@@ -292,19 +292,19 @@ async function selectConclusion(conclusionId: string) {
 
 .slot-step {
   color: rgba(247, 239, 221, 0.42);
-  font-size: 18rpx;
+  font-size: 18px;
   font-weight: 900;
 }
 
 .slot-label {
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .slot-card-title {
   color: #fff8ea;
-  font-size: 24rpx;
+  font-size: 24px;
   font-weight: 900;
   line-height: 1.28;
 }
@@ -312,9 +312,9 @@ async function selectConclusion(conclusionId: string) {
 .slot-card-note,
 .slot-empty {
   display: block;
-  margin-top: 6rpx;
+  margin-top: 6px;
   color: rgba(247, 239, 221, 0.54);
-  font-size: 20rpx;
+  font-size: 20px;
   line-height: 1.38;
 }
 
@@ -322,13 +322,13 @@ async function selectConclusion(conclusionId: string) {
 .conclusion-list {
   display: flex;
   flex-direction: column;
-  gap: 10rpx;
+  gap: 10px;
 }
 
 .evidence-card,
 .conclusion-card {
-  padding: 18rpx;
-  border-radius: 22rpx;
+  padding: 18px;
+  border-radius: 22px;
   background: rgba(255, 255, 255, 0.045);
   text-align: left;
 }
@@ -336,34 +336,34 @@ async function selectConclusion(conclusionId: string) {
 .evidence-tag {
   display: inline-flex;
   align-items: center;
-  min-height: 38rpx;
-  padding: 0 12rpx;
-  border-radius: 999rpx;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
   background: rgba(209, 178, 111, 0.14);
   color: #f3d99d;
-  font-size: 18rpx;
+  font-size: 18px;
   font-weight: 900;
 }
 
 .evidence-title,
 .conclusion-title {
   color: #fff8ea;
-  font-size: 25rpx;
+  font-size: 25px;
   font-weight: 900;
   line-height: 1.3;
 }
 
 .evidence-title {
   display: block;
-  margin-top: 10rpx;
+  margin-top: 10px;
 }
 
 .evidence-note,
 .conclusion-summary {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 8px;
   color: rgba(247, 239, 221, 0.56);
-  font-size: 21rpx;
+  font-size: 21px;
   line-height: 1.4;
 }
 

@@ -74,11 +74,11 @@ watch(
 </script>
 
 <template>
-  <view ref="root" class="find-stack">
-    <view v-if="puzzle.questionPayload.targetDescription" class="target-chip">找：{{ puzzle.questionPayload.targetDescription }}</view>
+  <div ref="root" class="find-stack">
+    <div v-if="puzzle.questionPayload.targetDescription" class="target-chip">找：{{ puzzle.questionPayload.targetDescription }}</div>
 
-    <view class="board">
-      <view class="board-surface" :style="boardSurfaceStyle">
+    <div class="board">
+      <div class="board-surface" :style="boardSurfaceStyle">
         <button
           v-for="hotspot in puzzle.questionPayload.hotspots"
           :key="hotspot.id"
@@ -93,47 +93,47 @@ watch(
           :disabled="readonlyMode"
           @click="selectHotspot(hotspot.id)"
         >
-          <text v-if="hotspot.label" class="hotspot-label">{{ hotspot.label }}</text>
+          <span v-if="hotspot.label" class="hotspot-label">{{ hotspot.label }}</span>
         </button>
-      </view>
-    </view>
-  </view>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .find-stack {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 16px;
 }
 
 .target-chip {
   align-self: flex-start;
-  padding: 10rpx 18rpx;
-  border-radius: 999rpx;
+  padding: 10px 18px;
+  border-radius: 999px;
   background: rgba(209, 178, 111, 0.16);
   color: #fff8ea;
-  font-size: 23rpx;
+  font-size: 23px;
   font-weight: 800;
 }
 
 .board {
-  padding: 14rpx;
-  border-radius: 26rpx;
+  padding: 14px;
+  border-radius: 26px;
   background: rgba(255, 255, 255, 0.045);
 }
 
 .board-surface {
   position: relative;
-  height: 360rpx;
+  height: 360px;
   overflow: hidden;
-  border-radius: 22rpx;
+  border-radius: 22px;
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(180deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     linear-gradient(180deg, rgba(209, 178, 111, 0.12), transparent 42%),
     linear-gradient(135deg, rgba(36, 39, 46, 0.98), rgba(15, 17, 22, 0.98));
-  background-size: 56rpx 56rpx, 56rpx 56rpx, auto, auto;
+  background-size: 56px 56px, 56px 56px, auto, auto;
 }
 
 .hotspot {
@@ -141,8 +141,8 @@ watch(
   display: flex;
   align-items: flex-end;
   justify-content: flex-start;
-  padding: 8rpx;
-  border-radius: 18rpx;
+  padding: 8px;
+  border-radius: 18px;
   border: 1px dashed rgba(247, 239, 221, 0.22);
   background: rgba(255, 255, 255, 0.035);
   text-align: left;
@@ -156,7 +156,7 @@ watch(
 
 .hotspot-label {
   color: #fff8ea;
-  font-size: 20rpx;
+  font-size: 20px;
   font-weight: 800;
 }
 </style>

@@ -201,7 +201,7 @@ function evidenceStyle(leftId: string) {
   return {
     zIndex: "3",
     transform: `translate(${dragX.value}px, ${dragY.value}px) scale(1.03)`,
-    boxShadow: "0 18rpx 36rpx rgba(0, 0, 0, 0.22)",
+    boxShadow: "0 18px 36px rgba(0, 0, 0, 0.22)",
   }
 }
 
@@ -219,14 +219,14 @@ function assignedLeftLabel(rightId: string) {
 </script>
 
 <template>
-  <view ref="root" class="match-stage">
-    <view class="match-brief">
-      <text class="match-title">关系操作台</text>
-      <text class="match-copy">把上方证据拖到下方关系槽，看看哪一条线索真正对应哪种意义。</text>
-    </view>
+  <div ref="root" class="match-stage">
+    <div class="match-brief">
+      <span class="match-title">关系操作台</span>
+      <span class="match-copy">把上方证据拖到下方关系槽，看看哪一条线索真正对应哪种意义。</span>
+    </div>
 
-    <view class="evidence-pool">
-      <view
+    <div class="evidence-pool">
+      <div
         v-for="item in puzzle.questionPayload.left"
         :key="item.id"
         :ref="registerCard(item.id)"
@@ -238,12 +238,12 @@ function assignedLeftLabel(rightId: string) {
         @touchend.stop="finishDrag"
         @touchcancel.stop="cancelDrag"
       >
-        <text class="evidence-name">{{ item.label }}</text>
-        <text class="evidence-state">{{ assignedRightLabel(item.id) || "拖到下方关系槽" }}</text>
-      </view>
-    </view>
+        <span class="evidence-name">{{ item.label }}</span>
+        <span class="evidence-state">{{ assignedRightLabel(item.id) || "拖到下方关系槽" }}</span>
+      </div>
+    </div>
 
-    <view class="relation-grid">
+    <div class="relation-grid">
       <button
         v-for="item in puzzle.questionPayload.right"
         :key="item.id"
@@ -252,52 +252,52 @@ function assignedLeftLabel(rightId: string) {
         :class="{ 'is-hover': hoverRightId === item.id, 'is-filled': Boolean(rightAssignments[item.id]) }"
         @click="clearSlot(item.id)"
       >
-        <text class="slot-label">{{ item.label }}</text>
-        <view v-if="rightAssignments[item.id]" class="slot-badge">
-          <text class="slot-badge-copy">{{ assignedLeftLabel(item.id) }}</text>
-        </view>
-        <text v-else class="slot-empty">拖动证据放这里</text>
+        <span class="slot-label">{{ item.label }}</span>
+        <div v-if="rightAssignments[item.id]" class="slot-badge">
+          <span class="slot-badge-copy">{{ assignedLeftLabel(item.id) }}</span>
+        </div>
+        <span v-else class="slot-empty">拖动证据放这里</span>
       </button>
-    </view>
-  </view>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .match-stage {
   display: flex;
   flex-direction: column;
-  gap: 18rpx;
+  gap: 18px;
 }
 
 .match-brief {
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
-  padding: 18rpx 18rpx 0;
+  gap: 8px;
+  padding: 18px 18px 0;
 }
 
 .match-title {
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .match-copy {
   color: rgba(247, 239, 221, 0.56);
-  font-size: 22rpx;
+  font-size: 22px;
   line-height: 1.42;
 }
 
 .evidence-pool {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12rpx;
+  gap: 12px;
 }
 
 .evidence-card {
-  min-height: 128rpx;
-  padding: 18rpx 18rpx 16rpx;
-  border-radius: 24rpx;
+  min-height: 128px;
+  padding: 18px 18px 16px;
+  border-radius: 24px;
   background:
     radial-gradient(circle at 88% 14%, rgba(209, 178, 111, 0.14), transparent 26%),
     rgba(255, 255, 255, 0.045);
@@ -317,33 +317,33 @@ function assignedLeftLabel(rightId: string) {
 
 .evidence-name {
   color: #fff8ea;
-  font-size: 25rpx;
+  font-size: 25px;
   font-weight: 900;
   line-height: 1.28;
 }
 
 .evidence-state {
   display: block;
-  margin-top: 10rpx;
+  margin-top: 10px;
   color: rgba(247, 239, 221, 0.54);
-  font-size: 20rpx;
+  font-size: 20px;
   line-height: 1.38;
 }
 
 .relation-grid {
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  gap: 12px;
 }
 
 .relation-slot {
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
-  min-height: 120rpx;
-  padding: 18rpx;
+  gap: 12px;
+  min-height: 120px;
+  padding: 18px;
   border: 1px dashed rgba(209, 178, 111, 0.26);
-  border-radius: 24rpx;
+  border-radius: 24px;
   background: rgba(255, 255, 255, 0.03);
   text-align: left;
 }
@@ -362,7 +362,7 @@ function assignedLeftLabel(rightId: string) {
 
 .slot-label {
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
@@ -370,20 +370,20 @@ function assignedLeftLabel(rightId: string) {
   display: inline-flex;
   align-items: center;
   align-self: flex-start;
-  min-height: 52rpx;
-  padding: 0 16rpx;
-  border-radius: 999rpx;
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 999px;
   background: rgba(209, 178, 111, 0.18);
 }
 
 .slot-badge-copy {
   color: #fff8ea;
-  font-size: 23rpx;
+  font-size: 23px;
   font-weight: 900;
 }
 
 .slot-empty {
   color: rgba(247, 239, 221, 0.46);
-  font-size: 21rpx;
+  font-size: 21px;
 }
 </style>

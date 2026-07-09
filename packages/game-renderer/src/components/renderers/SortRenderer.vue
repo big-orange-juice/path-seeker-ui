@@ -204,7 +204,7 @@ function cardStyle(id: string, index: number) {
     return {
       zIndex: "3",
       transform: `translateY(${dragDeltaY.value}px) scale(1.02)`,
-      boxShadow: "0 18rpx 36rpx rgba(0, 0, 0, 0.24)",
+      boxShadow: "0 18px 36px rgba(0, 0, 0, 0.24)",
     }
   }
 
@@ -227,14 +227,14 @@ function cardStyle(id: string, index: number) {
 </script>
 
 <template>
-  <view ref="root" class="sort-stage">
-    <view class="sort-brief">
-      <text class="sort-title">拖动排序</text>
-      <text class="sort-copy">按你在展品前真正观察的先后顺序，把步骤拖回正确位置。</text>
-    </view>
+  <div ref="root" class="sort-stage">
+    <div class="sort-brief">
+      <span class="sort-title">拖动排序</span>
+      <span class="sort-copy">按你在展品前真正观察的先后顺序，把步骤拖回正确位置。</span>
+    </div>
 
-    <view class="sort-list">
-      <view
+    <div class="sort-list">
+      <div
         v-for="(item, index) in orderedItems"
         :key="item.id"
         :ref="registerItem(item.id)"
@@ -246,60 +246,60 @@ function cardStyle(id: string, index: number) {
         @touchend.stop="finishDrag"
         @touchcancel.stop="handleDragCancel"
       >
-        <view class="sort-index">{{ index + 1 }}</view>
-        <view class="sort-copyblock">
-          <text class="sort-label">{{ item.label }}</text>
-          <text class="sort-hint">{{ index === 0 ? "从起点动作开始拖" : "拖到更合适的位置即可换序" }}</text>
-        </view>
-        <view class="sort-handle">
-          <text class="handle-line"></text>
-          <text class="handle-line"></text>
-          <text class="handle-line"></text>
-        </view>
-      </view>
-    </view>
-  </view>
+        <div class="sort-index">{{ index + 1 }}</div>
+        <div class="sort-copyblock">
+          <span class="sort-label">{{ item.label }}</span>
+          <span class="sort-hint">{{ index === 0 ? "从起点动作开始拖" : "拖到更合适的位置即可换序" }}</span>
+        </div>
+        <div class="sort-handle">
+          <span class="handle-line"></span>
+          <span class="handle-line"></span>
+          <span class="handle-line"></span>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
 .sort-stage {
   display: flex;
   flex-direction: column;
-  gap: 18rpx;
+  gap: 18px;
 }
 
 .sort-brief {
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
-  padding: 18rpx 18rpx 0;
+  gap: 8px;
+  padding: 18px 18px 0;
 }
 
 .sort-title {
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .sort-copy {
   color: rgba(247, 239, 221, 0.56);
-  font-size: 22rpx;
+  font-size: 22px;
   line-height: 1.42;
 }
 
 .sort-list {
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  gap: 12px;
 }
 
 .sort-card {
   display: flex;
   align-items: center;
-  gap: 14rpx;
-  min-height: 108rpx;
-  padding: 16rpx;
-  border-radius: 24rpx;
+  gap: 14px;
+  min-height: 108px;
+  padding: 16px;
+  border-radius: 24px;
   background:
     radial-gradient(circle at 92% 16%, rgba(209, 178, 111, 0.12), transparent 26%),
     rgba(255, 255, 255, 0.045);
@@ -316,12 +316,12 @@ function cardStyle(id: string, index: number) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 56rpx;
-  height: 56rpx;
-  border-radius: 18rpx;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
   background: rgba(209, 178, 111, 0.18);
   color: #fff8ea;
-  font-size: 24rpx;
+  font-size: 24px;
   font-weight: 900;
 }
 
@@ -332,30 +332,30 @@ function cardStyle(id: string, index: number) {
 
 .sort-label {
   color: #fff8ea;
-  font-size: 28rpx;
+  font-size: 28px;
   font-weight: 800;
   line-height: 1.3;
 }
 
 .sort-hint {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 8px;
   color: rgba(247, 239, 221, 0.52);
-  font-size: 20rpx;
+  font-size: 20px;
   line-height: 1.34;
 }
 
 .sort-handle {
   display: flex;
   flex-direction: column;
-  gap: 6rpx;
-  padding: 6rpx 0;
+  gap: 6px;
+  padding: 6px 0;
 }
 
 .handle-line {
-  width: 24rpx;
-  height: 4rpx;
-  border-radius: 999rpx;
+  width: 24px;
+  height: 4px;
+  border-radius: 999px;
   background: rgba(247, 239, 221, 0.34);
 }
 </style>

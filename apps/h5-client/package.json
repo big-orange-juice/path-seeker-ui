@@ -10,7 +10,9 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@path-seeker/client-state": "workspace:*",
     "@path-seeker/game-renderer": "workspace:*",
+    "@path-seeker/game-runtime": "workspace:*",
     "@path-seeker/tailwind-config": "workspace:*",
     "@path-seeker/ts-shared": "workspace:*",
     "@path-seeker/ui": "workspace:*",

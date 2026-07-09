@@ -1,4 +1,4 @@
-import { computed, ref } from "vue"
+import { computed, ref, watch } from "vue"
 import { acceptHMRUpdate, defineStore } from "pinia"
 import {
   fetchAppUserProfile,
@@ -12,53 +12,13 @@ import {
   type UpdateProfileRequest,
   type UserProfileResponse,
 } from "@/services/auth"
+import { clearAccessToken, setAccessToken } from "@/services/authSession"
 import { resolveRequestErrorMessage } from "@/services/http"
 
 export const AUTH_PERSIST_KEY = "path-seeker:h5-client:auth"
 
-interface PersistedAuthState {
-  accessToken?: string
-  refreshToken?: string
-  expiresAt?: number | null
-  profile?: UserProfileResponse | null
-}
-
 function normalizeText(value: string | null | undefined) {
   return String(value || "").trim()
-}
-
-function safeStorage() {
-  if (typeof window === "undefined") {
-    return null
-  }
-
-  try {
-    return window.localStorage
-  } catch {
-    return null
-  }
-}
-
-function readPersistedAuthState() {
-  const storage = safeStorage()
-  if (!storage) {
-    return null
-  }
-
-  try {
-    const rawValue = storage.getItem(AUTH_PERSIST_KEY)
-    if (!rawValue) {
-      return null
-    }
-
-    return JSON.parse(rawValue) as PersistedAuthState
-  } catch {
-    return null
-  }
-}
-
-export function getPersistedAccessToken() {
-  return normalizeText(readPersistedAuthState()?.accessToken)
 }
 
 function resolveExpiresAt(expiresIn?: number) {
@@ -84,6 +44,15 @@ function profileFromLogin(response: LoginResponse): UserProfileResponse | null {
   }
 }
 
+function syncAccessTokenSession(token: string) {
+  if (token) {
+    setAccessToken(token)
+    return
+  }
+
+  clearAccessToken()
+}
+
 export const useAuthStore = defineStore(
   "auth",
   () => {
@@ -98,11 +67,20 @@ export const useAuthStore = defineStore(
     const isTokenExpired = computed(() => Boolean(expiresAt.value && expiresAt.value <= Date.now()))
     const displayName = computed(() => profile.value?.nickname || profile.value?.username || profile.value?.userNo || "未登录")
 
+    watch(
+      accessToken,
+      (value) => {
+        syncAccessTokenSession(value)
+      },
+      { immediate: true, flush: "sync" },
+    )
+
     function applyLoginResponse(response: LoginResponse) {
       accessToken.value = normalizeText(response.accessToken)
       refreshToken.value = normalizeText(response.refreshToken)
       expiresAt.value = resolveExpiresAt(response.expiresIn)
       profile.value = profileFromLogin(response)
+      syncAccessTokenSession(accessToken.value)
     }
 
     async function login(account: string, password: string) {
@@ -228,6 +206,7 @@ export const useAuthStore = defineStore(
       expiresAt.value = null
       profile.value = null
       error.value = ""
+      syncAccessTokenSession("")
     }
 
     return {

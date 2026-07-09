@@ -44,7 +44,11 @@
   }
 
   .client-frame {
-    @apply mx-auto flex min-h-dvh w-full max-w-[30rem] flex-col px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))];
+    @apply mx-auto flex min-h-dvh w-full max-w-[30rem] flex-col px-4 pt-[calc(1rem+env(safe-area-inset-top))];
+  }
+
+  .client-frame-with-fab {
+    @apply pb-[calc(7rem+env(safe-area-inset-bottom))];
   }
 
   .client-panel {

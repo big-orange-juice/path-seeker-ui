@@ -30,90 +30,105 @@ const router = createRouter({
       },
     },
     {
-      path: "/shell",
+      path: "/",
       component: MobileShellLayout,
       children: [
         {
-          path: "",
-          redirect: "/shell/hall",
+          path: "shell",
+          children: [
+            {
+              path: "",
+              redirect: "/shell/hall",
+            },
+            {
+              path: "hall",
+              name: "shell-hall",
+              component: ShellHallPage,
+              meta: {
+                shellTab: "hall",
+                title: "任务大厅",
+                showTabBar: true,
+              },
+            },
+            {
+              path: "playing",
+              name: "shell-playing",
+              component: ShellPlayingPage,
+              meta: {
+                shellTab: "playing",
+                title: "继续游玩",
+                showTabBar: true,
+              },
+            },
+            {
+              path: "archive",
+              name: "shell-archive",
+              component: ShellArchivePage,
+              meta: {
+                shellTab: "archive",
+                title: "完成归档",
+                showTabBar: true,
+              },
+            },
+          ],
         },
         {
-          path: "hall",
-          name: "shell-hall",
-          component: ShellHallPage,
+          path: "tasks/:routeId",
+          component: TaskDetailPage,
           meta: {
-            shellTab: "hall",
-            title: "任务大厅",
+            title: "任务详情",
+            showTabBar: false,
           },
         },
         {
-          path: "playing",
-          name: "shell-playing",
-          component: ShellPlayingPage,
+          path: "missions/:routeId/prologue",
+          component: ProloguePage,
           meta: {
-            shellTab: "playing",
-            title: "继续游玩",
+            title: "开场剧情",
+            showTabBar: false,
           },
         },
         {
-          path: "archive",
-          name: "shell-archive",
-          component: ShellArchivePage,
+          path: "missions/:routeId/map",
+          component: ChapterMapPage,
           meta: {
-            shellTab: "archive",
-            title: "完成归档",
+            title: "章节地图",
+            showTabBar: false,
+          },
+        },
+        {
+          path: "missions/:routeId/chapters/:chapterId/clue",
+          component: ArtifactCluePage,
+          meta: {
+            title: "展品观察",
+            showTabBar: false,
+          },
+        },
+        {
+          path: "missions/:routeId/chapters/:chapterId/puzzle",
+          component: PuzzlePage,
+          meta: {
+            title: "谜题挑战",
+            showTabBar: false,
+          },
+        },
+        {
+          path: "missions/:routeId/chapters/:chapterId/result",
+          component: ChapterResultPage,
+          meta: {
+            title: "章节结果",
+            showTabBar: false,
+          },
+        },
+        {
+          path: "missions/:routeId/finale",
+          component: FinalePage,
+          meta: {
+            title: "终局结算",
+            showTabBar: false,
           },
         },
       ],
-    },
-    {
-      path: "/tasks/:routeId",
-      component: TaskDetailPage,
-      meta: {
-        title: "任务详情",
-      },
-    },
-    {
-      path: "/missions/:routeId/prologue",
-      component: ProloguePage,
-      meta: {
-        title: "开场剧情",
-      },
-    },
-    {
-      path: "/missions/:routeId/map",
-      component: ChapterMapPage,
-      meta: {
-        title: "章节地图",
-      },
-    },
-    {
-      path: "/missions/:routeId/chapters/:chapterId/clue",
-      component: ArtifactCluePage,
-      meta: {
-        title: "展品观察",
-      },
-    },
-    {
-      path: "/missions/:routeId/chapters/:chapterId/puzzle",
-      component: PuzzlePage,
-      meta: {
-        title: "谜题挑战",
-      },
-    },
-    {
-      path: "/missions/:routeId/chapters/:chapterId/result",
-      component: ChapterResultPage,
-      meta: {
-        title: "章节结果",
-      },
-    },
-    {
-      path: "/missions/:routeId/finale",
-      component: FinalePage,
-      meta: {
-        title: "终局结算",
-      },
     },
   ],
 })

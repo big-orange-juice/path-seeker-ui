@@ -1,26 +1,28 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { UiButton, UiCard } from "@path-seeker/ui"
+import { useToastStore } from "@path-seeker/client-state"
+import { ClientButton, ClientCard, ClientEmptyState } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
-import { toSingleSentence } from "@/utils/copy"
 
 const route = useRoute()
 const router = useRouter()
 const missionStore = useMissionStore()
+const toastStore = useToastStore()
 
 const routeId = computed(() => String(route.params.routeId || ""))
-const resultCopy = computed(() => toSingleSentence(missionStore.activeSession?.latestChapterResult?.narrative || ""))
+const resultCopy = computed(() => missionStore.activeSession?.latestChapterResult?.narrative || "")
 
 async function continueFlow() {
   missionStore.advanceFromChapterResult()
+  toastStore.success("章节已收录", "继续前往下一站。")
   await router.push(`/missions/${routeId.value}/map`)
 }
 </script>
 
 <template>
   <div class="space-y-4">
-    <UiCard v-if="missionStore.activeSession?.latestChapterResult" class="client-panel overflow-hidden">
+    <ClientCard v-if="missionStore.activeSession?.latestChapterResult" class="overflow-hidden">
       <div class="space-y-5 p-5">
         <div class="space-y-3">
           <div class="inline-flex w-fit items-center justify-center rounded-full bg-primary/14 px-3 py-1 text-sm font-semibold text-primary">
@@ -34,19 +36,16 @@ async function continueFlow() {
           </div>
         </div>
 
-        <UiButton class="w-full" @click="continueFlow()">继续任务</UiButton>
+        <ClientButton class="w-full" @click="continueFlow()">继续任务</ClientButton>
       </div>
-    </UiCard>
+    </ClientCard>
 
-    <UiCard v-else class="client-panel">
-      <div class="space-y-4 p-5">
-        <div class="space-y-2">
-          <h2 class="text-2xl font-display text-foreground">还没有章节结果</h2>
-          <p class="client-page-copy">请先完成当前章节作答。</p>
-        </div>
-
-        <UiButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">返回章节地图</UiButton>
-      </div>
-    </UiCard>
+    <ClientEmptyState
+      v-else
+      title="还没有章节结果"
+      description="请先完成当前章节作答。"
+      action-text="返回章节地图"
+      @action="router.push(`/missions/${routeId}/map`)"
+    />
   </div>
 </template>

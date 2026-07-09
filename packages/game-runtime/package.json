@@ -1,0 +1,14 @@
+{
+  "name": "@path-seeker/game-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Config-driven gameplay runtime utilities shared by H5 and future clients.",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "@path-seeker/game-renderer": "workspace:*"
+  }
+}

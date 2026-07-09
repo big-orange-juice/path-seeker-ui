@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
-import { UiBadge, UiButton, UiCard } from "@path-seeker/ui"
+import { useToastStore } from "@path-seeker/client-state"
+import { ClientBadge, ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
-import { toSingleSentence } from "@/utils/copy"
 import { getDifficultyLabel, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
 import type { AgeBand, MissionDetail } from "@/types/mission"
 
 const route = useRoute()
 const router = useRouter()
 const missionStore = useMissionStore()
+const toastStore = useToastStore()
 
 const routeId = computed(() => String(route.params.routeId || ""))
 const mission = shallowRef<MissionDetail | null>(null)
@@ -24,9 +25,8 @@ const metaItems = computed(() => {
   return [
     currentMission.theme,
     getDifficultyLabel(currentMission.difficultyLevel),
-    `${currentMission.estimatedMinutes} 分钟`,
-    `${currentMission.chapterCount} 章节`,
-    currentMission.allowTeam ? "支持组队" : "",
+    currentMission.estimatedMinutes ? `${currentMission.estimatedMinutes} 分钟` : "",
+    currentMission.chapterCount ? `${currentMission.chapterCount} 章节` : "",
   ].filter(Boolean)
 })
 
@@ -37,8 +37,6 @@ const canResumeCurrent = computed(() => {
 
   return missionStore.activeSession.routeId === mission.value.id && missionStore.activeSession.status === "in_progress"
 })
-
-const summaryCopy = computed(() => toSingleSentence(mission.value?.summary || ""))
 
 async function loadMission() {
   const cachedMission = missionStore.getMission(routeId.value)
@@ -60,8 +58,11 @@ async function handleStartMission() {
 
   const session = await missionStore.startRemoteMission(mission.value.id, selectedAgeBand.value)
   if (!session) {
+    toastStore.error("任务启动失败", missionStore.gameplayError || "请稍后重试。")
     return
   }
+
+  toastStore.success("任务已开始", `已进入《${mission.value.title}》的真实任务流程。`)
 
   await router.push(
     mission.value.prologue.length
@@ -75,7 +76,13 @@ async function handleContinueMission() {
     return
   }
 
-  await router.push(`/missions/${mission.value.id}/map`)
+  const resumePath = missionStore.resolveResumeRoutePath()
+  toastStore.info("正在恢复进度", "已为你定位到上次停下来的节点。")
+  await router.push(
+    resumePath && missionStore.activeSession?.routeId === mission.value.id
+      ? resumePath
+      : `/missions/${mission.value.id}/map`,
+  )
 }
 
 onMounted(() => {
@@ -85,18 +92,18 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4">
-    <UiCard v-if="mission" class="client-panel overflow-hidden">
+    <ClientCard v-if="mission" class="overflow-hidden">
       <div class="space-y-5 p-5">
         <div class="space-y-3">
           <div class="flex flex-wrap gap-2">
-            <UiBadge>{{ mission.badgeLabel }}</UiBadge>
-            <UiBadge variant="muted">{{ mission.recommendedAgeBand }}</UiBadge>
-            <UiBadge variant="muted">{{ getDifficultyLabel(mission.difficultyLevel) }}</UiBadge>
+            <ClientBadge v-if="mission.theme">{{ mission.theme }}</ClientBadge>
+            <ClientBadge variant="muted">{{ mission.recommendedAgeBand }}</ClientBadge>
+            <ClientBadge variant="muted">{{ getDifficultyLabel(mission.difficultyLevel) }}</ClientBadge>
           </div>
 
           <div class="space-y-2">
             <h2 class="font-display text-3xl leading-tight text-foreground">{{ mission.title }}</h2>
-            <p class="client-page-copy">{{ summaryCopy }}</p>
+            <p v-if="mission.summary" class="client-page-copy">{{ mission.summary }}</p>
           </div>
 
           <div v-if="metaItems.length" class="flex flex-wrap gap-2 text-sm text-muted-foreground">
@@ -110,23 +117,9 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="rounded-[1rem] bg-background/70 p-4 text-sm leading-6 text-muted-foreground">
-          {{ mission.introPanel.narrative }}
-        </div>
-
-        <div class="grid gap-3 sm:grid-cols-2">
-          <div class="rounded-[1rem] bg-background/70 p-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">开局说明</p>
-            <ul class="mt-3 space-y-2 text-sm leading-6 text-foreground">
-              <li v-for="item in mission.introPanel.playbook" :key="item">{{ item }}</li>
-            </ul>
-          </div>
-          <div class="rounded-[1rem] bg-background/70 p-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">奖励预览</p>
-            <ul class="mt-3 space-y-2 text-sm leading-6 text-foreground">
-              <li v-for="item in mission.introPanel.rewardPreview" :key="item">{{ item }}</li>
-            </ul>
-          </div>
+        <div v-if="mission.rewardTitle" class="rounded-[1rem] bg-background/70 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">奖励</p>
+          <p class="mt-3 text-sm leading-6 text-foreground">{{ mission.rewardTitle }}</p>
         </div>
 
         <div v-if="mission.availableAgeBands.length > 1" class="space-y-3">
@@ -172,34 +165,39 @@ onMounted(() => {
         </div>
 
         <div class="grid gap-3">
-          <UiButton v-if="canResumeCurrent" class="w-full" @click="handleContinueMission()">继续当前任务</UiButton>
-          <UiButton
+          <ClientButton v-if="canResumeCurrent" class="w-full" @click="handleContinueMission()">继续当前任务</ClientButton>
+          <ClientButton
             :variant="canResumeCurrent ? 'outline' : 'default'"
             class="w-full"
             :disabled="missionStore.gameplayPending"
             @click="handleStartMission()"
           >
             {{ missionStore.gameplayPending ? "开始中..." : canResumeCurrent ? "重新开始本路线" : "开始任务" }}
-          </UiButton>
+          </ClientButton>
         </div>
       </div>
-    </UiCard>
+    </ClientCard>
 
-    <UiCard v-else-if="missionStore.detailPending" class="client-panel">
-      <div class="p-5 text-sm leading-6 text-muted-foreground">正在读取任务详情...</div>
-    </UiCard>
-
-    <UiCard v-else class="client-panel">
+    <ClientCard v-else-if="missionStore.detailPending">
       <div class="space-y-4 p-5">
-        <div class="space-y-2">
-          <h2 class="text-2xl font-display text-foreground">任务详情不可用</h2>
-          <p class="client-page-copy">{{ missionStore.gameplayError || missionStore.detailError || "当前路线暂时没有可用详情。" }}</p>
+        <ClientSkeleton class="h-6 w-32" />
+        <ClientSkeleton class="h-10 w-full" />
+        <ClientSkeleton class="h-24 w-full" />
+        <div class="grid gap-3 sm:grid-cols-2">
+          <ClientSkeleton class="h-32 w-full" />
+          <ClientSkeleton class="h-32 w-full" />
         </div>
-
-        <RouterLink to="/shell/hall" class="block">
-          <UiButton variant="outline" class="w-full">返回任务大厅</UiButton>
-        </RouterLink>
       </div>
-    </UiCard>
+    </ClientCard>
+
+    <ClientEmptyState
+      v-else
+      title="任务详情不可用"
+      :description="missionStore.gameplayError || missionStore.detailError || '当前路线暂时没有可用详情。'"
+    >
+      <RouterLink to="/shell/hall" class="block">
+        <ClientButton variant="outline" class="w-full">返回任务大厅</ClientButton>
+      </RouterLink>
+    </ClientEmptyState>
   </div>
 </template>

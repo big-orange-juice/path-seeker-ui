@@ -60,11 +60,11 @@ watch(
 </script>
 
 <template>
-  <view ref="root" class="branch-stack">
-    <view v-if="puzzle.questionPayload.sceneIntro" class="branch-scene">
-      <text class="scene-label">剧情分歧</text>
-      <text class="scene-copy">{{ puzzle.questionPayload.sceneIntro }}</text>
-    </view>
+  <div ref="root" class="branch-stack">
+    <div v-if="puzzle.questionPayload.sceneIntro" class="branch-scene">
+      <span class="scene-label">剧情分歧</span>
+      <span class="scene-copy">{{ puzzle.questionPayload.sceneIntro }}</span>
+    </div>
 
     <button
       v-for="option in puzzle.questionPayload.options"
@@ -74,30 +74,30 @@ watch(
       :disabled="readonlyMode"
       @click="selectOption(option.id)"
     >
-      <view class="branch-head">
-        <text class="branch-title">{{ option.label }}</text>
-        <text class="branch-arrow">{{ modelValue?.value === option.id ? "已选" : "选择" }}</text>
-      </view>
-      <text v-if="option.summary" class="branch-summary">{{ option.summary }}</text>
-      <view v-if="modelValue?.value === option.id && option.outcomeTitle" class="branch-outcome">
-        <text class="outcome-title">{{ option.outcomeTitle }}</text>
-        <text v-if="option.outcomeText" class="outcome-copy">{{ option.outcomeText }}</text>
-      </view>
+      <div class="branch-head">
+        <span class="branch-title">{{ option.label }}</span>
+        <span class="branch-arrow">{{ modelValue?.value === option.id ? "已选" : "选择" }}</span>
+      </div>
+      <span v-if="option.summary" class="branch-summary">{{ option.summary }}</span>
+      <div v-if="modelValue?.value === option.id && option.outcomeTitle" class="branch-outcome">
+        <span class="outcome-title">{{ option.outcomeTitle }}</span>
+        <span v-if="option.outcomeText" class="outcome-copy">{{ option.outcomeText }}</span>
+      </div>
     </button>
-  </view>
+  </div>
 </template>
 
 <style scoped>
 .branch-stack {
   display: flex;
   flex-direction: column;
-  gap: 14rpx;
+  gap: 14px;
 }
 
 .branch-scene,
 .branch-card {
-  padding: 18rpx;
-  border-radius: 24rpx;
+  padding: 18px;
+  border-radius: 24px;
 }
 
 .branch-scene {
@@ -107,22 +107,22 @@ watch(
 
 .scene-label {
   color: #d1b26f;
-  font-size: 20rpx;
+  font-size: 20px;
   font-weight: 900;
 }
 
 .scene-copy {
   display: block;
-  margin-top: 8rpx;
+  margin-top: 8px;
   color: rgba(247, 239, 221, 0.82);
-  font-size: 24rpx;
+  font-size: 24px;
   line-height: 1.42;
 }
 
 .branch-card {
   display: flex;
   flex-direction: column;
-  gap: 10rpx;
+  gap: 10px;
   background: rgba(255, 255, 255, 0.045);
   text-align: left;
 }
@@ -136,39 +136,39 @@ watch(
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12rpx;
+  gap: 12px;
 }
 
 .branch-title {
   flex: 1;
   color: #fff8ea;
-  font-size: 28rpx;
+  font-size: 28px;
   font-weight: 900;
   line-height: 1.3;
 }
 
 .branch-arrow {
   color: #d1b26f;
-  font-size: 20rpx;
+  font-size: 20px;
   font-weight: 900;
 }
 
 .branch-summary,
 .outcome-copy {
   color: rgba(247, 239, 221, 0.62);
-  font-size: 22rpx;
+  font-size: 22px;
   line-height: 1.42;
 }
 
 .branch-outcome {
-  margin-top: 2rpx;
-  padding-top: 10rpx;
+  margin-top: 2px;
+  padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .outcome-title {
   color: #fff8ea;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 </style>

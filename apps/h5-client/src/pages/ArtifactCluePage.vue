@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { UiBadge, UiButton, UiCard } from "@path-seeker/ui"
+import { useToastStore } from "@path-seeker/client-state"
+import { ClientBadge, ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { getPuzzleTypeLabel } from "@/utils/puzzleLabels"
-import { toSingleSentence } from "@/utils/copy"
 
 const route = useRoute()
 const router = useRouter()
 const missionStore = useMissionStore()
+const toastStore = useToastStore()
 
 const routeId = computed(() => String(route.params.routeId || ""))
 const chapterId = computed(() => String(route.params.chapterId || ""))
 
-const artifactStory = computed(() => toSingleSentence(missionStore.currentArtifact?.storyFragment || ""))
 const observeTips = computed(() => {
   const artifact = missionStore.currentArtifact
   if (!artifact) {
@@ -21,7 +21,6 @@ const observeTips = computed(() => {
   }
 
   return [artifact.detailCallout, artifact.observationPoint, artifact.suspiciousPoint, ...artifact.checklist]
-    .map((item) => toSingleSentence(item))
     .filter(Boolean)
 })
 
@@ -46,6 +45,7 @@ async function ensureMissionReady() {
 }
 
 async function goPuzzle() {
+  toastStore.info("进入作答", "观察信息已保留，可以开始挑战当前题目。")
   await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/puzzle`)
 }
 
@@ -56,25 +56,23 @@ onMounted(() => {
 
 <template>
   <div class="space-y-4">
-    <UiCard v-if="missionStore.currentArtifact && missionStore.currentChapter" class="client-panel overflow-hidden">
+    <ClientCard v-if="missionStore.currentArtifact && missionStore.currentChapter" class="overflow-hidden">
       <div class="space-y-5 p-5">
         <div class="space-y-3">
           <div class="flex flex-wrap gap-2">
-            <UiBadge>{{ missionStore.currentArtifact.location }}</UiBadge>
-            <UiBadge variant="muted">
+            <ClientBadge v-if="missionStore.currentArtifact.location">{{ missionStore.currentArtifact.location }}</ClientBadge>
+            <ClientBadge variant="muted">
               {{ getPuzzleTypeLabel(missionStore.currentChapter.puzzle.templateType, missionStore.currentChapter.puzzle.interactionType) }}
-            </UiBadge>
+            </ClientBadge>
           </div>
 
           <div class="space-y-2">
             <h2 class="font-display text-3xl leading-tight text-foreground">{{ missionStore.currentArtifact.title }}</h2>
-            <p class="client-page-copy">
-              {{ missionStore.currentArtifact.subtitle || artifactStory }}
-            </p>
+            <p v-if="missionStore.currentArtifact.subtitle" class="client-page-copy">{{ missionStore.currentArtifact.subtitle }}</p>
           </div>
         </div>
 
-        <div class="rounded-[1rem] bg-background/70 p-4">
+        <div v-if="missionStore.currentChapter.objective" class="rounded-[1rem] bg-background/70 p-4">
           <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">章节目标</p>
           <p class="mt-3 text-sm leading-6 text-foreground">{{ missionStore.currentChapter.objective }}</p>
         </div>
@@ -93,25 +91,31 @@ onMounted(() => {
         </div>
 
         <div class="grid gap-3">
-          <UiButton class="w-full" @click="goPuzzle()">开始作答</UiButton>
-          <UiButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">返回章节地图</UiButton>
+          <ClientButton class="w-full" @click="goPuzzle()">开始作答</ClientButton>
+          <ClientButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">返回章节地图</ClientButton>
         </div>
       </div>
-    </UiCard>
+    </ClientCard>
 
-    <UiCard v-else-if="missionStore.gameplayPending || missionStore.detailPending" class="client-panel">
-      <div class="p-5 text-sm leading-6 text-muted-foreground">正在恢复当前章节...</div>
-    </UiCard>
-
-    <UiCard v-else class="client-panel">
+    <ClientCard v-else-if="missionStore.gameplayPending || missionStore.detailPending">
       <div class="space-y-4 p-5">
-        <div class="space-y-2">
-          <h2 class="text-2xl font-display text-foreground">当前章节不可用</h2>
-          <p class="client-page-copy">{{ missionStore.gameplayError || missionStore.detailError || "请回到章节地图重新进入。" }}</p>
+        <div class="flex gap-2">
+          <ClientSkeleton class="h-6 w-24 rounded-full" />
+          <ClientSkeleton class="h-6 w-28 rounded-full" />
         </div>
-
-        <UiButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">返回章节地图</UiButton>
+        <ClientSkeleton class="h-10 w-2/3" />
+        <ClientSkeleton class="h-20 w-full" />
+        <ClientSkeleton class="h-16 w-full" />
+        <ClientSkeleton class="h-10 w-full" />
       </div>
-    </UiCard>
+    </ClientCard>
+
+    <ClientEmptyState
+      v-else
+      title="当前章节不可用"
+      :description="missionStore.gameplayError || missionStore.detailError || '请回到章节地图重新进入。'"
+      action-text="返回章节地图"
+      @action="router.push(`/missions/${routeId}/map`)"
+    />
   </div>
 </template>

@@ -1,0 +1,13 @@
+{
+  "name": "@path-seeker/client-state",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared client-side runtime state for H5 and mini-app shells.",
+  "type": "module",
+  "main": "src/index.ts",
+  "peerDependencies": {
+    "@path-seeker/game-renderer": "workspace:*",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.0"
+  }
+}

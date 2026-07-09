@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { UiAppIcon, UiBadge, UiCard } from "@path-seeker/ui"
+import { UiAppIcon } from "@path-seeker/ui"
+import { ClientBadge, ClientCard } from "@/components/ui"
 
 interface Props {
   missionCount: number
@@ -11,11 +12,11 @@ defineProps<Props>()
 </script>
 
 <template>
-  <UiCard class="client-panel overflow-hidden">
+  <ClientCard class="overflow-hidden">
     <div class="space-y-4 p-5">
       <div class="flex items-start justify-between gap-4">
         <div class="space-y-2">
-          <UiBadge>H5 Client</UiBadge>
+          <ClientBadge>H5 Client</ClientBadge>
           <h2 class="font-display text-2xl text-foreground">真实任务流已接入 H5</h2>
           <p class="client-page-copy">
             当前大厅、详情和章节地图已经基于远程接口运行，接下来继续补齐观察页、题型页和结算闭环。
@@ -41,5 +42,5 @@ defineProps<Props>()
         </div>
       </div>
     </div>
-  </UiCard>
+  </ClientCard>
 </template>

@@ -33,9 +33,9 @@ export interface MissionPersona {
   id: string
   code: string
   name: string
-  intro: string
-  avatar: string
-  voiceStyle: string
+  intro?: string
+  avatar?: string
+  voiceStyle?: string
 }
 
 export interface MissionSchemaMeta {
@@ -51,7 +51,6 @@ export interface MissionRouteCard {
   title: string
   theme: string
   summary: string
-  highlight: string
   recommendedAgeBand: AgeBand
   availableAgeBands: AgeBand[]
   difficultyLevel: DifficultyLevel
@@ -61,18 +60,18 @@ export interface MissionRouteCard {
   puzzleCount: number
   chapterCount: number
   allowTeam: boolean
-  rewardTitle: string
-  startLocation: string
-  badgeLabel: string
-  persona: MissionPersona
-  taglines: string[]
+  rewardTitle?: string
+  startLocation?: string
+  badgeLabel?: string
+  persona?: MissionPersona | null
+  taglines?: string[]
   schemaMeta: MissionSchemaMeta
 }
 
 export interface StoryBeat {
-  eyebrow: string
-  title: string
-  content: string
+  eyebrow?: string
+  title?: string
+  content?: string
 }
 
 export interface ArtifactClue {
@@ -80,11 +79,11 @@ export interface ArtifactClue {
   title: string
   subtitle: string
   location: string
-  observationPoint: string
-  storyFragment: string
-  suspiciousPoint: string
+  observationPoint?: string
+  storyFragment?: string
+  suspiciousPoint?: string
   checklist: string[]
-  detailCallout: string
+  detailCallout?: string
 }
 
 export type {
@@ -141,10 +140,10 @@ export interface MissionChapter {
   id: string
   stageNo: number
   title: string
-  objective: string
+  objective?: string
   targetLocation: string
-  resultNarrative: string
-  nextTarget: string
+  resultNarrative?: string
+  nextTarget?: string
   artifact: ArtifactClue
   puzzle: MissionPuzzle
 }
@@ -161,11 +160,6 @@ export interface MissionFinale {
 export interface MissionDetail extends MissionRouteCard {
   museumName: string
   prologue: StoryBeat[]
-  introPanel: {
-    narrative: string
-    playbook: string[]
-    rewardPreview: string[]
-  }
   chapters: MissionChapter[]
   finale: MissionFinale
 }

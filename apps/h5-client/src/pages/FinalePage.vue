@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { UiButton, UiCard } from "@path-seeker/ui"
+import { useToastStore } from "@path-seeker/client-state"
+import { ClientButton, ClientCard, ClientEmptyState } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
 import { getDifficultyLabel } from "@/utils/puzzleLabels"
 
 const route = useRoute()
 const router = useRouter()
 const missionStore = useMissionStore()
+const toastStore = useToastStore()
 
 const routeId = computed(() => String(route.params.routeId || ""))
 
 async function backToArchive() {
+  toastStore.info("已进入归档", "这条路线的完成记录已经沉淀在你的归档里。")
   await router.push("/shell/archive")
 }
 
@@ -22,23 +25,25 @@ async function replayMission() {
 
   const session = await missionStore.replayMission(missionStore.activeMission.id)
   if (!session) {
+    toastStore.error("重新开始失败", missionStore.gameplayError || "请稍后重试。")
     return
   }
 
+  toastStore.success("已重新开始路线", "新的任务会话已经创建。")
   await router.push(`/missions/${missionStore.activeMission.id}/map`)
 }
 </script>
 
 <template>
   <div class="space-y-4">
-    <UiCard v-if="missionStore.activeMission && missionStore.activeSession" class="client-panel overflow-hidden">
+    <ClientCard v-if="missionStore.activeMission && missionStore.activeSession" class="overflow-hidden">
       <div class="space-y-5 p-5">
         <div class="space-y-2">
           <p v-if="missionStore.activeMission.rewardTitle" class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
             {{ missionStore.activeMission.rewardTitle }}
           </p>
           <h2 class="font-display text-3xl leading-tight text-foreground">{{ missionStore.activeMission.title }}</h2>
-          <p class="client-page-copy">{{ missionStore.activeMission.finale.debrief }}</p>
+          <p v-if="missionStore.activeMission.summary" class="client-page-copy">{{ missionStore.activeMission.summary }}</p>
         </div>
 
         <div class="grid grid-cols-3 gap-3">
@@ -59,21 +64,18 @@ async function replayMission() {
         </div>
 
         <div class="space-y-3">
-          <UiButton variant="outline" class="w-full" @click="backToArchive()">查看归档</UiButton>
-          <UiButton class="w-full" @click="replayMission()">重新开始</UiButton>
+          <ClientButton variant="outline" class="w-full" @click="backToArchive()">查看归档</ClientButton>
+          <ClientButton class="w-full" @click="replayMission()">重新开始</ClientButton>
         </div>
       </div>
-    </UiCard>
+    </ClientCard>
 
-    <UiCard v-else class="client-panel">
-      <div class="space-y-4 p-5">
-        <div class="space-y-2">
-          <h2 class="text-2xl font-display text-foreground">终局数据不可用</h2>
-          <p class="client-page-copy">请先完成当前路线，再查看终局结果。</p>
-        </div>
-
-        <UiButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">返回章节地图</UiButton>
-      </div>
-    </UiCard>
+    <ClientEmptyState
+      v-else
+      title="终局数据不可用"
+      description="请先完成当前路线，再查看终局结果。"
+      action-text="返回章节地图"
+      @action="router.push(`/missions/${routeId}/map`)"
+    />
   </div>
 </template>

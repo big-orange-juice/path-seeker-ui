@@ -51,7 +51,7 @@ watch(
 </script>
 
 <template>
-  <view ref="root" class="choice-list">
+  <div ref="root" class="choice-list">
     <button
       v-for="(option, index) in puzzle.questionPayload.options"
       :key="option.id"
@@ -60,26 +60,26 @@ watch(
       :disabled="readonlyMode"
       @click="selectOption(option.id)"
     >
-      <text class="choice-index">{{ index + 1 }}</text>
-      <text class="choice-title">{{ option.label }}</text>
+      <span class="choice-index">{{ index + 1 }}</span>
+      <span class="choice-title">{{ option.label }}</span>
     </button>
-  </view>
+  </div>
 </template>
 
 <style scoped>
 .choice-list {
   display: flex;
   flex-direction: column;
-  gap: 14rpx;
+  gap: 14px;
 }
 
 .choice-card {
   display: flex;
   align-items: center;
-  gap: 16rpx;
-  min-height: 86rpx;
-  padding: 16rpx;
-  border-radius: 22rpx;
+  gap: 16px;
+  min-height: 86px;
+  padding: 16px;
+  border-radius: 22px;
   background: rgba(255, 255, 255, 0.045);
   text-align: left;
 }
@@ -93,19 +93,19 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46rpx;
-  height: 46rpx;
-  border-radius: 999rpx;
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
   background: rgba(247, 239, 221, 0.08);
   color: #d1b26f;
-  font-size: 22rpx;
+  font-size: 22px;
   font-weight: 900;
 }
 
 .choice-title {
   flex: 1;
   color: #fff8ea;
-  font-size: 28rpx;
+  font-size: 28px;
   font-weight: 800;
   line-height: 1.28;
 }

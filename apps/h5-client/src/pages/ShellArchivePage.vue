@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { UiCard } from "@path-seeker/ui"
+import { useRouter } from "vue-router"
+import { ClientCard, ClientEmptyState } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
 
 const missionStore = useMissionStore()
+const router = useRouter()
 </script>
 
 <template>
   <div class="space-y-4">
-    <UiCard v-for="entry in missionStore.archiveEntries" :key="entry.routeId" class="client-panel">
+    <ClientCard v-for="entry in missionStore.archiveEntries" :key="entry.routeId">
       <div class="space-y-3 p-5">
         <div class="flex items-start justify-between gap-4">
           <div class="space-y-1">
@@ -34,12 +36,14 @@ const missionStore = useMissionStore()
           </div>
         </div>
       </div>
-    </UiCard>
+    </ClientCard>
 
-    <UiCard v-if="!missionStore.archiveEntries.length" class="client-panel">
-      <div class="p-5 text-sm leading-6 text-muted-foreground">
-        当前还没有已完成的远程路线。等观察页、题型页和结算闭环接上之后，这里会开始沉淀真实归档记录。
-      </div>
-    </UiCard>
+    <ClientEmptyState
+      v-if="!missionStore.archiveEntries.length"
+      title="还没有完成归档"
+      description="当前还没有已完成的远程路线。完成一条任务后，这里会沉淀真实归档记录。"
+      action-text="去任务大厅"
+      @action="router.push('/shell/hall')"
+    />
   </div>
 </template>

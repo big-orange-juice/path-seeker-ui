@@ -14,7 +14,12 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@path-seeker/client-state": ["../../packages/client-state/src/index.ts"],
+      "@path-seeker/game-runtime": ["../../packages/game-runtime/src/index.ts"],
+      "@path-seeker/game-renderer": ["../../packages/game-renderer/src/index.ts"],
+      "pinia": ["./node_modules/pinia"],
+      "vue": ["./node_modules/vue"]
     },
     "types": ["vite/client"]
   },
