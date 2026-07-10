@@ -286,7 +286,8 @@ window.DemoStore = (() => {
     const prog = session.chapterProgress[chapter.id];
     if (!prog) return `#/missions/${session.routeId}/map`;
     if (!prog.recognized) {
-      return `#/missions/${session.routeId}/chapters/${chapter.id}/clue`;
+      // 未识别：回到谜面引导，再进入扫描
+      return `#/missions/${session.routeId}/chapters/${chapter.id}/brief`;
     }
     if (!prog.videoWatched) {
       return `#/missions/${session.routeId}/chapters/${chapter.id}/video`;
