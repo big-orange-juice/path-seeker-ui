@@ -2607,6 +2607,53 @@
         }
       }
     },
+    "/api/Gameplay/RouteResult": {
+      "get": {
+        "tags": ["Gameplay"],
+        "summary": "C端：获取路线完成结算页数据",
+        "parameters": [
+          {
+            "name": "RouteId",
+            "in": "query",
+            "description": "路线 ID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "TeamId",
+            "in": "query",
+            "description": "队伍 ID（组队游玩时透传；可空）",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResultResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResultResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteResultResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Gameplay/RecordActivity": {
       "post": {
         "tags": ["Gameplay"],
@@ -5089,6 +5136,230 @@
         }
       }
     },
+    "/api/TreasureHunt/BindIntroVideo": {
+      "post": {
+        "tags": ["TreasureHunt"],
+        "summary": "内部运营：为挑战绑定介绍视频附件。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindChallengeIntroVideoRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindChallengeIntroVideoRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/BindChallengeIntroVideoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindChallengeIntroVideoResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindChallengeIntroVideoResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BindChallengeIntroVideoResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/TreasureHunt/Challenges": {
+      "get": {
+        "tags": ["TreasureHunt"],
+        "summary": "获取路线挑战、找寻/练习进度和已解锁的视频。",
+        "parameters": [
+          {
+            "name": "RouteId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "TeamId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasureChallengeResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasureChallengeResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreasureChallengeResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/TreasureHunt/CreatePhotoAttempt": {
+      "post": {
+        "tags": ["TreasureHunt"],
+        "summary": "使用现有图片附件创建异步文物识别任务。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExhibitPhotoAttemptRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExhibitPhotoAttemptRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExhibitPhotoAttemptRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitPhotoAttemptResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitPhotoAttemptResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitPhotoAttemptResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/TreasureHunt/PhotoAttempt": {
+      "get": {
+        "tags": ["TreasureHunt"],
+        "summary": "查询当前用户的一次照片识别结果。",
+        "parameters": [
+          {
+            "name": "AttemptId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitPhotoAttemptResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitPhotoAttemptResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitPhotoAttemptResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/TreasureHunt/RecordIntroVideo": {
+      "post": {
+        "tags": ["TreasureHunt"],
+        "summary": "记录介绍视频开始、完成或明确跳过，用于服务端练习门槛。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordChallengeIntroVideoRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordChallengeIntroVideoRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordChallengeIntroVideoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeIntroVideoProgressResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeIntroVideoProgressResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeIntroVideoProgressResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Upload/UploadImage": {
       "post": {
         "tags": ["Upload"],
@@ -5675,9 +5946,17 @@
             "format": "int32"
           },
           "pickCount": {
+            "maximum": 50,
+            "minimum": 1,
             "type": "integer",
             "description": "从候选文物中随机选取的数量",
             "format": "int32"
+          },
+          "requiredChallengeCount": {
+            "type": "integer",
+            "description": "必须完成的挑战数量；不传时等于本次有效 PickCount。",
+            "format": "int32",
+            "nullable": true
           },
           "difficulty": {
             "type": "integer",
@@ -5931,6 +6210,18 @@
             "type": "string",
             "nullable": true
           },
+          "challengeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "findStageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "practiceStageId": {
+            "type": "string",
+            "nullable": true
+          },
           "puzzleId": {
             "type": "string",
             "nullable": true
@@ -5989,6 +6280,10 @@
             "nullable": true
           },
           "pickCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "requiredCount": {
             "type": "integer",
             "format": "int32"
           },
@@ -6862,6 +7157,59 @@
         },
         "additionalProperties": false
       },
+      "BindChallengeIntroVideoRequest": {
+        "required": ["attachmentId", "challengeId"],
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "attachmentId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BindChallengeIntroVideoResponse": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "attachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "ready": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BindChallengeIntroVideoResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/BindChallengeIntroVideoResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "BuildRouteStagesRequest": {
         "required": ["routeId"],
         "type": "object",
@@ -6882,6 +7230,44 @@
         },
         "additionalProperties": false,
         "description": "构建路线步骤（组卷）请求 — 玩法无关入口，由对应玩法的创建策略解释"
+      },
+      "ChallengeIntroVideoProgressResponse": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "practiceUnlocked": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChallengeIntroVideoProgressResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ChallengeIntroVideoProgressResponse"
+          }
+        },
+        "additionalProperties": false
       },
       "ChangeUserStatusRequest": {
         "required": ["userId"],
@@ -7301,6 +7687,39 @@
         },
         "additionalProperties": false,
         "description": "创建收集品请求"
+      },
+      "CreateExhibitPhotoAttemptRequest": {
+        "required": [
+          "attachmentId",
+          "challengeId",
+          "clientAttemptId",
+          "routeId"
+        ],
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "challengeId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "attachmentId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "teamId": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientAttemptId": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "CreateExhibitRequest": {
         "required": ["exhibitCode", "museumId", "name"],
@@ -8531,6 +8950,90 @@
         },
         "additionalProperties": false,
         "description": "展品分页查询请求"
+      },
+      "ExhibitPhotoAttemptResponse": {
+        "type": "object",
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "nullable": true
+          },
+          "clientAttemptId": {
+            "type": "string",
+            "nullable": true
+          },
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "challengeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusName": {
+            "type": "string",
+            "nullable": true
+          },
+          "containsExhibit": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "recognizedExhibitId": {
+            "type": "string",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "matched": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitPhotoAttemptResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ExhibitPhotoAttemptResponse"
+          }
+        },
+        "additionalProperties": false
       },
       "ExhibitResponse": {
         "type": "object",
@@ -10754,6 +11257,32 @@
         "additionalProperties": false,
         "description": "数据看板 — 卡点谜题（正确率低/尝试多）"
       },
+      "RecordChallengeIntroVideoRequest": {
+        "required": ["challengeId", "routeId"],
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "challengeId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "teamId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "maximum": 3,
+            "minimum": 1,
+            "type": "integer",
+            "description": "1=开始播放 2=播放完成 3=明确跳过。",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "RecordRouteActivityRequest": {
         "required": ["activityType", "routeId"],
         "type": "object",
@@ -11655,6 +12184,154 @@
         "additionalProperties": false,
         "description": "路线分页查询请求"
       },
+      "RouteResultResponse": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "description": "路线 ID",
+            "nullable": true
+          },
+          "teamId": {
+            "type": "string",
+            "description": "队伍 ID（组队结算时有值）",
+            "nullable": true
+          },
+          "isTeamMode": {
+            "type": "boolean",
+            "description": "是否组队模式"
+          },
+          "routeTitle": {
+            "type": "string",
+            "description": "路线标题",
+            "nullable": true
+          },
+          "theme": {
+            "type": "string",
+            "description": "路线主题",
+            "nullable": true
+          },
+          "rewardTitle": {
+            "type": "string",
+            "description": "获得称号",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "description": "进度状态：1=进行中 2=已完成 3=已放弃 4=失败",
+            "format": "int32"
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "是否完成"
+          },
+          "teamCompleted": {
+            "type": "boolean",
+            "description": "队伍路线是否完成"
+          },
+          "totalScore": {
+            "type": "integer",
+            "description": "总积分",
+            "format": "int32"
+          },
+          "teamTotalScore": {
+            "type": "integer",
+            "description": "队伍路线积分",
+            "format": "int32"
+          },
+          "currentTotalPoints": {
+            "type": "integer",
+            "description": "当前用户个人总积分",
+            "format": "int64"
+          },
+          "solvedCount": {
+            "type": "integer",
+            "description": "已解谜题数",
+            "format": "int32"
+          },
+          "puzzleCount": {
+            "type": "integer",
+            "description": "总谜题数",
+            "format": "int32"
+          },
+          "usedClueCount": {
+            "type": "integer",
+            "description": "已使用线索数",
+            "format": "int32"
+          },
+          "noCluePerfect": {
+            "type": "boolean",
+            "description": "无线索通关（完成且全程未用线索）"
+          },
+          "durationSec": {
+            "type": "integer",
+            "description": "完成用时（秒）",
+            "format": "int32",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "开始时间",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "完成时间",
+            "format": "date-time",
+            "nullable": true
+          },
+          "badges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BadgeResponse"
+            },
+            "description": "本路线获得的徽章",
+            "nullable": true
+          },
+          "collectibles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CollectibleResponse"
+            },
+            "description": "本路线获得的收集品",
+            "nullable": true
+          },
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteStageProgressItemResponse"
+            },
+            "description": "路线节点完成明细",
+            "nullable": true
+          },
+          "shareCard": {
+            "$ref": "#/components/schemas/ShareCardResponse"
+          }
+        },
+        "additionalProperties": false,
+        "description": "结局结算 — 真相揭示后的成绩卡/称号/徽章/分享数据"
+      },
+      "RouteResultResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RouteResultResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "RouteStageAdminResponse": {
         "type": "object",
         "properties": {
@@ -11942,6 +12619,69 @@
         "additionalProperties": false,
         "description": "覆盖式设置某业务对象的标签清单"
       },
+      "ShareCardResponse": {
+        "type": "object",
+        "properties": {
+          "nickname": {
+            "type": "string",
+            "description": "用户昵称",
+            "nullable": true
+          },
+          "routeTitle": {
+            "type": "string",
+            "description": "路线标题",
+            "nullable": true
+          },
+          "theme": {
+            "type": "string",
+            "description": "路线主题",
+            "nullable": true
+          },
+          "rewardTitle": {
+            "type": "string",
+            "description": "获得称号",
+            "nullable": true
+          },
+          "totalScore": {
+            "type": "integer",
+            "description": "总积分",
+            "format": "int32"
+          },
+          "solvedCount": {
+            "type": "integer",
+            "description": "已解谜题数",
+            "format": "int32"
+          },
+          "puzzleCount": {
+            "type": "integer",
+            "description": "总谜题数",
+            "format": "int32"
+          },
+          "durationSec": {
+            "type": "integer",
+            "description": "完成用时（秒）",
+            "format": "int32",
+            "nullable": true
+          },
+          "noCluePerfect": {
+            "type": "boolean",
+            "description": "无线索通关"
+          },
+          "completedAt": {
+            "type": "string",
+            "description": "完成时间",
+            "format": "date-time",
+            "nullable": true
+          },
+          "shareCode": {
+            "type": "string",
+            "description": "分享码（用于生成分享链接/二维码）",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "分享卡 / 结案海报数据（C端据此渲染分享图）"
+      },
       "StageHintResponse": {
         "type": "object",
         "properties": {
@@ -12190,6 +12930,10 @@
             "type": "boolean",
             "description": "当前队伍是否已完成该节点"
           },
+          "isUnlocked": {
+            "type": "boolean",
+            "description": "当前节点是否满足服务端前置条件。"
+          },
           "solvedByUserId": {
             "type": "string",
             "description": "首次代表队伍完成该节点的用户 ID",
@@ -12353,6 +13097,33 @@
           "message": {
             "type": "string",
             "description": "提示信息",
+            "nullable": true
+          },
+          "totalPointsDelta": {
+            "type": "integer",
+            "description": "本次路线完成时加入个人总积分的路线分；未完成或重复提交时为 0",
+            "format": "int32"
+          },
+          "currentTotalPoints": {
+            "type": "integer",
+            "description": "本次响应后的个人总积分",
+            "format": "int64",
+            "nullable": true
+          },
+          "awardedBadges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BadgeResponse"
+            },
+            "description": "本次路线完成新获得的徽章",
+            "nullable": true
+          },
+          "awardedCollectibles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CollectibleResponse"
+            },
+            "description": "本次路线完成新获得的收集品",
             "nullable": true
           }
         },
@@ -12758,6 +13529,105 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/TeamResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TreasureChallengeResponse": {
+        "type": "object",
+        "properties": {
+          "challengeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "seqNo": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "puzzleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "findStageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "practiceStageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "practiceGameplayType": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "practiceInteractionType": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "isRequired": {
+            "type": "boolean"
+          },
+          "found": {
+            "type": "boolean"
+          },
+          "practiceCompleted": {
+            "type": "boolean"
+          },
+          "foundExhibitId": {
+            "type": "string",
+            "nullable": true
+          },
+          "introVideoBound": {
+            "type": "boolean"
+          },
+          "introVideoUnlocked": {
+            "type": "boolean"
+          },
+          "introVideoUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "introVideoProgressStatus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "practiceUnlocked": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "TreasureChallengeResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreasureChallengeResponse"
             },
             "nullable": true
           }
@@ -14148,6 +15018,10 @@
     {
       "name": "Team",
       "description": "组队 — 创建/加入/退出/解散/查询 (需登录)"
+    },
+    {
+      "name": "TreasureHunt",
+      "description": "内部拍照寻宝业务接口；不使用 SkipPermission，不作为对外开放 API。"
     }
   ]
 }

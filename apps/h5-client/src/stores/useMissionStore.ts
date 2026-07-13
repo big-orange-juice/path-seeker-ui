@@ -3,8 +3,8 @@ import { acceptHMRUpdate, defineStore } from "pinia"
 import {
   advanceSessionAfterChapterResult,
   finalizeSessionAfterSolve,
-  resolveResumeRoutePath as resolveRuntimeResumeRoutePath,
 } from "@path-seeker/game-runtime"
+import { useCinemaStore } from "@/stores/useCinemaStore"
 import {
   adaptRouteDetailToMission,
   encodeStageSubmitPayload,
@@ -24,8 +24,12 @@ import {
   shouldMarkRouteCompleted,
 } from "@/adapters/missionGameplayAdapter"
 import {
+  buildChapterProgressMap,
   buildRestoredMissionSession,
   buildStartedMissionSession,
+  getChapterGateProgress,
+  resolveChapterEnterPath,
+  resolveMissionResumePath,
   sanitizeMissionHintTextMap,
 } from "@/adapters/missionSessionAdapter"
 import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, TASK_KIND_OPTIONS } from "@/constants/missionSchema"
@@ -42,6 +46,7 @@ import { resolveRequestErrorMessage } from "@/services/http"
 import { getDifficultyLabel } from "@/utils/puzzleLabels"
 import type {
   AgeBand,
+  ChapterGateProgress,
   HintLevel,
   MissionAnswerDraft,
   MissionArchiveEntry,
@@ -198,6 +203,7 @@ export const useMissionStore = defineStore(
       routeListError.value = ""
 
       try {
+        // 列表筛选较频繁，不用全屏 cinema；任务主链路接口才走 cinema loading
         const response = await fetchRoutePageList(
           buildRoutePageQuery({
             museumId: DEFAULT_MUSEUM_ID,
@@ -230,9 +236,13 @@ export const useMissionStore = defineStore(
 
       detailPending.value = true
       detailError.value = ""
+      const cinema = useCinemaStore()
 
       try {
-        const detail = await fetchRouteDetail(routeId)
+        const detail = await cinema.withLoading(
+          () => fetchRouteDetail(routeId),
+          { label: "打开任务", effect: "swirl" },
+        )
         const mission = adaptRouteDetailToMission(detail)
 
         if (!mission) {
@@ -265,12 +275,20 @@ export const useMissionStore = defineStore(
 
       gameplayPending.value = true
       gameplayError.value = ""
+      const cinema = useCinemaStore()
+      const session = activeSession.value
 
       try {
-        const [detail, stages] = await Promise.all([
-          fetchRouteDetail(activeSession.value.routeId),
-          fetchGameplayStages(activeSession.value.routeId, activeSession.value.teamId),
-        ])
+        const { detail, stages } = await cinema.withLoading(
+          async () => {
+            const [detailRes, stagesRes] = await Promise.all([
+              fetchRouteDetail(session.routeId),
+              fetchGameplayStages(session.routeId, session.teamId),
+            ])
+            return { detail: detailRes, stages: stagesRes }
+          },
+          { label: "恢复进度", effect: "cinema" },
+        )
         const mission = adaptRouteDetailToMission(detail, stages)
 
         if (!mission) {
@@ -304,13 +322,20 @@ export const useMissionStore = defineStore(
     async function startRemoteMission(routeId: string, selectedAgeBand?: AgeBand, teamId?: string | null) {
       gameplayPending.value = true
       gameplayError.value = ""
+      const cinema = useCinemaStore()
 
       try {
-        const [detail, joinResult, stages] = await Promise.all([
-          fetchRouteDetail(routeId),
-          joinGameplayRoute(routeId, teamId),
-          fetchGameplayStages(routeId, teamId),
-        ])
+        const { detail, joinResult, stages } = await cinema.withLoading(
+          async () => {
+            const [detailRes, joinRes, stagesRes] = await Promise.all([
+              fetchRouteDetail(routeId),
+              joinGameplayRoute(routeId, teamId),
+              fetchGameplayStages(routeId, teamId),
+            ])
+            return { detail: detailRes, joinResult: joinRes, stages: stagesRes }
+          },
+          { label: "开启探索", effect: "cinema" },
+        )
         const mission = adaptRouteDetailToMission(detail, stages)
 
         if (!mission) {
@@ -373,6 +398,75 @@ export const useMissionStore = defineStore(
       return true
     }
 
+    function selectChapterById(chapterId: string) {
+      if (!activeMission.value) {
+        return false
+      }
+
+      const index = activeMission.value.chapters.findIndex((chapter) => chapter.id === chapterId)
+      if (index < 0) {
+        return false
+      }
+
+      return selectChapter(index)
+    }
+
+    function getChapterProgress(chapterId: string): ChapterGateProgress {
+      return getChapterGateProgress(activeSession.value, chapterId)
+    }
+
+    function patchChapterProgress(chapterId: string, partial: Partial<ChapterGateProgress>) {
+      if (!activeSession.value) {
+        return
+      }
+
+      const current = getChapterGateProgress(activeSession.value, chapterId)
+      activeSession.value = {
+        ...activeSession.value,
+        chapterProgress: {
+          ...(activeSession.value.chapterProgress || {}),
+          [chapterId]: {
+            ...current,
+            ...partial,
+          },
+        },
+      }
+    }
+
+    /** 临时：识别接口未定，前端本地标记（含跳过） */
+    function markChapterRecognized(chapterId: string) {
+      patchChapterProgress(chapterId, { recognized: true })
+    }
+
+    /** 临时：播片接口未定，前端本地标记（含跳过） */
+    function markChapterVideoWatched(chapterId: string) {
+      patchChapterProgress(chapterId, {
+        recognized: true,
+        videoWatched: true,
+      })
+    }
+
+    function resolveEnterChapterPath(chapterId?: string) {
+      if (!activeSession.value || !activeMission.value) {
+        return null
+      }
+
+      const chapter =
+        (chapterId
+          ? activeMission.value.chapters.find((item) => item.id === chapterId)
+          : currentChapter.value) || null
+
+      if (!chapter) {
+        return `/missions/${activeSession.value.routeId}/map`
+      }
+
+      return resolveChapterEnterPath(
+        activeSession.value.routeId,
+        chapter.id,
+        getChapterGateProgress(activeSession.value, chapter.id),
+      )
+    }
+
     function getNextUnsolvedChapter(afterChapterId?: string) {
       if (!activeMission.value || !activeSession.value) {
         return null
@@ -398,17 +492,24 @@ export const useMissionStore = defineStore(
     }
 
     function resolveResumeRoutePath() {
-      if (!activeSession.value || !activeMission.value || !currentChapter.value) {
+      if (!activeSession.value || !activeMission.value) {
         return null
       }
 
-      return resolveRuntimeResumeRoutePath({
-        session: activeSession.value,
+      const chapter = currentChapter.value
+      const puzzleId = chapter?.puzzle.id
+
+      return resolveMissionResumePath({
+        session: {
+          ...activeSession.value,
+          chapterProgress:
+            activeSession.value.chapterProgress
+            || buildChapterProgressMap(activeMission.value, activeSession.value.solvedChapterIds),
+        },
         mission: activeMission.value,
-        chapter: currentChapter.value,
-        currentPuzzleId: currentChapter.value.puzzle.id,
-        currentHintLevels: currentHintLevels.value,
-        hasDraft: Boolean(getMissionDraft(currentChapter.value.puzzle.id)),
+        chapterId: chapter?.id || null,
+        hasDraft: puzzleId ? Boolean(getMissionDraft(puzzleId)) : false,
+        hasHint: puzzleId ? Boolean((activeSession.value.hintHistory[puzzleId] || []).length) : false,
       })
     }
 
@@ -506,6 +607,8 @@ export const useMissionStore = defineStore(
       }
 
       const hints = activeSession.value.hintHistory[currentPuzzle.value.id] || []
+      const chapterId = currentChapter.value.id
+      const previousProgress = activeSession.value.chapterProgress || {}
       const { nextSession, routeCompleted, snapshot } = finalizeSessionAfterSolve({
         session: activeSession.value,
         mission: activeMission.value,
@@ -516,10 +619,25 @@ export const useMissionStore = defineStore(
         narrativeOverride,
       })
 
-      activeSession.value = nextSession
+      activeSession.value = {
+        ...activeSession.value,
+        ...nextSession,
+        chapterProgress: {
+          ...previousProgress,
+          [chapterId]: {
+            recognized: true,
+            videoWatched: true,
+            solved: true,
+          },
+        },
+      }
 
       if (routeCompleted) {
-        const nextEntry = buildMissionArchiveEntry(nextSession, activeMission.value, getDifficultyLabel(activeMission.value.difficultyLevel))
+        const nextEntry = buildMissionArchiveEntry(
+          activeSession.value,
+          activeMission.value,
+          getDifficultyLabel(activeMission.value.difficultyLevel),
+        )
         archiveEntries.value = appendArchiveEntry(archiveEntries.value, nextEntry)
       }
 
@@ -534,20 +652,32 @@ export const useMissionStore = defineStore(
       saveDraft(draft)
       gameplayPending.value = true
       gameplayError.value = ""
+      const cinema = useCinemaStore()
+      const session = activeSession.value
+      const puzzle = currentPuzzle.value
 
       try {
-        const response = await submitGameplayStage({
-          routeId: activeSession.value.routeId,
-          stageId: currentPuzzle.value.id,
-          teamId: activeSession.value.teamId,
-          payload: encodeStageSubmitPayload(currentPuzzle.value, draft.value),
-        })
+        const response = await cinema.withLoading(
+          () =>
+            submitGameplayStage({
+              routeId: session.routeId,
+              stageId: puzzle.id,
+              teamId: session.teamId,
+              payload: encodeStageSubmitPayload(puzzle, draft.value),
+            }),
+          { label: "核验答案", effect: "cinema" },
+        )
 
         if (!response.success) {
-          return buildMissionSubmitResult(false, response.message || currentPuzzle.value.failureCopy, null)
+          return buildMissionSubmitResult(false, response.message || puzzle.failureCopy, null)
         }
 
-        const snapshot = finalizeSolve(false, response.scoreGained ?? 0, response.message || "")
+        const score = response.scoreGained ?? 0
+        if (score > 0) {
+          cinema.showScore(score)
+        }
+
+        const snapshot = finalizeSolve(false, score, response.message || "")
         clearCurrentPuzzleDraft()
         if (shouldMarkRouteCompleted(response) && activeSession.value) {
           const latestChapterResult = snapshot ? { ...snapshot, finalChapter: true } : activeSession.value.latestChapterResult
@@ -558,7 +688,7 @@ export const useMissionStore = defineStore(
           }
         }
 
-        return buildMissionSubmitResult(true, response.message || currentPuzzle.value.successCopy, snapshot)
+        return buildMissionSubmitResult(true, response.message || puzzle.successCopy, snapshot)
       } catch (error) {
         gameplayError.value = resolveRequestErrorMessage(error, "答案提交失败")
         return buildMissionSubmitResult(false, gameplayError.value, null)
@@ -630,6 +760,11 @@ export const useMissionStore = defineStore(
       restoreActiveMission,
       startRemoteMission,
       selectChapter,
+      selectChapterById,
+      getChapterProgress,
+      markChapterRecognized,
+      markChapterVideoWatched,
+      resolveEnterChapterPath,
       getNextUnsolvedChapter,
       clearActiveSession,
       resolveResumeRoutePath,

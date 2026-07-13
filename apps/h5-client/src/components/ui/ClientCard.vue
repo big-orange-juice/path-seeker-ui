@@ -1,5 +1,5 @@
 <template>
-  <section class="client-panel rounded-[var(--radius-md)] border border-border bg-card text-card-foreground shadow-soft">
+  <section class="client-panel text-card-foreground">
     <slot />
   </section>
 </template>

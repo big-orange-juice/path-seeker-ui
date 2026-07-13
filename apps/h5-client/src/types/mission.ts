@@ -178,6 +178,13 @@ export interface ChapterResultSnapshot {
   finalChapter: boolean
 }
 
+/** 单站本地闸门进度（识别/播片暂无公开后端接口，前端本地维护，可跳过） */
+export interface ChapterGateProgress {
+  recognized: boolean
+  videoWatched: boolean
+  solved: boolean
+}
+
 export interface MissionSession {
   sessionId: string
   routeId: string
@@ -191,6 +198,8 @@ export interface MissionSession {
   unlockedRewardIds: string[]
   hintHistory: Record<string, HintLevel[]>
   draftHistory: Record<string, MissionAnswerDraft | null>
+  /** 按章节 ID 记录识别/播片/通关闸门；识别与播片可跳过 */
+  chapterProgress: Record<string, ChapterGateProgress>
   totalScore: number
   startedAt: string
   status: "in_progress" | "completed"

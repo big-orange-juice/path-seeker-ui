@@ -66,7 +66,8 @@ async function jumpToChapter(index: number) {
   }
 
   toastStore.info("已切换章节", `准备进入 ${chapter.title}。`)
-  await router.push(`/missions/${activeSession.value.routeId}/chapters/${chapter.id}/clue`)
+  const path = missionStore.resolveEnterChapterPath(chapter.id)
+  await router.push(path || `/missions/${activeSession.value.routeId}/map`)
 }
 
 async function replayCurrentMission() {

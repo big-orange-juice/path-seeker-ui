@@ -8,21 +8,22 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 const title = computed(() => String(route.meta.title || "Path Seeker"))
+const hideChromeHeader = computed(() => {
+  // 播片页自带影院头，避免双重顶栏
+  return route.path.includes("/video")
+})
 </script>
 
 <template>
   <div class="client-shell">
     <div class="client-frame client-frame-with-fab">
-      <header class="mb-6 flex items-start justify-between gap-4">
-        <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Path Seeker H5</p>
+      <header v-if="!hideChromeHeader" class="mb-5 flex items-start justify-between gap-4">
+        <div class="min-w-0 space-y-1.5">
+          <p class="client-top-kicker">Path Seeker</p>
           <h1 class="client-page-title">{{ title }}</h1>
         </div>
-        <RouterLink
-          to="/auth"
-          class="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary"
-        >
-          {{ authStore.isLoggedIn ? authStore.displayName : "登录" }}
+        <RouterLink to="/auth" class="client-user-pill shrink-0">
+          {{ authStore.isLoggedIn ? authStore.displayName || "探索者" : "登录" }}
         </RouterLink>
       </header>
 

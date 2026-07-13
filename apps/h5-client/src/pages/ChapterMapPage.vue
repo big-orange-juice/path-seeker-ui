@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
+import { useToastStore } from "@path-seeker/client-state"
 import { ClientBadge, ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
-import { getPuzzleTypeLabel } from "@/utils/puzzleLabels"
 
 const route = useRoute()
 const router = useRouter()
 const missionStore = useMissionStore()
+const toastStore = useToastStore()
 
 const routeId = computed(() => String(route.params.routeId || ""))
 
@@ -16,12 +17,30 @@ const chapterStatuses = computed(() => {
     return []
   }
 
-  return missionStore.activeMission.chapters.map((chapter, index) => ({
-    ...chapter,
-    index,
-    solved: missionStore.activeSession?.solvedChapterIds.includes(chapter.id),
-    active: missionStore.activeSession?.currentChapterIndex === index,
-  }))
+  return missionStore.activeMission.chapters.map((chapter, index) => {
+    const progress = missionStore.getChapterProgress(chapter.id)
+    const solved = missionStore.activeSession?.solvedChapterIds.includes(chapter.id) || progress.solved
+    const active = missionStore.activeSession?.currentChapterIndex === index
+
+    let stateLabel = "待探索"
+    if (solved) {
+      stateLabel = "完成"
+    } else if (active) {
+      stateLabel = "当前"
+    } else if (progress.videoWatched) {
+      stateLabel = "待闯关"
+    } else if (progress.recognized) {
+      stateLabel = "已识别"
+    }
+
+    return {
+      ...chapter,
+      index,
+      solved,
+      active,
+      stateLabel,
+    }
+  })
 })
 
 const currentStepLabel = computed(() => {
@@ -29,7 +48,7 @@ const currentStepLabel = computed(() => {
     return ""
   }
 
-  return `已完成 ${missionStore.activeSession.solvedChapterIds.length} / ${missionStore.activeMission.chapterCount}`
+  return `${missionStore.activeSession.solvedChapterIds.length}/${missionStore.activeMission.chapterCount}`
 })
 
 async function ensureMissionReady() {
@@ -51,15 +70,32 @@ async function ensureMissionReady() {
 }
 
 function selectChapter(index: number) {
+  const alreadySelected = missionStore.activeSession?.currentChapterIndex === index
   missionStore.selectChapter(index)
+  if (alreadySelected) {
+    void enterSelectedChapter()
+  }
 }
 
-async function goCurrentChapter() {
-  if (!missionStore.currentChapter) {
+async function enterSelectedChapter() {
+  if (!missionStore.currentChapter || !missionStore.activeSession) {
     return
   }
 
-  await router.push(`/missions/${routeId.value}/chapters/${missionStore.currentChapter.id}/clue`)
+  const chapter = missionStore.currentChapter
+  const progress = missionStore.getChapterProgress(chapter.id)
+
+  if (progress.solved || missionStore.activeSession.solvedChapterIds.includes(chapter.id)) {
+    toastStore.info("这一站已完成", "可以选其他站点继续探索。")
+    return
+  }
+
+  const path = missionStore.resolveEnterChapterPath(chapter.id)
+  if (!path) {
+    return
+  }
+
+  await router.push(path)
 }
 
 async function goBackToDetail() {
@@ -77,34 +113,40 @@ onMounted(() => {
       <div class="space-y-5 p-5">
         <div class="flex items-start justify-between gap-4">
           <div class="space-y-2">
-            <ClientBadge>{{ currentStepLabel }}</ClientBadge>
-            <h2 class="font-display text-3xl leading-tight text-foreground">{{ missionStore.currentChapter?.title }}</h2>
-            <p class="client-page-copy">{{ missionStore.currentChapter?.targetLocation }}</p>
+            <ClientBadge>{{ currentStepLabel }} 站 · {{ missionStore.activeSession.totalScore }} 分</ClientBadge>
+            <h2 class="font-display text-3xl leading-tight text-foreground">
+              {{ missionStore.currentChapter?.title || missionStore.activeMission.title }}
+            </h2>
+            <p v-if="missionStore.currentChapter?.targetLocation" class="client-page-copy">
+              {{ missionStore.currentChapter.targetLocation }}
+            </p>
           </div>
           <div class="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
             {{ missionStore.progressPercent }}%
           </div>
         </div>
 
-        <div class="rounded-[1rem] bg-background/70 p-4">
-          <div v-if="missionStore.currentChapter?.objective" class="text-sm font-semibold text-foreground">
-            {{ missionStore.currentChapter?.objective }}
-          </div>
-          <div
-            v-if="missionStore.currentChapter?.artifact.subtitle"
-            class="text-sm leading-6 text-muted-foreground"
-            :class="missionStore.currentChapter?.objective ? 'mt-2' : ''"
-          >
-            {{ missionStore.currentChapter?.artifact.subtitle }}
-          </div>
-          <div class="mt-3 text-xs text-muted-foreground">
-            {{ missionStore.currentChapter ? getPuzzleTypeLabel(missionStore.currentChapter.puzzle.templateType, missionStore.currentChapter.puzzle.interactionType) : "" }}
-          </div>
+        <div
+          v-if="missionStore.currentChapter"
+          class="rounded-[1rem] bg-background/70 p-4"
+        >
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">本章简介</p>
+          <h3 class="mt-2 text-lg font-semibold text-foreground">{{ missionStore.currentChapter.title }}</h3>
+          <p class="mt-2 text-sm leading-6 text-muted-foreground">
+            {{
+              missionStore.currentChapter.objective
+                || missionStore.currentChapter.artifact.detailCallout
+                || "到站后细细观察。"
+            }}
+          </p>
+          <p v-if="missionStore.currentChapter.targetLocation" class="mt-2 text-xs text-muted-foreground">
+            {{ missionStore.currentChapter.targetLocation }}
+          </p>
         </div>
 
         <div class="space-y-3">
           <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-foreground">章节列表</h3>
+            <h3 class="text-lg font-semibold text-foreground">路线站点</h3>
             <span class="text-sm text-muted-foreground">{{ missionStore.activeMission.chapterCount }} 站</span>
           </div>
 
@@ -117,8 +159,10 @@ onMounted(() => {
               :class="chapter.active ? 'border-primary bg-primary/5' : chapter.solved ? 'border-primary/30 bg-background/80' : 'border-border bg-background/70'"
               @click="selectChapter(chapter.index)"
             >
-              <div class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold"
-                :class="chapter.solved || chapter.active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'">
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold"
+                :class="chapter.solved || chapter.active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
+              >
                 {{ chapter.solved ? "✓" : chapter.stageNo }}
               </div>
               <div class="min-w-0 flex-1">
@@ -126,14 +170,14 @@ onMounted(() => {
                 <div class="text-sm text-muted-foreground">{{ chapter.targetLocation }}</div>
               </div>
               <div class="text-right text-xs text-muted-foreground">
-                {{ chapter.active ? "已选" : chapter.solved ? "完成" : "待探索" }}
+                {{ chapter.stateLabel }}
               </div>
             </button>
           </div>
         </div>
 
         <div class="grid gap-3">
-          <ClientButton class="w-full" @click="goCurrentChapter()">进入当前章节</ClientButton>
+          <ClientButton class="w-full" @click="enterSelectedChapter()">进入这一站</ClientButton>
           <ClientButton variant="outline" class="w-full" @click="goBackToDetail()">返回任务详情</ClientButton>
         </div>
       </div>

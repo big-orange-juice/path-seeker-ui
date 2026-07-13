@@ -1,10 +1,18 @@
 import { createRouter, createWebHistory } from "vue-router"
+import {
+  resolveRouteCinemaEffect,
+  resolveRouteCinemaLabel,
+  shouldRunRouteCinema,
+} from "@/fx/routeCinema"
 import { useAuthStore } from "@/stores/useAuthStore"
+import { useCinemaStore } from "@/stores/useCinemaStore"
 import MobileShellLayout from "@/layouts/MobileShellLayout.vue"
 import AuthPage from "@/pages/AuthPage.vue"
 import ArtifactCluePage from "@/pages/ArtifactCluePage.vue"
+import ChapterBriefPage from "@/pages/ChapterBriefPage.vue"
 import ChapterMapPage from "@/pages/ChapterMapPage.vue"
 import ChapterResultPage from "@/pages/ChapterResultPage.vue"
+import ChapterVideoPage from "@/pages/ChapterVideoPage.vue"
 import FinalePage from "@/pages/FinalePage.vue"
 import ProloguePage from "@/pages/ProloguePage.vue"
 import PuzzlePage from "@/pages/PuzzlePage.vue"
@@ -97,10 +105,26 @@ const router = createRouter({
           },
         },
         {
+          path: "missions/:routeId/chapters/:chapterId/brief",
+          component: ChapterBriefPage,
+          meta: {
+            title: "线索",
+            showTabBar: false,
+          },
+        },
+        {
           path: "missions/:routeId/chapters/:chapterId/clue",
           component: ArtifactCluePage,
           meta: {
-            title: "展品观察",
+            title: "找一找",
+            showTabBar: false,
+          },
+        },
+        {
+          path: "missions/:routeId/chapters/:chapterId/video",
+          component: ChapterVideoPage,
+          meta: {
+            title: "观展短片",
             showTabBar: false,
           },
         },
@@ -108,7 +132,7 @@ const router = createRouter({
           path: "missions/:routeId/chapters/:chapterId/puzzle",
           component: PuzzlePage,
           meta: {
-            title: "谜题挑战",
+            title: "闯关",
             showTabBar: false,
           },
         },
@@ -116,7 +140,7 @@ const router = createRouter({
           path: "missions/:routeId/chapters/:chapterId/result",
           component: ChapterResultPage,
           meta: {
-            title: "章节结果",
+            title: "本站结果",
             showTabBar: false,
           },
         },
@@ -133,10 +157,17 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to) => {
+router.beforeEach(async (to, from) => {
   const authStore = useAuthStore()
 
   if (to.meta.public) {
+    if (shouldRunRouteCinema(to, from)) {
+      const cinema = useCinemaStore()
+      await cinema.playRouteExit({
+        effect: resolveRouteCinemaEffect(to, from),
+        label: resolveRouteCinemaLabel(to),
+      })
+    }
     return true
   }
 
@@ -162,7 +193,29 @@ router.beforeEach(async (to) => {
     }
   }
 
+  // Cinema 路由过场：离开页压暗 + 星空斗转（可与接口 loading 叠加）
+  if (shouldRunRouteCinema(to, from)) {
+    const cinema = useCinemaStore()
+    await cinema.playRouteExit({
+      effect: resolveRouteCinemaEffect(to, from),
+      label: resolveRouteCinemaLabel(to),
+      duration: to.path.includes("/video") ? 920 : 860,
+    })
+  }
+
   return true
+})
+
+router.afterEach((to) => {
+  const cinema = useCinemaStore()
+  // 仅当 beforeEach 已启动过场时收尾升起
+  if (!cinema.transitBusy) {
+    return
+  }
+
+  void cinema.playRouteEnter({
+    duration: to.path.includes("/video") || to.path.includes("/finale") ? 780 : 640,
+  })
 })
 
 export default router

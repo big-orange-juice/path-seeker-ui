@@ -9,7 +9,12 @@ export default {
     "../../packages/ui/src/**/*.{vue,ts}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        display: ['"Noto Serif SC"', "STSong", "serif"],
+        sans: ['"Noto Sans SC"', "system-ui", "-apple-system", "sans-serif"],
+      },
+    },
   },
   plugins: [],
 } satisfies Config
