@@ -1288,6 +1288,189 @@
         }
       }
     },
+    "/api/Chat/send": {
+      "post": {
+        "tags": ["Chat"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatSendRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatSendRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatSendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Chat/sessions": {
+      "post": {
+        "tags": ["Chat"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChatSessionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChatSessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChatSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": ["Chat"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSessionResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSessionResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatSessionResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Chat/history": {
+      "get": {
+        "tags": ["Chat"],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatMessageResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Chat/archive": {
+      "post": {
+        "tags": ["Chat"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Collection/List": {
       "get": {
         "tags": ["Collection"],
@@ -2419,6 +2602,53 @@
         }
       }
     },
+    "/api/Gameplay/StageMove": {
+      "post": {
+        "tags": ["Gameplay"],
+        "summary": "Admin：显式移动节点到目标路线，并重排两条路线。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveRouteStageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveRouteStageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveRouteStageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Gameplay/StageDelete": {
       "post": {
         "tags": ["Gameplay"],
@@ -2438,6 +2668,53 @@
             "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/IdRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Gameplay/StageBatchDelete": {
+      "post": {
+        "tags": ["Gameplay"],
+        "summary": "Admin：批量软删除节点，并按路线重排顺序、重算统计。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdListRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdListRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdListRequest"
               }
             }
           }
@@ -3032,6 +3309,278 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GraphNaturalSearchResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/list": {
+      "get": {
+        "tags": ["Guide"],
+        "parameters": [
+          {
+            "name": "Keyword",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Status",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "VoiceStatus",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageIndex",
+            "in": "query",
+            "description": "页码，从 1 开始",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "description": "每页条数，默认 10",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseListTotalPageResultApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseListTotalPageResultApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseListTotalPageResultApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/detail": {
+      "get": {
+        "tags": ["Guide"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/create": {
+      "post": {
+        "tags": ["Guide"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveGuideRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveGuideRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveGuideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/update": {
+      "post": {
+        "tags": ["Guide"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGuideRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGuideRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGuideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/delete": {
+      "post": {
+        "tags": ["Guide"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteGuideRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteGuideRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteGuideRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/client-list": {
+      "get": {
+        "tags": ["Guide"],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideResponseListApiResponse"
                 }
               }
             }
@@ -3678,6 +4227,181 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Narration/generate": {
+      "post": {
+        "tags": ["Narration"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationStageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationStageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationStageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Narration/update-text": {
+      "post": {
+        "tags": ["Narration"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNarrationTextRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNarrationTextRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNarrationTextRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Narration/generate-audio": {
+      "post": {
+        "tags": ["Narration"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationStageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationStageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationStageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Narration/detail": {
+      "get": {
+        "tags": ["Narration"],
+        "parameters": [
+          {
+            "name": "stageId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationDetailResponseApiResponse"
                 }
               }
             }
@@ -7287,6 +8011,146 @@
         "additionalProperties": false,
         "description": "变更用户状态请求"
       },
+      "ChatMessageResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "runId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sequenceNo": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "nullable": true
+          },
+          "toolCallsJson": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatMessageResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessageResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatSendRequest": {
+        "required": ["clientMessageId", "message", "sessionId"],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "clientMessageId": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 20000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatSessionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "contextRouteId": {
+            "type": "string",
+            "nullable": true
+          },
+          "messageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastActiveAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatSessionResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatSessionResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "CollectiblePageRequest": {
         "type": "object",
         "properties": {
@@ -7614,6 +8478,22 @@
         },
         "additionalProperties": false,
         "description": "创建徽章请求"
+      },
+      "CreateChatSessionRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "contextRouteId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       },
       "CreateCollectibleRequest": {
         "required": ["collectibleCode", "name"],
@@ -8384,7 +9264,7 @@
           },
           "interactionType": {
             "type": "integer",
-            "description": "交互类型：1=Answer 2=Password 3=Sequence 4=Match 5=Select 6=Jigsaw 7=SoundMatch 8=SpotDiff 9=ShadowMatch",
+            "description": "交互类型：1~9=互动玩法 10=拍照识别 11=AI 语音解说。",
             "format": "int32"
           },
           "refPuzzleId": {
@@ -8665,6 +9545,21 @@
           },
           "data": {
             "$ref": "#/components/schemas/DashboardResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteGuideRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "实体主键 ID（雪花 ID，JavaScript 兼容为 string）",
+            "nullable": true
+          },
+          "replacementGuideId": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -10404,6 +11299,201 @@
         "additionalProperties": false,
         "description": "游客登录请求 (扫码即用，无需注册)"
       },
+      "GuideResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "guideCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarAttachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerVoiceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceLanguage": {
+            "type": "string",
+            "nullable": true
+          },
+          "speechRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "pitch": {
+            "type": "number",
+            "format": "double"
+          },
+          "voiceSampleAttachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceSampleUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isSystemDefault": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "narrationStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GuideResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideResponseListTotalPageResult": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideResponse"
+            },
+            "nullable": true
+          },
+          "pageIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideResponseListTotalPageResultApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GuideResponseListTotalPageResult"
+          }
+        },
+        "additionalProperties": false
+      },
       "HotExhibitResponse": {
         "type": "object",
         "properties": {
@@ -10425,6 +11515,20 @@
         },
         "additionalProperties": false,
         "description": "数据看板 — 热门藏品（被解谜引用次数）"
+      },
+      "IdListRequest": {
+        "required": ["ids"],
+        "type": "object",
+        "properties": {
+          "ids": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
       },
       "IdRequest": {
         "type": "object",
@@ -10814,6 +11918,31 @@
         },
         "additionalProperties": false
       },
+      "MoveRouteStageRequest": {
+        "required": ["id", "targetRouteId"],
+        "type": "object",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "targetRouteId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "targetStageNo": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "MuseumPageRequest": {
         "type": "object",
         "properties": {
@@ -11116,6 +12245,105 @@
           },
           "data": {
             "$ref": "#/components/schemas/MyRouteProgressResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NarrationDetailResponse": {
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "guideId": {
+            "type": "string",
+            "nullable": true
+          },
+          "guideName": {
+            "type": "string",
+            "nullable": true
+          },
+          "guideVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resolvedStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "narrationText": {
+            "type": "string",
+            "nullable": true
+          },
+          "textHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "textStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "textError": {
+            "type": "string",
+            "nullable": true
+          },
+          "ttsTaskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "audioAttachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "audioUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "audioStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "durationMs": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NarrationDetailResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/NarrationDetailResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NarrationStageRequest": {
+        "required": ["stageId"],
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "minLength": 1,
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -12390,6 +13618,10 @@
           "nextRule": {
             "type": "string",
             "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -12592,6 +13824,89 @@
         },
         "additionalProperties": false,
         "description": "数据看板 — 路线维度"
+      },
+      "SaveGuideRequest": {
+        "required": ["guideCode", "name"],
+        "type": "object",
+        "properties": {
+          "guideCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "avatarAttachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerVoiceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceLanguage": {
+            "type": "string",
+            "nullable": true
+          },
+          "speechRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "pitch": {
+            "type": "number",
+            "format": "double"
+          },
+          "voiceSampleAttachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isSystemDefault": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "narrationStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "replacementGuideId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       },
       "SetTargetTagsRequest": {
         "required": ["targetId", "targetType"],
@@ -12808,7 +14123,7 @@
           },
           "interactionType": {
             "type": "integer",
-            "description": "交互类型：1=Answer 2=Password 3=Sequence 4=Match 5=Select 6=Jigsaw 7=SoundMatch 8=SpotDiff 9=ShadowMatch",
+            "description": "交互类型：1~9=互动玩法 10=拍照识别 11=AI 语音解说。",
             "format": "int32"
           },
           "refPuzzleId": {
@@ -14172,6 +15487,99 @@
         "additionalProperties": false,
         "description": "玩法 skill 更新请求"
       },
+      "UpdateGuideRequest": {
+        "required": ["guideCode", "id", "name"],
+        "type": "object",
+        "properties": {
+          "guideCode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "avatarAttachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceProvider": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerVoiceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "providerModel": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceLanguage": {
+            "type": "string",
+            "nullable": true
+          },
+          "speechRate": {
+            "type": "number",
+            "format": "double"
+          },
+          "volume": {
+            "type": "number",
+            "format": "double"
+          },
+          "pitch": {
+            "type": "number",
+            "format": "double"
+          },
+          "voiceSampleAttachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "voiceStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isSystemDefault": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "narrationStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "replacementGuideId": {
+            "type": "string",
+            "nullable": true
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateMuseumRequest": {
         "required": ["id", "museumCode", "name"],
         "type": "object",
@@ -14286,6 +15694,27 @@
         },
         "additionalProperties": false,
         "description": "更新博物馆请求"
+      },
+      "UpdateNarrationTextRequest": {
+        "required": ["narrationText", "stageId"],
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "narrationText": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
       },
       "UpdateProfileRequest": {
         "type": "object",
@@ -14479,7 +15908,7 @@
           },
           "interactionType": {
             "type": "integer",
-            "description": "交互类型：1=Answer 2=Password 3=Sequence 4=Match 5=Select 6=Jigsaw 7=SoundMatch 8=SpotDiff 9=ShadowMatch",
+            "description": "交互类型：1~9=互动玩法 10=拍照识别 11=AI 语音解说。",
             "format": "int32"
           },
           "refPuzzleId": {
@@ -14524,6 +15953,12 @@
           "id": {
             "minLength": 1,
             "type": "string"
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "description": "并发编辑条件；传入详情接口返回的更新时间，冲突时返回 409。",
+            "format": "date-time",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -14968,6 +16403,10 @@
       "description": "成就徽章 — 后台管理 + C端我的徽章"
     },
     {
+      "name": "Chat",
+      "description": "B端管理员 Agent Chat，多轮对话维护文旅路线。"
+    },
+    {
       "name": "Collection",
       "description": "收集系统 — 图鉴(公开)/我的收集 + 后台收集品管理"
     },
@@ -14992,12 +16431,20 @@
       "description": "知识图谱查询 — 传统图查询 + 自然语言语义搜索"
     },
     {
+      "name": "Guide",
+      "description": "导游与 TTS 音色管理。"
+    },
+    {
       "name": "Leaderboard",
       "description": "排行榜 — 路线积分榜 / 用户总分榜 / 路线用时榜 (公开)"
     },
     {
       "name": "Museum",
       "description": "博物馆 — 馆/楼层/设施 (公开查询匿名，管理操作需登录)"
+    },
+    {
+      "name": "Narration",
+      "description": "AI 解说词生成、人工编辑与 TTS 入队。"
     },
     {
       "name": "Puzzle",

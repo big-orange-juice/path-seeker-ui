@@ -11,6 +11,7 @@ import Input from '@/components/shadcn/input/Input.vue';
 import Select from '@/components/shadcn/select/Select.vue';
 import Textarea from '@/components/shadcn/textarea/Textarea.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
+import RouteChatWorkspace from '@/components/routes/RouteChatWorkspace.vue';
 import type { BuildRouteFromThemePayload } from '@/types/route';
 
 interface MuseumOption {
@@ -32,7 +33,9 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'update:open': [value: boolean];
-  submitAi: [payload: BuildRouteFromThemePayload];
+  submitManual: [payload: BuildRouteFromThemePayload];
+  routeChanged: [routeId: string];
+  routePublished: [routeId: string];
 }>();
 
 const activeTab = ref<'ai' | 'manual'>('ai');
@@ -46,19 +49,20 @@ const formState = reactive({
   difficulty: 2,
 });
 const localError = ref('');
+const chatWorkspaceRef = ref<InstanceType<typeof RouteChatWorkspace> | null>(null);
 
 const isOpen = computed({
   get: () => props.open,
   set: (value: boolean) => emit('update:open', value),
 });
 
-const canSubmit = computed(() =>
+const canSubmitManual = computed(() =>
   Boolean(
     formState.title.trim()
     && formState.theme.trim()
     && formState.themeQuery.trim()
-    && formState.museumId.trim()
-  )
+    && formState.museumId.trim(),
+  ),
 );
 
 const maxNodesModel = computed({
@@ -85,6 +89,7 @@ const resetForm = () => {
   formState.difficulty = 2;
   activeTab.value = 'ai';
   localError.value = '';
+  chatWorkspaceRef.value?.resetSession();
 };
 
 watch(
@@ -92,8 +97,11 @@ watch(
   (open) => {
     if (open) {
       resetForm();
+      return;
     }
-  }
+
+    chatWorkspaceRef.value?.abortActiveRun();
+  },
 );
 
 watch(
@@ -104,20 +112,21 @@ watch(
     }
 
     formState.museumId = props.defaultMuseumId || props.museumOptions[0]?.value || '';
-  }
+  },
 );
 
-const clampInteger = (value: number, min: number, max: number) => Math.min(Math.max(Math.trunc(value), min), max);
+const clampInteger = (value: number, min: number, max: number) =>
+  Math.min(Math.max(Math.trunc(value), min), max);
 
-const submitAi = () => {
+const submitManual = () => {
   localError.value = '';
 
-  if (!canSubmit.value) {
+  if (!canSubmitManual.value) {
     localError.value = '请补全路线标题、主题、提示词和所属博物馆。';
     return;
   }
 
-  emit('submitAi', {
+  emit('submitManual', {
     routeType: 59,
     routeId: '',
     title: formState.title.trim(),
@@ -134,11 +143,22 @@ const submitAi = () => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="flex h-[90vh] max-w-[760px] flex-col overflow-hidden">
-      <DialogHeader class="border-b border-border/70 px-5 py-4">
-        <DialogTitle>新增主题路线</DialogTitle>
-        <DialogDescription>选择创建方式并填写路线基础信息。</DialogDescription>
-      </DialogHeader>
+    <DialogContent class="flex h-[90vh] max-w-[1080px] flex-col overflow-hidden">
+      <div class="flex items-start justify-between gap-3 border-b border-border/70 px-5 py-4">
+        <DialogHeader class="space-y-1">
+          <DialogTitle>新增主题路线</DialogTitle>
+          <DialogDescription>可通过对话创建，或使用参数表单生成。</DialogDescription>
+        </DialogHeader>
+        <Button
+          variant="ghost"
+          size="icon"
+          type="button"
+          class="shrink-0"
+          :disabled="props.submitting"
+          @click="isOpen = false">
+          <AppIcon name="x" class="h-4 w-4" />
+        </Button>
+      </div>
 
       <div class="flex border-b border-border/70 px-5 pt-4">
         <button
@@ -159,7 +179,15 @@ const submitAi = () => {
         </button>
       </div>
 
-      <form v-if="activeTab === 'ai'" class="flex min-h-0 flex-1 flex-col" @submit.prevent="submitAi">
+      <div v-show="activeTab === 'ai'" class="flex min-h-0 flex-1 flex-col">
+        <RouteChatWorkspace
+          ref="chatWorkspaceRef"
+          :active="props.open && activeTab === 'ai'"
+          @route-changed="emit('routeChanged', $event)"
+          @route-published="emit('routePublished', $event)" />
+      </div>
+
+      <form v-show="activeTab === 'manual'" class="flex min-h-0 flex-1 flex-col" @submit.prevent="submitManual">
         <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div v-if="localError" class="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {{ localError }}
@@ -214,22 +242,11 @@ const submitAi = () => {
           <Button variant="outline" type="button" :disabled="props.submitting" @click="isOpen = false">
             取消
           </Button>
-          <Button type="submit" :disabled="props.submitting || !canSubmit">
+          <Button type="submit" :disabled="props.submitting || !canSubmitManual">
             {{ props.submitting ? '生成中...' : '开始生成' }}
           </Button>
         </DialogFooter>
       </form>
-
-      <div v-else class="flex min-h-0 flex-1 flex-col">
-        <div class="flex flex-1 items-center justify-center px-5 py-4 text-sm text-muted-foreground">
-          手动创建能力稍后开放。
-        </div>
-        <DialogFooter class="border-t border-border/70 px-5 py-4">
-          <Button variant="outline" type="button" @click="isOpen = false">
-            关闭
-          </Button>
-        </DialogFooter>
-      </div>
     </DialogContent>
   </Dialog>
 </template>

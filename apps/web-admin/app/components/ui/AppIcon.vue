@@ -9,11 +9,14 @@ import {
   ImageUp,
   Library,
   LibraryBig,
+  LoaderCircle,
   Map,
   Megaphone,
   Puzzle,
   RefreshCw,
   Route,
+  Send,
+  Sparkles,
   Trash2,
   UserRound,
   X,
@@ -29,11 +32,14 @@ export type AppIconName =
   | 'image-up'
   | 'library'
   | 'library-big'
+  | 'loader-circle'
   | 'map'
   | 'megaphone'
   | 'puzzle'
   | 'refresh-cw'
   | 'route'
+  | 'send'
+  | 'sparkles'
   | 'trash-2'
   | 'user-round'
   | 'x';
@@ -58,11 +64,14 @@ const iconMap: Record<AppIconName, LucideIcon> = {
   'image-up': ImageUp,
   library: Library,
   'library-big': LibraryBig,
+  'loader-circle': LoaderCircle,
   map: Map,
   megaphone: Megaphone,
   puzzle: Puzzle,
   'refresh-cw': RefreshCw,
   route: Route,
+  send: Send,
+  sparkles: Sparkles,
   'trash-2': Trash2,
   'user-round': UserRound,
   x: X,

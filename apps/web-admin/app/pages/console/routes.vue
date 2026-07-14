@@ -108,7 +108,7 @@ const {
   fetchRouteDetail,
 } = useRouteLibrary(() => selectedMuseumId.value);
 
-const handleCreateByAi = async (payload: BuildRouteFromThemePayload) => {
+const handleCreateManual = async (payload: BuildRouteFromThemePayload) => {
   createSubmitting.value = true;
   createError.value = '';
 
@@ -124,6 +124,22 @@ const handleCreateByAi = async (payload: BuildRouteFromThemePayload) => {
   } finally {
     createSubmitting.value = false;
   }
+};
+
+const handleChatRouteChanged = async (_routeId: string) => {
+  actionFeedback.value = '';
+  actionError.value = '';
+
+  try {
+    await refresh();
+  } catch (caughtError) {
+    actionError.value = resolveActionErrorMessage(caughtError, '路线列表刷新失败。');
+  }
+};
+
+const handleChatRoutePublished = async (routeId: string) => {
+  actionFeedback.value = '路线已发布，列表已更新。';
+  await handleChatRouteChanged(routeId);
 };
 
 const startRowAction = (routeId: string) => {
@@ -353,7 +369,9 @@ const submitConfirmedAction = async () => {
       :museum-options="museumOptions"
       :default-museum-id="selectedMuseumId"
       :submitting="createSubmitting"
-      @submit-ai="handleCreateByAi" />
+      @submit-manual="handleCreateManual"
+      @route-changed="handleChatRouteChanged"
+      @route-published="handleChatRoutePublished" />
 
     <RouteDetailDialog
       v-model:open="detailDialogOpen"

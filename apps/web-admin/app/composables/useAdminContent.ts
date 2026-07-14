@@ -74,7 +74,6 @@ const bModuleColumns: TableColumn[] = [
 const bModules: Array<Record<string, string>> = [
   { module: '基础数据管理', description: '维护博物馆、展馆楼层、展厅、展柜、标签和主题分类', value: '打通内容基础设施' },
   { module: '馆藏内容管理', description: '维护文物图文、音频、年代、材质、作者、故事和位置', value: '建立高质量内容底座' },
-  { module: '谜题工坊', description: '基于单件馆藏创建不同题型与年龄段谜题', value: '快速生产互动内容' },
   { module: '主题剧本编排', description: '按主题、路线、时长将多个谜题组合成完整游戏', value: '形成 C 端可玩产品' },
   { module: '审核与发布', description: '支持草稿、审核、发布、下线与版本管理', value: '控制内容质量' },
 ];
@@ -112,44 +111,6 @@ const collectionFields: Array<Record<string, string>> = [
   { item: '知识标签', description: '历史、工艺、人物、故事、纹样、器型、功能、地域' },
   { item: '剧情素材', description: '可作为线索的要素、可隐藏的秘密点、可做反转的故事点' },
   { item: '出题素材', description: '适合观察的细节、适合比较的差异、适合推理的关系' },
-];
-
-const puzzleWorkshopRows: InfoRow[] = [
-  { name: '一物多题', description: '同一件藏品生成多个谜题，覆盖不同年龄层与主题任务' },
-  { name: '题型模板化', description: '支持快速复制、改题与统一体验标准' },
-  { name: '素材自动关联', description: '出题时自动读取藏品图文与标签，降低编辑成本' },
-  { name: '难度控制', description: '通过提示次数、步骤数和干扰度控制体验强弱' },
-  { name: '审核机制', description: '避免知识错误、年龄不匹配与谜面过长' },
-];
-
-const ageColumns: TableColumn[] = [
-  { key: 'age', label: '年龄段' },
-  { key: 'traits', label: '认知特点' },
-  { key: 'types', label: '推荐题型' },
-  { key: 'tone', label: '文案风格' },
-];
-
-const ageStrategies: Array<Record<string, string>> = [
-  { age: '4-6 岁', traits: '以观察、颜色、形状和简单匹配为主', types: '找一找、连一连、选一选、拼图', tone: '童趣、短句、鼓励感强' },
-  { age: '6-10 岁', traits: '可理解简单因果与故事', types: '图片判断、排序、线索配对、真假判断', tone: '冒险、任务感明显' },
-  { age: '10-15 岁', traits: '喜欢挑战、愿意推理', types: '多线索推理、密码、地图线索、剧情选择', tone: '有悬念感和探索感' },
-  { age: '15 岁以上', traits: '接受复杂叙事与更高知识密度', types: '组合推理、隐藏信息、时间线重构', tone: '更克制、更有故事深度' },
-];
-
-const typeColumns: TableColumn[] = [
-  { key: 'type', label: '题型' },
-  { key: 'age', label: '适用年龄' },
-  { key: 'example', label: '示例' },
-  { key: 'offline', label: '线下适配' },
-];
-
-const puzzleTypes: Array<Record<string, string>> = [
-  { type: '观察选择题', age: '4-15+', example: '这件青铜器上有几种动物纹样？', offline: '高' },
-  { type: '细节找线索', age: '4-15+', example: '请找到卷轴右下角缺失的印章线索', offline: '高' },
-  { type: '顺序排序', age: '6-15+', example: '按制作流程排列漆器工艺步骤', offline: '高' },
-  { type: '剧情判断', age: '10-15+', example: '哪条线索更接近真相？', offline: '高' },
-  { type: '密码解锁', age: '10-15+', example: '从展柜编号和纹样数量得到四位密码', offline: '高' },
-  { type: '多步推理', age: '15+', example: '综合三件展品信息拼出事件时间线', offline: '高' },
 ];
 
 const themeRouteSeed: ThemeRoute[] = [
@@ -247,11 +208,6 @@ export function useAdminContent() {
     flowStages,
     collectionColumns,
     collectionFields,
-    puzzleWorkshopRows,
-    ageColumns,
-    ageStrategies,
-    typeColumns,
-    puzzleTypes,
     routeFilter,
     routeSearch,
     filteredThemeRoutes,
