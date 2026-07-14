@@ -38,7 +38,12 @@ const scrollToBottom = async () => {
 };
 
 watch(
-  () => [props.messages.length, props.messages.at(-1)?.content, props.tools.length, props.isRunning] as const,
+  () => [
+    props.messages.length,
+    props.messages.at(-1)?.content,
+    props.tools.length,
+    props.isRunning,
+  ] as const,
   () => {
     void scrollToBottom();
   },
@@ -63,7 +68,9 @@ const lastMessage = computed(() => props.messages.at(-1) ?? null);
         :show-retry="message.role === 'assistant' && message.status === 'failed' && message.id === lastMessage?.id"
         @retry="emit('retry')" />
 
-      <ChatToolStatus v-if="props.isRunning || props.tools.length" :tools="props.tools" />
+      <ChatToolStatus
+        v-if="props.isRunning || props.tools.length"
+        :tools="props.tools" />
     </div>
   </div>
 </template>

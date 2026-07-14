@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { getInteractionTypeMeta } from '@path-seeker/game-renderer';
 import AppIcon from '@/components/ui/AppIcon.vue';
-import type { ChatExhibitSummary, ChatRouteDetailPayload } from '@/types/chat';
+import type {
+  ChatExhibitSummary,
+  ChatRouteBuildProgressState,
+  ChatRouteDetailPayload,
+} from '@/types/chat';
 
 interface Props {
   routeDetail: ChatRouteDetailPayload | null;
   exhibits: ChatExhibitSummary[];
+  buildProgress?: ChatRouteBuildProgressState | null;
   contextRouteId?: string;
   publishedHint?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  buildProgress: null,
   contextRouteId: '',
   publishedHint: '',
 });
@@ -29,6 +36,44 @@ const routeId = computed(() =>
 
 const formatExhibitMeta = (exhibit: ChatExhibitSummary) =>
   [exhibit.dynasty, exhibit.category, exhibit.exhibitCode].filter(Boolean).join(' · ');
+
+const progress = computed(() => props.buildProgress);
+
+const progressPercent = computed(() => {
+  const item = progress.value;
+
+  if (!item || item.totalCount <= 0) {
+    return 0;
+  }
+
+  // 与文案统一：按累计「已创建 / 总数」计算，避免 processed 与 created 口径不一致。
+  const ratio = item.createdCount / item.totalCount;
+  return Math.max(0, Math.min(100, Math.round(ratio * 100)));
+});
+
+const interactionLabel = computed(() => {
+  const type = progress.value?.interactionType;
+
+  if (type == null || Number.isNaN(type)) {
+    return '';
+  }
+
+  return getInteractionTypeMeta(type)?.label || `玩法 ${type}`;
+});
+
+const progressTone = computed(() => {
+  const status = progress.value?.status;
+
+  if (status === 'failed') {
+    return 'failed';
+  }
+
+  if (status === 'completed') {
+    return 'completed';
+  }
+
+  return 'running';
+});
 </script>
 
 <template>
@@ -66,9 +111,66 @@ const formatExhibitMeta = (exhibit: ChatExhibitSummary) =>
               </dd>
             </div>
           </dl>
-          <p v-if="props.publishedHint" class="mt-2 text-xs text-emerald-600">
+          <p v-if="props.publishedHint" class="mt-2 text-xs text-emerald-400">
             {{ props.publishedHint }}
           </p>
+        </div>
+      </section>
+
+      <section v-if="progress" class="space-y-2">
+        <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+          <AppIcon name="sparkles" class="h-3.5 w-3.5" />
+          节点生成
+        </div>
+        <div
+          class="rounded-lg border px-3 py-3"
+          :class="{
+            'border-border/70 bg-muted/20': progressTone === 'running',
+            'border-emerald-400/40 bg-emerald-400/10': progressTone === 'completed',
+            'border-destructive/30 bg-destructive/5': progressTone === 'failed',
+          }">
+          <p
+            class="text-sm"
+            :class="{
+              'text-foreground': progressTone === 'running',
+              'text-emerald-500': progressTone === 'completed',
+              'text-destructive': progressTone === 'failed',
+            }">
+            {{ progress.message }}
+          </p>
+          <dl class="mt-2 space-y-1.5 text-xs text-muted-foreground">
+            <div v-if="progress.exhibitName" class="flex gap-2">
+              <dt class="shrink-0">文物</dt>
+              <dd class="min-w-0 break-words text-foreground/80">
+                {{ progress.exhibitName }}
+              </dd>
+            </div>
+            <div v-if="interactionLabel" class="flex gap-2">
+              <dt class="shrink-0">玩法</dt>
+              <dd class="min-w-0 text-foreground/80">
+                {{ interactionLabel }}
+              </dd>
+            </div>
+            <div class="flex gap-2">
+              <dt class="shrink-0">进度</dt>
+              <dd class="min-w-0 text-foreground/80">
+                已创建 {{ progress.createdCount }}/{{ progress.totalCount }}
+                <template v-if="progress.failedCount > 0">
+                  · 失败 {{ progress.failedCount }}
+                </template>
+              </dd>
+            </div>
+          </dl>
+          <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              class="h-full rounded-full transition-[width] duration-300"
+              :class="{
+                'bg-primary': progressTone === 'running',
+                'bg-emerald-400': progressTone === 'completed',
+                'bg-destructive': progressTone === 'failed',
+              }"
+              :style="{ width: `${progressPercent}%` }" />
+          </div>
         </div>
       </section>
 

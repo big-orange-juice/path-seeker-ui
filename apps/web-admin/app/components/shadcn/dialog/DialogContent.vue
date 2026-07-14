@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { inject, onBeforeUnmount, onMounted } from 'vue';
+import { computed, inject, onBeforeUnmount, onMounted } from 'vue';
 import { dialogContextKey } from './context';
+import { cn } from '@/utils/cn';
 
 const props = withDefaults(defineProps<{
   class?: string;
@@ -27,6 +28,18 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEscape);
   document.body.style.overflow = '';
 });
+
+/** 调用方已写 max-w 时不再套默认 1360，避免确认框被撑满 */
+const contentClass = computed(() => {
+  const extra = props.class || '';
+  const hasMaxWidth = /\bmax-w-/.test(extra);
+
+  return cn(
+    'warm-panel warm-outline relative w-full rounded-[0.95rem] border border-border/80 bg-[#111316]',
+    !hasMaxWidth && 'max-w-[1360px]',
+    extra,
+  );
+});
 </script>
 
 <template>
@@ -48,8 +61,7 @@ onBeforeUnmount(() => {
           aria-modal="true"
           :aria-labelledby="dialog.titleId.value"
           :aria-describedby="dialog.descriptionId.value"
-          class="warm-panel warm-outline relative w-full max-w-[1360px] rounded-[0.95rem] border border-border/80 bg-[#111316]"
-          :class="props.class"
+          :class="contentClass"
         >
           <slot />
         </div>

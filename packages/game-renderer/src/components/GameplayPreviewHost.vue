@@ -2,6 +2,7 @@
 import { computed } from "vue"
 import { getInteractionTypeMeta } from "../contracts"
 import type { GameplayPreviewStage } from "../contracts"
+import FindScanRenderer from "./renderers/FindScanRenderer.vue"
 
 interface PreviewItem {
   key: string
@@ -37,6 +38,89 @@ const minPick = computed(() => readNumber("min_pick") || 1)
 const maxPick = computed(() => readNumber("max_pick") || 0)
 const baseImageUrl = computed(() => readString("base_image_url"))
 const alteredImageUrl = computed(() => readString("altered_image_url"))
+
+const narrationFromApi = computed(() => props.stage?.narration ?? null)
+const narrationStatus = computed(() => props.stage?.narrationStatus ?? "idle")
+const narrationErrorMessage = computed(() => String(props.stage?.narrationErrorMessage || "").trim())
+
+const narrationGuideId = computed(() => {
+  const fromApi = String(narrationFromApi.value?.guideId ?? "").trim()
+  if (fromApi) {
+    return fromApi
+  }
+
+  const numeric = readNumber("guide_id")
+  if (numeric) {
+    return String(numeric)
+  }
+
+  return readString("guide_id")
+})
+const narrationGuideName = computed(() => String(narrationFromApi.value?.guideName ?? "").trim())
+const narrationStyle = computed(
+  () => String(narrationFromApi.value?.resolvedStyle ?? "").trim() || readString("user_style_input"),
+)
+const narrationScene = computed(() => readString("scene_context"))
+const narrationDurationSec = computed(() => {
+  const fromApiMs = narrationFromApi.value?.durationMs
+  if (typeof fromApiMs === "number" && Number.isFinite(fromApiMs) && fromApiMs > 0) {
+    return Math.round(fromApiMs / 1000)
+  }
+
+  const seconds = readNumber("target_duration_seconds")
+  return seconds > 0 ? seconds : 90
+})
+const narrationDurationLabel = computed(() => {
+  const total = narrationDurationSec.value
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+
+  if (minutes <= 0) {
+    return `约 ${seconds} 秒`
+  }
+
+  if (seconds === 0) {
+    return `约 ${minutes} 分钟`
+  }
+
+  return `约 ${minutes} 分 ${seconds} 秒`
+})
+const narrationText = computed(
+  () =>
+    String(narrationFromApi.value?.narrationText ?? "").trim()
+    || readString("narration_text"),
+)
+const narrationAudioUrl = computed(
+  () =>
+    String(narrationFromApi.value?.audioUrl ?? "").trim()
+    || readString("audio_url"),
+)
+const narrationTextError = computed(() => String(narrationFromApi.value?.textError ?? "").trim())
+
+const findScanTitle = computed(
+  () =>
+    props.stage?.exhibitName
+    || readString("target_exhibit_name")
+    || props.stage?.title
+    || "目标展品",
+)
+const findScanLocation = computed(
+  () =>
+    props.stage?.galleryName
+    || readString("location")
+    || readString("gallery_name")
+    || readString("scene_context")
+    || "",
+)
+const findScanClue = computed(
+  () =>
+    readString("clue_text")
+    || readString("clue")
+    || readString("rule_hint")
+    || readString("target_hint")
+    || props.stage?.subtitle
+    || "",
+)
 
 const answerOptions = computed(() => {
   const answerExtra = readJsonObject(config.value.answer_extra)
@@ -262,6 +346,75 @@ function itemVisualUrl(item: PreviewItem, preferred: "image" | "silhouette" = "i
         </div>
       </section>
 
+      <section v-else-if="props.stage.interactionType === 10" class="preview-panel find-scan-panel">
+        <FindScanRenderer
+          preview-mode
+          status="idle"
+          :title="findScanTitle"
+          :location="findScanLocation"
+          :clue-text="findScanClue" />
+      </section>
+
+      <section v-else-if="props.stage.interactionType === 11" class="preview-panel narration-panel">
+        <p class="question">站在展柜前，收听本段文物解说。</p>
+
+        <div class="narration-hero">
+          <div class="narration-avatar" aria-hidden="true">导</div>
+          <div class="narration-hero-copy">
+            <strong>{{ props.stage.exhibitName || props.stage.title || "当前文物" }}</strong>
+            <span>{{ narrationDurationLabel }} · 语音导览</span>
+          </div>
+          <button type="button" class="narration-play" disabled title="预览态不可播放">
+            ▶
+          </button>
+        </div>
+
+        <div class="narration-wave" aria-hidden="true">
+          <i v-for="bar in 18" :key="bar" :style="{ height: `${28 + ((bar * 17) % 42)}%` }" />
+        </div>
+
+        <dl class="narration-meta">
+          <div v-if="props.stage.exhibitName">
+            <dt>文物</dt>
+            <dd>{{ props.stage.exhibitName }}</dd>
+          </div>
+          <div v-if="narrationGuideName || narrationGuideId">
+            <dt>讲解人</dt>
+            <dd>
+              {{ narrationGuideName || `ID ${narrationGuideId}` }}
+            </dd>
+          </div>
+          <div>
+            <dt>目标时长</dt>
+            <dd>{{ narrationDurationSec }} 秒</dd>
+          </div>
+          <div v-if="narrationScene">
+            <dt>场景</dt>
+            <dd>{{ narrationScene }}</dd>
+          </div>
+          <div v-if="narrationStyle">
+            <dt>风格</dt>
+            <dd>{{ narrationStyle }}</dd>
+          </div>
+        </dl>
+
+        <div v-if="narrationStatus === 'loading'" class="narration-script-empty">
+          正在加载解说词…
+        </div>
+        <div v-else-if="narrationStatus === 'error'" class="narration-script-empty is-error">
+          {{ narrationErrorMessage || narrationTextError || "解说词加载失败" }}
+        </div>
+        <div v-else-if="narrationText" class="narration-script">
+          <p class="narration-script-label">解说词</p>
+          <p>{{ narrationText }}</p>
+        </div>
+        <p v-else class="narration-script-empty">
+          暂无解说词。可先通过对话生成解说，或确认该节点已生成 Narration 文本。
+        </p>
+
+        <audio v-if="narrationAudioUrl" class="narration-audio" controls :src="narrationAudioUrl" preload="none" />
+      </section>
+
       <section v-else class="preview-panel">
         <p class="question">当前玩法暂未配置专属预览。</p>
       </section>
@@ -475,6 +628,152 @@ h3 {
   background: rgb(159 214 194 / 10%);
   color: #bfe6d8;
   font-size: 12px;
+}
+
+.find-scan-panel {
+  gap: 0;
+  padding: 12px;
+  background: transparent;
+}
+
+.narration-panel {
+  gap: 14px;
+}
+
+.narration-hero {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 16px;
+  border: 1px solid rgb(209 178 111 / 22%);
+  padding: 12px;
+  background: linear-gradient(135deg, rgb(209 178 111 / 14%), rgb(255 255 255 / 4%));
+}
+
+.narration-avatar {
+  display: flex;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgb(209 178 111 / 24%);
+  color: #f3d99d;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.narration-hero-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.narration-hero-copy strong {
+  overflow: hidden;
+  color: #fff8ea;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.narration-hero-copy span {
+  color: rgb(247 239 221 / 58%);
+  font-size: 12px;
+}
+
+.narration-play {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(209 178 111 / 88%);
+  color: #1a160f;
+  font-size: 13px;
+  opacity: 0.72;
+}
+
+.narration-wave {
+  display: flex;
+  height: 44px;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 0 4px;
+}
+
+.narration-wave i {
+  display: block;
+  flex: 1;
+  min-height: 18%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgb(243 217 157 / 85%), rgb(209 178 111 / 28%));
+}
+
+.narration-meta {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.narration-meta > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.narration-meta dt {
+  margin: 0;
+  color: rgb(247 239 221 / 48%);
+}
+
+.narration-meta dd {
+  margin: 0;
+  color: rgb(247 239 221 / 86%);
+  word-break: break-word;
+}
+
+.narration-script,
+.narration-script-empty {
+  margin: 0;
+  border-radius: 14px;
+  padding: 12px;
+  background: rgb(255 255 255 / 5%);
+  color: rgb(247 239 221 / 72%);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.narration-script-empty.is-error {
+  border: 1px solid rgb(224 112 112 / 28%);
+  background: rgb(224 112 112 / 8%);
+  color: #f0b4b4;
+}
+
+.narration-script-label {
+  margin: 0 0 6px;
+  color: #d1b26f;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.narration-script p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.narration-audio {
+  width: 100%;
+  height: 36px;
 }
 
 .gameplay-empty {

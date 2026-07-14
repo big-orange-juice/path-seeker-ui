@@ -38,6 +38,7 @@ export type ChatEventType =
   | 'ui.route.list.updated'
   | 'ui.route.detail.updated'
   | 'ui.route.stage.updated'
+  | 'ui.route.build.progress'
   | 'ui.route.build.complete'
   | 'confirmation.required'
   | 'done'
@@ -87,11 +88,63 @@ export interface ChatConfirmationPayload {
 
 export interface ChatRouteListUpdatedPayload {
   routeId?: string | null;
+  /** 新建/更新路线时的展示名称，可直接渲染到侧栏「当前路线」 */
+  routeName?: string | null;
 }
 
 export interface ChatRouteBuildCompletePayload {
   routeId?: string | null;
   published?: boolean | null;
+}
+
+/** BuildStagesByAgent 按文物逐个生成节点时的实时进度。 */
+export type ChatRouteBuildProgressStatus = 'running' | 'succeeded' | 'failed' | 'completed';
+
+export interface ChatRouteBuildProgressPayload {
+  routeId?: string | null;
+  currentIndex?: number | null;
+  totalCount?: number | null;
+  processedCount?: number | null;
+  createdCount?: number | null;
+  failedCount?: number | null;
+  exhibitId?: string | null;
+  exhibitName?: string | null;
+  /** 运行时交互类型，对齐 route_stage.interaction_type / InteractionType */
+  interactionType?: number | null;
+  status?: ChatRouteBuildProgressStatus | string | null;
+  stageIds?: string[] | null;
+  message?: string | null;
+}
+
+/**
+ * 前端聚合后的节点生成进度。
+ * 同一 runId + routeId 下可能有多批 BuildStagesByAgent（不同 interactionType），
+ * 计数字段为跨批累计后的展示值。
+ */
+export interface ChatRouteBuildProgressState {
+  runId: string;
+  routeId: string;
+  interactionType: number;
+  currentIndex: number;
+  /** 累计期望处理总数 */
+  totalCount: number;
+  /** 累计已结束处理数 */
+  processedCount: number;
+  /** 累计已创建节点数 */
+  createdCount: number;
+  failedCount: number;
+  exhibitId: string | null;
+  exhibitName: string | null;
+  status: ChatRouteBuildProgressStatus;
+  stageIds: string[];
+  message: string;
+  /** 当前批之前已累计的基数（用于把本批 payload 绝对计数叠到累计值） */
+  batchBase: {
+    totalCount: number;
+    processedCount: number;
+    createdCount: number;
+    failedCount: number;
+  };
 }
 
 export interface ChatRouteDetailPayload {
@@ -161,8 +214,15 @@ export interface ChatUiMessage {
 }
 
 export interface ChatToolActivity {
+  /** 展示用稳定键；同类工具合并后等于 toolName */
+  id: string;
+  /** 最近一次调用的 callId */
   callId: string;
   toolName: string;
   label: string;
   status: 'running' | 'done';
+  /** 同类工具累计调用次数（合并展示用） */
+  count: number;
+  /** 尚未收到 result 的 callId，用于合并后仍能正确收口 */
+  pendingCallIds: string[];
 }

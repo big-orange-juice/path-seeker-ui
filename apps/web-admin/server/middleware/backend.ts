@@ -36,12 +36,10 @@ const resolveCookieAuthorization = (event: H3Event) => {
 };
 
 export default defineEventHandler((event) => {
-  const method = getMethod(event).toUpperCase();
   const headerAuthorization = normalizeAuthorization(getHeader(event, 'authorization'));
   const cookieAuthorization = resolveCookieAuthorization(event);
-  const authorization = method === 'GET'
-    ? headerAuthorization
-    : cookieAuthorization || headerAuthorization;
+  // GET / POST 等统一附带 token：优先 Authorization 头，否则 cookie
+  const authorization = headerAuthorization || cookieAuthorization;
 
   event.context.backendHeaders = {
     ...(authorization ? { authorization } : {}),

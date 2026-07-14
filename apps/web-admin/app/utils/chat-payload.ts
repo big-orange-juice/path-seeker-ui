@@ -40,30 +40,44 @@ export const parseChatEventData = (rawData: string): ChatEventResponse | null =>
   }
 };
 
-const TOOL_STATUS_LABELS: Record<string, string> = {
-  SearchExhibits: '正在搜索文物',
-  GetExhibitDetail: '正在读取文物资料',
-  CreateRoute: '正在创建路线',
-  ListRoutes: '正在读取路线列表',
-  SelectRoute: '正在选择路线',
-  AddStage: '正在添加路线节点',
-  ListStages: '正在读取路线节点',
-  UpdateStage: '正在更新路线节点',
-  DeleteStage: '正在删除路线节点',
-  BuildStagesByAgent: '正在生成路线节点',
-  SelectGuide: '正在选择讲解风格',
-  GenerateNarration: '正在生成解说词',
-  SetNarrationStyle: '正在设置解说风格',
-  PreviewRoute: '正在预览路线',
-  PublishRoute: '正在发布路线',
+const TOOL_STATUS_LABELS: Record<string, { running: string; done: string }> = {
+  SearchExhibits: { running: '正在搜索文物', done: '已搜索文物' },
+  GetExhibitDetail: { running: '正在读取文物资料', done: '已读取文物资料' },
+  CreateRoute: { running: '正在创建路线', done: '已创建路线' },
+  ListRoutes: { running: '正在读取路线列表', done: '已读取路线列表' },
+  SelectRoute: { running: '正在选择路线', done: '已选择路线' },
+  AddStage: { running: '正在添加路线节点', done: '已添加路线节点' },
+  ListStages: { running: '正在读取路线节点', done: '已读取路线节点' },
+  UpdateStage: { running: '正在更新路线节点', done: '已更新路线节点' },
+  DeleteStage: { running: '正在删除路线节点', done: '已删除路线节点' },
+  BuildStagesByAgent: { running: '正在生成路线节点', done: '已生成路线节点' },
+  SelectGuide: { running: '正在选择讲解风格', done: '已选择讲解风格' },
+  GenerateNarration: { running: '正在生成解说词', done: '已生成解说词' },
+  SetNarrationStyle: { running: '正在设置解说风格', done: '已设置解说风格' },
+  PreviewRoute: { running: '正在预览路线', done: '已预览路线' },
+  PublishRoute: { running: '正在发布路线', done: '已发布路线' },
 };
 
-export const resolveToolStatusLabel = (toolName: string | null | undefined) => {
+export const resolveToolStatusLabel = (
+  toolName: string | null | undefined,
+  status: 'running' | 'done' = 'running',
+  count = 1,
+) => {
   const name = String(toolName || '').trim();
+  const safeCount = Number.isFinite(count) && count > 1 ? Math.floor(count) : 1;
+
+  let base = '';
 
   if (!name) {
-    return '正在处理';
+    base = status === 'done' ? '已处理' : '正在处理';
+  } else {
+    const labels = TOOL_STATUS_LABELS[name];
+    base = labels
+      ? labels[status]
+      : status === 'done'
+        ? `已执行 ${name}`
+        : `正在执行 ${name}`;
   }
 
-  return TOOL_STATUS_LABELS[name] || `正在执行 ${name}`;
+  return safeCount > 1 ? `${base} ×${safeCount}` : base;
 };

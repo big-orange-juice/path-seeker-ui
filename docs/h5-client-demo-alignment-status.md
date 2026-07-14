@@ -196,6 +196,7 @@ Demo 对照源：`apps/h5-demo/`（`js/pages.js` / `chrome.js` / `css/styles.css
 | 5 Select | `select` | **主路径 · 选择** |
 | 6 Jigsaw | `image_puzzle` | **主路径 · 拼图** |
 | 2/3/4/7/8/9 | code/sort/match/clue… | 兼容扩展，UI 标注非主路径 |
+| 10 拍照识别 | （找一找） | C 端**暂跳过**；B 端 Chat `BuildStagesByAgent` 的 `ui.route.build.progress` 已按 `interactionType` 推送 |
 
 ---
 
@@ -271,8 +272,10 @@ Cinema = 路由过场 + 关键接口 loading（ref-count）。
 | --- | --- |
 | `apps/h5-client/` | C 端 H5 主实现 |
 | `apps/h5-demo/` | 体验基准 |
+| `apps/web-admin/` | B 端；Chat SSE 生成路线/节点（见 `docs/32-chat-send-sse-api.md`） |
 | `docs/schema.json` | 后端 OpenAPI |
 | `docs/01-product-solution.md` | 产品方案 |
+| `docs/32-chat-send-sse-api.md` | B 端 Chat SSE 事件协议（含 `ui.route.build.progress` / `routeName`） |
 | 本文 | **当前对齐进度总结** |
 
 ---
@@ -284,3 +287,4 @@ Cinema = 路由过场 + 关键接口 loading（ref-count）。
 | 2026-07-14 | 初版：主链路闸门、可跳过识别/播片、cinema、接口缺口 |
 | 2026-07-14 | P0：MyRouteProgress / RouteResult / 严格字段 / Stages⊕nodes / Exhibit |
 | 2026-07-14 | P1：Auth 印章门、展厅/详情视觉、FAB+问、隐式 Join 收紧、RecordActivity、题型主路径 |
+| 2026-07-14 | 关联 B 端：Chat 接入 `ui.route.build.progress`（`interactionType`）、`ui.route.list.updated.routeName`；进度仅侧栏累计；tool tag 按工具名合并 ×N；文档链到 `32-chat-send-sse-api.md` |

@@ -9,6 +9,9 @@ import type {
   ChatExhibitListItem,
   ChatExhibitSelectedPayload,
   ChatExhibitSummary,
+  ChatRouteBuildProgressPayload,
+  ChatRouteBuildProgressState,
+  ChatRouteBuildProgressStatus,
   ChatRouteDetailPayload,
   ChatRouteListUpdatedPayload,
   ChatRouteBuildCompletePayload,
@@ -30,6 +33,253 @@ const emit = defineEmits<{
 const routeDetail = ref<ChatRouteDetailPayload | null>(null);
 const exhibits = ref<ChatExhibitSummary[]>([]);
 const publishedHint = ref('');
+const buildProgress = ref<ChatRouteBuildProgressState | null>(null);
+const seenProgressEventIds = new Set<string>();
+
+let stageRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+const clearStageRefreshTimer = () => {
+  if (stageRefreshTimer) {
+    clearTimeout(stageRefreshTimer);
+    stageRefreshTimer = null;
+  }
+};
+
+const clearBuildProgress = () => {
+  buildProgress.value = null;
+  seenProgressEventIds.clear();
+  clearStageRefreshTimer();
+};
+
+const scheduleStageRefresh = (routeId: string) => {
+  if (!routeId || stageRefreshTimer) {
+    return;
+  }
+
+  stageRefreshTimer = setTimeout(() => {
+    stageRefreshTimer = null;
+    emit('routeChanged', routeId);
+  }, 600);
+};
+
+const toCount = (value: number | null | undefined) => {
+  const next = Number(value);
+  return Number.isFinite(next) && next >= 0 ? next : 0;
+};
+
+const normalizeProgressStatus = (
+  value: ChatRouteBuildProgressPayload['status'],
+): ChatRouteBuildProgressStatus => {
+  if (value === 'running' || value === 'succeeded' || value === 'failed' || value === 'completed') {
+    return value;
+  }
+
+  return 'running';
+};
+
+const uniqueStageIds = (ids: string[]) => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const id of ids) {
+    if (!id || seen.has(id)) {
+      continue;
+    }
+
+    seen.add(id);
+    result.push(id);
+  }
+
+  return result;
+};
+
+const resolveProgressMessage = (input: {
+  status: ChatRouteBuildProgressStatus;
+  currentIndex: number;
+  totalCount: number;
+  createdCount: number;
+  exhibitName: string | null;
+  payloadMessage: string;
+}) => {
+  const { status, currentIndex, totalCount, createdCount, exhibitName, payloadMessage } = input;
+
+  if (status === 'running') {
+    if (totalCount > 0 && currentIndex > 0) {
+      const head = `正在创建第 ${currentIndex} 个节点，累计 ${createdCount}/${totalCount}`;
+      return exhibitName ? `${head} · ${exhibitName}` : head;
+    }
+
+    return payloadMessage || '正在创建节点';
+  }
+
+  if (status === 'succeeded') {
+    return totalCount > 0
+      ? `已创建 ${createdCount} 个节点，共 ${totalCount} 个`
+      : payloadMessage || '节点创建成功';
+  }
+
+  if (status === 'failed') {
+    return payloadMessage || '节点创建失败';
+  }
+
+  return createdCount > 0
+    ? `节点生成完成，共创建 ${createdCount} 个`
+    : payloadMessage || '节点生成完成';
+};
+
+const isNewBuildBatch = (
+  previous: ChatRouteBuildProgressState,
+  next: {
+    interactionType: number;
+    status: ChatRouteBuildProgressStatus;
+    currentIndex: number;
+    createdCount: number;
+    processedCount: number;
+  },
+) => {
+  if (previous.interactionType !== next.interactionType) {
+    return true;
+  }
+
+  // 同玩法下开启新一轮 BuildStagesByAgent：序号回到 1，或本批计数被清零。
+  if (next.status === 'running' && next.currentIndex <= 1) {
+    if (previous.status === 'completed' || previous.status === 'failed') {
+      return true;
+    }
+
+    if (previous.createdCount > 0 && next.createdCount === 0 && next.processedCount === 0) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const applyBuildProgress = (event: ChatEventResponse) => {
+  const eventId = String(event.eventId || '').trim();
+
+  if (eventId) {
+    if (seenProgressEventIds.has(eventId)) {
+      return;
+    }
+
+    seenProgressEventIds.add(eventId);
+  }
+
+  const payload = (event.payload ?? {}) as ChatRouteBuildProgressPayload;
+  const routeId = String(payload.routeId ?? '').trim();
+  const runId = String(event.runId || '').trim();
+  const interactionType = toCount(payload.interactionType);
+  const status = normalizeProgressStatus(payload.status);
+  const payloadCurrentIndex = toCount(payload.currentIndex);
+  const payloadTotalCount = toCount(payload.totalCount);
+  const payloadProcessedCount = toCount(payload.processedCount);
+  const payloadCreatedCount = toCount(payload.createdCount);
+  const payloadFailedCount = toCount(payload.failedCount);
+  const payloadMessage = String(payload.message ?? '').trim();
+  const payloadStageIds = Array.isArray(payload.stageIds)
+    ? payload.stageIds.map((id) => String(id)).filter(Boolean)
+    : [];
+  const exhibitId = payload.exhibitId != null && String(payload.exhibitId).trim()
+    ? String(payload.exhibitId)
+    : null;
+  const exhibitName = payload.exhibitName != null && String(payload.exhibitName).trim()
+    ? String(payload.exhibitName)
+    : null;
+
+  const previous = buildProgress.value;
+  const sameRun = Boolean(
+    previous
+    && previous.runId === runId
+    && previous.routeId === routeId,
+  );
+
+  let batchBase = {
+    totalCount: 0,
+    processedCount: 0,
+    createdCount: 0,
+    failedCount: 0,
+  };
+
+  if (sameRun && previous) {
+    if (isNewBuildBatch(previous, {
+      interactionType,
+      status,
+      currentIndex: payloadCurrentIndex,
+      createdCount: payloadCreatedCount,
+      processedCount: payloadProcessedCount,
+    })) {
+      // 新批次：把上一批累计值固化为基数
+      batchBase = {
+        totalCount: previous.totalCount,
+        processedCount: previous.processedCount,
+        createdCount: previous.createdCount,
+        failedCount: previous.failedCount,
+      };
+    } else {
+      batchBase = previous.batchBase;
+    }
+  }
+
+  const mergedStageIds = uniqueStageIds([
+    ...(sameRun && previous ? previous.stageIds : []),
+    ...payloadStageIds,
+  ]);
+
+  // 本批绝对计数 + 历史基数；stageIds 去重后作为创建数下限，避免多批 completed 只带 1 时回退。
+  const createdCount = Math.max(
+    batchBase.createdCount + payloadCreatedCount,
+    mergedStageIds.length,
+  );
+  const processedCount = Math.max(
+    batchBase.processedCount + payloadProcessedCount,
+    createdCount,
+  );
+  const totalCount = Math.max(
+    batchBase.totalCount + payloadTotalCount,
+    processedCount,
+    createdCount,
+  );
+  const failedCount = batchBase.failedCount + payloadFailedCount;
+
+  buildProgress.value = {
+    runId,
+    routeId,
+    interactionType,
+    currentIndex: payloadCurrentIndex,
+    totalCount,
+    processedCount,
+    createdCount,
+    failedCount,
+    exhibitId: exhibitId ?? (sameRun ? previous?.exhibitId ?? null : null),
+    exhibitName: exhibitName ?? (sameRun ? previous?.exhibitName ?? null : null),
+    status,
+    stageIds: mergedStageIds,
+    batchBase,
+    message: resolveProgressMessage({
+      status,
+      currentIndex: payloadCurrentIndex,
+      totalCount,
+      createdCount,
+      exhibitName: exhibitName ?? (sameRun ? previous?.exhibitName ?? null : null),
+      payloadMessage,
+    }),
+  };
+
+  if (!routeId) {
+    return;
+  }
+
+  if (status === 'succeeded') {
+    scheduleStageRefresh(routeId);
+    return;
+  }
+
+  if (status === 'completed' || status === 'failed') {
+    clearStageRefreshTimer();
+    emit('routeChanged', routeId);
+  }
+};
 
 const mapExhibitItem = (item: ChatExhibitListItem | null | undefined): ChatExhibitSummary | null => {
   if (!item || typeof item !== 'object') {
@@ -118,9 +368,20 @@ const handleUiEvent = (event: ChatEventResponse) => {
     case 'ui.route.list.updated': {
       const payload = event.payload as ChatRouteListUpdatedPayload;
       const routeId = String(payload?.routeId ?? '').trim();
+      const routeName = String(payload?.routeName ?? '').trim();
 
       if (routeId) {
+        routeDetail.value = {
+          ...(routeDetail.value ?? {}),
+          id: routeId,
+          title: routeName || routeDetail.value?.title || null,
+        };
         emit('routeChanged', routeId);
+      } else if (routeName) {
+        routeDetail.value = {
+          ...(routeDetail.value ?? {}),
+          title: routeName,
+        };
       }
 
       break;
@@ -129,8 +390,12 @@ const handleUiEvent = (event: ChatEventResponse) => {
     case 'ui.route.detail.updated': {
       const payload = (event.payload ?? {}) as ChatRouteDetailPayload;
       routeDetail.value = {
+        ...(routeDetail.value ?? {}),
         ...payload,
-        id: payload.id != null ? String(payload.id) : null,
+        id: payload.id != null ? String(payload.id) : routeDetail.value?.id ?? null,
+        title: payload.title != null && String(payload.title).trim()
+          ? String(payload.title)
+          : routeDetail.value?.title ?? null,
       };
 
       if (payload.id) {
@@ -148,6 +413,11 @@ const handleUiEvent = (event: ChatEventResponse) => {
         emit('routeChanged', routeId);
       }
 
+      break;
+    }
+
+    case 'ui.route.build.progress': {
+      applyBuildProgress(event);
       break;
     }
 
@@ -181,7 +451,7 @@ const {
   sendMessage,
   retryLastFailed,
   cancelRun,
-  resetSession,
+  resetSession: resetChatSession,
   abortActiveRun,
 } = useChatSession({
   onEvent: handleUiEvent,
@@ -192,6 +462,11 @@ const {
   },
 });
 
+const resetSession = () => {
+  clearBuildProgress();
+  resetChatSession();
+};
+
 watch(
   () => props.active,
   (active) => {
@@ -201,7 +476,15 @@ watch(
   },
 );
 
+// 新一轮对话开始时清掉上一批进度，避免残留。
+watch(isRunning, (running, wasRunning) => {
+  if (running && !wasRunning) {
+    clearBuildProgress();
+  }
+});
+
 onBeforeUnmount(() => {
+  clearStageRefreshTimer();
   abortActiveRun();
 });
 
@@ -228,6 +511,7 @@ defineExpose({
         <RouteChatPreviewPane
           :route-detail="routeDetail"
           :exhibits="exhibits"
+          :build-progress="buildProgress"
           :context-route-id="contextRouteId"
           :published-hint="publishedHint" />
       </template>

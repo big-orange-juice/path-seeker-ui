@@ -220,21 +220,30 @@ const refreshRouteRow = async (record: RouteRecord) => {
   }
 };
 
-const refreshRouteDetail = async () => {
+const refreshRouteDetail = async (options?: { silent?: boolean }) => {
   const record = detailRecord.value;
   if (!record) {
     return;
   }
 
-  detailPending.value = true;
+  const silent = Boolean(options?.silent);
+  if (!silent) {
+    detailPending.value = true;
+  }
+
   actionError.value = '';
 
   try {
     routeDetail.value = await fetchRouteDetail(record.id);
   } catch (caughtError) {
-    actionError.value = resolveActionErrorMessage(caughtError, '主题路线详情刷新失败。');
+    // 静默刷新失败不打断编辑页，仅在手动刷新时提示
+    if (!silent) {
+      actionError.value = resolveActionErrorMessage(caughtError, '主题路线详情刷新失败。');
+    }
   } finally {
-    detailPending.value = false;
+    if (!silent) {
+      detailPending.value = false;
+    }
   }
 };
 
@@ -260,7 +269,7 @@ const submitConfirmedAction = async () => {
     if (confirmActionType.value === 'publish') {
       await publishRoute({
         id: record.id,
-        publishStatus: record.publishStatus,
+        publishStatus: 2,
       });
       actionFeedback.value = `已发布“${record.title || record.routeCode || record.id}”。`;
     } else {
@@ -377,16 +386,17 @@ const submitConfirmedAction = async () => {
       v-model:open="detailDialogOpen"
       :detail="routeDetail"
       :pending="detailPending"
-      @refresh="refreshRouteDetail" />
+      @refresh="refreshRouteDetail()"
+      @refresh-silent="refreshRouteDetail({ silent: true })" />
 
     <Dialog v-model:open="confirmDialogOpen">
-      <DialogContent class="w-[min(92vw,28rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
-        <DialogHeader class="border-b border-border/70 px-5 py-4">
+      <DialogContent class="max-w-[min(92vw,24rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
+        <DialogHeader class="space-y-2 px-5 pb-2 pt-4">
           <DialogTitle>{{ confirmDialogTitle }}</DialogTitle>
           <DialogDescription>{{ confirmDialogDescription }}</DialogDescription>
         </DialogHeader>
 
-        <DialogFooter class="px-5 py-4">
+        <DialogFooter class="px-5 pb-4 pt-3">
           <Button variant="outline" type="button" @click="resetConfirmDialog">
             取消
           </Button>

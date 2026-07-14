@@ -1,0 +1,201 @@
+<script setup lang="ts">
+import { computed, watch } from 'vue';
+import ChatContextChips, { type ChatContextChip } from '@/components/chat/ChatContextChips.vue';
+import ChatComposer from '@/components/chat/ChatComposer.vue';
+import ChatMessageList from '@/components/chat/ChatMessageList.vue';
+import { useChatSession } from '@/composables/useChatSession';
+import type { ChatEventResponse } from '@/types/chat';
+
+interface Props {
+  active?: boolean;
+  routeId: string;
+  routeLabel: string;
+  stageId?: string;
+  stageLabel?: string;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  active: true,
+  stageId: '',
+  stageLabel: '',
+});
+
+const emit = defineEmits<{
+  clearStage: [];
+  /** SSE 触发的静默 detail 刷新（节流由父级处理） */
+  requestDetailRefresh: [routeId: string];
+  /** run 结束时立即再刷一次 */
+  flushDetailRefresh: [routeId: string];
+}>();
+
+const buildOutboundMessage = (userText: string, routeId: string, stageId?: string) => {
+  const lines = ['【上下文】', `routeId: ${routeId}`];
+
+  if (stageId) {
+    lines.push(`stageId: ${stageId}`);
+  }
+
+  lines.push('', '【用户指令】', userText);
+  return lines.join('\n');
+};
+
+const shouldRefreshFromEvent = (event: ChatEventResponse) => {
+  if (event.type !== 'ui.route.build.progress' && event.type !== 'ui.route.stage.updated') {
+    return false;
+  }
+
+  const payload = (event.payload ?? {}) as { routeId?: string | null };
+  const eventRouteId = String(payload.routeId ?? '').trim();
+  const currentRouteId = String(props.routeId || '').trim();
+
+  if (!currentRouteId) {
+    return false;
+  }
+
+  // 无 routeId 时保守刷新当前编辑路线；有 routeId 则必须匹配。
+  return !eventRouteId || eventRouteId === currentRouteId;
+};
+
+const {
+  messages,
+  activeTools,
+  errorMessage,
+  isRunning,
+  contextRouteId,
+  sendMessage,
+  retryLastFailed,
+  cancelRun,
+  resetSession,
+  abortActiveRun,
+} = useChatSession({
+  contextRouteId: props.routeId,
+  onEvent: (event) => {
+    if (!shouldRefreshFromEvent(event)) {
+      return;
+    }
+
+    const payload = (event.payload ?? {}) as { routeId?: string | null };
+    const eventRouteId = String(payload.routeId ?? props.routeId ?? '').trim();
+
+    if (eventRouteId) {
+      emit('requestDetailRefresh', eventRouteId);
+    }
+  },
+  onDone: (payload) => {
+    const doneRouteId = String(payload.routeId ?? props.routeId ?? '').trim();
+
+    if (doneRouteId) {
+      emit('flushDetailRefresh', doneRouteId);
+    }
+  },
+  onError: () => {
+    const currentRouteId = String(props.routeId || '').trim();
+
+    if (currentRouteId) {
+      emit('flushDetailRefresh', currentRouteId);
+    }
+  },
+});
+
+const contextChips = computed<ChatContextChip[]>(() => {
+  const chips: ChatContextChip[] = [];
+  const routeId = String(props.routeId || '').trim();
+
+  if (routeId) {
+    chips.push({
+      kind: 'route',
+      id: routeId,
+      label: props.routeLabel || routeId,
+      removable: false,
+    });
+  }
+
+  const stageId = String(props.stageId || '').trim();
+
+  if (stageId) {
+    chips.push({
+      kind: 'stage',
+      id: stageId,
+      label: props.stageLabel || stageId,
+      removable: true,
+    });
+  }
+
+  return chips;
+});
+
+const canSend = computed(() => Boolean(String(props.routeId || '').trim()));
+
+const handleSend = async (userText: string) => {
+  const routeId = String(props.routeId || '').trim();
+
+  if (!routeId) {
+    return;
+  }
+
+  const stageId = String(props.stageId || '').trim() || undefined;
+  const wireMessage = buildOutboundMessage(userText, routeId, stageId);
+
+  await sendMessage(userText, { wireMessage });
+};
+
+const handleRemoveChip = (chip: ChatContextChip) => {
+  if (chip.kind === 'stage') {
+    emit('clearStage');
+  }
+};
+
+watch(
+  () => props.routeId,
+  (next, prev) => {
+    const nextId = String(next || '').trim();
+    contextRouteId.value = nextId;
+
+    // 切换路线时重置会话；首轮挂载 prev 为 undefined，不 reset
+    if (prev !== undefined && String(prev || '').trim() !== nextId) {
+      resetSession();
+      contextRouteId.value = nextId;
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => props.active,
+  (active) => {
+    if (!active) {
+      abortActiveRun();
+    }
+  },
+);
+
+defineExpose({
+  resetSession,
+  abortActiveRun,
+});
+</script>
+
+<template>
+  <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-background">
+    <ChatMessageList
+      :messages="messages"
+      :tools="activeTools"
+      :is-running="isRunning"
+      empty-title="用对话编辑当前路线"
+      empty-description="例如：给当前节点增加提示、调整难度，或按主题补几个节点。"
+      @retry="retryLastFailed" />
+
+    <div v-if="errorMessage" class="border-t border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+      {{ errorMessage }}
+    </div>
+
+    <ChatContextChips :chips="contextChips" @remove="handleRemoveChip" />
+
+    <ChatComposer
+      :sending="isRunning"
+      :disabled="!canSend"
+      placeholder="描述你想对当前路线或节点做的修改…"
+      @send="handleSend"
+      @cancel="cancelRun" />
+  </div>
+</template>

@@ -187,7 +187,7 @@ data: {"eventId":"2076895560304037889","sessionId":"2076894321939976192","runId"
 
 ## 7. 事件类型总览
 
-当前接口定义了 12 种事件类型：
+当前接口定义了 13 种事件类型：
 
 | `type` | 是否持久化 | 是否终止 | 用途 |
 |---|---:|---:|---|
@@ -199,6 +199,7 @@ data: {"eventId":"2076895560304037889","sessionId":"2076894321939976192","runId"
 | `ui.route.list.updated` | 是 | 否 | 路线列表发生变化 |
 | `ui.route.detail.updated` | 是 | 否 | 路线详情或预览发生变化 |
 | `ui.route.stage.updated` | 是 | 否 | 路线节点发生变化 |
+| `ui.route.build.progress` | 是 | 否 | `BuildStagesByAgent` 按文物生成节点的实时进度 |
 | `ui.route.build.complete` | 是 | 否 | 路线构建或发布完成 |
 | `confirmation.required` | 是 | 否 | 高风险操作需要管理员确认 |
 | `done` | 是 | 是 | 本次 run 成功完成 |
@@ -511,16 +512,65 @@ function formatExhibitMeta(exhibit) {
   "type": "ui.route.list.updated",
   "occurredAt": "2026-07-14T13:20:05.1234567+08:00",
   "payload": {
-    "routeId": "2076896000000000001"
+    "routeId": "2076896000000000001",
+    "routeName": "商周礼乐——青铜器探索路线"
   }
 }
 ```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `payload.routeId` | string | 路线 ID，按字符串处理 |
+| `payload.routeName` | string / null | 路线展示名称；web-admin 侧栏「当前路线」标题可直接使用 |
 
 前端建议：
 
 - 刷新路线列表；
 - 将新路线设为当前路线；
-- 根据 `routeId` 请求路线详情。
+- 有 `routeName` 时立即更新侧栏标题，不必等待 `ui.route.detail.updated`；
+- 仍可按 `routeId` 请求路线详情补齐主题等字段。
+
+### 8.6.1 `ui.route.build.progress`
+
+`BuildStagesByAgent` 按文物逐个生成节点时实时发出。节点开始生成、单个节点成功/失败、整批完成时都会持久化并立即推送。
+
+字段使用 `interactionType`（对齐 `route_stage.interaction_type`），不是 `gameplayType`。
+
+```json
+{
+  "type": "ui.route.build.progress",
+  "payload": {
+    "routeId": "2076896000000000001",
+    "currentIndex": 2,
+    "totalCount": 4,
+    "processedCount": 1,
+    "createdCount": 1,
+    "failedCount": 0,
+    "exhibitId": "345536575083515905",
+    "exhibitName": "大克鼎",
+    "interactionType": 6,
+    "status": "running",
+    "message": "正在创建第 2 个节点，共 4 个"
+  }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `payload.routeId` | string | 当前路线 ID |
+| `payload.currentIndex` | number | 当前文物序号，从 1 开始 |
+| `payload.totalCount` | number | **本次** `BuildStagesByAgent` 调用的文物总数 |
+| `payload.createdCount` | number | 本次调用已新增的 `route_stage` 数量 |
+| `payload.interactionType` | number | 运行时交互类型 |
+| `payload.status` | string | `running` / `succeeded` / `failed` / `completed` |
+| `payload.stageIds` | string[] / null | 仅成功事件可能返回 |
+| `payload.message` | string | 可直接展示的中文进度文案 |
+
+前端建议（web-admin）：
+
+- 同一 `runId + routeId` 下可能有多批工具调用，侧栏进度应按批累计 `createdCount / totalCount`；
+- 进度汇总只放右侧「生成结果」面板，对话区仅保留 tool tag；
+- tool tag 按 `toolName` 合并，展示 `已添加路线节点 ×N`（N 为调用次数）。
 
 ### 8.7 `ui.route.detail.updated`
 
@@ -899,7 +949,9 @@ function handleChatEvent(sseEvent) {
       break;
 
     case "ui.route.list.updated":
+      // payload: { routeId, routeName? }
       refreshRouteList();
+      setCurrentRoute(payload.routeId, payload.routeName);
       break;
 
     case "ui.route.detail.updated":
@@ -908,6 +960,11 @@ function handleChatEvent(sseEvent) {
 
     case "ui.route.stage.updated":
       refreshRouteStages(payload.routeId);
+      break;
+
+    case "ui.route.build.progress":
+      // 侧栏累计进度；勿在对话流底部重复展示大卡片
+      updateBuildProgress(payload);
       break;
 
     case "ui.route.build.complete":

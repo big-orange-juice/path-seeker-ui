@@ -6,10 +6,13 @@ import {
   ArrowUpDown,
   Bot,
   ChartColumn,
+  CircleAlert,
+  CircleCheck,
   ImageUp,
   Library,
   LibraryBig,
   LoaderCircle,
+  Lock,
   Map,
   Megaphone,
   Puzzle,
@@ -29,10 +32,13 @@ export type AppIconName =
   | 'arrow-up-down'
   | 'bar-chart-3'
   | 'bot'
+  | 'circle-alert'
+  | 'circle-check'
   | 'image-up'
   | 'library'
   | 'library-big'
   | 'loader-circle'
+  | 'lock'
   | 'map'
   | 'megaphone'
   | 'puzzle'
@@ -61,10 +67,13 @@ const iconMap: Record<AppIconName, LucideIcon> = {
   'arrow-up-down': ArrowUpDown,
   'bar-chart-3': ChartColumn,
   bot: Bot,
+  'circle-alert': CircleAlert,
+  'circle-check': CircleCheck,
   'image-up': ImageUp,
   library: Library,
   'library-big': LibraryBig,
   'loader-circle': LoaderCircle,
+  lock: Lock,
   map: Map,
   megaphone: Megaphone,
   puzzle: Puzzle,

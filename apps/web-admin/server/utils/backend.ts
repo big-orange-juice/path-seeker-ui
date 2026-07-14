@@ -263,13 +263,9 @@ const logBackendResponse = (payload: {
   console.info(lines.join('\n'));
 };
 
-const resolveRequestAuthorization = (event: H3Event, headers: Record<string, string>, method: string) => {
+const resolveRequestAuthorization = (event: H3Event, headers: Record<string, string>) => {
   const headerAuthorization = normalizeAuthorization(headers.authorization);
-
-  if (method === 'GET') {
-    return headerAuthorization;
-  }
-
+  // GET / POST 等统一：优先请求头，否则回落 cookie（与前端同源代理一致）
   return headerAuthorization || resolveCookieAuthorization(event);
 };
 
@@ -299,7 +295,7 @@ export const backendFetch = async <T>(
     ...((optionHeaders as Record<string, string> | undefined) ?? {}),
     ...((normalizedBody.headers as Record<string, string> | undefined) ?? {}),
   };
-  const authorization = resolveRequestAuthorization(event, headers, method);
+  const authorization = resolveRequestAuthorization(event, headers);
 
   if (authorization) {
     headers.authorization = authorization;

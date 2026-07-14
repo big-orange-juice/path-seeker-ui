@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { cn } from '@/utils/cn';
+
 const props = withDefaults(defineProps<{
   class?: string;
 }>(), {
@@ -7,7 +9,12 @@ const props = withDefaults(defineProps<{
 </script>
 
 <template>
-  <div :class="props.class">
+  <div
+    :class="cn(
+      'flex flex-row flex-wrap items-center justify-end gap-3',
+      props.class,
+    )"
+  >
     <slot />
   </div>
 </template>

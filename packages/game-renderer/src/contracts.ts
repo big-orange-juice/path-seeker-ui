@@ -48,6 +48,8 @@ export const INTERACTION_TYPE_META = {
   7: { label: "听声配对", className: "sound" },
   8: { label: "大家来找茬", className: "spot" },
   9: { label: "影子归位", className: "shadow" },
+  10: { label: "找一找", className: "find" },
+  11: { label: "解说导览", className: "narration" },
 } as const
 
 export type InteractionType = keyof typeof INTERACTION_TYPE_META
@@ -305,6 +307,23 @@ export interface PuzzleAnswerDraft {
   value: string | string[] | MatchPair[] | ReasoningAnswerValue | null
 }
 
+/**
+ * 应用层从 Narration/detail 拉回后注入预览的解说数据。
+ */
+export interface GameplayPreviewNarration {
+  narrationText?: string | null
+  audioUrl?: string | null
+  guideId?: string | null
+  guideName?: string | null
+  resolvedStyle?: string | null
+  durationMs?: number | null
+  textStatus?: number | null
+  audioStatus?: number | null
+  textError?: string | null
+}
+
+export type GameplayPreviewNarrationStatus = "idle" | "loading" | "ready" | "error"
+
 export interface GameplayPreviewStage {
   stageId: string
   interactionType: number
@@ -314,4 +333,38 @@ export interface GameplayPreviewStage {
   galleryName?: string | null
   score?: number
   config: Record<string, unknown>
+  /** Narration/detail 注入；无则仅展示 config 风格字段 */
+  narration?: GameplayPreviewNarration | null
+  narrationStatus?: GameplayPreviewNarrationStatus
+  narrationErrorMessage?: string | null
+}
+
+/**
+ * interactionType=11 解说导览节点的 config 形态（route_stage.config JSON）。
+ * 正文与音频通常在 Narration API，预览侧优先展示风格/场景/时长。
+ */
+export interface NarrationStageConfig {
+  guide_id?: number | string | null
+  user_style_input?: string | null
+  scene_context?: string | null
+  target_duration_seconds?: number | null
+  hints?: unknown
+  /** 若后端把正文直接塞进 config，可一并预览 */
+  narration_text?: string | null
+  audio_url?: string | null
+}
+
+/**
+ * interactionType=10 找一找 / 拍照识别节点的 config 常见字段。
+ * schema 未定型，字段均可选，渲染器做宽松读取。
+ */
+export interface FindScanStageConfig {
+  clue_text?: string | null
+  clue?: string | null
+  rule_hint?: string | null
+  target_hint?: string | null
+  scene_context?: string | null
+  location?: string | null
+  gallery_name?: string | null
+  target_exhibit_name?: string | null
 }

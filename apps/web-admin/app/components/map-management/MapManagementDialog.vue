@@ -324,7 +324,7 @@ const submitForm = () => {
             </div>
           </div>
 
-          <DialogFooter class="sticky bottom-0 flex items-center justify-end gap-3 border-t border-border/70 bg-[#111316] px-7 py-4">
+          <DialogFooter class="sticky bottom-0 border-t border-border/70 bg-[#111316] px-7 py-4">
             <UiButton type="button" variant="ghost" :disabled="props.submitting" @click="closeDialog">
               取消
             </UiButton>

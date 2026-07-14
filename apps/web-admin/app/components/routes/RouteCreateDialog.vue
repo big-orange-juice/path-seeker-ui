@@ -238,7 +238,7 @@ const submitManual = () => {
           </div>
         </div>
 
-        <DialogFooter class="border-t border-border/70 px-5 py-4">
+        <DialogFooter class="shrink-0 border-t border-border/70 px-5 py-4">
           <Button variant="outline" type="button" :disabled="props.submitting" @click="isOpen = false">
             取消
           </Button>

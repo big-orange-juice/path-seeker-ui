@@ -182,17 +182,64 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
       case 'tool.call.start': {
         const payload = event.payload as ChatToolCallStartPayload;
         const callId = String(payload?.callId ?? uuidv4());
-        const toolName = String(payload?.toolName ?? '');
+        const toolName = String(payload?.toolName ?? '').trim() || 'unknown';
+        const groupId = toolName;
 
-        activeTools.value = [
-          ...activeTools.value.filter((item) => item.callId !== callId),
-          {
-            callId,
-            toolName,
-            label: resolveToolStatusLabel(toolName),
-            status: 'running',
-          },
-        ];
+        // 1) 其它工具组若仍 running，先收口（当前组稍后合并计数）
+        // 2) 同类 toolName 合并为一条 tag，用 count 表示次数
+        const existingIndex = activeTools.value.findIndex((item) => item.id === groupId);
+
+        activeTools.value = activeTools.value.map((item, index) => {
+          if (index === existingIndex) {
+            return item;
+          }
+
+          if (item.status !== 'running') {
+            return item;
+          }
+
+          return {
+            ...item,
+            status: 'done' as const,
+            pendingCallIds: [],
+            label: resolveToolStatusLabel(item.toolName, 'done', item.count),
+          };
+        });
+
+        if (existingIndex >= 0) {
+          const existing = activeTools.value[existingIndex]!;
+          const nextCount = Math.max(1, existing.count) + 1;
+          const pendingCallIds = existing.pendingCallIds.includes(callId)
+            ? existing.pendingCallIds
+            : [...existing.pendingCallIds, callId];
+
+          activeTools.value = activeTools.value.map((item, index) =>
+            index === existingIndex
+              ? {
+                  ...item,
+                  callId,
+                  count: nextCount,
+                  pendingCallIds,
+                  status: 'running',
+                  label: resolveToolStatusLabel(toolName, 'running', nextCount),
+                }
+              : item,
+          );
+        } else {
+          activeTools.value = [
+            ...activeTools.value,
+            {
+              id: groupId,
+              callId,
+              toolName,
+              count: 1,
+              pendingCallIds: [callId],
+              label: resolveToolStatusLabel(toolName, 'running', 1),
+              status: 'running',
+            },
+          ];
+        }
+
         break;
       }
 
@@ -204,14 +251,25 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
           break;
         }
 
-        activeTools.value = activeTools.value.map((item) =>
-          item.callId === callId
-            ? {
-                ...item,
-                status: 'done',
-              }
-            : item,
-        );
+        activeTools.value = activeTools.value.map((item) => {
+          const matched =
+            item.callId === callId
+            || item.pendingCallIds.includes(callId);
+
+          if (!matched) {
+            return item;
+          }
+
+          const pendingCallIds = item.pendingCallIds.filter((id) => id !== callId);
+          const status = pendingCallIds.length > 0 ? 'running' as const : 'done' as const;
+
+          return {
+            ...item,
+            pendingCallIds,
+            status,
+            label: resolveToolStatusLabel(item.toolName, status, item.count),
+          };
+        });
         break;
       }
 
@@ -227,7 +285,9 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         runStatus.value = 'completed';
         activeTools.value = activeTools.value.map((item) => ({
           ...item,
-          status: 'done',
+          status: 'done' as const,
+          pendingCallIds: [],
+          label: resolveToolStatusLabel(item.toolName, 'done', item.count),
         }));
 
         if (activeAssistantId) {
@@ -252,6 +312,12 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         const message = String(payload.message || '对话处理失败。');
         runStatus.value = 'failed';
         errorMessage.value = message;
+        activeTools.value = activeTools.value.map((item) => ({
+          ...item,
+          status: 'done' as const,
+          pendingCallIds: [],
+          label: resolveToolStatusLabel(item.toolName, 'done', item.count),
+        }));
 
         if (activeAssistantId) {
           updateMessage(activeAssistantId, {
@@ -327,10 +393,18 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     }
   };
 
-  const sendMessage = async (rawMessage: string, optionsOverride?: { clientMessageId?: string }) => {
-    const message = rawMessage.trim();
+  const sendMessage = async (
+    rawMessage: string,
+    optionsOverride?: {
+      clientMessageId?: string;
+      /** 实际发给后端的完整文本；缺省等于展示用 rawMessage */
+      wireMessage?: string;
+    },
+  ) => {
+    const displayMessage = rawMessage.trim();
+    const wireMessage = String(optionsOverride?.wireMessage ?? rawMessage).trim();
 
-    if (!message) {
+    if (!displayMessage || !wireMessage) {
       return;
     }
 
@@ -344,7 +418,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     runStatus.value = 'running';
 
     const clientMessageId = optionsOverride?.clientMessageId || uuidv4();
-    const userMessage = createLocalMessage('user', message, 'completed', { clientMessageId });
+    const userMessage = createLocalMessage('user', displayMessage, 'completed', { clientMessageId });
     const assistantMessage = createLocalMessage('assistant', '', 'pending');
     activeAssistantId = assistantMessage.id;
     messages.value = [...messages.value, userMessage, assistantMessage];
@@ -352,7 +426,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     abortController = new AbortController();
 
     try {
-      const ensuredSessionId = await ensureSession(message);
+      const ensuredSessionId = await ensureSession(displayMessage);
       const sendUrl = resolveAppApiUrl(String(runtimeConfig.app.baseURL || '/'), '/api/chat/send');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -375,7 +449,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         body: JSON.stringify({
           sessionId: ensuredSessionId,
           clientMessageId,
-          message,
+          message: wireMessage,
         }),
         signal: abortController.signal,
         credentials: 'same-origin',
