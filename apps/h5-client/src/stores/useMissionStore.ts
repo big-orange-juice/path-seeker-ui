@@ -7,9 +7,13 @@ import {
 import { useCinemaStore } from "@/stores/useCinemaStore"
 import {
   adaptRouteDetailToMission,
+  adaptRouteResult,
+  collectChapterExhibitIds,
   encodeStageSubmitPayload,
-  getSolvedStageIds,
+  enrichMissionWithExhibits,
+  isRouteProgressCompleted,
   resolveCurrentChapterIndex,
+  resolveSolvedChapterIds,
 } from "@/adapters/gameplayMissionAdapter"
 import {
   adaptRemoteRouteCard,
@@ -34,13 +38,21 @@ import {
 } from "@/adapters/missionSessionAdapter"
 import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, TASK_KIND_OPTIONS } from "@/constants/missionSchema"
 import {
+  fetchExhibit,
   fetchGameplayStages,
+  fetchMyRouteProgress,
   fetchRouteDetail,
   fetchRoutePageList,
+  fetchRouteResult,
   fetchStageHints,
   joinGameplayRoute,
+  recordRouteActivity,
+  ROUTE_ACTIVITY_TYPE,
   submitGameplayStage,
   unlockStageHint,
+  type ExhibitResponse,
+  type MyRouteProgressResponse,
+  type StagePlayResponse,
 } from "@/services/gameplay"
 import { resolveRequestErrorMessage } from "@/services/http"
 import { getDifficultyLabel } from "@/utils/puzzleLabels"
@@ -54,6 +66,7 @@ import type {
   MissionDetail,
   MissionFilters,
   MissionRouteCard,
+  MissionRouteResult,
   MissionSession,
 } from "@/types/mission"
 
@@ -81,9 +94,14 @@ export const useMissionStore = defineStore(
     const routeTotal = shallowRef(0)
     const gameplayPending = shallowRef(false)
     const gameplayError = shallowRef("")
+    const routeResultPending = shallowRef(false)
+    const routeResultError = shallowRef("")
+    const routeResult = shallowRef<MissionRouteResult | null>(null)
     const activeSession = shallowRef<MissionSession | null>(null)
     const archiveEntries = shallowRef<MissionArchiveEntry[]>([])
     const filters = reactive<MissionFilters>(defaultFilters())
+    /** 展品缓存，避免同一路线重复拉 Exhibit/Get */
+    const exhibitCache = shallowRef<Record<string, ExhibitResponse | null>>({})
 
     const hasActiveSession = computed(() => Boolean(activeSession.value))
 
@@ -174,6 +192,58 @@ export const useMissionStore = defineStore(
       return missionMap.value[routeId] || null
     }
 
+    function putMission(mission: MissionDetail) {
+      missionMap.value = {
+        ...missionMap.value,
+        [mission.id]: mission,
+      }
+
+      if (!routeCards.value.find((item) => item.id === mission.id)) {
+        routeCards.value = [mission, ...routeCards.value]
+      }
+    }
+
+    /**
+     * 可选：用 Exhibit/Get 补位置与短视频。
+     * 失败不阻断主链路；仅回填可展示字段。
+     */
+    async function enrichMissionExhibits(mission: MissionDetail) {
+      const exhibitIds = collectChapterExhibitIds(mission)
+      if (!exhibitIds.length) {
+        return mission
+      }
+
+      const missingIds = exhibitIds.filter((id) => !(id in exhibitCache.value))
+      if (missingIds.length) {
+        const settled = await Promise.allSettled(
+          missingIds.map(async (id) => {
+            const exhibit = await fetchExhibit(id)
+            return { id, exhibit }
+          }),
+        )
+
+        const nextCache = { ...exhibitCache.value }
+        settled.forEach((result, index) => {
+          const id = missingIds[index]
+          if (result.status === "fulfilled") {
+            nextCache[id] = result.value.exhibit
+          } else {
+            nextCache[id] = null
+          }
+        })
+        exhibitCache.value = nextCache
+      }
+
+      const exhibitMap: Record<string, ExhibitResponse | null | undefined> = {}
+      exhibitIds.forEach((id) => {
+        exhibitMap[id] = exhibitCache.value[id]
+      })
+
+      const enriched = enrichMissionWithExhibits(mission, exhibitMap)
+      putMission(enriched)
+      return enriched
+    }
+
     function getMissionDraft(puzzleId: string) {
       if (!activeSession.value) {
         return null
@@ -243,22 +313,16 @@ export const useMissionStore = defineStore(
           () => fetchRouteDetail(routeId),
           { label: "打开任务", effect: "swirl" },
         )
-        const mission = adaptRouteDetailToMission(detail)
+        let mission = adaptRouteDetailToMission(detail)
 
         if (!mission) {
           detailError.value = "任务详情数据不完整"
           return null
         }
 
-        missionMap.value = {
-          ...missionMap.value,
-          [mission.id]: mission,
-        }
-
-        if (!routeCards.value.find((item) => item.id === mission.id)) {
-          routeCards.value = [mission, ...routeCards.value]
-        }
-
+        putMission(mission)
+        // 详情页可先展示，展品补全异步进行
+        mission = await enrichMissionExhibits(mission)
         return mission
       } catch (error) {
         detailError.value = resolveRequestErrorMessage(error, "任务详情加载失败")
@@ -268,6 +332,10 @@ export const useMissionStore = defineStore(
       }
     }
 
+    /**
+     * 恢复进度：MyRouteProgress 为权威源（分数/当前站/已解），
+     * Stages ⊕ Detail.nodes 构建可玩章节；可选 Exhibit 补位置/视频。
+     */
     async function restoreActiveMission() {
       if (!activeSession.value) {
         return null
@@ -277,38 +345,58 @@ export const useMissionStore = defineStore(
       gameplayError.value = ""
       const cinema = useCinemaStore()
       const session = activeSession.value
+      const lastSolved = session.solvedChapterIds[session.solvedChapterIds.length - 1] || null
+      void recordStageActivity(session.routeId, lastSolved, "resume")
 
       try {
-        const { detail, stages } = await cinema.withLoading(
+        const { detail, stages, progress } = await cinema.withLoading(
           async () => {
-            const [detailRes, stagesRes] = await Promise.all([
+            const [detailRes, stagesRes, progressRes] = await Promise.all([
               fetchRouteDetail(session.routeId),
               fetchGameplayStages(session.routeId, session.teamId),
+              fetchMyRouteProgress(session.routeId, session.teamId).catch(() => null as MyRouteProgressResponse | null),
             ])
-            return { detail: detailRes, stages: stagesRes }
+            return {
+              detail: detailRes,
+              stages: stagesRes as StagePlayResponse[],
+              progress: progressRes,
+            }
           },
           { label: "恢复进度", effect: "cinema" },
         )
-        const mission = adaptRouteDetailToMission(detail, stages)
+        let mission = adaptRouteDetailToMission(detail, stages)
 
         if (!mission) {
           gameplayError.value = "任务节点数据不完整"
           return null
         }
 
-        missionMap.value = {
-          ...missionMap.value,
-          [mission.id]: mission,
-        }
+        putMission(mission)
+        mission = await enrichMissionExhibits(mission)
 
-        const solvedChapterIds = getSolvedStageIds(stages)
+        const solvedChapterIds = resolveSolvedChapterIds({ progress, stages })
         remoteHintTextMap.value = sanitizeMissionHintTextMap(
           remoteHintTextMap.value,
           mission,
           solvedChapterIds,
         )
 
-        activeSession.value = buildRestoredMissionSession(activeSession.value, mission, solvedChapterIds)
+        activeSession.value = buildRestoredMissionSession(
+          activeSession.value,
+          mission,
+          solvedChapterIds,
+          {
+            currentStageId: progress?.currentStageId ?? null,
+            totalScore: progress?.myTotalScore,
+            routeCompleted: isRouteProgressCompleted(progress),
+            teamId: progress?.teamId ?? session.teamId,
+          },
+        )
+
+        if (activeSession.value.status === "completed") {
+          // 已通关则预拉终局，失败不阻断
+          void loadRouteResult(session.routeId, { silent: true })
+        }
 
         return mission
       } catch (error) {
@@ -323,44 +411,71 @@ export const useMissionStore = defineStore(
       gameplayPending.value = true
       gameplayError.value = ""
       const cinema = useCinemaStore()
+      routeResult.value = null
+      routeResultError.value = ""
 
       try {
-        const { detail, joinResult, stages } = await cinema.withLoading(
+        const { detail, joinResult, stages, progress } = await cinema.withLoading(
           async () => {
-            const [detailRes, joinRes, stagesRes] = await Promise.all([
+            // 先 Join，再并行拉 Stages + MyRouteProgress（进度接口依赖已加入）
+            const [detailRes, joinRes] = await Promise.all([
               fetchRouteDetail(routeId),
               joinGameplayRoute(routeId, teamId),
-              fetchGameplayStages(routeId, teamId),
             ])
-            return { detail: detailRes, joinResult: joinRes, stages: stagesRes }
+            const resolvedTeamId = teamId || joinRes.teamId || null
+            const [stagesRes, progressRes] = await Promise.all([
+              fetchGameplayStages(routeId, resolvedTeamId),
+              fetchMyRouteProgress(routeId, resolvedTeamId).catch(() => null as MyRouteProgressResponse | null),
+            ])
+            return {
+              detail: detailRes,
+              joinResult: joinRes,
+              stages: stagesRes as StagePlayResponse[],
+              progress: progressRes,
+            }
           },
           { label: "开启探索", effect: "cinema" },
         )
-        const mission = adaptRouteDetailToMission(detail, stages)
+        let mission = adaptRouteDetailToMission(detail, stages)
 
         if (!mission) {
           gameplayError.value = "任务节点数据不完整"
           return null
         }
 
-        missionMap.value = {
-          ...missionMap.value,
-          [mission.id]: mission,
-        }
+        putMission(mission)
+        mission = await enrichMissionExhibits(mission)
 
-        const solvedChapterIds = getSolvedStageIds(stages)
-        const restoredIndex = resolveCurrentChapterIndex(mission, joinResult)
-        const preferredChapterIndex = joinResult.currentStageId ? restoredIndex : undefined
+        const solvedChapterIds = resolveSolvedChapterIds({ progress, stages })
+        const progressForIndex = progress?.currentStageId
+          ? progress
+          : joinResult
+        const restoredIndex = resolveCurrentChapterIndex(mission, progressForIndex)
+        const preferredChapterIndex =
+          progressForIndex.currentStageId ? restoredIndex : undefined
         const nextSession = buildStartedMissionSession({
           routeId,
           mission,
-          joinResult,
+          joinResult: {
+            ...joinResult,
+            myTotalScore: progress?.myTotalScore ?? joinResult.myTotalScore,
+            currentStageId: progress?.currentStageId ?? joinResult.currentStageId,
+            teamId: progress?.teamId ?? joinResult.teamId ?? teamId,
+          },
           solvedChapterIds,
           selectedAgeBand,
-          teamId,
+          teamId: progress?.teamId ?? joinResult.teamId ?? teamId,
           previousSession: activeSession.value,
           preferredChapterIndex,
         })
+
+        // 服务端已完成时以进度状态为准
+        if (isRouteProgressCompleted(progress) && nextSession.status !== "completed") {
+          nextSession.status = "completed"
+          if (typeof progress?.myTotalScore === "number") {
+            nextSession.totalScore = progress.myTotalScore
+          }
+        }
 
         activeSession.value = nextSession
         remoteHintTextMap.value = activeSession.value?.routeId === routeId
@@ -370,6 +485,7 @@ export const useMissionStore = defineStore(
         if (nextSession.status === "completed") {
           const nextEntry = buildMissionArchiveEntry(nextSession, mission, getDifficultyLabel(mission.difficultyLevel))
           archiveEntries.value = appendArchiveEntry(archiveEntries.value, nextEntry)
+          void loadRouteResult(routeId, { silent: true })
         }
 
         return nextSession
@@ -378,6 +494,114 @@ export const useMissionStore = defineStore(
         return null
       } finally {
         gameplayPending.value = false
+      }
+    }
+
+    /**
+     * 终局：GET RouteResult 为权威数据源。
+     * silent：通关后预取时不抢 cinema / 不写硬错误。
+     */
+    async function loadRouteResult(routeId: string, options: { silent?: boolean } = {}) {
+      const teamId = activeSession.value?.routeId === routeId
+        ? activeSession.value.teamId
+        : null
+
+      routeResultPending.value = true
+      if (!options.silent) {
+        routeResultError.value = ""
+      }
+
+      const cinema = useCinemaStore()
+
+      try {
+        const fetchResult = () => fetchRouteResult(routeId, teamId)
+        const raw = options.silent
+          ? await fetchResult()
+          : await cinema.withLoading(fetchResult, { label: "结算成绩", effect: "swirl" })
+
+        const adapted = adaptRouteResult(raw)
+        if (!adapted) {
+          if (!options.silent) {
+            routeResultError.value = "终局数据不完整"
+          }
+          return null
+        }
+
+        routeResult.value = adapted
+
+        // 同步会话分数/完成态
+        if (activeSession.value?.routeId === routeId) {
+          activeSession.value = {
+            ...activeSession.value,
+            totalScore: adapted.totalScore,
+            status: adapted.completed ? "completed" : activeSession.value.status,
+          }
+
+          const mission = getMission(routeId) || activeMission.value
+          if (mission && adapted.completed) {
+            const nextEntry = buildMissionArchiveEntry(
+              activeSession.value,
+              mission,
+              getDifficultyLabel(mission.difficultyLevel),
+              {
+                rewardTitle: adapted.rewardTitle,
+                totalScore: adapted.totalScore,
+                solvedCount: adapted.solvedCount,
+                puzzleCount: adapted.puzzleCount,
+                usedHintCount: adapted.usedClueCount,
+                completedAt: adapted.completedAt,
+              },
+            )
+            archiveEntries.value = appendArchiveEntry(archiveEntries.value, nextEntry)
+          }
+        }
+
+        return adapted
+      } catch (error) {
+        if (!options.silent) {
+          routeResultError.value = resolveRequestErrorMessage(error, "终局结果加载失败")
+        }
+        return null
+      } finally {
+        routeResultPending.value = false
+      }
+    }
+
+    function clearRouteResult() {
+      routeResult.value = null
+      routeResultError.value = ""
+    }
+
+    /**
+     * 弱行为上报：失败静默，不打断主链路。
+     * kind: enter | leave | resume
+     */
+    async function recordStageActivity(
+      routeId: string,
+      stageId: string | null | undefined,
+      kind: "enter" | "leave" | "resume",
+    ) {
+      const activityType =
+        kind === "enter"
+          ? ROUTE_ACTIVITY_TYPE.enterStage
+          : kind === "leave"
+            ? ROUTE_ACTIVITY_TYPE.leaveStage
+            : ROUTE_ACTIVITY_TYPE.resumeRoute
+
+      const teamId = activeSession.value?.routeId === routeId
+        ? activeSession.value.teamId
+        : null
+
+      try {
+        await recordRouteActivity({
+          routeId,
+          stageId: stageId || null,
+          teamId,
+          activityType,
+          clientEventId: `act-${kind}-${routeId}-${stageId || "route"}-${Date.now()}`,
+        })
+      } catch {
+        // 弱行为：忽略错误
       }
     }
 
@@ -686,6 +910,8 @@ export const useMissionStore = defineStore(
             latestChapterResult,
             status: "completed",
           }
+          // 通关后预取 RouteResult，终局页直接用服务端数据
+          void loadRouteResult(session.routeId, { silent: true })
         }
 
         return buildMissionSubmitResult(true, response.message || puzzle.successCopy, snapshot)
@@ -750,6 +976,9 @@ export const useMissionStore = defineStore(
       routeTotal,
       gameplayPending,
       gameplayError,
+      routeResult,
+      routeResultPending,
+      routeResultError,
       hasActiveSession,
       getMission,
       getMissionDraft,
@@ -759,6 +988,9 @@ export const useMissionStore = defineStore(
       loadMissionDetail,
       restoreActiveMission,
       startRemoteMission,
+      loadRouteResult,
+      clearRouteResult,
+      recordStageActivity,
       selectChapter,
       selectChapterById,
       getChapterProgress,

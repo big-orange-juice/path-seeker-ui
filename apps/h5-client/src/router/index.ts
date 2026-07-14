@@ -17,6 +17,7 @@ import FinalePage from "@/pages/FinalePage.vue"
 import ProloguePage from "@/pages/ProloguePage.vue"
 import PuzzlePage from "@/pages/PuzzlePage.vue"
 import ShellArchivePage from "@/pages/ShellArchivePage.vue"
+import ShellAskPage from "@/pages/ShellAskPage.vue"
 import ShellHallPage from "@/pages/ShellHallPage.vue"
 import ShellPlayingPage from "@/pages/ShellPlayingPage.vue"
 import TaskDetailPage from "@/pages/TaskDetailPage.vue"
@@ -33,7 +34,7 @@ const router = createRouter({
       name: "auth",
       component: AuthPage,
       meta: {
-        title: "登录与注册",
+        title: "开始探索",
         public: true,
       },
     },
@@ -54,7 +55,7 @@ const router = createRouter({
               component: ShellHallPage,
               meta: {
                 shellTab: "hall",
-                title: "任务大厅",
+                title: "展厅",
                 showTabBar: true,
               },
             },
@@ -64,7 +65,7 @@ const router = createRouter({
               component: ShellPlayingPage,
               meta: {
                 shellTab: "playing",
-                title: "继续游玩",
+                title: "探索",
                 showTabBar: true,
               },
             },
@@ -74,8 +75,18 @@ const router = createRouter({
               component: ShellArchivePage,
               meta: {
                 shellTab: "archive",
-                title: "完成归档",
+                title: "收藏",
                 showTabBar: true,
+              },
+            },
+            {
+              path: "ask",
+              name: "shell-ask",
+              component: ShellAskPage,
+              meta: {
+                shellTab: "hall",
+                title: "问一问",
+                showTabBar: false,
               },
             },
           ],
@@ -84,7 +95,7 @@ const router = createRouter({
           path: "tasks/:routeId",
           component: TaskDetailPage,
           meta: {
-            title: "任务详情",
+            title: "任务",
             showTabBar: false,
           },
         },
@@ -92,7 +103,7 @@ const router = createRouter({
           path: "missions/:routeId/prologue",
           component: ProloguePage,
           meta: {
-            title: "开场剧情",
+            title: "介绍",
             showTabBar: false,
           },
         },
@@ -100,7 +111,7 @@ const router = createRouter({
           path: "missions/:routeId/map",
           component: ChapterMapPage,
           meta: {
-            title: "章节地图",
+            title: "路线",
             showTabBar: false,
           },
         },

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { RouterLink } from "vue-router"
-import { ClientBadge, ClientButton, ClientCard } from "@/components/ui"
+import { Play } from "lucide-vue-next"
 import { getDifficultyLabel } from "@/utils/puzzleLabels"
+import { resolveMissionCoverTheme } from "@/utils/missionTheme"
 import type { MissionRouteCard } from "@/types/mission"
 
 interface Props {
@@ -11,42 +12,55 @@ interface Props {
 
 const props = defineProps<Props>()
 
-const metaLine = computed(() =>
+const coverTheme = computed(() => resolveMissionCoverTheme(props.mission))
+const difficultyLabel = computed(() => getDifficultyLabel(props.mission.difficultyLevel))
+
+const tags = computed(() =>
   [
-    props.mission.estimatedMinutes ? `${props.mission.estimatedMinutes} 分钟` : "",
-    props.mission.chapterCount ? `${props.mission.chapterCount} 章节` : "",
-  ].filter(Boolean).join(" · "),
+    props.mission.theme || difficultyLabel.value,
+    difficultyLabel.value,
+    props.mission.chapterCount ? `${props.mission.chapterCount} 站` : "",
+    props.mission.estimatedMinutes ? `${props.mission.estimatedMinutes} 分` : "",
+  ].filter(Boolean),
 )
 </script>
 
 <template>
-  <ClientCard class="overflow-hidden">
-    <div class="space-y-4 p-5">
-      <div class="flex flex-wrap gap-2">
-        <ClientBadge v-if="mission.theme">{{ mission.theme }}</ClientBadge>
-        <ClientBadge variant="muted">{{ mission.recommendedAgeBand }}</ClientBadge>
-        <ClientBadge variant="muted">{{ getDifficultyLabel(mission.difficultyLevel) }}</ClientBadge>
-      </div>
-
-      <div class="space-y-2">
-        <h3 class="font-display text-2xl leading-tight text-foreground">{{ mission.title }}</h3>
-        <p v-if="mission.summary" class="text-sm leading-6 text-muted-foreground">{{ mission.summary }}</p>
-      </div>
-
-      <div class="grid gap-3 text-sm text-muted-foreground" :class="mission.rewardTitle ? 'grid-cols-2' : 'grid-cols-1'">
-        <div v-if="metaLine" class="rounded-[0.9rem] bg-background/70 p-3">
-          <div class="text-[11px] uppercase tracking-[0.12em]">路线信息</div>
-          <div class="mt-2 leading-6 text-foreground">{{ metaLine }}</div>
-        </div>
-        <div v-if="mission.rewardTitle" class="rounded-[0.9rem] bg-background/70 p-3">
-          <div class="text-[11px] uppercase tracking-[0.12em]">奖励</div>
-          <div class="mt-2 leading-6 text-foreground">{{ mission.rewardTitle }}</div>
-        </div>
-      </div>
-
-      <RouterLink :to="`/tasks/${mission.id}`" class="block">
-        <ClientButton class="w-full justify-center">查看任务详情</ClientButton>
-      </RouterLink>
+  <RouterLink
+    :to="`/tasks/${mission.id}`"
+    class="mission-card"
+    :class="`theme-${coverTheme}`"
+  >
+    <div class="mission-card-bg" aria-hidden="true">
+      <div class="mission-card-noise" />
     </div>
-  </ClientCard>
+    <div class="mission-card-body">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0 space-y-1.5">
+          <div class="flex flex-wrap gap-1.5">
+            <span
+              v-for="(tag, index) in tags"
+              :key="`${tag}-${index}`"
+              class="client-tag"
+              :class="{ 'is-gold': index === 0 }"
+            >
+              {{ tag }}
+            </span>
+          </div>
+          <h3 class="font-display text-[1.35rem] leading-tight text-foreground">
+            {{ mission.title }}
+          </h3>
+        </div>
+        <span class="mission-card-go" aria-hidden="true">
+          <Play class="ml-0.5 h-4 w-4 fill-current" />
+        </span>
+      </div>
+      <p v-if="mission.rewardTitle" class="text-xs text-muted-foreground">
+        {{ mission.rewardTitle }}
+      </p>
+      <p v-else-if="mission.summary" class="line-clamp-2 text-xs text-muted-foreground">
+        {{ mission.summary }}
+      </p>
+    </div>
+  </RouterLink>
 </template>

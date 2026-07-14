@@ -79,18 +79,26 @@ export function buildMissionArchiveEntry(
   session: MissionSession,
   mission: MissionDetail,
   difficultyLabel: string,
+  overrides?: {
+    rewardTitle?: string
+    totalScore?: number
+    solvedCount?: number
+    puzzleCount?: number
+    usedHintCount?: number
+    completedAt?: string | null
+  },
 ): MissionArchiveEntry {
   return {
     routeId: mission.id,
     routeTitle: mission.title,
-    rewardTitle: mission.rewardTitle || "",
-    completedAt: new Date().toISOString(),
+    rewardTitle: overrides?.rewardTitle || mission.rewardTitle || "",
+    completedAt: overrides?.completedAt || new Date().toISOString(),
     difficultyLabel,
     taskKind: mission.taskKind,
-    totalScore: session.totalScore,
-    solvedCount: session.solvedChapterIds.length,
-    puzzleCount: mission.chapterCount,
-    usedHintCount: countUsedHints(session),
+    totalScore: overrides?.totalScore ?? session.totalScore,
+    solvedCount: overrides?.solvedCount ?? session.solvedChapterIds.length,
+    puzzleCount: overrides?.puzzleCount ?? mission.chapterCount,
+    usedHintCount: overrides?.usedHintCount ?? countUsedHints(session),
   }
 }
 
@@ -141,23 +149,32 @@ export function adaptRemoteRouteCard(route: RouteCardResponse): MissionRouteCard
     scaleType: route.scaleType ?? TASK_KIND_FILTER_MAP[taskKind],
   }
 
+  // 列表卡严格跟 schema：无 intro/rewardTitle 则不编造；有则展示
+  const theme = normalizeText(route.theme) || undefined
+  const summary = normalizeText(route.intro) || undefined
+  const rewardTitle = normalizeText(route.rewardTitle) || undefined
+  const hallId = normalizeText(route.museumId) || undefined
+  const routeCode = normalizeText(route.routeCode) || undefined
+  const coverImageUrl = normalizeText(route.coverImageUrl) || undefined
+
   return {
     id,
-    hallId: normalizeText(route.museumId),
-    routeCode: normalizeText(route.routeCode) || title,
+    hallId,
+    routeCode,
     title,
-    theme: normalizeText(route.theme),
-    summary: normalizeText(route.intro),
+    theme,
+    summary,
     recommendedAgeBand,
     availableAgeBands: [recommendedAgeBand],
     difficultyLevel,
     taskKind,
-    estimatedMinutes: route.estimatedMinutes ?? 0,
-    totalScore: route.totalScore ?? 0,
+    estimatedMinutes: route.estimatedMinutes ?? undefined,
+    totalScore: route.totalScore ?? undefined,
     puzzleCount,
     chapterCount: puzzleCount,
     allowTeam: (route.allowTeam ?? 0) === 1,
-    rewardTitle: normalizeText(route.rewardTitle) || undefined,
+    rewardTitle,
+    coverImageUrl,
     startLocation: undefined,
     badgeLabel: undefined,
     persona: route.persona || route.personaId
@@ -166,6 +183,8 @@ export function adaptRemoteRouteCard(route: RouteCardResponse): MissionRouteCard
         code: normalizeText(route.persona?.personaCode),
         name: normalizeText(route.persona?.name),
         avatar: normalizeText(route.persona?.avatarUrl) || undefined,
+        intro: normalizeText(route.persona?.intro) || undefined,
+        voiceStyle: normalizeText(route.persona?.voiceStyle) || undefined,
       }
       : null,
     taglines: buildRouteTaglines(route),

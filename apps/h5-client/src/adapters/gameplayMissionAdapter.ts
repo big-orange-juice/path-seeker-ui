@@ -4,10 +4,13 @@ import {
   TASK_KIND_MAP,
 } from "@/constants/missionSchema"
 import type {
-  JoinRouteResponse,
+  ExhibitResponse,
+  MyRouteProgressResponse,
   RouteCardResponse,
   RouteDetailResponse,
   RouteNodeResponse,
+  RouteResultResponse,
+  RouteStageProgressItemResponse,
   StagePlayResponse,
 } from "@/services/gameplay"
 import type {
@@ -20,14 +23,29 @@ import type {
   MissionChapter,
   MissionDetail,
   MissionPuzzle,
+  MissionRouteBadge,
   MissionRouteCard,
+  MissionRouteCollectible,
+  MissionRouteResult,
   MissionSchemaMeta,
+  MissionShareCard,
   PuzzleReward,
   PuzzleTemplateType,
   TaskKind,
 } from "@/types/mission"
 
 type StageLike = RouteNodeResponse | StagePlayResponse
+
+/** 进度状态：1 进行中 2 已完成 3 放弃 4 失败 */
+export const ROUTE_PROGRESS_STATUS = {
+  inProgress: 1,
+  completed: 2,
+  abandoned: 3,
+  failed: 4,
+} as const
+
+/** 展品媒体：3 = 短视频 */
+const EXHIBIT_MEDIA_SHORT_VIDEO = 3
 
 const AGE_GROUP_VALUE_MAP: Record<number, AgeBand> = {
   2: "6-10",
@@ -47,16 +65,31 @@ const TASK_KIND_VALUE_MAP: Record<number, TaskKind> = {
   3: "deep_reasoning",
 }
 
+/**
+ * 主路径题型：选择（observe_choice / select）+ 拼图（image_puzzle）。
+ * 其余交互仍保留映射以便兼容后台存量配置，但产品主推选择与拼图。
+ */
 const INTERACTION_TEMPLATE_MAP: Record<number, PuzzleTemplateType> = {
-  1: "observe_choice",
+  1: "observe_choice", // Answer → 选择
   2: "code_break",
   3: "sort",
   4: "match",
-  5: "select",
-  6: "image_puzzle",
+  5: "select", // Select → 选择
+  6: "image_puzzle", // Jigsaw → 拼图
   7: "match",
   8: "clue_find",
   9: "match",
+}
+
+/** 产品主路径题型（选择 + 拼图） */
+export const PRIMARY_PUZZLE_TEMPLATES: PuzzleTemplateType[] = [
+  "observe_choice",
+  "select",
+  "image_puzzle",
+]
+
+export function isPrimaryPuzzleTemplate(type: PuzzleTemplateType) {
+  return PRIMARY_PUZZLE_TEMPLATES.includes(type)
 }
 
 function normalizeText(value: unknown, fallback = "") {
@@ -423,12 +456,14 @@ function buildArtifact(stage: StageLike, index: number): ArtifactClue {
   const config = getStageConfig(stage)
   const stageId = getStageId(stage, index)
   const title = normalizeText(stage.title)
+  const location = normalizeText(stage.galleryName ?? stage.exhibitName) || undefined
+  const subtitle = normalizeText(stage.subtitle) || undefined
 
   return {
     id: `artifact-${stageId}`,
     title,
-    subtitle: normalizeText(stage.subtitle),
-    location: normalizeText(stage.galleryName ?? stage.exhibitName),
+    subtitle,
+    location,
     observationPoint: normalizeText(config.observation_point ?? config.observationPoint) || undefined,
     storyFragment: normalizeText(config.story_fragment ?? config.storyFragment) || undefined,
     suspiciousPoint: normalizeText(config.suspicious_point ?? config.suspiciousPoint) || undefined,
@@ -440,7 +475,11 @@ function buildArtifact(stage: StageLike, index: number): ArtifactClue {
 function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefined, index: number): MissionChapter {
   const config = getStageConfig(stage)
   const title = normalizeText(stage.title)
-  const targetLocation = normalizeText(stage.galleryName ?? stage.exhibitName)
+  const targetLocation = normalizeText(stage.galleryName ?? stage.exhibitName) || undefined
+  const refExhibitId = normalizeText(stage.refExhibitId) || undefined
+  const videoFromConfig = normalizeText(
+    pickValue(config, "video_url", "videoUrl", "intro_video_url", "introVideoUrl", "media_url", "mediaUrl"),
+  ) || undefined
 
   return {
     id: getStageId(stage, index),
@@ -450,8 +489,152 @@ function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefi
     targetLocation,
     resultNarrative: normalizeText(config.result_narrative ?? config.resultNarrative) || undefined,
     nextTarget: normalizeText(config.next_target ?? config.nextTarget) || undefined,
+    refExhibitId,
+    videoUrl: videoFromConfig,
     artifact: buildArtifact(stage, index),
     puzzle: buildPuzzle(stage, route, index),
+  }
+}
+
+/**
+ * Stages ⊕ Detail.nodes：以 Stages 为主（通关态/题面），用 nodes 补
+ * exhibitName / galleryName / refExhibitId / difficulty 等详情字段。
+ */
+export function mergeStagesWithDetailNodes(
+  stages: StagePlayResponse[] | undefined,
+  nodes: RouteNodeResponse[] | undefined,
+): StageLike[] {
+  const nodeList = nodes || []
+  const stageList = stages || []
+
+  if (!stageList.length) {
+    return nodeList
+  }
+
+  const nodeByKey = new Map<string, RouteNodeResponse>()
+  nodeList.forEach((node, index) => {
+    const keys = [
+      normalizeText(node.stageId),
+      normalizeText(node.refPuzzleId),
+      normalizeText(node.puzzleId),
+    ].filter(Boolean)
+    keys.forEach((key) => {
+      if (!nodeByKey.has(key)) {
+        nodeByKey.set(key, node)
+      }
+    })
+    // 按序兜底：同下标节点
+    nodeByKey.set(`__index__${index}`, node)
+  })
+
+  return stageList.map((stage, index) => {
+    const stageKey = normalizeText(stage.stageId)
+      || normalizeText(stage.refPuzzleId)
+      || normalizeText(stage.puzzleId)
+    const node =
+      (stageKey ? nodeByKey.get(stageKey) : undefined)
+      || nodeByKey.get(`__index__${index}`)
+
+    if (!node) {
+      return stage
+    }
+
+    return {
+      ...node,
+      ...stage,
+      title: normalizeText(stage.title) || node.title,
+      subtitle: normalizeText(stage.subtitle) || node.subtitle,
+      config: stage.config || node.config,
+      nextRule: stage.nextRule || node.nextRule,
+      refExhibitId: normalizeText(stage.refExhibitId) || node.refExhibitId,
+      refPuzzleId: normalizeText(stage.refPuzzleId) || node.refPuzzleId,
+      puzzleId: normalizeText(stage.puzzleId) || node.puzzleId,
+      exhibitName: normalizeText(stage.exhibitName) || node.exhibitName,
+      galleryName: normalizeText(stage.galleryName) || node.galleryName,
+      interactionType: stage.interactionType || node.interactionType,
+      puzzleType: stage.puzzleType || node.puzzleType,
+      scaleType: stage.scaleType ?? node.scaleType,
+      difficultyLevel: stage.difficultyLevel ?? node.difficultyLevel,
+      stageNo: stage.stageNo || node.stageNo,
+      sortOrder: stage.sortOrder || node.sortOrder,
+      score: stage.score ?? node.score,
+      isRequired: stage.isRequired ?? node.isRequired,
+      unlockRule: stage.unlockRule ?? node.unlockRule,
+    }
+  })
+}
+
+/** 判断附件/媒体字段是否可直接作为播放地址 */
+export function isPlayableMediaUrl(value?: string | null) {
+  const text = normalizeText(value)
+  if (!text) {
+    return false
+  }
+  return /^https?:\/\//i.test(text) || text.startsWith("/") || text.startsWith("blob:") || text.startsWith("data:")
+}
+
+function pickExhibitShortVideoUrl(exhibit: ExhibitResponse) {
+  const mediaList = [...(exhibit.mediaList || [])]
+    .filter((item) => Number(item.mediaType) === EXHIBIT_MEDIA_SHORT_VIDEO && Number(item.status ?? 1) === 1)
+    .sort((left, right) => Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0))
+
+  for (const item of mediaList) {
+    if (isPlayableMediaUrl(item.mediaUrl)) {
+      return normalizeText(item.mediaUrl)
+    }
+  }
+
+  return ""
+}
+
+/** 用 Exhibit/Get 回填位置与可播短视频（有则补，无则保持） */
+export function applyExhibitToChapter(chapter: MissionChapter, exhibit: ExhibitResponse): MissionChapter {
+  const exhibitName = normalizeText(exhibit.name)
+  const showcase = normalizeText(exhibit.showcaseNo)
+  const locationParts = [exhibitName, showcase ? `展柜 ${showcase}` : ""].filter(Boolean)
+  const location = locationParts.join(" · ") || undefined
+  const shortVideo = pickExhibitShortVideoUrl(exhibit) || undefined
+
+  return {
+    ...chapter,
+    targetLocation: chapter.targetLocation || location,
+    videoUrl: chapter.videoUrl || shortVideo,
+    artifact: {
+      ...chapter.artifact,
+      title: chapter.artifact.title || exhibitName || chapter.title,
+      location: chapter.artifact.location || location,
+      storyFragment: chapter.artifact.storyFragment || normalizeText(exhibit.description) || undefined,
+    },
+  }
+}
+
+export function collectChapterExhibitIds(mission: MissionDetail) {
+  const ids = new Set<string>()
+  mission.chapters.forEach((chapter) => {
+    const id = normalizeText(chapter.refExhibitId)
+    if (id) {
+      ids.add(id)
+    }
+  })
+  return [...ids]
+}
+
+export function enrichMissionWithExhibits(
+  mission: MissionDetail,
+  exhibitMap: Record<string, ExhibitResponse | null | undefined>,
+): MissionDetail {
+  const chapters = mission.chapters.map((chapter) => {
+    const exhibitId = normalizeText(chapter.refExhibitId)
+    if (!exhibitId) {
+      return chapter
+    }
+    const exhibit = exhibitMap[exhibitId]
+    return exhibit ? applyExhibitToChapter(chapter, exhibit) : chapter
+  })
+
+  return {
+    ...mission,
+    chapters,
   }
 }
 
@@ -477,29 +660,38 @@ function buildPrologue(detail: RouteDetailResponse): MissionDetail["prologue"] {
 }
 
 function adaptRouteCard(route: RouteCardResponse, detail?: RouteDetailResponse | null): MissionRouteCard {
-  const routeId = normalizeText(route.id, "route-unknown")
+  const routeId = normalizeText(route.id)
   const recommendedAgeBand = resolveAgeBand(route.ageGroup)
   const difficultyLevel = resolveDifficultyLevel(route.difficultyLevel)
   const taskKind = resolveTaskKind(route.scaleType)
   const chapterCount = (detail?.nodes || []).length || Number(route.puzzleCount ?? 0)
+  const theme = normalizeText(route.theme) || undefined
+  const summary = normalizeText(detail?.intro ?? route.intro) || undefined
+  const hallId = normalizeText(detail?.museumId ?? route.museumId) || undefined
+  const estimatedMinutes = route.estimatedMinutes == null ? undefined : Number(route.estimatedMinutes)
+  const totalScore = route.totalScore == null ? undefined : Number(route.totalScore)
+  const rewardTitle = normalizeText(route.rewardTitle) || undefined
+  const coverImageUrl = normalizeText(route.coverImageUrl) || undefined
+  const routeCode = normalizeText(route.routeCode) || undefined
 
   return {
     id: routeId,
-    hallId: normalizeText(detail?.museumId),
-    routeCode: routeId,
+    hallId,
+    routeCode,
     title: normalizeText(route.title),
-    theme: normalizeText(route.theme),
-    summary: normalizeText(detail?.intro ?? route.intro),
+    theme,
+    summary,
     recommendedAgeBand,
     availableAgeBands: [recommendedAgeBand],
     difficultyLevel,
     taskKind,
-    estimatedMinutes: Number(route.estimatedMinutes ?? 0),
-    totalScore: Number(route.totalScore ?? 0),
+    estimatedMinutes,
+    totalScore,
     puzzleCount: Number(route.puzzleCount ?? chapterCount),
     chapterCount,
     allowTeam: Number(route.allowTeam ?? 0) === 1,
-    rewardTitle: normalizeText(route.rewardTitle) || undefined,
+    rewardTitle,
+    coverImageUrl,
     startLocation: undefined,
     badgeLabel: undefined,
     persona: route.persona
@@ -508,6 +700,8 @@ function adaptRouteCard(route: RouteCardResponse, detail?: RouteDetailResponse |
         code: normalizeText(route.persona.personaCode),
         name: normalizeText(route.persona.name),
         avatar: normalizeText(route.persona.avatarUrl) || undefined,
+        intro: normalizeText(route.persona.intro) || undefined,
+        voiceStyle: normalizeText(route.persona.voiceStyle) || undefined,
       }
       : null,
     taglines: [],
@@ -517,28 +711,25 @@ function adaptRouteCard(route: RouteCardResponse, detail?: RouteDetailResponse |
 
 export function adaptRouteDetailToMission(detail: RouteDetailResponse, stages?: StagePlayResponse[]) {
   const route = detail.route
-  if (!route?.id) {
+  if (!route?.id || !normalizeText(route.title)) {
     return null
   }
 
   const baseCard = adaptRouteCard(route, detail)
-  const stageList = stages?.length ? stages : (detail.nodes || [])
+  // Stages 为主，Detail.nodes 补位置/展品等；无 Stages 时退回 nodes
+  const stageList = mergeStagesWithDetailNodes(stages, detail.nodes || [])
   const chapters = stageList.map((stage, index) => buildChapter(stage, route, index))
 
   const mission: MissionDetail = {
     ...baseCard,
     chapterCount: chapters.length,
     puzzleCount: chapters.length,
-    museumName: normalizeText(detail.museumId),
+    museumName: normalizeText(detail.museumId) || "",
     prologue: buildPrologue(detail),
     chapters,
+    // 终局文案以 RouteResult 为准；此处不编造叙事
     finale: {
-      title: "",
-      truth: "",
-      debrief: "",
       knowledgeNotes: [],
-      scoreTitle: "",
-      shareLine: "",
     },
   }
 
@@ -551,8 +742,44 @@ export function getSolvedStageIds(stages: StagePlayResponse[]) {
     .map((stage, index) => getStageId(stage, index))
 }
 
-export function resolveCurrentChapterIndex(mission: MissionDetail, joinResult: JoinRouteResponse) {
-  const currentStageId = normalizeText(joinResult.currentStageId)
+/** 从 MyRouteProgress / RouteResult 的 stages 取已通关 stageId */
+export function getSolvedStageIdsFromProgress(stages: RouteStageProgressItemResponse[] | null | undefined) {
+  return (stages || [])
+    .filter((stage) => stage.mySolved || stage.teamSolved)
+    .map((stage) => normalizeText(stage.stageId))
+    .filter(Boolean)
+}
+
+/**
+ * 恢复时优先 MyRouteProgress.stages；否则用 Stages 接口 solved 标记。
+ * 两者都有时取并集，避免进度接口滞后漏标。
+ */
+export function resolveSolvedChapterIds(input: {
+  progress?: MyRouteProgressResponse | null
+  stages?: StagePlayResponse[] | null
+}) {
+  const fromProgress = getSolvedStageIdsFromProgress(input.progress?.stages)
+  const fromStages = input.stages?.length ? getSolvedStageIds(input.stages) : []
+  return [...new Set([...fromProgress, ...fromStages])]
+}
+
+export function isRouteProgressCompleted(progress?: MyRouteProgressResponse | null) {
+  if (!progress) {
+    return false
+  }
+  if (progress.myStatus === ROUTE_PROGRESS_STATUS.completed) {
+    return true
+  }
+  const total = Number(progress.totalStageCount ?? 0)
+  const solved = Number(progress.mySolvedCount ?? 0)
+  return total > 0 && solved >= total
+}
+
+export function resolveCurrentChapterIndex(
+  mission: MissionDetail,
+  progress?: { currentStageId?: string | null } | null,
+) {
+  const currentStageId = normalizeText(progress?.currentStageId)
   if (!currentStageId) {
     return 0
   }
@@ -560,6 +787,110 @@ export function resolveCurrentChapterIndex(mission: MissionDetail, joinResult: J
   const foundIndex = mission.chapters.findIndex((chapter) => chapter.id === currentStageId)
   return foundIndex >= 0 ? foundIndex : 0
 }
+
+function adaptBadge(item: NonNullable<RouteResultResponse["badges"]>[number]): MissionRouteBadge | null {
+  const id = normalizeText(item.id)
+  const name = normalizeText(item.name)
+  if (!id || !name) {
+    return null
+  }
+  return {
+    id,
+    name,
+    description: normalizeText(item.description) || undefined,
+    iconUrl: normalizeText(item.iconUrl) || undefined,
+    rarity: item.rarity,
+  }
+}
+
+function adaptCollectible(item: NonNullable<RouteResultResponse["collectibles"]>[number]): MissionRouteCollectible | null {
+  const id = normalizeText(item.id)
+  const name = normalizeText(item.name)
+  if (!id || !name) {
+    return null
+  }
+  return {
+    id,
+    name,
+    description: normalizeText(item.description) || undefined,
+    iconUrl: normalizeText(item.iconUrl) || undefined,
+    type: item.type,
+    rarity: item.rarity,
+  }
+}
+
+function adaptShareCard(card: RouteResultResponse["shareCard"]): MissionShareCard | null {
+  if (!card) {
+    return null
+  }
+  return {
+    nickname: normalizeText(card.nickname) || undefined,
+    routeTitle: normalizeText(card.routeTitle) || undefined,
+    theme: normalizeText(card.theme) || undefined,
+    rewardTitle: normalizeText(card.rewardTitle) || undefined,
+    totalScore: Number(card.totalScore ?? 0),
+    solvedCount: Number(card.solvedCount ?? 0),
+    puzzleCount: Number(card.puzzleCount ?? 0),
+    durationSec: card.durationSec ?? null,
+    noCluePerfect: Boolean(card.noCluePerfect),
+    completedAt: card.completedAt ?? null,
+    shareCode: normalizeText(card.shareCode) || undefined,
+  }
+}
+
+export function adaptRouteResult(result: RouteResultResponse): MissionRouteResult | null {
+  const routeId = normalizeText(result.routeId)
+  if (!routeId) {
+    return null
+  }
+
+  const badges = (result.badges || [])
+    .map(adaptBadge)
+    .filter((item): item is MissionRouteBadge => Boolean(item))
+  const collectibles = (result.collectibles || [])
+    .map(adaptCollectible)
+    .filter((item): item is MissionRouteCollectible => Boolean(item))
+
+  return {
+    routeId,
+    teamId: result.teamId ?? null,
+    isTeamMode: Boolean(result.isTeamMode),
+    routeTitle: normalizeText(result.routeTitle),
+    theme: normalizeText(result.theme) || undefined,
+    rewardTitle: normalizeText(result.rewardTitle) || undefined,
+    status: Number(result.status ?? 0),
+    completed: Boolean(result.completed || result.teamCompleted),
+    totalScore: Number(result.totalScore ?? 0),
+    solvedCount: Number(result.solvedCount ?? 0),
+    puzzleCount: Number(result.puzzleCount ?? 0),
+    usedClueCount: Number(result.usedClueCount ?? 0),
+    noCluePerfect: Boolean(result.noCluePerfect),
+    durationSec: result.durationSec ?? null,
+    startedAt: result.startedAt ?? null,
+    completedAt: result.completedAt ?? null,
+    badges,
+    collectibles,
+    shareCard: adaptShareCard(result.shareCard),
+  }
+}
+
+export function formatDurationSec(durationSec?: number | null) {
+  if (durationSec == null || !Number.isFinite(durationSec) || durationSec < 0) {
+    return ""
+  }
+  const total = Math.floor(durationSec)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  if (hours > 0) {
+    return `${hours} 时 ${minutes} 分`
+  }
+  if (minutes > 0) {
+    return `${minutes} 分 ${seconds} 秒`
+  }
+  return `${seconds} 秒`
+}
+
 
 export function encodeStageSubmitPayload(puzzle: MissionPuzzle, value: unknown) {
   if (puzzle.templateType === "code_break" && typeof value === "string") {

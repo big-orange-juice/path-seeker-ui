@@ -95,9 +95,11 @@ onMounted(() => {
     <ClientCard v-if="hasRestorableSession">
       <div class="space-y-4 p-5">
         <div class="space-y-1">
-          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-primary">当前任务</p>
-          <h2 class="text-2xl font-display text-foreground">{{ activeSession?.routeTitle }}</h2>
-          <p class="client-page-copy">{{ missionStore.currentChapter?.title }}</p>
+          <span class="client-tag is-gold">探索中</span>
+          <h2 class="mt-2 text-2xl font-display text-foreground">{{ activeSession?.routeTitle }}</h2>
+          <p class="client-page-copy">
+            {{ missionStore.currentChapter?.title || "选择一站继续" }}
+          </p>
         </div>
 
         <div class="grid grid-cols-3 gap-3">
@@ -153,20 +155,24 @@ onMounted(() => {
 
         <div class="grid gap-3">
           <ClientButton class="w-full" :disabled="!resumePath" @click="continueMission()">
-            继续当前进度
+            继续探索
           </ClientButton>
-          <ClientButton variant="outline" class="w-full" @click="router.push(activeRouteMapPath)">
-            查看章节地图
-          </ClientButton>
+          <div class="grid grid-cols-2 gap-3">
+            <ClientButton variant="outline" class="w-full" @click="router.push(activeRouteMapPath)">
+              路线图
+            </ClientButton>
+            <ClientButton variant="outline" class="w-full" @click="clearCurrentSession()">
+              清空
+            </ClientButton>
+          </div>
           <ClientButton
             v-if="activeSession?.routeId"
             variant="outline"
             class="w-full"
             @click="replayCurrentMission()"
           >
-            重新开始当前路线
+            重新开始
           </ClientButton>
-          <ClientButton variant="outline" class="w-full" @click="clearCurrentSession()">清空当前会话</ClientButton>
         </div>
       </div>
     </ClientCard>
@@ -187,9 +193,9 @@ onMounted(() => {
 
     <ClientEmptyState
       v-else
-      title="还没有可恢复的任务"
-      description="先去大厅选择一条路线开始。开始后会话会由 Pinia 持久化，回到这里就能继续。"
-      action-text="回到任务大厅"
+      title="还没有任务"
+      description="先去展厅选一条路线开始。"
+      action-text="去展厅"
       @action="router.push('/shell/hall')"
     />
   </div>

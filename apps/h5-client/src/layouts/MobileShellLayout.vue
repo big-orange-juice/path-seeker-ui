@@ -9,8 +9,8 @@ const authStore = useAuthStore()
 
 const title = computed(() => String(route.meta.title || "Path Seeker"))
 const hideChromeHeader = computed(() => {
-  // 播片页自带影院头，避免双重顶栏
-  return route.path.includes("/video")
+  // 播片 / 问一问全页自带顶栏
+  return route.path.includes("/video") || route.path.startsWith("/shell/ask")
 })
 </script>
 

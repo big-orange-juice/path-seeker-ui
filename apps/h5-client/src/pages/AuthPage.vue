@@ -1,26 +1,23 @@
 <script setup lang="ts">
 import { computed, reactive, shallowRef } from "vue"
 import { useRoute, useRouter } from "vue-router"
+import { Sparkles } from "lucide-vue-next"
 import { useToastStore } from "@path-seeker/client-state"
 import {
   ClientButton,
   ClientCard,
   ClientEmptyState,
   ClientInput,
-  ClientTabs,
-  ClientTabsContent,
-  ClientTabsList,
-  ClientTabsTrigger,
 } from "@/components/ui"
 import { useAuthStore } from "@/stores/useAuthStore"
 
-type AuthMode = "login" | "register"
+type AuthMode = "guest" | "login" | "register"
 
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 const route = useRoute()
 const router = useRouter()
-const mode = shallowRef<AuthMode>("login")
+const mode = shallowRef<AuthMode>("guest")
 
 const loginForm = reactive({
   account: "",
@@ -57,7 +54,7 @@ async function submitLogin() {
 
   const result = await authStore.login(loginForm.account, loginForm.password)
   if (result) {
-    toastStore.success("登录成功", "欢迎回来，任务进度已经恢复到当前设备。")
+    toastStore.success("欢迎回来", "任务进度已恢复到当前设备。")
     await backHome()
   }
 }
@@ -77,7 +74,7 @@ async function submitRegister() {
   })
 
   if (result) {
-    toastStore.success("注册成功", "账号已创建，并已自动登录。")
+    toastStore.success("账号已创建", "已自动登录，可以开始探索。")
     await backHome()
   }
 }
@@ -85,93 +82,137 @@ async function submitRegister() {
 async function submitGuestLogin() {
   const result = await authStore.loginAsGuest()
   if (result) {
-    toastStore.success("已进入游客模式", "你可以先体验完整任务流，之后再决定是否注册。")
+    toastStore.success("出发！", "游客模式已就绪。")
     await backHome()
   }
 }
 
 function logout() {
   authStore.logout()
-  toastStore.info("已退出登录", "当前设备上的登录状态已经清空。")
+  toastStore.info("已退出", "当前设备登录状态已清空。")
 }
 </script>
 
 <template>
   <div class="client-shell">
     <div class="client-frame">
-      <header class="mb-6 flex items-start justify-between gap-4">
-        <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Path Seeker H5</p>
-          <h1 class="client-page-title">登录与注册</h1>
-        </div>
-        <div class="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-          Auth
+      <header class="mb-5 flex items-start justify-between gap-4">
+        <div class="space-y-1.5">
+          <p class="client-top-kicker">Path Seeker</p>
+          <h1 class="client-page-title">{{ authStore.isLoggedIn ? "我的" : "开始探索" }}</h1>
         </div>
       </header>
 
       <main class="space-y-4">
+        <!-- 已登录 -->
         <ClientCard v-if="authStore.isLoggedIn">
-          <div class="space-y-4 p-5">
-            <div class="space-y-1">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-primary">当前账号</p>
-              <h2 class="text-2xl font-display text-foreground">{{ authStore.displayName }}</h2>
-              <p class="client-page-copy">登录状态已经交给 Pinia 持久化保存，请求会自动携带访问令牌。</p>
+          <div class="space-y-5 p-5 text-center">
+            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-[1rem] border border-primary/30 bg-primary/10 text-primary">
+              <Sparkles class="h-6 w-6" />
             </div>
-
+            <div class="space-y-1">
+              <h2 class="font-display text-2xl text-foreground">{{ authStore.displayName }}</h2>
+              <p class="client-page-copy">本机账号 · 进度已同步</p>
+            </div>
             <div class="grid gap-3">
-              <ClientButton class="w-full" @click="backHome()">进入任务大厅</ClientButton>
-              <ClientButton variant="outline" class="w-full" @click="logout()">退出登录</ClientButton>
+              <ClientButton class="w-full" @click="backHome()">进入展厅</ClientButton>
+              <ClientButton variant="outline" class="w-full" @click="logout()">退出</ClientButton>
             </div>
           </div>
         </ClientCard>
 
         <template v-else>
-          <ClientCard>
-            <div class="space-y-5 p-5">
-              <ClientTabs v-model="mode" class="w-full">
-                <ClientTabsList>
-                  <ClientTabsTrigger value="login">登录</ClientTabsTrigger>
-                  <ClientTabsTrigger value="register">注册</ClientTabsTrigger>
-                </ClientTabsList>
-
-                <ClientTabsContent value="login" class="space-y-3">
-                  <ClientInput v-model="loginForm.account" placeholder="用户名 / 手机号 / 邮箱" />
-                  <ClientInput v-model="loginForm.password" type="password" placeholder="请输入密码" />
-                  <ClientButton class="w-full" :disabled="!canSubmitLogin || authStore.pending" @click="submitLogin()">
-                    {{ authStore.pending ? "登录中..." : "登录" }}
-                  </ClientButton>
-                </ClientTabsContent>
-
-                <ClientTabsContent value="register" class="space-y-3">
-                  <ClientInput v-model="registerForm.username" placeholder="用户名、手机号、邮箱至少填一项" />
-                  <div class="grid gap-3 sm:grid-cols-2">
-                    <ClientInput v-model="registerForm.phone" placeholder="手机号（可选）" />
-                    <ClientInput v-model="registerForm.email" placeholder="邮箱（可选）" />
-                  </div>
-                  <ClientInput v-model="registerForm.nickname" placeholder="昵称（可选）" />
-                  <ClientInput v-model="registerForm.password" type="password" placeholder="密码至少 6 位" />
-                  <ClientButton class="w-full" :disabled="!canSubmitRegister || authStore.pending" @click="submitRegister()">
-                    {{ authStore.pending ? "注册中..." : "注册并登录" }}
-                  </ClientButton>
-                </ClientTabsContent>
-              </ClientTabs>
+          <!-- 印章门页 -->
+          <section class="auth-gate" aria-hidden="false">
+            <div class="auth-seal-ring" aria-hidden="true" />
+            <div class="auth-seal" aria-hidden="true">
+              <Sparkles class="h-5 w-5" />
             </div>
-          </ClientCard>
+            <div class="relative z-[1] space-y-2">
+              <span class="client-tag is-gold">馆内解谜</span>
+              <h2 class="font-display text-[1.7rem] leading-tight text-foreground">
+                找到展品<br />解开谜题
+              </h2>
+              <p class="text-sm text-muted-foreground">扫一扫 · 看短片 · 闯关</p>
+            </div>
+          </section>
 
           <ClientCard>
-            <div class="space-y-3 p-5">
-              <h2 class="text-lg font-semibold text-foreground">临时体验</h2>
-              <p class="client-page-copy">不创建账号，直接以游客身份进入任务。</p>
-              <ClientButton variant="outline" class="w-full" :disabled="authStore.pending" @click="submitGuestLogin()">
-                游客登录
-              </ClientButton>
+            <div class="space-y-4 p-5">
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="auth-mode-chip"
+                  :class="{ 'is-active': mode === 'guest' }"
+                  @click="mode = 'guest'"
+                >
+                  游客
+                </button>
+                <button
+                  type="button"
+                  class="auth-mode-chip"
+                  :class="{ 'is-active': mode === 'login' }"
+                  @click="mode = 'login'"
+                >
+                  账号
+                </button>
+                <button
+                  type="button"
+                  class="auth-mode-chip"
+                  :class="{ 'is-active': mode === 'register' }"
+                  @click="mode = 'register'"
+                >
+                  注册
+                </button>
+              </div>
+
+              <div v-if="mode === 'guest'" class="space-y-3">
+                <p class="client-page-copy">不创建账号，直接体验完整任务流。</p>
+                <ClientButton class="w-full" :disabled="authStore.pending" @click="submitGuestLogin()">
+                  {{ authStore.pending ? "进入中..." : "开始探索" }}
+                </ClientButton>
+              </div>
+
+              <div v-else-if="mode === 'login'" class="space-y-3">
+                <ClientInput v-model="loginForm.account" placeholder="用户名 / 手机号 / 邮箱" autocomplete="username" />
+                <ClientInput
+                  v-model="loginForm.password"
+                  type="password"
+                  placeholder="请输入密码"
+                  autocomplete="current-password"
+                />
+                <ClientButton
+                  class="w-full"
+                  :disabled="!canSubmitLogin || authStore.pending"
+                  @click="submitLogin()"
+                >
+                  {{ authStore.pending ? "登录中..." : "进入" }}
+                </ClientButton>
+              </div>
+
+              <div v-else class="space-y-3">
+                <ClientInput v-model="registerForm.username" placeholder="用户名、手机号、邮箱至少填一项" />
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <ClientInput v-model="registerForm.phone" placeholder="手机号（可选）" />
+                  <ClientInput v-model="registerForm.email" placeholder="邮箱（可选）" />
+                </div>
+                <ClientInput v-model="registerForm.nickname" placeholder="昵称（可选）" />
+                <ClientInput v-model="registerForm.password" type="password" placeholder="密码至少 6 位" />
+                <ClientButton
+                  class="w-full"
+                  :disabled="!canSubmitRegister || authStore.pending"
+                  @click="submitRegister()"
+                >
+                  {{ authStore.pending ? "注册中..." : "注册并进入" }}
+                </ClientButton>
+              </div>
             </div>
           </ClientCard>
         </template>
 
         <ClientEmptyState
           v-if="authStore.error"
-          title="认证请求失败"
+          title="认证失败"
           :description="authStore.error"
         />
       </main>

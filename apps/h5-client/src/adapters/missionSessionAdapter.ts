@@ -121,18 +121,50 @@ export function buildStartedMissionSession(input: BuildStartedMissionSessionInpu
   }
 }
 
+export interface RestoreMissionSessionOptions {
+  /** 服务端 MyRouteProgress.currentStageId */
+  currentStageId?: string | null
+  /** 服务端 myTotalScore；缺省保留本地 */
+  totalScore?: number
+  /** 服务端是否已完成 */
+  routeCompleted?: boolean
+  teamId?: string | null
+}
+
 export function buildRestoredMissionSession(
   previousSession: MissionSession,
   mission: MissionDetail,
   solvedChapterIds: string[],
+  options: RestoreMissionSessionOptions = {},
 ) {
-  const base = applyResolvedSessionProgress({
-    ...previousSession,
-    routeTitle: mission.title,
-  }, mission, solvedChapterIds)
+  const preferredChapterIndex =
+    options.currentStageId
+      ? mission.chapters.findIndex((chapter) => chapter.id === options.currentStageId)
+      : undefined
+
+  const base = applyResolvedSessionProgress(
+    {
+      ...previousSession,
+      routeTitle: mission.title,
+      teamId: options.teamId ?? previousSession.teamId,
+    },
+    mission,
+    solvedChapterIds,
+    preferredChapterIndex != null && preferredChapterIndex >= 0 ? preferredChapterIndex : undefined,
+  )
+
+  const routeCompleted =
+    Boolean(options.routeCompleted)
+    || base.status === "completed"
+    || (solvedChapterIds.length >= mission.chapterCount && mission.chapterCount > 0)
 
   return {
     ...base,
+    totalScore:
+      typeof options.totalScore === "number" && Number.isFinite(options.totalScore)
+        ? options.totalScore
+        : base.totalScore,
+    status: routeCompleted ? "completed" as const : "in_progress" as const,
     chapterProgress: buildChapterProgressMap(
       mission,
       solvedChapterIds,

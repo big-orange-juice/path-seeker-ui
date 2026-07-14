@@ -5,6 +5,7 @@ import { PuzzleRendererHost } from "@path-seeker/game-renderer"
 import { createPuzzleDraft } from "@path-seeker/game-runtime"
 import { useToastStore } from "@path-seeker/client-state"
 import { ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import { isPrimaryPuzzleTemplate } from "@/adapters/gameplayMissionAdapter"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
 import { getPuzzleTypeLabel } from "@/utils/puzzleLabels"
 import type { MissionAnswerDraft } from "@/types/mission"
@@ -38,6 +39,11 @@ const puzzleLabel = computed(() => {
   }
 
   return getPuzzleTypeLabel(missionStore.currentPuzzle.templateType, missionStore.currentPuzzle.interactionType)
+})
+
+const isPrimaryTemplate = computed(() => {
+  const puzzle = missionStore.currentPuzzle
+  return puzzle ? isPrimaryPuzzleTemplate(puzzle.templateType) : false
 })
 
 const canUseHint = computed(() => !missionStore.currentChapterSolved && !missionStore.currentHintText && !missionStore.gameplayPending)
@@ -125,16 +131,21 @@ onMounted(() => {
     <ClientCard v-if="ready && missionStore.currentPuzzle" class="overflow-hidden">
       <div class="space-y-5 p-5">
         <div class="flex items-center justify-between gap-3">
-          <span v-if="puzzleLabel" class="rounded-full bg-primary/12 px-3 py-1 text-xs font-semibold text-primary">
+          <span v-if="puzzleLabel" class="client-tag is-gold">
             {{ puzzleLabel }}
           </span>
           <span class="text-sm text-muted-foreground">
-            总分 {{ missionStore.activeSession?.totalScore ?? 0 }}
+            {{ missionStore.activeSession?.totalScore ?? 0 }} 分
           </span>
         </div>
 
         <div class="space-y-2">
-          <h2 class="font-display text-2xl leading-tight text-foreground">{{ missionStore.currentPuzzle.prompt }}</h2>
+          <h2 class="font-display text-2xl leading-tight text-foreground">
+            {{ missionStore.currentPuzzle.prompt || missionStore.currentPuzzle.title }}
+          </h2>
+          <p v-if="!isPrimaryTemplate" class="text-xs text-muted-foreground">
+            本站为扩展题型，主路径为选择与拼图
+          </p>
         </div>
 
         <div class="rounded-[1rem] bg-background/70 p-4">

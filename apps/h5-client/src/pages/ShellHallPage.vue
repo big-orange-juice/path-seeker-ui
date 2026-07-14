@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, shallowRef } from "vue"
 import type { SelectOption } from "@path-seeker/ui"
+import { Filter } from "lucide-vue-next"
 import {
   ClientButton,
   ClientCard,
@@ -15,7 +16,6 @@ import {
   ClientSkeleton,
 } from "@/components/ui"
 import MissionPreviewCard from "@/components/shell/MissionPreviewCard.vue"
-import ShellHeroCard from "@/components/shell/ShellHeroCard.vue"
 import {
   AGE_BAND_OPTIONS,
   DIFFICULTY_OPTIONS,
@@ -52,7 +52,13 @@ const taskKindOptions: SelectOption[] = [
 ]
 
 const emptyText = computed(() =>
-  missionStore.routeListError || "当前筛选条件下没有可展示的路线，先换个年龄档或难度看看。",
+  missionStore.routeListError || "没有匹配路线，换个年龄或难度再试试。",
+)
+
+const filterOn = computed(() =>
+  missionStore.filters.ageBand !== "all"
+  || missionStore.filters.difficulty !== "all"
+  || missionStore.filters.taskKind !== "all",
 )
 
 const filterSummary = computed(() =>
@@ -60,7 +66,7 @@ const filterSummary = computed(() =>
     ageBandOptions.find((item) => item.value === missionStore.filters.ageBand)?.label,
     difficultyOptions.find((item) => item.value === missionStore.filters.difficulty)?.label,
     taskKindOptions.find((item) => item.value === missionStore.filters.taskKind)?.label,
-  ].filter((item) => item && item !== "全部年龄" && item !== "全部难度" && item !== "全部玩法"),
+  ].filter((item) => item && !String(item).startsWith("全部")),
 )
 
 function closeFilterSheet() {
@@ -70,42 +76,43 @@ function closeFilterSheet() {
 
 <template>
   <div class="space-y-4">
-    <ShellHeroCard
-      :mission-count="missionStore.coverageSummary.missionCount"
-      :archive-count="missionStore.coverageSummary.archiveCount"
-      :has-active-session="missionStore.coverageSummary.hasActiveSession"
-    />
-
-    <ClientCard>
-      <div class="space-y-4 p-5">
-        <div class="flex items-start justify-between gap-3">
-          <div class="space-y-1">
-            <h2 class="text-lg font-semibold text-foreground">路线筛选</h2>
-            <p class="client-page-copy">
-              这里直接读取远程任务列表，并保持筛选条件持久化，进入路线后可继续完成开场、章节与题目流程。
-            </p>
-          </div>
-          <ClientButton variant="outline" class="shrink-0" @click="filterSheetOpen = true">筛选</ClientButton>
-        </div>
-
-        <div v-if="filterSummary.length" class="flex flex-wrap gap-2">
-          <span
-            v-for="item in filterSummary"
-            :key="item"
-            class="rounded-full bg-background/70 px-3 py-1 text-sm text-muted-foreground"
-          >
-            {{ item }}
-          </span>
-        </div>
+    <div class="hall-hud">
+      <div class="space-y-1">
+        <span class="client-tag is-gold">今日路线</span>
+        <p class="text-xs text-muted-foreground">
+          {{ missionStore.coverageSummary.missionCount }} 条
+          <template v-if="missionStore.coverageSummary.archiveCount">
+            · 收藏 {{ missionStore.coverageSummary.archiveCount }}
+          </template>
+        </p>
       </div>
-    </ClientCard>
+      <button
+        type="button"
+        class="ask-icon-btn"
+        :class="{ 'text-primary border-primary/40': filterOn }"
+        aria-label="筛选"
+        @click="filterSheetOpen = true"
+      >
+        <Filter class="h-4 w-4" />
+      </button>
+    </div>
+
+    <div v-if="filterSummary.length" class="flex flex-wrap gap-2">
+      <span
+        v-for="item in filterSummary"
+        :key="item"
+        class="client-tag"
+      >
+        {{ item }}
+      </span>
+    </div>
 
     <ClientSheet v-model="filterSheetOpen">
       <ClientSheetContent side="bottom">
         <ClientSheetHeader>
-          <ClientSheetTitle>筛选路线</ClientSheetTitle>
+          <ClientSheetTitle>筛选</ClientSheetTitle>
           <ClientSheetDescription>
-            按年龄档、难度和玩法收窄路线列表，筛选条件会跟随会话一起保留下来。
+            按年龄、难度和玩法收窄路线。
           </ClientSheetDescription>
         </ClientSheetHeader>
 
@@ -128,13 +135,13 @@ function closeFilterSheet() {
         </div>
 
         <ClientSheetFooter>
-          <ClientButton variant="outline" class="w-full" @click="missionStore.resetFilters()">重置筛选</ClientButton>
-          <ClientButton class="w-full" @click="closeFilterSheet()">查看结果</ClientButton>
+          <ClientButton variant="outline" class="w-full" @click="missionStore.resetFilters()">重置</ClientButton>
+          <ClientButton class="w-full" @click="closeFilterSheet()">确定</ClientButton>
         </ClientSheetFooter>
       </ClientSheetContent>
     </ClientSheet>
 
-    <div v-if="missionStore.filteredRoutes.length" class="space-y-4">
+    <div v-if="missionStore.filteredRoutes.length" class="mission-rail">
       <MissionPreviewCard
         v-for="mission in missionStore.filteredRoutes"
         :key="mission.id"
@@ -152,7 +159,7 @@ function closeFilterSheet() {
 
     <ClientEmptyState
       v-else
-      title="暂无可展示路线"
+      title="没有匹配路线"
       :description="emptyText"
     />
   </div>

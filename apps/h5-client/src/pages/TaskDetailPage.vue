@@ -2,9 +2,10 @@
 import { computed, onMounted, shallowRef } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 import { useToastStore } from "@path-seeker/client-state"
-import { ClientBadge, ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import { ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
-import { getDifficultyLabel, getPuzzleTypeLabel } from "@/utils/puzzleLabels"
+import { getDifficultyLabel } from "@/utils/puzzleLabels"
+import { resolveMissionCoverTheme } from "@/utils/missionTheme"
 import type { AgeBand, MissionDetail } from "@/types/mission"
 
 const route = useRoute()
@@ -16,17 +17,19 @@ const routeId = computed(() => String(route.params.routeId || ""))
 const mission = shallowRef<MissionDetail | null>(null)
 const selectedAgeBand = shallowRef<AgeBand>("10-15")
 
-const metaItems = computed(() => {
-  const currentMission = mission.value
-  if (!currentMission) {
-    return []
-  }
+const coverTheme = computed(() =>
+  mission.value ? resolveMissionCoverTheme(mission.value) : "bronze",
+)
 
+const metaTags = computed(() => {
+  const current = mission.value
+  if (!current) {
+    return [] as string[]
+  }
   return [
-    currentMission.theme,
-    getDifficultyLabel(currentMission.difficultyLevel),
-    currentMission.estimatedMinutes ? `${currentMission.estimatedMinutes} 分钟` : "",
-    currentMission.chapterCount ? `${currentMission.chapterCount} 章节` : "",
+    getDifficultyLabel(current.difficultyLevel),
+    current.chapterCount ? `${current.chapterCount} 站` : "",
+    current.estimatedMinutes ? `${current.estimatedMinutes} 分` : "",
   ].filter(Boolean)
 })
 
@@ -34,7 +37,6 @@ const canResumeCurrent = computed(() => {
   if (!mission.value || !missionStore.activeSession) {
     return false
   }
-
   return missionStore.activeSession.routeId === mission.value.id && missionStore.activeSession.status === "in_progress"
 })
 
@@ -58,11 +60,11 @@ async function handleStartMission() {
 
   const session = await missionStore.startRemoteMission(mission.value.id, selectedAgeBand.value)
   if (!session) {
-    toastStore.error("任务启动失败", missionStore.gameplayError || "请稍后重试。")
+    toastStore.error("开启失败", missionStore.gameplayError || "请稍后重试。")
     return
   }
 
-  toastStore.success("任务已开始", `已进入《${mission.value.title}》的真实任务流程。`)
+  toastStore.success("出发", `已进入《${mission.value.title}》。`)
 
   await router.push(
     mission.value.prologue.length
@@ -76,8 +78,18 @@ async function handleContinueMission() {
     return
   }
 
+  if (missionStore.activeSession?.routeId === mission.value.id) {
+    await missionStore.restoreActiveMission()
+  } else {
+    const session = await missionStore.startRemoteMission(mission.value.id, selectedAgeBand.value)
+    if (!session) {
+      toastStore.error("恢复失败", missionStore.gameplayError || "请稍后重试。")
+      return
+    }
+  }
+
   const resumePath = missionStore.resolveResumeRoutePath()
-  toastStore.info("正在恢复进度", "已为你定位到上次停下来的节点。")
+  toastStore.info("接着玩", "已按服务端进度定位。")
   await router.push(
     resumePath && missionStore.activeSession?.routeId === mission.value.id
       ? resumePath
@@ -91,112 +103,109 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <ClientCard v-if="mission" class="overflow-hidden">
-      <div class="space-y-5 p-5">
-        <div class="space-y-3">
-          <div class="flex flex-wrap gap-2">
-            <ClientBadge v-if="mission.theme">{{ mission.theme }}</ClientBadge>
-            <ClientBadge variant="muted">{{ mission.recommendedAgeBand }}</ClientBadge>
-            <ClientBadge variant="muted">{{ getDifficultyLabel(mission.difficultyLevel) }}</ClientBadge>
-          </div>
-
-          <div class="space-y-2">
-            <h2 class="font-display text-3xl leading-tight text-foreground">{{ mission.title }}</h2>
-            <p v-if="mission.summary" class="client-page-copy">{{ mission.summary }}</p>
-          </div>
-
-          <div v-if="metaItems.length" class="flex flex-wrap gap-2 text-sm text-muted-foreground">
-            <span
-              v-for="item in metaItems"
-              :key="item"
-              class="rounded-full bg-background/70 px-3 py-1"
-            >
-              {{ item }}
-            </span>
-          </div>
+  <div class="space-y-5">
+    <template v-if="mission">
+      <section class="art-hero" :class="`theme-${coverTheme}`">
+        <div class="art-hero-glow" aria-hidden="true" />
+        <div class="relative mb-3 flex flex-wrap gap-1.5">
+          <span
+            v-for="(tag, index) in metaTags"
+            :key="`${tag}-${index}`"
+            class="client-tag"
+            :class="{ 'is-gold': index === 0 }"
+          >
+            {{ tag }}
+          </span>
+          <span v-if="mission.theme" class="client-tag">{{ mission.theme }}</span>
         </div>
+        <h2 class="relative font-display text-[1.85rem] leading-tight text-foreground">
+          {{ mission.title }}
+        </h2>
+        <p v-if="mission.summary" class="relative mt-3 max-w-[22rem] text-[0.92rem] leading-relaxed text-muted-foreground">
+          {{ mission.summary }}
+        </p>
+        <p v-if="mission.rewardTitle" class="relative mt-3 text-xs tracking-wide text-primary">
+          完成可得 · {{ mission.rewardTitle }}
+        </p>
+      </section>
 
-        <div v-if="mission.rewardTitle" class="rounded-[1rem] bg-background/70 p-4">
-          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">奖励</p>
-          <p class="mt-3 text-sm leading-6 text-foreground">{{ mission.rewardTitle }}</p>
+      <section v-if="mission.availableAgeBands.length > 1" class="space-y-2">
+        <p class="text-[0.7rem] font-semibold tracking-[0.12em] text-muted-foreground">年龄档</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="band in mission.availableAgeBands"
+            :key="band"
+            type="button"
+            class="auth-mode-chip"
+            :class="{ 'is-active': band === selectedAgeBand }"
+            @click="selectedAgeBand = band"
+          >
+            {{ band }}
+          </button>
         </div>
+      </section>
 
-        <div v-if="mission.availableAgeBands.length > 1" class="space-y-3">
-          <p class="text-sm font-semibold text-foreground">年龄档</p>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="band in mission.availableAgeBands"
-              :key="band"
-              type="button"
-              class="rounded-full border px-4 py-2 text-sm transition-colors"
-              :class="band === selectedAgeBand ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background/60 text-muted-foreground'"
-              @click="selectedAgeBand = band"
-            >
-              {{ band }}
-            </button>
-          </div>
-        </div>
-
-        <div class="space-y-3">
-          <div class="flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-foreground">任务节点</h3>
-            <span class="text-sm text-muted-foreground">{{ mission.chapters.length }} 站</span>
-          </div>
-
-          <div class="space-y-3">
-            <div
-              v-for="chapter in mission.chapters"
-              :key="chapter.id"
-              class="flex items-center gap-3 rounded-[1rem] bg-background/70 p-4"
-            >
-              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                {{ chapter.stageNo }}
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="text-sm font-semibold text-foreground">{{ chapter.title }}</div>
-                <div class="text-sm text-muted-foreground">{{ chapter.targetLocation }}</div>
-              </div>
-              <div class="text-right text-xs text-muted-foreground">
-                {{ getPuzzleTypeLabel(chapter.puzzle.templateType, chapter.puzzle.interactionType) }}
-              </div>
+      <section v-if="mission.chapters.length" class="space-y-2">
+        <p class="text-[0.7rem] font-semibold tracking-[0.12em] text-muted-foreground">这一路会经过</p>
+        <div class="space-y-0">
+          <div
+            v-for="chapter in mission.chapters"
+            :key="chapter.id"
+            class="art-chapter-pill"
+          >
+            <span class="art-chapter-n">{{ chapter.stageNo }}</span>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm font-medium text-foreground">{{ chapter.title }}</p>
+              <p v-if="chapter.targetLocation" class="truncate text-xs text-muted-foreground">
+                {{ chapter.targetLocation }}
+              </p>
             </div>
           </div>
         </div>
+      </section>
 
-        <div class="grid gap-3">
-          <ClientButton v-if="canResumeCurrent" class="w-full" @click="handleContinueMission()">继续当前任务</ClientButton>
-          <ClientButton
-            :variant="canResumeCurrent ? 'outline' : 'default'"
-            class="w-full"
-            :disabled="missionStore.gameplayPending"
-            @click="handleStartMission()"
-          >
-            {{ missionStore.gameplayPending ? "开始中..." : canResumeCurrent ? "重新开始本路线" : "开始任务" }}
-          </ClientButton>
-        </div>
+      <div class="grid gap-3 pt-1">
+        <ClientButton
+          v-if="canResumeCurrent"
+          class="w-full"
+          :disabled="missionStore.gameplayPending"
+          @click="handleContinueMission()"
+        >
+          接着玩
+        </ClientButton>
+        <ClientButton
+          :variant="canResumeCurrent ? 'outline' : 'default'"
+          class="w-full"
+          :disabled="missionStore.gameplayPending"
+          @click="handleStartMission()"
+        >
+          {{
+            missionStore.gameplayPending
+              ? "准备中..."
+              : canResumeCurrent
+                ? "从头开始"
+                : "开始探索"
+          }}
+        </ClientButton>
       </div>
-    </ClientCard>
+    </template>
 
     <ClientCard v-else-if="missionStore.detailPending">
       <div class="space-y-4 p-5">
         <ClientSkeleton class="h-6 w-32" />
         <ClientSkeleton class="h-10 w-full" />
         <ClientSkeleton class="h-24 w-full" />
-        <div class="grid gap-3 sm:grid-cols-2">
-          <ClientSkeleton class="h-32 w-full" />
-          <ClientSkeleton class="h-32 w-full" />
-        </div>
+        <ClientSkeleton class="h-10 w-full" />
       </div>
     </ClientCard>
 
     <ClientEmptyState
       v-else
-      title="任务详情不可用"
+      title="任务不可用"
       :description="missionStore.gameplayError || missionStore.detailError || '当前路线暂时没有可用详情。'"
     >
       <RouterLink to="/shell/hall" class="block">
-        <ClientButton variant="outline" class="w-full">返回任务大厅</ClientButton>
+        <ClientButton variant="outline" class="w-full">返回展厅</ClientButton>
       </RouterLink>
     </ClientEmptyState>
   </div>

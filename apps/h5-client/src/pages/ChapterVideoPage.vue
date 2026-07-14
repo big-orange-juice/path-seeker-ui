@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, shallowRef, useTemplateRef } from "vu
 import { useRoute, useRouter } from "vue-router"
 import { useToastStore } from "@path-seeker/client-state"
 import { ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import { isPlayableMediaUrl } from "@/adapters/gameplayMissionAdapter"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
 import { useCinemaStore } from "@/stores/useCinemaStore"
 import defaultMovieUrl from "@/assets/styles/movie.mp4"
@@ -22,7 +23,12 @@ const statusText = shallowRef("即将播放")
 const videoRef = useTemplateRef<HTMLVideoElement>("videoEl")
 
 const chapter = computed(() => missionStore.currentChapter)
-const videoSrc = computed(() => defaultMovieUrl)
+/** 有可播短视频 URL 则用展品/配置片，否则默认本地片（可跳过） */
+const videoSrc = computed(() => {
+  const remote = chapter.value?.videoUrl
+  return isPlayableMediaUrl(remote) ? String(remote).trim() : defaultMovieUrl
+})
+const usingDefaultVideo = computed(() => videoSrc.value === defaultMovieUrl)
 
 async function bootstrap() {
   ready.value = false
@@ -196,7 +202,11 @@ onUnmounted(() => {
       </div>
 
       <p class="text-center text-xs text-muted-foreground">
-        播片接口待定：可用默认短片或直接跳过
+        {{
+          usingDefaultVideo
+            ? "暂无展品短视频，使用默认片；可跳过"
+            : "正在播放本站关联短视频；可跳过"
+        }}
       </p>
     </div>
 

@@ -23,16 +23,12 @@ async function ensureMissionReady() {
     return
   }
 
-  const mission = missionStore.getMission(routeId.value) || await missionStore.loadMissionDetail(routeId.value)
-  if (!mission) {
-    return
-  }
-
-  await missionStore.startRemoteMission(mission.id)
+  // 禁止隐式 Join：介绍页只在「开始探索」之后进入
+  await router.replace(`/tasks/${routeId.value}`)
 }
 
 async function enterMap() {
-  toastStore.info("开场结束", "已切换到章节地图，开始正式探索。")
+  toastStore.info("开场结束", "跟着路线，找到展品。")
   await router.push(`/missions/${routeId.value}/map`)
 }
 
@@ -57,19 +53,24 @@ onMounted(() => {
           </div>
         </div>
 
-        <div v-if="missionStore.activeMission.prologue.length" class="space-y-3">
-          <div
+        <div v-if="missionStore.activeMission.prologue.length" class="space-y-4">
+          <article
             v-for="(beat, index) in missionStore.activeMission.prologue"
             :key="beat.title || beat.content || index"
-            class="rounded-[1rem] bg-background/70 p-4"
+            class="flex gap-3"
           >
-            <p v-if="beat.eyebrow" class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{{ beat.eyebrow }}</p>
-            <h3 v-if="beat.title" class="mt-2 text-lg font-semibold text-foreground">{{ beat.title }}</h3>
-            <p v-if="beat.content" class="mt-2 text-sm leading-6 text-muted-foreground">{{ beat.content }}</p>
-          </div>
+            <div class="pt-1 text-xs font-semibold tabular-nums text-primary">
+              {{ String(index + 1).padStart(2, "0") }}
+            </div>
+            <div class="min-w-0 flex-1 space-y-1.5 rounded-[1rem] bg-background/70 p-4">
+              <p v-if="beat.eyebrow" class="text-xs font-semibold tracking-[0.12em] text-primary">{{ beat.eyebrow }}</p>
+              <h3 v-if="beat.title" class="font-display text-lg text-foreground">{{ beat.title }}</h3>
+              <p v-if="beat.content" class="text-sm leading-6 text-muted-foreground">{{ beat.content }}</p>
+            </div>
+          </article>
         </div>
 
-        <ClientButton class="w-full" @click="enterMap()">进入章节地图</ClientButton>
+        <ClientButton class="w-full" @click="enterMap()">开始探索</ClientButton>
       </div>
     </ClientCard>
 

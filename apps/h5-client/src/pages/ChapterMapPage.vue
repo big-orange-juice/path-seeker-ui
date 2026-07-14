@@ -52,21 +52,16 @@ const currentStepLabel = computed(() => {
 })
 
 async function ensureMissionReady() {
-  if (missionStore.activeSession?.routeId === routeId.value && missionStore.activeMission) {
-    return
-  }
-
+  // 刷新后 missionMap 不在持久化里：有会话无详情时走 MyRouteProgress 恢复
   if (missionStore.activeSession?.routeId === routeId.value) {
-    await missionStore.restoreActiveMission()
+    if (!missionStore.activeMission) {
+      await missionStore.restoreActiveMission()
+    }
     return
   }
 
-  const mission = missionStore.getMission(routeId.value) || await missionStore.loadMissionDetail(routeId.value)
-  if (!mission) {
-    return
-  }
-
-  await missionStore.startRemoteMission(mission.id)
+  // 禁止页面内隐式 Join：无会话回详情明确开始
+  await router.replace(`/tasks/${routeId.value}`)
 }
 
 function selectChapter(index: number) {

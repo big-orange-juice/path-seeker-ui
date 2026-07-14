@@ -46,23 +46,27 @@ export interface MissionSchemaMeta {
 
 export interface MissionRouteCard {
   id: string
-  hallId: string
-  routeCode: string
+  hallId?: string
+  routeCode?: string
   title: string
-  theme: string
-  summary: string
+  /** schema 有则展示，无则隐藏 */
+  theme?: string
+  /** 详情 intro；列表卡不保证 */
+  summary?: string
   recommendedAgeBand: AgeBand
   availableAgeBands: AgeBand[]
   difficultyLevel: DifficultyLevel
   taskKind: TaskKind
-  estimatedMinutes: number
+  estimatedMinutes?: number
   totalScore?: number
   puzzleCount: number
   chapterCount: number
   allowTeam: boolean
+  /** 列表卡 schema 不保证；终局见 RouteResult.rewardTitle */
   rewardTitle?: string
   startLocation?: string
   badgeLabel?: string
+  coverImageUrl?: string
   persona?: MissionPersona | null
   taglines?: string[]
   schemaMeta: MissionSchemaMeta
@@ -77,8 +81,8 @@ export interface StoryBeat {
 export interface ArtifactClue {
   id: string
   title: string
-  subtitle: string
-  location: string
+  subtitle?: string
+  location?: string
   observationPoint?: string
   storyFragment?: string
   suspiciousPoint?: string
@@ -141,20 +145,79 @@ export interface MissionChapter {
   stageNo: number
   title: string
   objective?: string
-  targetLocation: string
+  /** 有则展示；Stages 无位置时可能为空，由 Detail.nodes / Exhibit 回填 */
+  targetLocation?: string
   resultNarrative?: string
   nextTarget?: string
+  /** 关联展品 ID（string 透传） */
+  refExhibitId?: string
+  /** 短视频可播放 URL；无则播片页用默认片 + 跳过 */
+  videoUrl?: string
   artifact: ArtifactClue
   puzzle: MissionPuzzle
 }
 
 export interface MissionFinale {
-  title: string
-  truth: string
-  debrief: string
+  title?: string
+  truth?: string
+  debrief?: string
   knowledgeNotes: string[]
-  scoreTitle: string
-  shareLine: string
+  scoreTitle?: string
+  shareLine?: string
+}
+
+/** 服务端 RouteResult 映射，终局页优先展示 */
+export interface MissionRouteBadge {
+  id: string
+  name: string
+  description?: string
+  iconUrl?: string
+  rarity?: number
+}
+
+export interface MissionRouteCollectible {
+  id: string
+  name: string
+  description?: string
+  iconUrl?: string
+  type?: number
+  rarity?: number
+}
+
+export interface MissionShareCard {
+  nickname?: string
+  routeTitle?: string
+  theme?: string
+  rewardTitle?: string
+  totalScore: number
+  solvedCount: number
+  puzzleCount: number
+  durationSec?: number | null
+  noCluePerfect: boolean
+  completedAt?: string | null
+  shareCode?: string
+}
+
+export interface MissionRouteResult {
+  routeId: string
+  teamId?: string | null
+  isTeamMode: boolean
+  routeTitle: string
+  theme?: string
+  rewardTitle?: string
+  status: number
+  completed: boolean
+  totalScore: number
+  solvedCount: number
+  puzzleCount: number
+  usedClueCount: number
+  noCluePerfect: boolean
+  durationSec?: number | null
+  startedAt?: string | null
+  completedAt?: string | null
+  badges: MissionRouteBadge[]
+  collectibles: MissionRouteCollectible[]
+  shareCard?: MissionShareCard | null
 }
 
 export interface MissionDetail extends MissionRouteCard {
