@@ -52,10 +52,12 @@ const chatPaneRef = shallowRef<{ resetSession: () => void; abortActiveRun: () =>
 const narrationDetail = shallowRef<NarrationDetailResponse | null>(null);
 const narrationStatus = ref<GameplayPreviewNarrationStatus>('idle');
 const narrationErrorMessage = ref('');
+const narrationAudioGenerating = ref(false);
 
 let detailRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSilentRefresh = false;
 let narrationRequestSeq = 0;
+let narrationAudioPollTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isOpen = computed({
   get: () => props.open,
@@ -168,11 +170,37 @@ const resolveRequestErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-const loadNarrationDetail = async (stageId: string) => {
+const clearNarrationAudioPoll = () => {
+  if (narrationAudioPollTimer) {
+    clearTimeout(narrationAudioPollTimer);
+    narrationAudioPollTimer = null;
+  }
+};
+
+const isAudioStillGenerating = (detail: NarrationDetailResponse | null) => {
+  if (!detail) {
+    return false;
+  }
+
+  const audioUrl = String(detail.audioUrl ?? '').trim();
+  if (audioUrl) {
+    return false;
+  }
+
+  const status = Number(detail.audioStatus ?? 0);
+  // 1=Queued 2=Generating
+  return status === 1 || status === 2;
+};
+
+const loadNarrationDetail = async (stageId: string, options?: { silent?: boolean }) => {
   const requestId = ++narrationRequestSeq;
-  narrationStatus.value = 'loading';
-  narrationErrorMessage.value = '';
-  narrationDetail.value = null;
+  const silent = Boolean(options?.silent);
+
+  if (!silent) {
+    narrationStatus.value = 'loading';
+    narrationErrorMessage.value = '';
+    narrationDetail.value = null;
+  }
 
   try {
     const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
@@ -183,7 +211,7 @@ const loadNarrationDetail = async (stageId: string) => {
     });
 
     if (requestId !== narrationRequestSeq) {
-      return;
+      return null;
     }
 
     narrationDetail.value = detail;
@@ -192,14 +220,73 @@ const loadNarrationDetail = async (stageId: string) => {
     if (!detail?.narrationText && detail?.textError) {
       narrationErrorMessage.value = String(detail.textError);
     }
+
+    if (!isAudioStillGenerating(detail)) {
+      narrationAudioGenerating.value = false;
+      clearNarrationAudioPoll();
+    }
+
+    return detail;
   } catch (error) {
     if (requestId !== narrationRequestSeq) {
+      return null;
+    }
+
+    if (!silent) {
+      narrationDetail.value = null;
+      narrationStatus.value = 'error';
+      narrationErrorMessage.value = resolveRequestErrorMessage(error, '解说词加载失败。');
+    }
+
+    narrationAudioGenerating.value = false;
+    clearNarrationAudioPoll();
+    return null;
+  }
+};
+
+const pollNarrationAudio = (stageId: string, attempt = 0) => {
+  clearNarrationAudioPoll();
+
+  if (attempt >= 20) {
+    narrationAudioGenerating.value = false;
+    return;
+  }
+
+  narrationAudioPollTimer = setTimeout(async () => {
+    narrationAudioPollTimer = null;
+    const detail = await loadNarrationDetail(stageId, { silent: true });
+
+    if (isAudioStillGenerating(detail)) {
+      pollNarrationAudio(stageId, attempt + 1);
       return;
     }
 
-    narrationDetail.value = null;
-    narrationStatus.value = 'error';
-    narrationErrorMessage.value = resolveRequestErrorMessage(error, '解说词加载失败。');
+    narrationAudioGenerating.value = false;
+  }, 2000);
+};
+
+const handleGenerateNarrationAudio = async (stageId: string) => {
+  const id = String(stageId || '').trim();
+  if (!id || narrationAudioGenerating.value) {
+    return;
+  }
+
+  narrationAudioGenerating.value = true;
+  narrationErrorMessage.value = '';
+
+  try {
+    await request('/api/narration/generate-audio', {
+      method: 'POST',
+      body: {
+        stageId: id,
+      },
+    });
+
+    await loadNarrationDetail(id, { silent: true });
+    pollNarrationAudio(id);
+  } catch (error) {
+    narrationAudioGenerating.value = false;
+    narrationErrorMessage.value = resolveRequestErrorMessage(error, '语音生成请求失败。');
   }
 };
 
@@ -218,9 +305,11 @@ watch(
   (state) => {
     if (!state.open || state.tab !== 'preview' || state.interactionType !== 11 || !state.stageId) {
       narrationRequestSeq += 1;
+      clearNarrationAudioPoll();
       narrationDetail.value = null;
       narrationStatus.value = 'idle';
       narrationErrorMessage.value = '';
+      narrationAudioGenerating.value = false;
       return;
     }
 
@@ -340,6 +429,7 @@ watch(routeId, (next, prev) => {
 
 onBeforeUnmount(() => {
   clearDetailRefreshTimer();
+  clearNarrationAudioPoll();
   chatPaneRef.value?.abortActiveRun();
 });
 
@@ -467,7 +557,11 @@ function closeDialog() {
             <div
               v-show="rightPane === 'preview'"
               class="h-full min-h-0 overflow-y-auto rounded-xl border border-border/70">
-              <GameplayPreviewHost v-if="previewStage" :stage="previewStage" />
+              <GameplayPreviewHost
+                v-if="previewStage"
+                :stage="previewStage"
+                :narration-audio-generating="narrationAudioGenerating"
+                @generate-audio="handleGenerateNarrationAudio" />
               <div v-else class="flex h-full items-center justify-center px-4 text-sm text-muted-foreground">
                 暂无节点可预览
               </div>

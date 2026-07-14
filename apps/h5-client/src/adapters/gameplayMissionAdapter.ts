@@ -29,6 +29,7 @@ import type {
   MissionRouteResult,
   MissionSchemaMeta,
   MissionShareCard,
+  MissionStageKind,
   PuzzleReward,
   PuzzleTemplateType,
   TaskKind,
@@ -79,6 +80,9 @@ const INTERACTION_TEMPLATE_MAP: Record<number, PuzzleTemplateType> = {
   7: "match",
   8: "clue_find",
   9: "match",
+  // 10 / 11 不进 PuzzleRenderer；占位仅保证 puzzle 对象可构造
+  10: "clue_find",
+  11: "observe_choice",
 }
 
 /** 产品主路径题型（选择 + 拼图） */
@@ -90,6 +94,26 @@ export const PRIMARY_PUZZLE_TEMPLATES: PuzzleTemplateType[] = [
 
 export function isPrimaryPuzzleTemplate(type: PuzzleTemplateType) {
   return PRIMARY_PUZZLE_TEMPLATES.includes(type)
+}
+
+/** 按 interactionType 分流 H5 页面链路 */
+export function resolveStageKind(interactionType?: number | null): MissionStageKind {
+  const type = Number(interactionType || 0)
+  if (type === 11) {
+    return "narration"
+  }
+  if (type === 10) {
+    return "find_scan"
+  }
+  return "puzzle"
+}
+
+export function isNarrationStage(interactionType?: number | null) {
+  return resolveStageKind(interactionType) === "narration"
+}
+
+export function isFindScanStage(interactionType?: number | null) {
+  return resolveStageKind(interactionType) === "find_scan"
 }
 
 function normalizeText(value: unknown, fallback = "") {
@@ -480,10 +504,14 @@ function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefi
   const videoFromConfig = normalizeText(
     pickValue(config, "video_url", "videoUrl", "intro_video_url", "introVideoUrl", "media_url", "mediaUrl"),
   ) || undefined
+  const interactionType = Number(stage.interactionType || stage.puzzleType || 1)
+  const sortOrder = Number(stage.sortOrder ?? stage.stageNo ?? index + 1)
+  const puzzle = buildPuzzle(stage, route, index)
 
   return {
     id: getStageId(stage, index),
-    stageNo: Number(stage.stageNo ?? stage.sortOrder ?? index + 1),
+    stageNo: sortOrder,
+    sortOrder,
     title,
     objective: normalizeText(config.objective ?? config.goal) || undefined,
     targetLocation,
@@ -491,8 +519,13 @@ function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefi
     nextTarget: normalizeText(config.next_target ?? config.nextTarget) || undefined,
     refExhibitId,
     videoUrl: videoFromConfig,
+    interactionType,
+    stageKind: resolveStageKind(interactionType),
     artifact: buildArtifact(stage, index),
-    puzzle: buildPuzzle(stage, route, index),
+    puzzle: {
+      ...puzzle,
+      interactionType,
+    },
   }
 }
 

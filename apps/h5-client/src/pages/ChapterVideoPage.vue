@@ -38,18 +38,36 @@ async function bootstrap() {
     return
   }
 
+  const interactionType = Number(
+    missionStore.currentChapter?.interactionType
+    ?? missionStore.currentChapter?.puzzle?.interactionType
+    ?? 0,
+  )
+
+  // 11 解说：不需要播片
+  if (interactionType === 11) {
+    await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/narration`)
+    return
+  }
+
   const gate = missionStore.getChapterProgress(chapterId.value)
   if (gate.solved) {
     await router.replace(`/missions/${routeId.value}/map`)
     return
   }
+  // 1~9：播完进闯关；10：播完提交完成（不进 puzzle）
   if (gate.videoWatched && !gate.solved) {
+    if (interactionType === 10) {
+      await router.replace(`/missions/${routeId.value}/map`)
+      return
+    }
     await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/puzzle`)
     return
   }
+  // 未扫一扫成功时回找一找；扫一扫成功后应自动进入本页
   if (!gate.recognized) {
-    // 未识别时仍允许进入播片（用户可从 brief 跳过识别后会先 mark recognized）
-    // 若直接深链到 video，也允许继续，避免卡死
+    await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/clue`)
+    return
   }
 
   ready.value = true
@@ -62,19 +80,43 @@ function unlockVideo() {
   missionStore.markChapterVideoWatched(chapterId.value)
 }
 
-async function toPuzzle() {
+async function afterVideo() {
   if (finishing.value) {
     return
   }
   finishing.value = true
   cinemaStore.setVideoPlaying(false)
   unlockVideo()
+
+  const interactionType = Number(
+    missionStore.currentChapter?.interactionType
+    ?? missionStore.currentChapter?.puzzle?.interactionType
+    ?? 0,
+  )
+
+  // type 10：扫一扫 + 播片即本站完成
+  if (interactionType === 10) {
+    const result = await missionStore.completeFindScanStage()
+    if (!result.success) {
+      finishing.value = false
+      toastStore.warning("提交失败", result.message || "请稍后重试")
+      return
+    }
+    await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/result`)
+    return
+  }
+
+  // 1~9：进入闯关
   await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/puzzle`)
 }
 
+async function toPuzzle() {
+  await afterVideo()
+}
+
 async function skipVideo() {
-  toastStore.info("已跳过短片", "识别与播片接口待定，可直接闯关。")
-  await toPuzzle()
+  toastStore.info("已跳过短片", "可继续当前站点流程。")
+  await afterVideo()
 }
 
 async function tryAutoplay() {

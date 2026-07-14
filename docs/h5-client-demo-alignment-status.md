@@ -1,6 +1,6 @@
 # H5 Client 对齐 Demo 进度总结
 
-> 更新日期：2026-07-14  
+> 更新日期：2026-07-15  
 > 范围：`apps/h5-client` 向 `apps/h5-demo` 路线任务体验对齐  
 > 对照契约：`docs/schema.json`（公开 C 端接口）
 
@@ -33,10 +33,11 @@
 | 字段严格跟 schema | ~70% | 列表卡收紧；无字段隐藏；Stages⊕nodes 合并 |
 | 题型收敛（选择 + 拼图） | ~70% | 主路径标注；Answer/Select/Jigsaw 映射；扩展题型兼容 |
 | FAB / 问 | ~90% | FAB 含「问」；浮层 + 全页 Ask；本地启发式回复 |
-| 识别真接口 | 0% | 刻意等待公开 API |
+| 识别真接口 | ~20% | FindScan UI 已接；真识物 API 仍待；可跳过 |
+| type 10/11 分流 | ~85% | 11 解说页 + Narration API；10 扫一扫→播片→Submit；1~9 原 puzzle |
 
-**整体约 75%～80%。**  
-P0 数据收口 + P1 体验对齐已落地；P2 等后端识物接口。
+**整体约 80%～85%。**  
+P0 数据收口 + P1 体验对齐已落地；10/11 节点链路已同步；真识物 API 仍待。
 
 ---
 
@@ -44,14 +45,14 @@ P0 数据收口 + P1 体验对齐已落地；P2 等后端识物接口。
 
 ```text
 登录（印章门：游客 / 账号 / 注册）
-  → 展厅选路线（今日路线 + 筛选 + 主题卡片）
+  → 展厅选路线（今日路线 + 筛选 publishStatus=2 + 主题卡片）
   → 任务详情（art-hero · 接着玩 / 开始探索）
   → 介绍 prologue（纵向 story beats）
-  → 路线选站 map
-  → 线索 brief
-  → 找一找 clue（可「跳过识别」）
-  → 短片 video（展品片 / 默认片 + 跳过）
-  → 闯关 puzzle（选择 / 拼图为主）
+  → 路线选站 map（展示 interactionType 标签 + sortOrder）
+  → 按 stageKind 分流：
+      · 11 解说 → narration（Narration/detail + 可选 generate-audio → Submit）
+      · 10 找一找 → brief → clue(扫一扫) → 成功后自动 video → Submit 完成
+      · 1~9 练习 → brief → clue(扫一扫) → 成功后自动 video → puzzle(Submit)
   → 本站结果 result → 回路线 map
   → … 多站循环
   → 通关 finale（RouteResult）
@@ -190,13 +191,14 @@ Demo 对照源：`apps/h5-demo/`（`js/pages.js` / `chrome.js` / `css/styles.css
 
 ### 6.3 题型主路径
 
-| interactionType | 映射 | 定位 |
-| --- | --- | --- |
-| 1 Answer | `observe_choice` | **主路径 · 选择** |
-| 5 Select | `select` | **主路径 · 选择** |
-| 6 Jigsaw | `image_puzzle` | **主路径 · 拼图** |
-| 2/3/4/7/8/9 | code/sort/match/clue… | 兼容扩展，UI 标注非主路径 |
-| 10 拍照识别 | （找一找） | C 端**暂跳过**；B 端 Chat `BuildStagesByAgent` 的 `ui.route.build.progress` 已按 `interactionType` 推送 |
+| interactionType | stageKind | H5 链路 | 定位 |
+| --- | --- | --- | --- |
+| 1 Answer | puzzle | 扫一扫→播片→puzzle | **主路径 · 选择** |
+| 5 Select | puzzle | 同上 | **主路径 · 选择** |
+| 6 Jigsaw | puzzle | 同上 | **主路径 · 拼图** |
+| 2/3/4/7/8/9 | puzzle | 同上 | 兼容扩展 |
+| 10 找一找 | find_scan | 扫一扫→**自动播片**→Submit（不进 puzzle） | UI 已接 FindScan；识物 API 可跳过 |
+| 11 解说导览 | narration | **无扫一扫/播片** → narration 页 | Narration/detail + 生成语音 + Submit |
 
 ---
 
@@ -233,15 +235,24 @@ Cinema = 路由过场 + 关键接口 loading（ref-count）。
 5. ~~收紧隐式 Join~~  
 6. ~~RecordActivity~~  
 
+### P1 — 10/11 节点链路（2026-07-15 已同步）
+
+7. ~~interactionType 分流（stageKind）~~  
+8. ~~11 解说页 + Narration/detail + generate-audio~~  
+9. ~~11 不扫一扫、不播片~~  
+10. ~~非 11：扫一扫成功后自动播片~~  
+11. ~~10：播片后 Submit 完成本站~~  
+
 ### P2 — 后端就绪后
 
-7. 真识别 / 真播片门槛，移除临时跳过  
+12. 真识别 API，移除 type 10 跳过  
+13. 播片是否必须真实 URL 的产品确认  
 
 ### 可选打磨
 
-8. Ask 接真实馆内助手 API（若后端提供）  
-9. 地图 / 闯关页视觉再向 demo 1:1  
-10. 记录行为类型与后端枚举书面确认  
+14. Ask 接真实馆内助手 API（若后端提供）  
+15. 地图 / 闯关页视觉再向 demo 1:1  
+16. 记录行为类型与后端枚举书面确认  
 
 ---
 
@@ -257,6 +268,14 @@ Cinema = 路由过场 + 关键接口 loading（ref-count）。
 - [x] FAB 含「问」；浮层与全页可用  
 - [x] 无会话不隐式 Join  
 - [x] 主路径题型为选择 + 拼图  
+
+### 已可验收（10/11）
+
+- [x] type 11 进入解说页，不经 clue/video  
+- [x] type 11 拉 Narration/detail；无 audioUrl 显示生成语音  
+- [x] type 1~10 扫一扫成功后自动进 video  
+- [x] type 10 播片后 Submit 完成本站  
+- [x] 列表 publishStatus=2  
 
 ### 尚未验收
 
@@ -288,3 +307,4 @@ Cinema = 路由过场 + 关键接口 loading（ref-count）。
 | 2026-07-14 | P0：MyRouteProgress / RouteResult / 严格字段 / Stages⊕nodes / Exhibit |
 | 2026-07-14 | P1：Auth 印章门、展厅/详情视觉、FAB+问、隐式 Join 收紧、RecordActivity、题型主路径 |
 | 2026-07-14 | 关联 B 端：Chat 接入 `ui.route.build.progress`（`interactionType`）、`ui.route.list.updated.routeName`；进度仅侧栏累计；tool tag 按工具名合并 ×N；文档链到 `32-chat-send-sse-api.md` |
+| 2026-07-15 | H5 同步 10/11：`stageKind` 分流；11 narration 页 + 音频生成；非 11 扫一扫后自动播片；10 播片后 Submit；地图展示玩法标签与 sortOrder |

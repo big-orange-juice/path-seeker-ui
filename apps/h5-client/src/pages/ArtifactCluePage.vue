@@ -34,11 +34,24 @@ async function bootstrap() {
     return
   }
 
+  const interactionType = Number(
+    missionStore.currentChapter?.interactionType
+    ?? missionStore.currentChapter?.puzzle?.interactionType
+    ?? 0,
+  )
+
+  // 11 解说不需要扫一扫
+  if (interactionType === 11) {
+    await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/narration`)
+    return
+  }
+
   const gate = missionStore.getChapterProgress(chapterId.value)
   if (gate.solved) {
     await router.replace(`/missions/${routeId.value}/map`)
     return
   }
+  // 扫一扫成功后自动播片
   if (gate.recognized && !gate.videoWatched) {
     await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/video`)
     return
@@ -51,6 +64,7 @@ async function bootstrap() {
   ready.value = true
 }
 
+/** 扫一扫成功后自动进入播片（非 11） */
 async function advanceToVideo() {
   missionStore.markChapterRecognized(chapterId.value)
   locked.value = true

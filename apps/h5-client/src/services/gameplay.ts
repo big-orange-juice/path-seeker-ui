@@ -480,3 +480,50 @@ export function fetchExhibit(exhibitId: string) {
     },
   })
 }
+
+/** Narration 音频状态（对齐后端常量） */
+export const NARRATION_AUDIO_STATUS = {
+  NotGenerated: 0,
+  Queued: 1,
+  Generating: 2,
+  Completed: 3,
+  Failed: 4,
+  Stale: 5,
+} as const
+
+export interface NarrationDetailResponse {
+  stageId?: string | null
+  guideId?: string | null
+  guideName?: string | null
+  guideVersion?: number
+  resolvedStyle?: string | null
+  narrationText?: string | null
+  textHash?: string | null
+  textStatus?: number
+  textError?: string | null
+  ttsTaskId?: string | null
+  audioAttachmentId?: string | null
+  audioUrl?: string | null
+  audioStatus?: number
+  durationMs?: number | null
+  version?: number
+}
+
+/** GET /api/Narration/detail — stageId 按 string 透传 */
+export function fetchNarrationDetail(stageId: string) {
+  return request<NarrationDetailResponse>("/api/Narration/detail", {
+    query: {
+      stageId,
+    },
+  })
+}
+
+/** POST /api/Narration/generate-audio */
+export function generateNarrationAudio(stageId: string) {
+  return request<string>("/api/Narration/generate-audio", {
+    method: "POST",
+    data: {
+      stageId,
+    },
+  })
+}

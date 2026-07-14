@@ -48,6 +48,18 @@ async function bootstrap() {
     return
   }
 
+  const interactionType = Number(
+    missionStore.currentChapter?.interactionType
+    ?? missionStore.currentChapter?.puzzle?.interactionType
+    ?? 0,
+  )
+
+  // 11 解说：不需要扫一扫 / 播片
+  if (interactionType === 11) {
+    await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/narration`)
+    return
+  }
+
   const gate = missionStore.getChapterProgress(chapterId.value)
   if (gate.solved) {
     await router.replace(`/missions/${routeId.value}/map`)
@@ -57,6 +69,7 @@ async function bootstrap() {
     await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/puzzle`)
     return
   }
+  // 扫一扫成功后自动播片
   if (gate.recognized) {
     await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/video`)
     return

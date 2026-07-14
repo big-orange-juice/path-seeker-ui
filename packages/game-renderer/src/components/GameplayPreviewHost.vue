@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { getInteractionTypeMeta } from "../contracts"
+import { getInteractionTypeMeta, NARRATION_AUDIO_STATUS } from "../contracts"
 import type { GameplayPreviewStage } from "../contracts"
 import FindScanRenderer from "./renderers/FindScanRenderer.vue"
+
+const props = defineProps<{
+  stage: GameplayPreviewStage | null
+  /** 是否正在请求生成语音 */
+  narrationAudioGenerating?: boolean
+}>()
+
+const emit = defineEmits<{
+  "generate-audio": [stageId: string]
+}>()
 
 interface PreviewItem {
   key: string
@@ -20,10 +30,6 @@ interface HintItem {
   content?: string | null
   penalty_score?: number
 }
-
-const props = defineProps<{
-  stage: GameplayPreviewStage | null
-}>()
 
 const config = computed(() => props.stage?.config ?? {})
 const meta = computed(() => getInteractionTypeMeta(props.stage?.interactionType) ?? { label: "未知玩法", className: "unknown" })
@@ -95,7 +101,64 @@ const narrationAudioUrl = computed(
     String(narrationFromApi.value?.audioUrl ?? "").trim()
     || readString("audio_url"),
 )
+const narrationAudioStatus = computed(() => {
+  const status = narrationFromApi.value?.audioStatus
+  return typeof status === "number" && Number.isFinite(status) ? status : NARRATION_AUDIO_STATUS.NotGenerated
+})
+const narrationDurationMs = computed(() => {
+  const ms = narrationFromApi.value?.durationMs
+  return typeof ms === "number" && Number.isFinite(ms) && ms > 0 ? ms : null
+})
+const narrationDurationMsLabel = computed(() => {
+  if (!narrationDurationMs.value) {
+    return ""
+  }
+
+  const totalSec = Math.round(narrationDurationMs.value / 1000)
+  const minutes = Math.floor(totalSec / 60)
+  const seconds = totalSec % 60
+  return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${seconds}″`
+})
+const hasNarrationAudio = computed(() => Boolean(narrationAudioUrl.value))
+const narrationAudioBusy = computed(() => {
+  if (props.narrationAudioGenerating) {
+    return true
+  }
+
+  return (
+    narrationAudioStatus.value === NARRATION_AUDIO_STATUS.Queued
+    || narrationAudioStatus.value === NARRATION_AUDIO_STATUS.Generating
+  )
+})
+const narrationAudioActionLabel = computed(() => {
+  if (props.narrationAudioGenerating || narrationAudioStatus.value === NARRATION_AUDIO_STATUS.Queued) {
+    return "排队生成中…"
+  }
+
+  if (narrationAudioStatus.value === NARRATION_AUDIO_STATUS.Generating) {
+    return "语音生成中…"
+  }
+
+  if (narrationAudioStatus.value === NARRATION_AUDIO_STATUS.Failed) {
+    return "生成失败，重试"
+  }
+
+  if (narrationAudioStatus.value === NARRATION_AUDIO_STATUS.Stale) {
+    return "重新生成语音"
+  }
+
+  return "生成语音"
+})
 const narrationTextError = computed(() => String(narrationFromApi.value?.textError ?? "").trim())
+
+function requestGenerateAudio() {
+  const stageId = String(props.stage?.stageId || "").trim()
+  if (!stageId || narrationAudioBusy.value) {
+    return
+  }
+
+  emit("generate-audio", stageId)
+}
 
 const findScanTitle = computed(
   () =>
@@ -364,13 +427,39 @@ function itemVisualUrl(item: PreviewItem, preferred: "image" | "silhouette" = "i
             <strong>{{ props.stage.exhibitName || props.stage.title || "当前文物" }}</strong>
             <span>{{ narrationDurationLabel }} · 语音导览</span>
           </div>
-          <button type="button" class="narration-play" disabled title="预览态不可播放">
-            ▶
-          </button>
         </div>
 
-        <div class="narration-wave" aria-hidden="true">
-          <i v-for="bar in 18" :key="bar" :style="{ height: `${28 + ((bar * 17) % 42)}%` }" />
+        <div class="narration-audio-block">
+          <template v-if="hasNarrationAudio">
+            <audio class="narration-audio" controls :src="narrationAudioUrl" preload="metadata" />
+            <p v-if="narrationDurationMsLabel" class="narration-audio-meta">
+              时长 {{ narrationDurationMsLabel }}
+              <span v-if="narrationAudioStatus === NARRATION_AUDIO_STATUS.Stale"> · 文本已更新，可重新生成</span>
+            </p>
+            <button
+              v-if="narrationAudioStatus === NARRATION_AUDIO_STATUS.Stale || narrationAudioStatus === NARRATION_AUDIO_STATUS.Failed"
+              type="button"
+              class="narration-audio-btn is-secondary"
+              :disabled="narrationAudioBusy || !narrationText"
+              @click="requestGenerateAudio">
+              {{ narrationAudioActionLabel }}
+            </button>
+          </template>
+          <template v-else>
+            <div class="narration-wave" aria-hidden="true">
+              <i v-for="bar in 18" :key="bar" :style="{ height: `${28 + ((bar * 17) % 42)}%` }" />
+            </div>
+            <button
+              type="button"
+              class="narration-audio-btn"
+              :disabled="narrationAudioBusy || !narrationText || narrationStatus === 'loading'"
+              @click="requestGenerateAudio">
+              {{ narrationAudioActionLabel }}
+            </button>
+            <p class="narration-audio-hint">
+              无音频时点击生成语音；生成完成后可在线试听。
+            </p>
+          </template>
         </div>
 
         <dl class="narration-meta">
@@ -411,8 +500,6 @@ function itemVisualUrl(item: PreviewItem, preferred: "image" | "silhouette" = "i
         <p v-else class="narration-script-empty">
           暂无解说词。可先通过对话生成解说，或确认该节点已生成 Narration 文本。
         </p>
-
-        <audio v-if="narrationAudioUrl" class="narration-audio" controls :src="narrationAudioUrl" preload="none" />
       </section>
 
       <section v-else class="preview-panel">
@@ -685,19 +772,44 @@ h3 {
   font-size: 12px;
 }
 
-.narration-play {
+.narration-audio-block {
   display: flex;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 14px;
+  border: 1px solid rgb(209 178 111 / 18%);
+  padding: 12px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.narration-audio-btn {
+  min-height: 40px;
   border: 0;
-  border-radius: 999px;
-  background: rgb(209 178 111 / 88%);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgb(209 178 111 / 92%), rgb(243 217 157 / 78%));
   color: #1a160f;
   font-size: 13px;
-  opacity: 0.72;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.narration-audio-btn.is-secondary {
+  border: 1px solid rgb(209 178 111 / 35%);
+  background: rgb(209 178 111 / 12%);
+  color: #f3d99d;
+}
+
+.narration-audio-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.narration-audio-meta,
+.narration-audio-hint {
+  margin: 0;
+  color: rgb(247 239 221 / 55%);
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .narration-wave {

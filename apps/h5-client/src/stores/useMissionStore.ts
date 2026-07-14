@@ -688,6 +688,7 @@ export const useMissionStore = defineStore(
         activeSession.value.routeId,
         chapter.id,
         getChapterGateProgress(activeSession.value, chapter.id),
+        chapter.interactionType ?? chapter.puzzle?.interactionType,
       )
     }
 
@@ -923,6 +924,83 @@ export const useMissionStore = defineStore(
       }
     }
 
+    /**
+     * 非 puzzle 节点完成（10 找一找播片后 / 11 解说听完）：
+     * Submit + 写本地闸门 / 章节结果
+     */
+    async function completeSpecialStage(source: "narration" | "find_scan") {
+      if (!activeSession.value || !currentChapter.value || !currentPuzzle.value) {
+        return buildMissionSubmitResult(false, "当前没有可完成的节点。", null)
+      }
+
+      const interactionType = Number(
+        currentChapter.value.interactionType ?? currentPuzzle.value.interactionType ?? 0,
+      )
+      if (source === "narration" && interactionType !== 11) {
+        return buildMissionSubmitResult(false, "当前节点不是解说导览。", null)
+      }
+      if (source === "find_scan" && interactionType !== 10) {
+        return buildMissionSubmitResult(false, "当前节点不是找一找。", null)
+      }
+
+      gameplayPending.value = true
+      gameplayError.value = ""
+      const cinema = useCinemaStore()
+      const session = activeSession.value
+      const puzzle = currentPuzzle.value
+      const label = source === "narration" ? "解说完成" : "找一找完成"
+
+      try {
+        const response = await cinema.withLoading(
+          () =>
+            submitGameplayStage({
+              routeId: session.routeId,
+              stageId: puzzle.id,
+              teamId: session.teamId,
+              payload: JSON.stringify({ completed: true, source }),
+            }),
+          { label: "记录进度", effect: "cinema" },
+        )
+
+        if (!response.success) {
+          return buildMissionSubmitResult(false, response.message || `${label}提交失败。`, null)
+        }
+
+        const score = response.scoreGained ?? 0
+        if (score > 0) {
+          cinema.showScore(score)
+        }
+
+        const snapshot = finalizeSolve(false, score, response.message || label)
+        if (shouldMarkRouteCompleted(response) && activeSession.value) {
+          const latestChapterResult = snapshot
+            ? { ...snapshot, finalChapter: true }
+            : activeSession.value.latestChapterResult
+          activeSession.value = {
+            ...activeSession.value,
+            latestChapterResult,
+            status: "completed",
+          }
+          void loadRouteResult(session.routeId, { silent: true })
+        }
+
+        return buildMissionSubmitResult(true, response.message || label, snapshot)
+      } catch (error) {
+        gameplayError.value = resolveRequestErrorMessage(error, `${label}提交失败`)
+        return buildMissionSubmitResult(false, gameplayError.value, null)
+      } finally {
+        gameplayPending.value = false
+      }
+    }
+
+    async function completeNarrationStage() {
+      return completeSpecialStage("narration")
+    }
+
+    async function completeFindScanStage() {
+      return completeSpecialStage("find_scan")
+    }
+
     function advanceFromChapterResult() {
       if (!activeSession.value || !activeMission.value || !activeSession.value.latestChapterResult) {
         return false
@@ -1003,6 +1081,8 @@ export const useMissionStore = defineStore(
       requestHint,
       saveDraft,
       submitCurrentDraft,
+      completeNarrationStage,
+      completeFindScanStage,
       advanceFromChapterResult,
       replayMission,
     }

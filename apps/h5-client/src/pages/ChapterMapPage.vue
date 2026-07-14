@@ -2,6 +2,7 @@
 import { computed, onMounted } from "vue"
 import { RouterLink, useRoute, useRouter } from "vue-router"
 import { useToastStore } from "@path-seeker/client-state"
+import { getInteractionTypeMeta } from "@path-seeker/game-renderer"
 import { ClientBadge, ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
 
@@ -22,15 +23,22 @@ const chapterStatuses = computed(() => {
     const solved = missionStore.activeSession?.solvedChapterIds.includes(chapter.id) || progress.solved
     const active = missionStore.activeSession?.currentChapterIndex === index
 
+    const type = Number(chapter.interactionType ?? chapter.puzzle?.interactionType ?? 0)
+    const typeLabel = getInteractionTypeMeta(type)?.label || ""
+
     let stateLabel = "待探索"
     if (solved) {
       stateLabel = "完成"
     } else if (active) {
       stateLabel = "当前"
+    } else if (type === 11) {
+      stateLabel = "待收听"
     } else if (progress.videoWatched) {
-      stateLabel = "待闯关"
+      stateLabel = type === 10 ? "待完成" : "待闯关"
     } else if (progress.recognized) {
-      stateLabel = "已识别"
+      stateLabel = "待播片"
+    } else if (type === 10) {
+      stateLabel = "待找一找"
     }
 
     return {
@@ -39,6 +47,8 @@ const chapterStatuses = computed(() => {
       solved,
       active,
       stateLabel,
+      typeLabel,
+      displayNo: chapter.sortOrder || chapter.stageNo || index + 1,
     }
   })
 })
@@ -158,11 +168,15 @@ onMounted(() => {
                 class="flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold"
                 :class="chapter.solved || chapter.active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'"
               >
-                {{ chapter.solved ? "✓" : chapter.stageNo }}
+                {{ chapter.solved ? "✓" : chapter.displayNo }}
               </div>
               <div class="min-w-0 flex-1">
                 <div class="text-sm font-semibold text-foreground">{{ chapter.title }}</div>
-                <div class="text-sm text-muted-foreground">{{ chapter.targetLocation }}</div>
+                <div class="text-sm text-muted-foreground">
+                  <span v-if="chapter.typeLabel">{{ chapter.typeLabel }}</span>
+                  <span v-if="chapter.typeLabel && chapter.targetLocation"> · </span>
+                  <span v-if="chapter.targetLocation">{{ chapter.targetLocation }}</span>
+                </div>
               </div>
               <div class="text-right text-xs text-muted-foreground">
                 {{ chapter.stateLabel }}

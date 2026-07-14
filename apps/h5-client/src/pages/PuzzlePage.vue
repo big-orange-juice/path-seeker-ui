@@ -69,6 +69,25 @@ async function bootstrap() {
     return
   }
 
+  const interactionType = Number(
+    missionStore.currentChapter?.interactionType
+    ?? missionStore.currentChapter?.puzzle?.interactionType
+    ?? 0,
+  )
+
+  // 11 解说 / 10 找一找：不进 puzzle 渲染
+  if (interactionType === 11) {
+    await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/narration`)
+    return
+  }
+  if (interactionType === 10) {
+    const path = missionStore.resolveEnterChapterPath(chapterId.value)
+    if (path) {
+      await router.replace(path)
+      return
+    }
+  }
+
   const gate = missionStore.getChapterProgress(chapterId.value)
   if (gate.solved || missionStore.currentChapterSolved) {
     ready.value = true
@@ -78,6 +97,7 @@ async function bootstrap() {
     await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/brief`)
     return
   }
+  // 非 11：必须先完成扫一扫后的播片
   if (!gate.videoWatched) {
     await router.replace(`/missions/${routeId.value}/chapters/${chapterId.value}/video`)
     return

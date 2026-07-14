@@ -307,6 +307,19 @@ export interface PuzzleAnswerDraft {
   value: string | string[] | MatchPair[] | ReasoningAnswerValue | null
 }
 
+/** Narration 音频生成状态（对齐后端常量） */
+export const NARRATION_AUDIO_STATUS = {
+  NotGenerated: 0,
+  Queued: 1,
+  Generating: 2,
+  Completed: 3,
+  Failed: 4,
+  Stale: 5,
+} as const
+
+export type NarrationAudioStatusCode =
+  (typeof NARRATION_AUDIO_STATUS)[keyof typeof NARRATION_AUDIO_STATUS]
+
 /**
  * 应用层从 Narration/detail 拉回后注入预览的解说数据。
  */
@@ -318,6 +331,7 @@ export interface GameplayPreviewNarration {
   resolvedStyle?: string | null
   durationMs?: number | null
   textStatus?: number | null
+  /** 0未生成 1排队 2生成中 3完成 4失败 5过期 */
   audioStatus?: number | null
   textError?: string | null
 }

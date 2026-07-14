@@ -174,19 +174,43 @@ export function buildRestoredMissionSession(
 }
 
 /**
- * 进入某一站时的路径决策（对齐 demo）：
- * 未识别 → brief；已识别未播片 → video；已播片未通关 → puzzle；已通关 → map
+ * 进入某一站时的路径决策：
+ * - 11 解说：无需扫一扫 / 播片 → narration
+ * - 10 找一找：扫一扫 → 成功后自动播片 → 播完直接完成（不进 puzzle）
+ * - 1~9 练习：扫一扫 → 成功后自动播片 → puzzle
  */
-export function resolveChapterEnterPath(routeId: string, chapterId: string, progress: ChapterGateProgress) {
+export function resolveChapterEnterPath(
+  routeId: string,
+  chapterId: string,
+  progress: ChapterGateProgress,
+  interactionType?: number | null,
+) {
   if (progress.solved) {
     return `/missions/${routeId}/map`
   }
-  if (progress.videoWatched) {
+
+  const type = Number(interactionType || 0)
+
+  // 11 解说导览：不需要扫一扫、不需要播片
+  if (type === 11) {
+    return `/missions/${routeId}/chapters/${chapterId}/narration`
+  }
+
+  // 10 找一找：播片结束后进入完成页（由 video 页提交），此处若已播完回 map 防循环
+  if (type === 10 && progress.videoWatched) {
+    return `/missions/${routeId}/map`
+  }
+
+  // 1~9：播片后进闯关
+  if (type !== 10 && progress.videoWatched) {
     return `/missions/${routeId}/chapters/${chapterId}/puzzle`
   }
+
+  // 扫一扫成功后自动进播片（非 11）
   if (progress.recognized) {
     return `/missions/${routeId}/chapters/${chapterId}/video`
   }
+
   return `/missions/${routeId}/chapters/${chapterId}/brief`
 }
 
@@ -236,9 +260,17 @@ export function resolveMissionResumePath(input: {
     return `/missions/${session.routeId}/map`
   }
 
+  const interactionType = chapter.interactionType ?? chapter.puzzle?.interactionType
+  const type = Number(interactionType || 0)
+
+  // 10 / 11 不走 puzzle 草稿恢复
+  if (type === 10 || type === 11) {
+    return resolveChapterEnterPath(session.routeId, chapter.id, progress, interactionType)
+  }
+
   if (hasDraft || hasHint || progress.videoWatched) {
     return `/missions/${session.routeId}/chapters/${chapter.id}/puzzle`
   }
 
-  return resolveChapterEnterPath(session.routeId, chapter.id, progress)
+  return resolveChapterEnterPath(session.routeId, chapter.id, progress, interactionType)
 }

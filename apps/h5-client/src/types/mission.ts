@@ -140,9 +140,14 @@ export type MissionPuzzle =
   | BaseMissionPuzzle<"multi_step_reasoning">
   | BaseMissionPuzzle<"code_break">
 
+/** 节点运行时分类：决定 H5 进入哪条页面链路 */
+export type MissionStageKind = "puzzle" | "find_scan" | "narration"
+
 export interface MissionChapter {
   id: string
   stageNo: number
+  /** 展示序号优先 sortOrder */
+  sortOrder?: number
   title: string
   objective?: string
   /** 有则展示；Stages 无位置时可能为空，由 Detail.nodes / Exhibit 回填 */
@@ -153,6 +158,10 @@ export interface MissionChapter {
   refExhibitId?: string
   /** 短视频可播放 URL；无则播片页用默认片 + 跳过 */
   videoUrl?: string
+  /** 运行时交互类型：1~9 练习 / 10 找一找 / 11 解说 */
+  interactionType: number
+  /** 由 interactionType 推导的页面分流 */
+  stageKind: MissionStageKind
   artifact: ArtifactClue
   puzzle: MissionPuzzle
 }

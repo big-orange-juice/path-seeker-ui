@@ -43,6 +43,8 @@ export function getPuzzleTypeAction(type: PuzzleTemplateType, interactionType?: 
     7: "听声音，找对应图像",
     8: "找出图中的关键差异",
     9: "把剪影与原图配对",
+    10: "把展品放进框里完成找一找",
+    11: "收听本段文物解说",
   }
 
   if (interactionType && interactionLabels[interactionType]) {

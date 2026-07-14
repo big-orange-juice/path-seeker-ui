@@ -15,6 +15,7 @@ import ChapterResultPage from "@/pages/ChapterResultPage.vue"
 import ChapterVideoPage from "@/pages/ChapterVideoPage.vue"
 import FinalePage from "@/pages/FinalePage.vue"
 import ProloguePage from "@/pages/ProloguePage.vue"
+import NarrationChapterPage from "@/pages/NarrationChapterPage.vue"
 import PuzzlePage from "@/pages/PuzzlePage.vue"
 import ShellArchivePage from "@/pages/ShellArchivePage.vue"
 import ShellAskPage from "@/pages/ShellAskPage.vue"
@@ -144,6 +145,14 @@ const router = createRouter({
           component: PuzzlePage,
           meta: {
             title: "闯关",
+            showTabBar: false,
+          },
+        },
+        {
+          path: "missions/:routeId/chapters/:chapterId/narration",
+          component: NarrationChapterPage,
+          meta: {
+            title: "解说导览",
             showTabBar: false,
           },
         },
