@@ -28,14 +28,31 @@ function isStringOrder(value: PuzzleAnswerDraft["value"] | undefined): value is 
   return (value as unknown[]).every((item) => typeof item === "string")
 }
 
+/**
+ * 入场只做位移/缩放，不碰 autoAlpha。
+ * 旧实现 from(autoAlpha:0) 在父级重渲染、swap killTweens、或 context.revert
+ * 时容易卡在半透明，表现为拼块（尤其 stagger 后半段）发黑发暗。
+ */
 const { root, animateSelector } = useRendererMotion(() => {
-  gsap.from(".puzzle-tile", {
-    autoAlpha: 0,
-    scale: 0.97,
-    duration: 0.24,
-    stagger: 0.02,
-    ease: "power2.out",
-  })
+  const tiles = gsap.utils.toArray<HTMLElement>(".puzzle-tile")
+  if (!tiles.length) {
+    return
+  }
+
+  gsap.set(tiles, { autoAlpha: 1, opacity: 1, visibility: "visible" })
+  gsap.fromTo(
+    tiles,
+    { scale: 0.94, y: 10 },
+    {
+      scale: 1,
+      y: 0,
+      duration: 0.28,
+      stagger: 0.022,
+      ease: "power2.out",
+      overwrite: true,
+      clearProps: "transform",
+    },
+  )
 })
 
 const currentOrder = computed<string[]>(() => {
@@ -194,10 +211,18 @@ async function onPointerUp(event: PointerEvent) {
   updateOrder(next)
 
   await nextTick()
+  // 交换反馈同样不改 opacity，避免 kill 入场 tween 后遗留暗色
   animateSelector(
     ".puzzle-tile",
     { scale: 0.97 },
-    { scale: 1, duration: 0.18, stagger: 0.012, ease: "power2.out" },
+    {
+      scale: 1,
+      duration: 0.18,
+      stagger: 0.012,
+      ease: "power2.out",
+      overwrite: "auto",
+      clearProps: "transform",
+    },
   )
 }
 
@@ -292,9 +317,12 @@ onUnmounted(() => {
   padding: 0;
   border: 0;
   border-radius: 14px;
-  background-color: rgba(255, 255, 255, 0.055);
+  /* 保证可见：禁止入场/中断动画把 opacity 留在 0 */
+  opacity: 1;
+  visibility: visible;
+  background-color: rgba(255, 255, 255, 0.08);
   background-repeat: no-repeat;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   color: inherit;
   touch-action: none;
   cursor: grab;
@@ -302,8 +330,7 @@ onUnmounted(() => {
   -webkit-user-select: none;
   transition:
     box-shadow 0.15s ease,
-    background-color 0.15s ease,
-    opacity 0.15s ease;
+    background-color 0.15s ease;
 }
 
 .puzzle-tile.has-image {
@@ -329,11 +356,12 @@ onUnmounted(() => {
 }
 
 .tile-number {
-  color: rgba(243, 217, 157, 0.72);
+  color: rgba(243, 217, 157, 0.88);
   font-size: clamp(1rem, 4.2vw, 1.2rem);
   font-weight: 600;
   letter-spacing: 0.02em;
   pointer-events: none;
+  opacity: 1;
 }
 
 .puzzle-grid.is-solved .tile-number {

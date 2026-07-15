@@ -1,4 +1,16 @@
 import {
+  adaptStageToPuzzle,
+  isFindScanStage as resolveIsFindScanStage,
+  isNarrationStage as resolveIsNarrationStage,
+  isPrimaryPuzzleTemplate as resolveIsPrimaryPuzzleTemplate,
+  normalizeText,
+  parseJsonValue,
+  parseStageConfig,
+  PRIMARY_PUZZLE_TEMPLATES,
+  resolveStageKind as resolveSharedStageKind,
+  type PuzzleTemplateType,
+} from "@path-seeker/game-renderer"
+import {
   DIFFICULTY_MAP,
   PUZZLE_TYPE_MAP,
   TASK_KIND_MAP,
@@ -16,10 +28,8 @@ import type {
 import type {
   AgeBand,
   ArtifactClue,
-  ChoiceOption,
   DifficultyLevel,
   HintLevel,
-  MatchPair,
   MissionChapter,
   MissionDetail,
   MissionPuzzle,
@@ -31,7 +41,6 @@ import type {
   MissionShareCard,
   MissionStageKind,
   PuzzleReward,
-  PuzzleTemplateType,
   TaskKind,
 } from "@/types/mission"
 
@@ -66,82 +75,28 @@ const TASK_KIND_VALUE_MAP: Record<number, TaskKind> = {
   3: "deep_reasoning",
 }
 
-/**
- * 主路径题型：选择（observe_choice / select）+ 拼图（image_puzzle）。
- * 其余交互仍保留映射以便兼容后台存量配置，但产品主推选择与拼图。
- */
-const INTERACTION_TEMPLATE_MAP: Record<number, PuzzleTemplateType> = {
-  1: "observe_choice", // Answer → 有选项为选择；无选项为自由文本
-  2: "code_break",
-  3: "sort",
-  4: "match",
-  5: "select", // Select → 选择
-  6: "image_puzzle", // Jigsaw → 拼图
-  7: "match",
-  8: "clue_find",
-  9: "match",
-  // 10 / 11 不进 PuzzleRenderer；占位仅保证 puzzle 对象可构造
-  10: "clue_find",
-  11: "observe_choice",
-}
-
-/** 产品主路径题型（选择 + 拼图） */
-export const PRIMARY_PUZZLE_TEMPLATES: PuzzleTemplateType[] = [
-  "observe_choice",
-  "select",
-  "image_puzzle",
-]
+/** 产品主路径题型（选择 + 拼图）；实现见 @path-seeker/game-renderer */
+export { PRIMARY_PUZZLE_TEMPLATES }
 
 export function isPrimaryPuzzleTemplate(type: PuzzleTemplateType) {
-  return PRIMARY_PUZZLE_TEMPLATES.includes(type)
+  return resolveIsPrimaryPuzzleTemplate(type)
 }
 
 /** 按 interactionType 分流 H5 页面链路 */
 export function resolveStageKind(interactionType?: number | null): MissionStageKind {
-  const type = Number(interactionType || 0)
-  if (type === 11) {
-    return "narration"
-  }
-  if (type === 10) {
-    return "find_scan"
-  }
-  return "puzzle"
+  return resolveSharedStageKind(interactionType)
 }
 
 export function isNarrationStage(interactionType?: number | null) {
-  return resolveStageKind(interactionType) === "narration"
+  return resolveIsNarrationStage(interactionType)
 }
 
 export function isFindScanStage(interactionType?: number | null) {
-  return resolveStageKind(interactionType) === "find_scan"
-}
-
-function normalizeText(value: unknown, fallback = "") {
-  const text = typeof value === "string" ? value.trim() : ""
-  return text || fallback
-}
-
-function parseJsonValue(value: unknown): unknown {
-  if (typeof value !== "string") {
-    return value
-  }
-
-  const text = value.trim()
-  if (!text) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(text) as unknown
-    return typeof parsed === "string" ? parseJsonValue(parsed) : parsed
-  } catch {
-    return value
-  }
+  return resolveIsFindScanStage(interactionType)
 }
 
 function parseJsonObject(value: unknown): Record<string, any> {
-  const parsed = parseJsonValue(value)
-  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, any>) : {}
+  return parseStageConfig(value)
 }
 
 function asArray<T = any>(value: unknown): T[] {
@@ -167,21 +122,6 @@ function pickValue(source: Record<string, any>, ...keys: string[]) {
   }
 
   return undefined
-}
-
-function readItemText(item: any, ...keys: string[]) {
-  for (const key of keys) {
-    const value = item?.[key]
-    if (typeof value === "string" && value.trim()) {
-      return value.trim()
-    }
-
-    if (typeof value === "number" && Number.isFinite(value)) {
-      return String(value)
-    }
-  }
-
-  return ""
 }
 
 function resolveAgeBand(ageGroup?: number | null): AgeBand {
@@ -219,34 +159,6 @@ function getStageConfig(stage: StageLike) {
   return parseJsonObject(stage.config)
 }
 
-function getAnswerExtra(stage: StageLike, config: Record<string, any>) {
-  const answerExtra = "answerExtra" in stage ? parseJsonObject((stage as StagePlayResponse).answerExtra) : {}
-  return parseJsonObject(pickValue(config, "answer_extra", "answerExtra", "AnswerExtra") || answerExtra)
-}
-
-function makeChoiceOptions(rawOptions: any[], fallbackPrefix: string): ChoiceOption[] {
-  return rawOptions
-    .map((item, index) => {
-      const id = normalizeText(item?.id ?? item?.key ?? item?.value, `${fallbackPrefix}-${index + 1}`)
-      const label = normalizeText(item?.label ?? item?.text ?? item?.title, `选项 ${index + 1}`)
-      return {
-        id,
-        label,
-        imageUrl: item?.image_url ?? item?.imageUrl ?? null,
-        description: item?.description ?? item?.summary ?? null,
-      }
-    })
-    .filter((item) => item.id && item.label)
-}
-
-function mapCommonEntry(item: any, index: number) {
-  return {
-    id: readItemText(item, "id", "Id", "key", "Key", "value", "Value") || `item-${index + 1}`,
-    label: readItemText(item, "label", "Label", "text", "Text", "title", "Title", "name", "Name") || `项目 ${index + 1}`,
-    imageUrl: pickValue(item ?? {}, "image_url", "imageUrl", "ImageUrl", "silhouette_url", "silhouetteUrl", "url", "Url") ?? null,
-  }
-}
-
 function makeReward(stageId: string, stageTitle: string): PuzzleReward {
   return {
     clueId: `clue-${stageId}`,
@@ -256,276 +168,52 @@ function makeReward(stageId: string, stageTitle: string): PuzzleReward {
   }
 }
 
-function buildHintPayload(config: Record<string, any>): Record<HintLevel, string> {
-  const hints = asArray(config.hints)
-  const sorted = [...hints].sort(
-    (left, right) => Number(left?.sort_order ?? left?.sortOrder ?? 0) - Number(right?.sort_order ?? right?.sortOrder ?? 0),
-  )
-  const values = sorted.map((item) => normalizeText(item?.content)).filter(Boolean)
-
-  return {
-    observe: values[0] || "",
-    relation: values[1] || "",
-    direct: values[2] || "",
-  }
-}
-
+/**
+ * 共享 adaptStageToPuzzle + H5 业务外壳字段（难度、奖励、文案）。
+ * 题面映射只维护在 @path-seeker/game-renderer。
+ */
 function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefined, index: number): MissionPuzzle {
-  const config = getStageConfig(stage)
   const stageId = getStageId(stage, index)
   const stageTitle = normalizeText(stage.title)
-  const content = normalizeText(
-    "puzzleContent" in stage ? (stage as StagePlayResponse).puzzleContent : "",
-    normalizeText(
-      pickValue(config, "content", "Content", "prompt", "Prompt", "theme", "Theme", "rule_hint", "ruleHint", "RuleHint"),
-    ),
-  )
-  const interactionType = Number(stage.interactionType || stage.puzzleType || 1)
-  const templateType = INTERACTION_TEMPLATE_MAP[interactionType] ?? "observe_choice"
   const difficultyLevel = resolveDifficultyLevel(stage.difficultyLevel ?? route?.difficultyLevel)
   const schemaMeta = buildSchemaMeta(route, stage)
-  const base = {
-    id: stageId,
-    puzzleTypeId: PUZZLE_TYPE_MAP[templateType],
-    interactionType,
-    templateType,
+  const puzzleContent = "puzzleContent" in stage
+    ? (stage as StagePlayResponse).puzzleContent
+    : null
+  const answerExtra = "answerExtra" in stage
+    ? (stage as StagePlayResponse).answerExtra
+    : undefined
+
+  const shared = adaptStageToPuzzle({
+    stageId,
     title: stageTitle,
-    introText: normalizeText(stage.subtitle),
-    prompt: content,
+    subtitle: stage.subtitle,
+    interactionType: stage.interactionType,
+    puzzleType: stage.puzzleType,
+    config: stage.config,
+    answerExtra,
+    puzzleContent,
+    index,
+  })
+
+  const hintPayload: Record<HintLevel, string> = {
+    observe: shared.hintPayload?.observe || "",
+    relation: shared.hintPayload?.relation || "",
+    direct: shared.hintPayload?.direct || "",
+  }
+
+  return {
+    ...shared,
+    introText: shared.introText || "",
+    prompt: shared.prompt || "",
+    puzzleTypeId: PUZZLE_TYPE_MAP[shared.templateType],
     difficultyLevel,
     schemaMeta,
-    hintPayload: buildHintPayload(config),
-    reward: makeReward(stageId, stageTitle),
+    hintPayload,
+    reward: makeReward(stageId, stageTitle || shared.title),
     successCopy: "节点已完成。",
     failureCopy: "本次未通过。",
-  }
-
-  if (templateType === "code_break") {
-    const digits = Math.max(1, Number(config.digits ?? config.codeLength ?? 4))
-    return {
-      ...base,
-      templateType,
-      questionPayload: {
-        prompt: content,
-        codeLength: digits,
-        acceptedCode: "",
-        clueFragments: asArray(config.clue_images).map((item) => normalizeText(item?.hint)).filter(Boolean),
-        derivationSteps: [],
-        clueSourceTitle: normalizeText(config.rule_hint),
-        maskCharacter: "•",
-      },
-    }
-  }
-
-  if (templateType === "sort" || templateType === "image_puzzle") {
-    const items = asArray(
-      config.items
-      ?? config.fragments
-      ?? config.options
-      ?? config.pieces,
-    )
-    let entries = items.map((item, itemIndex) => mapCommonEntry(item, itemIndex))
-    const correctOrder = asArray<string>(config.correct_order ?? config.correctOrder).map((item) => normalizeText(item))
-    if (templateType === "sort") {
-      return {
-        ...base,
-        templateType,
-        questionPayload: {
-          prompt: content,
-          items: entries,
-          correctOrder: correctOrder.length ? correctOrder : entries.map((entry) => entry.id),
-        },
-      }
-    }
-
-    // 纹样拼图：与 demo 对齐，默认 3×3；config 无 pieces 时按宫格合成碎片
-    // 后端常见字段：grid / grid_size / grid_rows / grid_cols / image_url / base_image_url
-    const rawGrid = Number(
-      config.grid
-      ?? config.gridSize
-      ?? config.grid_size
-      ?? config.gridRows
-      ?? config.grid_rows
-      ?? 0,
-    )
-    const inferredFromPieces = entries.length > 0
-      ? Math.max(2, Math.round(Math.sqrt(entries.length)))
-      : 0
-    const gridSize = Math.max(2, Math.min(4, rawGrid || inferredFromPieces || 3))
-    const gridRows = Math.max(2, Number(config.gridRows ?? config.grid_rows ?? gridSize))
-    const gridCols = Math.max(2, Number(config.gridCols ?? config.grid_cols ?? gridSize))
-    const cellCount = gridSize * gridSize
-
-    if (entries.length < cellCount) {
-      const padFrom = entries.length
-      for (let index = padFrom; index < cellCount; index += 1) {
-        entries.push({
-          id: `${stageId}-piece-${index + 1}`,
-          label: `${index + 1}`,
-          imageUrl: null,
-        })
-      }
-    } else if (entries.length > cellCount) {
-      entries = entries.slice(0, cellCount)
-    }
-
-    const imageUrl = normalizeText(
-      config.image_url
-      ?? config.imageUrl
-      ?? config.base_image_url
-      ?? config.baseImageUrl
-      ?? config.cover_image_url
-      ?? config.coverImageUrl,
-    ) || null
-
-    const pieceList = entries.map((entry, index) => ({
-      id: entry.id || `${stageId}-piece-${index + 1}`,
-      label: entry.label || `${index + 1}`,
-      imageUrl: entry.imageUrl || imageUrl,
-      hint: null as string | null,
-    }))
-    const resolvedCorrectOrder = correctOrder.length >= cellCount
-      ? correctOrder.slice(0, cellCount)
-      : pieceList.map((piece) => piece.id)
-
-    return {
-      ...base,
-      templateType,
-      questionPayload: {
-        prompt: content,
-        imageUrl,
-        gridSize,
-        gridRows,
-        gridCols,
-        pieces: pieceList,
-        correctOrder: resolvedCorrectOrder,
-        revealTitle: normalizeText(config.revealTitle ?? config.reveal_title) || "纹样拼图",
-        trayTitle:
-          normalizeText(config.trayTitle ?? config.tray_title)
-          || "将碎片拖回正确位置，完成纹样复原。",
-      },
-    }
-  }
-
-  if (templateType === "match") {
-    const leftItems = asArray(config.left_items ?? config.leftItems).map((item, itemIndex) => mapCommonEntry(item, itemIndex))
-    const rightItems = asArray(config.right_items ?? config.rightItems).map((item, itemIndex) => mapCommonEntry(item, itemIndex))
-    const correctPairs = asArray(config.correct_pairs ?? config.correctPairs).map((pair: any) => ({
-      leftId: readItemText(pair, "leftId", "left_id", "left"),
-      rightId: readItemText(pair, "rightId", "right_id", "right"),
-    })) as MatchPair[]
-
-    return {
-      ...base,
-      templateType,
-      questionPayload: {
-        prompt: content,
-        left: leftItems,
-        right: rightItems,
-        correctPairs,
-      },
-    }
-  }
-
-  if (templateType === "select") {
-    const options = makeChoiceOptions(asArray(config.options ?? config.targets), `${stageId}-select`)
-    const answerExtra = getAnswerExtra(stage, config)
-    return {
-      ...base,
-      templateType,
-      questionPayload: {
-        prompt: content,
-        candidates: options,
-        minPick: Number(answerExtra.minPick ?? config.minPick ?? 1),
-        maxPick: Number(answerExtra.maxPick ?? config.maxPick ?? Math.max(1, options.length)),
-        theme: normalizeText(config.theme) || null,
-        pickedTitle: normalizeText(config.pickedTitle ?? config.picked_title) || null,
-      },
-    }
-  }
-
-  if (templateType === "clue_find") {
-    const hotspots = asArray(config.hotspots ?? config.targets)
-    const correctHotspotId = normalizeText(config.correct_hotspot_id ?? config.correctHotspotId ?? hotspots[0]?.id)
-    return {
-      ...base,
-      templateType,
-      questionPayload: {
-        prompt: content,
-        imageUrl: normalizeText(config.image_url ?? config.imageUrl),
-        hotspots: hotspots.map((item: any, itemIndex) => ({
-          id: normalizeText(item?.id, `${stageId}-hotspot-${itemIndex + 1}`),
-          label: normalizeText(item?.label ?? item?.title, `热点 ${itemIndex + 1}`),
-          x: Number(item?.x ?? 0),
-          y: Number(item?.y ?? 0),
-          width: Number(item?.width ?? item?.radius ?? 12),
-          height: Number(item?.height ?? item?.radius ?? 12),
-        })),
-        targetDescription: normalizeText(config.target_description ?? config.targetDescription) || null,
-        requiredHits: Number(config.required_hits ?? config.requiredHits ?? 1),
-        correctHotspotId,
-      },
-    }
-  }
-
-  if (templateType === "story_branch") {
-    const options = makeChoiceOptions(asArray(config.options), `${stageId}-branch`)
-    return {
-      ...base,
-      templateType,
-      questionPayload: {
-        prompt: content,
-        sceneIntro: normalizeText(config.scene_intro ?? config.sceneIntro) || null,
-        options: options.map((option) => ({
-          id: option.id,
-          label: option.label,
-          summary: option.description ?? null,
-          outcomeTitle: null,
-          outcomeText: null,
-        })),
-        correctOptionId: normalizeText(config.correct_option_id ?? config.correctOptionId ?? options[0]?.id),
-      },
-    }
-  }
-
-  if (templateType === "multi_step_reasoning") {
-    const evidenceItems = asArray(config.evidence_items ?? config.evidenceItems).map((item, itemIndex) => mapCommonEntry(item, itemIndex))
-    const conclusionOptions = makeChoiceOptions(asArray(config.conclusions ?? config.options), `${stageId}-conclusion`)
-    return {
-      ...base,
-      templateType,
-      questionPayload: {
-        prompt: content,
-        evidence: evidenceItems.map((item) => ({
-          id: item.id,
-          label: item.label,
-          note: null,
-          tag: null,
-        })),
-        correctEvidenceOrder: asArray<string>(config.correct_evidence_order ?? config.correctEvidenceOrder).map((item) => normalizeText(item)),
-        conclusions: conclusionOptions.map((item) => ({
-          id: item.id,
-          label: item.label,
-          summary: item.description ?? null,
-        })),
-        correctConclusionId: normalizeText(config.correct_conclusion_id ?? config.correctConclusionId ?? conclusionOptions[0]?.id),
-        chainTitle: normalizeText(config.chainTitle ?? config.chain_title) || null,
-        slotLabels: asArray<string>(config.slotLabels ?? config.slot_labels).map((item) => normalizeText(item)).filter(Boolean),
-        conclusionTitle: normalizeText(config.conclusionTitle ?? config.conclusion_title) || null,
-      },
-    }
-  }
-
-  const options = makeChoiceOptions(asArray(config.options ?? config.choices), `${stageId}-choice`)
-  return {
-    ...base,
-    templateType: "observe_choice",
-    questionPayload: {
-      prompt: content,
-      options,
-      correctOptionId: normalizeText(config.correct_option_id ?? config.correctOptionId ?? options[0]?.id),
-    },
-  }
+  } as MissionPuzzle
 }
 
 function buildArtifact(stage: StageLike, index: number): ArtifactClue {

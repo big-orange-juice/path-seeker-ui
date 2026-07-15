@@ -5,6 +5,7 @@ import { Position, VueFlow, type Edge, type Node } from '@vue-flow/core';
 import {
   GameplayPreviewHost,
   getInteractionTypeMeta,
+  parseStageConfig,
   type GameplayPreviewNarration,
   type GameplayPreviewNarrationStatus,
   type GameplayPreviewStage,
@@ -434,18 +435,7 @@ onBeforeUnmount(() => {
 });
 
 function parseNodeConfig(node: RouteNodeResponse): Record<string, unknown> {
-  if (!node.config) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(node.config) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : {};
-  } catch {
-    return {};
-  }
+  return parseStageConfig(node.config) as Record<string, unknown>;
 }
 
 function selectFlowNode(event: { node: Node }) {

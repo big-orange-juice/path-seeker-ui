@@ -4,7 +4,8 @@
  * 边界要非常清楚：
  * - 这里只描述渲染器真正需要的输入和输出
  * - 不尝试完整镜像后端 swagger 的所有题目字段
- * - transport DTO -> 渲染器契约 的映射仍由应用自己的 adapter 完成
+ * - transport DTO → PuzzleDefinition 的映射统一走 adaptStage.ts
+ * - 应用 adapter 只叠加会话、奖励、提交等业务外壳
  */
 
 /**

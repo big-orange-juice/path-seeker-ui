@@ -34,8 +34,11 @@ export function useRendererMotion(enter?: () => void) {
       return
     }
 
-    gsap.killTweensOf(nodes)
-    gsap.fromTo(nodes, fromVars, toVars)
+    // 只覆盖本次动画属性，避免 kill 掉入场 opacity 后卡在半透明
+    gsap.fromTo(nodes, fromVars, {
+      overwrite: "auto",
+      ...toVars,
+    })
   }
 
   function animateElement(
