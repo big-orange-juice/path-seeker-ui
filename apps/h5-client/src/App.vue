@@ -5,6 +5,7 @@ import { computed } from "vue"
 import CinemaStage from "@/components/fx/CinemaStage.vue"
 import GalleryBackground from "@/components/fx/GalleryBackground.vue"
 import AskPanel from "@/components/shell/AskPanel.vue"
+import FloatingMissionFab from "@/components/shell/FloatingMissionFab.vue"
 import ClientToastViewport from "@/components/ui/ClientToastViewport.vue"
 import { useCinemaStore } from "@/stores/useCinemaStore"
 
@@ -19,6 +20,7 @@ const showAskSheet = computed(() => route.path !== "/shell/ask" && route.path !=
 <template>
   <GalleryBackground />
 
+  <!-- 仅页面内容参与 cinema 压暗/升起，FAB 放在外面避免过场闪烁 -->
   <div
     id="client-view"
     class="client-view"
@@ -30,6 +32,7 @@ const showAskSheet = computed(() => route.path !== "/shell/ask" && route.path !=
     <RouterView />
   </div>
 
+  <FloatingMissionFab />
   <AskPanel v-if="showAskSheet" />
   <CinemaStage />
   <ClientToastViewport />

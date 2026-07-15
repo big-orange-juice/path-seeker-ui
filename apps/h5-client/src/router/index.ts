@@ -1,11 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router"
-import {
-  resolveRouteCinemaEffect,
-  resolveRouteCinemaLabel,
-  shouldRunRouteCinema,
-} from "@/fx/routeCinema"
 import { useAuthStore } from "@/stores/useAuthStore"
-import { useCinemaStore } from "@/stores/useCinemaStore"
 import MobileShellLayout from "@/layouts/MobileShellLayout.vue"
 import AuthPage from "@/pages/AuthPage.vue"
 import ChapterBriefPage from "@/pages/ChapterBriefPage.vue"
@@ -163,17 +157,10 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to, from) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   if (to.meta.public) {
-    if (shouldRunRouteCinema(to, from)) {
-      const cinema = useCinemaStore()
-      await cinema.playRouteExit({
-        effect: resolveRouteCinemaEffect(to, from),
-        label: resolveRouteCinemaLabel(to),
-      })
-    }
     return true
   }
 
@@ -199,29 +186,8 @@ router.beforeEach(async (to, from) => {
     }
   }
 
-  // Cinema 路由过场：离开页压暗 + 星空斗转（可与接口 loading 叠加）
-  if (shouldRunRouteCinema(to, from)) {
-    const cinema = useCinemaStore()
-    await cinema.playRouteExit({
-      effect: resolveRouteCinemaEffect(to, from),
-      label: resolveRouteCinemaLabel(to),
-      duration: to.path.includes("/video") ? 920 : 860,
-    })
-  }
-
+  // 路由切换不再压暗过场，直接进入目标页
   return true
-})
-
-router.afterEach((to) => {
-  const cinema = useCinemaStore()
-  // 仅当 beforeEach 已启动过场时收尾升起
-  if (!cinema.transitBusy) {
-    return
-  }
-
-  void cinema.playRouteEnter({
-    duration: to.path.includes("/video") || to.path.includes("/finale") ? 780 : 640,
-  })
 })
 
 export default router

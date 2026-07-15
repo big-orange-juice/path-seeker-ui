@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   computed,
+  nextTick,
   onMounted,
   onUnmounted,
   shallowRef,
@@ -24,12 +25,14 @@ interface FabActionItem {
   action?: 'ask';
 }
 
-const EXPANDED_ITEM_WIDTH = 72;
+/** 收缩态与展开态每个 item 同宽，避免展开动画宽度抖动 */
+const ITEM_WIDTH = 86;
 const ITEM_HEIGHT = 36;
 const ITEM_GAP = 6;
 const CONTAINER_PADDING = 5;
 const SELECTION_SETTLE_DURATION = 0.18;
-const COLLAPSED_WIDTH = 96;
+/** 收缩 = 单 item + 左右 padding，与展开时一格一致 */
+const COLLAPSED_WIDTH = ITEM_WIDTH + CONTAINER_PADDING * 2;
 const ISLAND_HEIGHT = ITEM_HEIGHT + CONTAINER_PADDING * 2;
 
 const route = useRoute();
@@ -155,7 +158,7 @@ const activeItem = computed(
 
 const expandedWidth = computed(
   () =>
-    actions.value.length * EXPANDED_ITEM_WIDTH +
+    actions.value.length * ITEM_WIDTH +
     Math.max(actions.value.length - 1, 0) * ITEM_GAP +
     CONTAINER_PADDING * 2
 );
@@ -168,7 +171,7 @@ const islandStyle = computed<CSSProperties>(() => {
   return {
     width: `${width}px`,
     height: `${ISLAND_HEIGHT}px`,
-    '--fab-item-width': `${EXPANDED_ITEM_WIDTH}px`,
+    '--fab-item-width': `${ITEM_WIDTH}px`,
     '--fab-item-height': `${ITEM_HEIGHT}px`,
     '--fab-gap': `${ITEM_GAP}px`,
     '--fab-padding': `${CONTAINER_PADDING}px`
@@ -179,11 +182,10 @@ const showCollapsed = computed(() => expandedProgress.value < 0.08);
 const showRail = computed(() => expandedProgress.value > 0.08);
 
 const indicatorStyle = computed<CSSProperties>(() => {
-  const x =
-    CONTAINER_PADDING + activeIndex.value * (EXPANDED_ITEM_WIDTH + ITEM_GAP);
+  const x = CONTAINER_PADDING + activeIndex.value * (ITEM_WIDTH + ITEM_GAP);
 
   return {
-    width: `${EXPANDED_ITEM_WIDTH}px`,
+    width: `${ITEM_WIDTH}px`,
     height: `${ITEM_HEIGHT}px`,
     opacity: Math.min(1, expandedProgress.value * 1.2),
     transform: `translateX(${x}px)`
@@ -299,24 +301,43 @@ async function handleActionClick(item: FabActionItem) {
   }
 }
 
-function bindFabMotion() {
-  if (!fabRoot.value) {
+/** 仅首次出现时轻入场；路由切换不再从 autoAlpha:0 重放，避免闪烁 */
+let hasPlayedEnter = false;
+
+function playEnterIfNeeded() {
+  if (!fabRoot.value || hasPlayedEnter) {
+    // 保持可见，不重置透明度
+    gsap.set('.fab-island', { clearProps: 'opacity,visibility,transform' });
     return;
   }
 
+  hasPlayedEnter = true;
+  ctx?.revert();
   ctx = gsap.context(() => {
     gsap.fromTo(
       '.fab-island',
-      { y: 8, autoAlpha: 0, scale: 0.98 },
+      { y: 6, autoAlpha: 0.92, scale: 0.99 },
       {
         y: 0,
         autoAlpha: 1,
         scale: 1,
-        duration: 0.24,
-        ease: 'power2.out'
+        duration: 0.2,
+        ease: 'power2.out',
+        overwrite: true
       }
     );
   }, fabRoot.value);
+}
+
+function softCollapse() {
+  if (!isExpanded.value && expandedProgress.value <= 0) {
+    return;
+  }
+  expandTween?.kill();
+  isExpanded.value = false;
+  unbindOutsideCollapse();
+  // 收起时用短动画，不要瞬间 snap + 透明度闪
+  animateProgress(0);
 }
 
 watch(
@@ -329,11 +350,6 @@ watch(
     if (value === pendingKey.value) {
       pendingKey.value = '';
     }
-
-    if (!isExpanded.value) {
-      tweenState.progress = 0;
-      expandedProgress.value = 0;
-    }
   },
   { immediate: true }
 );
@@ -341,20 +357,29 @@ watch(
 watch(
   () => route.fullPath,
   () => {
+    // FAB 自身点击跳转时由 handleActionClick 收起，避免双重动画
     if (isRouteSwitching.value) {
       return;
     }
-
-    expandTween?.kill();
-    isExpanded.value = false;
-    unbindOutsideCollapse();
-    tweenState.progress = 0;
-    expandedProgress.value = 0;
+    softCollapse();
   }
 );
 
+// showFab 在 auth 等页为 false：用 v-show 保活 DOM，避免反复 mount 入场闪烁
+watch(
+  showFab,
+  (visible) => {
+    if (visible) {
+      nextTick(() => playEnterIfNeeded());
+    }
+  },
+  { immediate: true }
+);
+
 onMounted(() => {
-  bindFabMotion();
+  if (showFab.value) {
+    playEnterIfNeeded();
+  }
 });
 
 onUnmounted(() => {
@@ -367,10 +392,12 @@ onUnmounted(() => {
 
 <template>
   <div
-    v-if="showFab"
     ref="fabRoot"
-    class="pointer-events-none fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50">
+    class="fab-root fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50"
+    :class="{ 'fab-root-hidden': !showFab }"
+    :aria-hidden="!showFab">
     <div class="mx-auto flex w-full max-w-[30rem] justify-center px-4">
+      <!-- 根节点 pointer-events:none 不挡页面；岛本体重新开启点击 -->
       <div class="fab-shell">
         <div
           class="fab-island"
@@ -417,9 +444,24 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.fab-shell {
+.fab-root {
+  pointer-events: none;
+}
+
+.fab-root-hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none !important;
+}
+
+/* 必须在 none 的祖先下显式 auto，否则按钮点不到 */
+.fab-shell,
+.fab-island,
+.fab-collapsed,
+.fab-item {
   pointer-events: auto;
 }
+
 
 .fab-island {
   position: relative;
@@ -435,6 +477,8 @@ onUnmounted(() => {
     0 0 20px rgba(209, 178, 111, 0.26),
     0 12px 24px rgba(0, 0, 0, 0.22);
   white-space: nowrap;
+  /* 宽度由 JS 插值控制，避免内容撑开导致抖动 */
+  box-sizing: border-box;
 }
 
 .fab-island::before {
@@ -466,15 +510,16 @@ onUnmounted(() => {
 
 .fab-collapsed-item {
   display: flex;
-  width: 100%;
-  min-width: calc(var(--fab-item-width) + 0.4rem);
+  /* 与展开态 .fab-item 同宽，保证展开动画不抖 */
+  width: var(--fab-item-width);
   height: var(--fab-item-height);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 0.44rem;
-  padding: 0 0.7rem;
+  gap: 0.36rem;
+  padding: 0 0.5rem;
   border-radius: 999px;
+  box-sizing: border-box;
   background: linear-gradient(
     135deg,
     rgba(88, 70, 36, 0.94),
@@ -518,12 +563,14 @@ onUnmounted(() => {
   display: flex;
   width: var(--fab-item-width);
   height: var(--fab-item-height);
-  flex: 0 0 auto;
+  flex: 0 0 var(--fab-item-width);
   align-items: center;
   justify-content: center;
   gap: 0.28rem;
+  padding: 0 0.5rem;
   border: 0;
   border-radius: 999px;
+  box-sizing: border-box;
   background: transparent;
   color: rgba(247, 239, 221, 0.56);
   line-height: 1;

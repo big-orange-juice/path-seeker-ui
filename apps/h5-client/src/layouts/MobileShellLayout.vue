@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { RouterLink, RouterView, useRoute } from "vue-router"
-import FloatingMissionFab from "@/components/shell/FloatingMissionFab.vue"
 import { useAuthStore } from "@/stores/useAuthStore"
 
 const route = useRoute()
@@ -31,7 +30,5 @@ const hideChromeHeader = computed(() => {
         <RouterView />
       </main>
     </div>
-
-    <FloatingMissionFab />
   </div>
 </template>
