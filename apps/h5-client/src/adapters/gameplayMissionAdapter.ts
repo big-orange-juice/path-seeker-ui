@@ -318,8 +318,13 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
   }
 
   if (templateType === "sort" || templateType === "image_puzzle") {
-    const items = asArray(config.items ?? config.fragments ?? config.options)
-    const entries = items.map((item, itemIndex) => mapCommonEntry(item, itemIndex))
+    const items = asArray(
+      config.items
+      ?? config.fragments
+      ?? config.options
+      ?? config.pieces,
+    )
+    let entries = items.map((item, itemIndex) => mapCommonEntry(item, itemIndex))
     const correctOrder = asArray<string>(config.correct_order ?? config.correctOrder).map((item) => normalizeText(item))
     if (templateType === "sort") {
       return {
@@ -333,24 +338,71 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
       }
     }
 
+    // 纹样拼图：与 demo 对齐，默认 3×3；config 无 pieces 时按宫格合成碎片
+    // 后端常见字段：grid / grid_size / grid_rows / grid_cols / image_url / base_image_url
+    const rawGrid = Number(
+      config.grid
+      ?? config.gridSize
+      ?? config.grid_size
+      ?? config.gridRows
+      ?? config.grid_rows
+      ?? 0,
+    )
+    const inferredFromPieces = entries.length > 0
+      ? Math.max(2, Math.round(Math.sqrt(entries.length)))
+      : 0
+    const gridSize = Math.max(2, Math.min(4, rawGrid || inferredFromPieces || 3))
+    const gridRows = Math.max(2, Number(config.gridRows ?? config.grid_rows ?? gridSize))
+    const gridCols = Math.max(2, Number(config.gridCols ?? config.grid_cols ?? gridSize))
+    const cellCount = gridSize * gridSize
+
+    if (entries.length < cellCount) {
+      const padFrom = entries.length
+      for (let index = padFrom; index < cellCount; index += 1) {
+        entries.push({
+          id: `${stageId}-piece-${index + 1}`,
+          label: `${index + 1}`,
+          imageUrl: null,
+        })
+      }
+    } else if (entries.length > cellCount) {
+      entries = entries.slice(0, cellCount)
+    }
+
+    const imageUrl = normalizeText(
+      config.image_url
+      ?? config.imageUrl
+      ?? config.base_image_url
+      ?? config.baseImageUrl
+      ?? config.cover_image_url
+      ?? config.coverImageUrl,
+    ) || null
+
+    const pieceList = entries.map((entry, index) => ({
+      id: entry.id || `${stageId}-piece-${index + 1}`,
+      label: entry.label || `${index + 1}`,
+      imageUrl: entry.imageUrl || imageUrl,
+      hint: null as string | null,
+    }))
+    const resolvedCorrectOrder = correctOrder.length >= cellCount
+      ? correctOrder.slice(0, cellCount)
+      : pieceList.map((piece) => piece.id)
+
     return {
       ...base,
       templateType,
       questionPayload: {
         prompt: content,
-        imageUrl: normalizeText(config.image_url ?? config.imageUrl) || null,
-        gridSize: Math.max(2, Number(config.gridSize ?? config.grid_size ?? 2)),
-        gridRows: Number(config.gridRows ?? config.grid_rows ?? 2),
-        gridCols: Number(config.gridCols ?? config.grid_cols ?? 2),
-        pieces: entries.map((entry) => ({
-          id: entry.id,
-          label: entry.label,
-          imageUrl: entry.imageUrl,
-          hint: null,
-        })),
-        correctOrder: correctOrder.length ? correctOrder : entries.map((entry) => entry.id),
-        revealTitle: normalizeText(config.revealTitle ?? config.reveal_title) || null,
-        trayTitle: normalizeText(config.trayTitle ?? config.tray_title) || null,
+        imageUrl,
+        gridSize,
+        gridRows,
+        gridCols,
+        pieces: pieceList,
+        correctOrder: resolvedCorrectOrder,
+        revealTitle: normalizeText(config.revealTitle ?? config.reveal_title) || "纹样拼图",
+        trayTitle:
+          normalizeText(config.trayTitle ?? config.tray_title)
+          || "将碎片拖回正确位置，完成纹样复原。",
       },
     }
   }

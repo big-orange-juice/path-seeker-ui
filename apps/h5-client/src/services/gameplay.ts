@@ -518,12 +518,20 @@ export function fetchNarrationDetail(stageId: string) {
   })
 }
 
-/** POST /api/Narration/generate-audio */
+/**
+ * POST /api/Narration/generate-audio
+ * body: { stageId: string } — 雪花 ID 按 string 透传
+ */
 export function generateNarrationAudio(stageId: string) {
+  const id = String(stageId || "").trim()
+  if (!id) {
+    return Promise.reject(new Error("缺少 stageId"))
+  }
+
   return request<string>("/api/Narration/generate-audio", {
     method: "POST",
     data: {
-      stageId,
+      stageId: id,
     },
   })
 }

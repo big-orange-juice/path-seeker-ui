@@ -1145,10 +1145,30 @@ export const useMissionStore = defineStore(
       return /完整播放|请先.*播|播完|听完|播放完成|未播放/.test(message)
     }
 
+    /** 找一找 / 识别等后端不接受通用 Submit 的文案 */
+    function isFindScanSubmitRejectMessage(message: string) {
+      return /拍照|找文物|识别|上传图片|通用\s*Submit|不能通过|必须先|未识别/.test(message)
+    }
+
+    /**
+     * 强制跳过：后端拒绝时一律本地完成本站（识别未开放 / 播放门槛 / 通用 Submit 不可用等）。
+     */
+    function shouldLocalForceSkip(skipped: boolean, message: string) {
+      if (!skipped) {
+        return false
+      }
+      return (
+        !message
+        || isPlayGateRejectMessage(message)
+        || isFindScanSubmitRejectMessage(message)
+        || /失败|不允许|不支持|无法|不能/.test(message)
+      )
+    }
+
     /**
      * 非 puzzle 节点完成（10 找一找播片后 / 11 解说听完）：
      * Submit + 写本地闸门 / 章节结果。
-     * 跳过时 payload 显式带 playStatus=3；若后端仍卡「请完整播放」则本地放行，避免导览卡死。
+     * 强制跳过时：先试 Submit；后端拒绝则本地放行，避免卡死。
      */
     async function completeSpecialStage(
       source: "narration" | "find_scan",
@@ -1175,8 +1195,14 @@ export const useMissionStore = defineStore(
       const puzzle = currentPuzzle.value
       const skipped = Boolean(options.skipped)
       const label = skipped
-        ? (source === "narration" ? "已跳过解说" : "已跳过找一找")
+        ? (source === "narration" ? "已跳过解说" : "已跳过本站")
         : (source === "narration" ? "解说完成" : "找一找完成")
+
+      // 跳过前先补齐本地闸门，避免回路线后相位错乱
+      if (skipped && currentChapter.value) {
+        markChapterRecognized(currentChapter.value.id)
+        markChapterVideoWatched(currentChapter.value.id)
+      }
 
       try {
         const response = await submitGameplayStage({
@@ -1187,14 +1213,12 @@ export const useMissionStore = defineStore(
         })
 
         const rejectMessage = response.message || ""
-        const gateBlocked = !response.success && isPlayGateRejectMessage(rejectMessage)
+        const localOnlySkip = !response.success && shouldLocalForceSkip(skipped, rejectMessage)
 
-        // 明确跳过时：后端若仍要求完整播放，本地记完成，避免卡在导览/播片
-        if (!response.success && !(skipped && gateBlocked)) {
+        if (!response.success && !localOnlySkip) {
           return buildMissionSubmitResult(false, rejectMessage || `${label}提交失败。`, null)
         }
 
-        const localOnlySkip = skipped && !response.success && gateBlocked
         const score = localOnlySkip ? 0 : (response.scoreGained ?? 0)
         if (score > 0) {
           cinema.showScore(score)
@@ -1229,8 +1253,7 @@ export const useMissionStore = defineStore(
         )
       } catch (error) {
         const message = resolveRequestErrorMessage(error, `${label}提交失败`)
-        // 网络/业务异常文案若是播放门槛，跳过时同样本地放行
-        if (skipped && isPlayGateRejectMessage(message)) {
+        if (shouldLocalForceSkip(skipped, message)) {
           const snapshot = finalizeSolve(true, 0, label)
           return buildMissionSubmitResult(true, label, snapshot)
         }
@@ -1248,6 +1271,86 @@ export const useMissionStore = defineStore(
 
     async function completeFindScanStage(options: { skipped?: boolean } = {}) {
       return completeSpecialStage("find_scan", options)
+    }
+
+    /**
+     * 强制跳过当前站（1~10 练习/找一找均可）。
+     * 先尝试 Submit(skip)；失败则本地记完成。
+     */
+    async function forceSkipCurrentStage() {
+      if (!activeSession.value || !currentChapter.value || !currentPuzzle.value) {
+        return buildMissionSubmitResult(false, "当前没有可跳过的节点。", null)
+      }
+
+      const interactionType = Number(
+        currentChapter.value.interactionType ?? currentPuzzle.value.interactionType ?? 0,
+      )
+
+      if (interactionType === 11) {
+        return completeNarrationStage({ skipped: true })
+      }
+      if (interactionType === 10) {
+        return completeFindScanStage({ skipped: true })
+      }
+
+      // 1~9 闯关：同样强制跳过
+      gameplayPending.value = true
+      gameplayError.value = ""
+      const cinema = useCinemaStore()
+      const session = activeSession.value
+      const puzzle = currentPuzzle.value
+      const chapter = currentChapter.value
+      const label = "已跳过本站"
+
+      markChapterRecognized(chapter.id)
+      markChapterVideoWatched(chapter.id)
+
+      try {
+        const response = await submitGameplayStage({
+          routeId: session.routeId,
+          stageId: puzzle.id,
+          teamId: session.teamId,
+          payload: JSON.stringify({
+            completed: true,
+            skipped: true,
+            forceSkip: true,
+            action: "skip",
+            playStatus: PLAY_STATUS.skipped,
+            status: PLAY_STATUS.skipped,
+            source: "puzzle",
+            templateType: puzzle.templateType,
+          }),
+        })
+
+        if (response.success) {
+          const score = response.scoreGained ?? 0
+          if (score > 0) {
+            cinema.showScore(score)
+          }
+          const snapshot = finalizeSolve(true, score, response.message || label)
+          if (shouldMarkRouteCompleted(response) && activeSession.value) {
+            const latestChapterResult = snapshot
+              ? { ...snapshot, finalChapter: true }
+              : activeSession.value.latestChapterResult
+            activeSession.value = {
+              ...activeSession.value,
+              latestChapterResult,
+              status: "completed",
+            }
+            void loadRouteResult(session.routeId, { silent: true })
+          }
+          return buildMissionSubmitResult(true, response.message || label, snapshot)
+        }
+
+        // 后端不接受跳过答案：本地完成本站
+        const snapshot = finalizeSolve(true, 0, label)
+        return buildMissionSubmitResult(true, label, snapshot)
+      } catch {
+        const snapshot = finalizeSolve(true, 0, label)
+        return buildMissionSubmitResult(true, label, snapshot)
+      } finally {
+        gameplayPending.value = false
+      }
     }
 
     function advanceFromChapterResult() {
@@ -1335,6 +1438,7 @@ export const useMissionStore = defineStore(
       submitCurrentDraft,
       completeNarrationStage,
       completeFindScanStage,
+      forceSkipCurrentStage,
       advanceFromChapterResult,
       replayMission,
     }

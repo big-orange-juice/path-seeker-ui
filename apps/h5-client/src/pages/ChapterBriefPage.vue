@@ -198,9 +198,10 @@ async function bootstrap() {
     return
   }
 
-  // type 10 播片已完成但未落库：回到 map，避免卡在闯关
-  if (interactionType.value === 10 && gate.videoWatched) {
-    await router.replace(`/missions/${routeId.value}/map`)
+  // type 10 播片已看/已跳过但未 solved：留在本站视频阶段，可强制完成本站
+  if (interactionType.value === 10 && gate.videoWatched && !gate.solved) {
+    ready.value = true
+    await enterPhase("video")
     return
   }
 
@@ -217,11 +218,44 @@ async function advanceFromScan() {
 }
 
 async function skipRecognition() {
-  if (scanning.value || locked.value) {
+  if (scanning.value || locked.value || missionStore.gameplayPending) {
     return
   }
-  toastStore.info("已跳过识别", "识别接口待定，先进入观展短片。")
+  toastStore.info("已跳过识别", "先进入观展短片；也可直接跳过本站。")
   await advanceFromScan()
+}
+
+/** 强制跳过整站（识别 / 短片 / 闯关均可用；后端拒绝时本地完成本站） */
+async function forceSkipStage() {
+  if (missionStore.gameplayPending || finishingVideo.value || scanning.value) {
+    return
+  }
+
+  finishingVideo.value = true
+  locked.value = true
+  cinemaStore.setVideoPlaying(false)
+  videoRef.value?.pause()
+
+  try {
+    const result = await missionStore.forceSkipCurrentStage()
+    if (!result.isCorrect) {
+      toastStore.warning("跳过失败", result.message || "请稍后重试")
+      finishingVideo.value = false
+      locked.value = false
+      return
+    }
+
+    toastStore.info("已跳过本站", "进度已更新。")
+    if (result.snapshot?.finalChapter) {
+      await router.push(`/missions/${routeId.value}/finale`)
+      return
+    }
+    await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/result`)
+  } catch (error) {
+    toastStore.warning("跳过失败", error instanceof Error ? error.message : "请稍后重试")
+    finishingVideo.value = false
+    locked.value = false
+  }
 }
 
 async function tryLocalPreview(file: File | null) {
@@ -251,14 +285,21 @@ async function afterVideo(options: { skipped?: boolean } = {}) {
   cinemaStore.setVideoPlaying(false)
   unlockVideo()
 
-  // type 10：扫一扫 + 播片即本站完成（跳过短片时带 skipped，避免后端「请完整播放」卡死）
+  // type 10：扫一扫 + 播片即本站完成；跳过时强制完成本站（后端拒绝通用 Submit 则本地放行）
   if (interactionType.value === 10) {
-    const result = await missionStore.completeFindScanStage({
-      skipped: Boolean(options.skipped),
-    })
+    const result = options.skipped
+      ? await missionStore.forceSkipCurrentStage()
+      : await missionStore.completeFindScanStage({ skipped: false })
     if (!result.isCorrect) {
       finishingVideo.value = false
       toastStore.warning("提交失败", result.message || "请稍后重试")
+      return
+    }
+    if (options.skipped) {
+      toastStore.info("已跳过本站", "进度已更新。")
+    }
+    if (result.snapshot?.finalChapter) {
+      await router.push(`/missions/${routeId.value}/finale`)
       return
     }
     await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/result`)
@@ -271,8 +312,13 @@ async function afterVideo(options: { skipped?: boolean } = {}) {
 }
 
 async function skipVideo() {
+  if (interactionType.value === 10) {
+    // 找一找：跳过短片 = 强制完成本站
+    await afterVideo({ skipped: true })
+    return
+  }
   toastStore.info("已跳过短片", "可继续当前站点流程。")
-  await afterVideo({ skipped: true })
+  await afterVideo({ skipped: false })
 }
 
 async function tryAutoplay() {
@@ -451,17 +497,30 @@ onUnmounted(() => {
                 :clue-text="clueText"
                 :preview-url="previewUrl"
                 :status="scanStatus"
-                :disabled="scanning || locked"
+                :disabled="scanning || locked || missionStore.gameplayPending"
                 allow-skip
                 @skip="skipRecognition"
                 @file-selected="tryLocalPreview"
               />
             </div>
+            <p class="text-xs text-muted-foreground">
+              可跳过识别进入短片；也可直接跳过本站。
+            </p>
           </div>
 
-          <ClientButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">
-            返回路线
-          </ClientButton>
+          <div class="grid gap-3">
+            <ClientButton
+              variant="outline"
+              class="w-full"
+              :disabled="missionStore.gameplayPending || scanning"
+              @click="forceSkipStage()"
+            >
+              {{ missionStore.gameplayPending ? "处理中…" : "跳过本站" }}
+            </ClientButton>
+            <ClientButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">
+              返回路线
+            </ClientButton>
+          </div>
         </div>
       </ClientCard>
 
@@ -494,11 +553,33 @@ onUnmounted(() => {
         <p class="text-center text-sm text-muted-foreground">{{ statusText }}</p>
 
         <div class="grid gap-3">
-          <ClientButton class="w-full" @click="onPlayClick()">播放</ClientButton>
-          <ClientButton variant="outline" class="w-full" @click="skipVideo()">
-            {{ interactionType === 10 ? "跳过短片，完成本站" : "跳过短片，去闯关" }}
+          <ClientButton class="w-full" :disabled="finishingVideo || missionStore.gameplayPending" @click="onPlayClick()">
+            播放
           </ClientButton>
-          <ClientButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">
+          <ClientButton
+            variant="outline"
+            class="w-full"
+            :disabled="finishingVideo || missionStore.gameplayPending"
+            @click="skipVideo()"
+          >
+            {{
+              finishingVideo || missionStore.gameplayPending
+                ? "处理中…"
+                : interactionType === 10
+                  ? "跳过本站"
+                  : "跳过短片，去闯关"
+            }}
+          </ClientButton>
+          <ClientButton
+            v-if="interactionType !== 10"
+            variant="outline"
+            class="w-full"
+            :disabled="finishingVideo || missionStore.gameplayPending"
+            @click="forceSkipStage()"
+          >
+            跳过本站
+          </ClientButton>
+          <ClientButton variant="outline" class="w-full" :disabled="finishingVideo" @click="router.push(`/missions/${routeId}/map`)">
             返回路线
           </ClientButton>
         </div>
@@ -566,6 +647,15 @@ onUnmounted(() => {
               {{ missionStore.currentChapterSolved ? "已通过" : missionStore.gameplayPending ? "提交中..." : "提交" }}
             </ClientButton>
           </div>
+
+          <ClientButton
+            variant="outline"
+            class="w-full"
+            :disabled="missionStore.gameplayPending || missionStore.currentChapterSolved"
+            @click="forceSkipStage()"
+          >
+            {{ missionStore.gameplayPending ? "处理中…" : "跳过本站" }}
+          </ClientButton>
 
           <ClientButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">
             返回路线
