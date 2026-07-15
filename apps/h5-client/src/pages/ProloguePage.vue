@@ -24,7 +24,7 @@ async function ensureMissionReady() {
   }
 
   // 禁止隐式 Join：介绍页只在「开始探索」之后进入
-  await router.replace(`/tasks/${routeId.value}`)
+  await router.replace(`/missions/${routeId.value}/map`)
 }
 
 async function enterMap() {
@@ -90,9 +90,9 @@ onMounted(() => {
     <ClientEmptyState
       v-else
       title="开场内容不可用"
-      :description="missionStore.gameplayError || missionStore.detailError || '请回到任务详情重新进入。'"
-      action-text="返回任务详情"
-      @action="router.push(`/tasks/${routeId}`)"
+      :description="missionStore.gameplayError || missionStore.detailError || '请回到路线重新进入。'"
+      action-text="返回路线"
+      @action="router.push(`/missions/${routeId}/map`)"
     />
   </div>
 </template>

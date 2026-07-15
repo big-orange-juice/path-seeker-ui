@@ -27,7 +27,7 @@ const tags = computed(() =>
 
 <template>
   <RouterLink
-    :to="`/tasks/${mission.id}`"
+    :to="`/missions/${mission.id}/map`"
     class="mission-card"
     :class="`theme-${coverTheme}`"
   >

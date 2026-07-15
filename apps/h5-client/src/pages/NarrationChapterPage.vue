@@ -191,7 +191,7 @@ async function completeNarration() {
   finishing.value = true
   try {
     const result = await missionStore.completeNarrationStage()
-    if (!result.success) {
+    if (!result.isCorrect) {
       toastStore.warning("提交失败", result.message || "请稍后重试")
       return
     }

@@ -53,7 +53,6 @@ const routeId = computed(() => String(route.params.routeId || ''));
 const chapterId = computed(() => String(route.params.chapterId || ''));
 const onMissionRoute = computed(() => route.path.startsWith('/missions/'));
 const onShellRoute = computed(() => route.path.startsWith('/shell/'));
-const onTaskDetailRoute = computed(() => route.path.startsWith('/tasks/'));
 const onAuthRoute = computed(() => route.path.startsWith('/auth'));
 const shellTab = computed(() => String(route.meta.shellTab || 'hall'));
 const resumePath = computed(() => missionStore.resolveResumeRoutePath());
@@ -117,25 +116,6 @@ const actions = computed<FabActionItem[]>(() => {
         icon: Compass,
         to: '/shell/hall',
         active: false
-      },
-      askAction.value
-    ];
-  }
-
-  if (onTaskDetailRoute.value) {
-    return [
-      {
-        key: 'hall',
-        label: '展厅',
-        icon: Compass,
-        to: '/shell/hall',
-        active: !askStore.open
-      },
-      {
-        key: 'playing',
-        label: '探索',
-        icon: Play,
-        to: '/shell/playing'
       },
       askAction.value
     ];

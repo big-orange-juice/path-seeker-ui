@@ -286,7 +286,11 @@ function itemVisualUrl(item: PreviewItem, preferred: "image" | "silhouette" = "i
 </script>
 
 <template>
-  <div v-if="props.stage" class="gameplay-preview" :class="`is-${meta.className}`">
+  <div
+    v-if="props.stage"
+    class="gameplay-preview is-preview-only"
+    :class="`is-${meta.className}`"
+  >
     <div class="preview-shell">
       <div class="preview-status">
         <span>{{ meta.label }}</span>
@@ -298,11 +302,19 @@ function itemVisualUrl(item: PreviewItem, preferred: "image" | "silhouette" = "i
       <section v-if="props.stage.interactionType === 1" class="preview-panel">
         <p class="question">{{ content }}</p>
         <div class="option-list">
-          <button v-for="option in answerOptions" :key="option.key" type="button">
+          <button v-for="option in answerOptions" :key="option.key" type="button" tabindex="-1">
             <span>{{ option.key }}</span>
             {{ option.label }}
           </button>
-          <input v-if="!answerOptions.length" disabled placeholder="玩家在这里输入答案" />
+          <textarea
+            v-if="!answerOptions.length"
+            class="answer-textarea"
+            rows="4"
+            disabled
+            readonly
+            tabindex="-1"
+            placeholder="玩家在这里输入答案"
+          />
         </div>
       </section>
 
@@ -525,6 +537,17 @@ function itemVisualUrl(item: PreviewItem, preferred: "image" | "silhouette" = "i
   color: #fff8ea;
 }
 
+/* 后台预览：默认屏蔽玩家侧交互；解说音频区为 B 端试听/生成工具，单独放行 */
+.gameplay-preview.is-preview-only .preview-panel {
+  pointer-events: none;
+  user-select: none;
+}
+
+.gameplay-preview.is-preview-only .narration-panel .narration-audio-block {
+  pointer-events: auto;
+  user-select: auto;
+}
+
 .preview-shell {
   display: flex;
   min-height: 540px;
@@ -639,13 +662,25 @@ h3 {
   font-weight: 800;
 }
 
-.option-list input {
-  height: 42px;
+.option-list input,
+.option-list .answer-textarea {
+  width: 100%;
   border: 1px solid rgb(255 255 255 / 8%);
   border-radius: 14px;
-  padding: 0 12px;
+  padding: 10px 12px;
   background: rgb(255 255 255 / 6%);
   color: rgb(247 239 221 / 60%);
+  font: inherit;
+  line-height: 1.5;
+  resize: none;
+}
+
+.option-list input {
+  height: 42px;
+}
+
+.option-list .answer-textarea {
+  min-height: 96px;
 }
 
 .password-slots,

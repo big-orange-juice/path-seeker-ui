@@ -8,20 +8,16 @@ import { useAuthStore } from "@/stores/useAuthStore"
 import { useCinemaStore } from "@/stores/useCinemaStore"
 import MobileShellLayout from "@/layouts/MobileShellLayout.vue"
 import AuthPage from "@/pages/AuthPage.vue"
-import ArtifactCluePage from "@/pages/ArtifactCluePage.vue"
 import ChapterBriefPage from "@/pages/ChapterBriefPage.vue"
 import ChapterMapPage from "@/pages/ChapterMapPage.vue"
 import ChapterResultPage from "@/pages/ChapterResultPage.vue"
-import ChapterVideoPage from "@/pages/ChapterVideoPage.vue"
 import FinalePage from "@/pages/FinalePage.vue"
 import ProloguePage from "@/pages/ProloguePage.vue"
 import NarrationChapterPage from "@/pages/NarrationChapterPage.vue"
-import PuzzlePage from "@/pages/PuzzlePage.vue"
 import ShellArchivePage from "@/pages/ShellArchivePage.vue"
 import ShellAskPage from "@/pages/ShellAskPage.vue"
 import ShellHallPage from "@/pages/ShellHallPage.vue"
 import ShellPlayingPage from "@/pages/ShellPlayingPage.vue"
-import TaskDetailPage from "@/pages/TaskDetailPage.vue"
 
 const router = createRouter({
   history: createWebHistory(),
@@ -93,12 +89,9 @@ const router = createRouter({
           ],
         },
         {
+          // 兼容旧链接：任务详情已并入路线 map
           path: "tasks/:routeId",
-          component: TaskDetailPage,
-          meta: {
-            title: "任务",
-            showTabBar: false,
-          },
+          redirect: (to) => `/missions/${String(to.params.routeId || "")}/map`,
         },
         {
           path: "missions/:routeId/prologue",
@@ -117,36 +110,29 @@ const router = createRouter({
           },
         },
         {
+          // 1~10 本站统一页：找一找 → 短片 →（1~9）闯关
           path: "missions/:routeId/chapters/:chapterId/brief",
           component: ChapterBriefPage,
           meta: {
-            title: "线索",
+            title: "本站",
             showTabBar: false,
           },
         },
         {
+          // 兼容旧链接：clue / video / puzzle 均并入 brief
           path: "missions/:routeId/chapters/:chapterId/clue",
-          component: ArtifactCluePage,
-          meta: {
-            title: "找一找",
-            showTabBar: false,
-          },
+          redirect: (to) =>
+            `/missions/${String(to.params.routeId || "")}/chapters/${String(to.params.chapterId || "")}/brief`,
         },
         {
           path: "missions/:routeId/chapters/:chapterId/video",
-          component: ChapterVideoPage,
-          meta: {
-            title: "观展短片",
-            showTabBar: false,
-          },
+          redirect: (to) =>
+            `/missions/${String(to.params.routeId || "")}/chapters/${String(to.params.chapterId || "")}/brief`,
         },
         {
           path: "missions/:routeId/chapters/:chapterId/puzzle",
-          component: PuzzlePage,
-          meta: {
-            title: "闯关",
-            showTabBar: false,
-          },
+          redirect: (to) =>
+            `/missions/${String(to.params.routeId || "")}/chapters/${String(to.params.chapterId || "")}/brief`,
         },
         {
           path: "missions/:routeId/chapters/:chapterId/narration",

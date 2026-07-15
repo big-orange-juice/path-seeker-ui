@@ -46,10 +46,9 @@ export function shouldRunRouteCinema(
 }
 
 export function resolveRouteCinemaLabel(to: RouteLocationNormalized): string {
-  if (to.path.includes("/video")) return "进入影院"
-  if (to.path.includes("/puzzle")) return "准备闯关"
-  if (to.path.includes("/clue")) return "寻找展品"
-  if (to.path.includes("/brief")) return "阅读线索"
+  if (to.path.includes("/brief") || to.path.includes("/clue") || to.path.includes("/video") || to.path.includes("/puzzle")) {
+    return "进入本站"
+  }
   if (to.path.includes("/map")) return "展开路线"
   if (to.path.includes("/finale")) return "通关结算"
   if (to.path.includes("/result")) return "本站完成"

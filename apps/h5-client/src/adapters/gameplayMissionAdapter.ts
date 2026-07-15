@@ -71,7 +71,7 @@ const TASK_KIND_VALUE_MAP: Record<number, TaskKind> = {
  * 其余交互仍保留映射以便兼容后台存量配置，但产品主推选择与拼图。
  */
 const INTERACTION_TEMPLATE_MAP: Record<number, PuzzleTemplateType> = {
-  1: "observe_choice", // Answer → 选择
+  1: "observe_choice", // Answer → 有选项为选择；无选项为自由文本
   2: "code_break",
   3: "sort",
   4: "match",

@@ -882,21 +882,19 @@ export const useMissionStore = defineStore(
       const puzzle = currentPuzzle.value
 
       try {
-        const response = await cinema.withLoading(
-          () =>
-            submitGameplayStage({
-              routeId: session.routeId,
-              stageId: puzzle.id,
-              teamId: session.teamId,
-              payload: encodeStageSubmitPayload(puzzle, draft.value),
-            }),
-          { label: "核验答案", effect: "cinema" },
-        )
+        // 先静默核验：答错不播过渡动画，只靠按钮 pending + toast
+        const response = await submitGameplayStage({
+          routeId: session.routeId,
+          stageId: puzzle.id,
+          teamId: session.teamId,
+          payload: encodeStageSubmitPayload(puzzle, draft.value),
+        })
 
         if (!response.success) {
           return buildMissionSubmitResult(false, response.message || puzzle.failureCopy, null)
         }
 
+        // 仅答对：得分闪烁；跳转 result/finale 时由路由 win 过场承接
         const score = response.scoreGained ?? 0
         if (score > 0) {
           cinema.showScore(score)
@@ -951,21 +949,19 @@ export const useMissionStore = defineStore(
       const label = source === "narration" ? "解说完成" : "找一找完成"
 
       try {
-        const response = await cinema.withLoading(
-          () =>
-            submitGameplayStage({
-              routeId: session.routeId,
-              stageId: puzzle.id,
-              teamId: session.teamId,
-              payload: JSON.stringify({ completed: true, source }),
-            }),
-          { label: "记录进度", effect: "cinema" },
-        )
+        // 先静默提交：失败不播过渡动画
+        const response = await submitGameplayStage({
+          routeId: session.routeId,
+          stageId: puzzle.id,
+          teamId: session.teamId,
+          payload: JSON.stringify({ completed: true, source }),
+        })
 
         if (!response.success) {
           return buildMissionSubmitResult(false, response.message || `${label}提交失败。`, null)
         }
 
+        // 仅成功：得分闪烁；页面跳转走路由过场
         const score = response.scoreGained ?? 0
         if (score > 0) {
           cinema.showScore(score)

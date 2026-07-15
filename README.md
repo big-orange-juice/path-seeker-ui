@@ -1,34 +1,38 @@
 # Path Seeker UI
 
-`Path Seeker UI` �ǡ��ؾ�Ѱ�١���Ŀ��ǰ�� monorepo����ǰ��������Ӧ�ã�
+`Path Seeker UI` 是「秘径寻踪」项目的前端 monorepo，当前承载多端应用：
 
-- `web-admin`������ B ����Ӫ�����ݱ༭�ĺ�̨ԭ�͡�
-- `mp-wechat`������ C ���ο͵�΢��С����ˡ�
+- `web-admin`：面向 B 端运营与内容编辑的后台。
+- `h5-client`：面向 C 端游客的 H5 客户端（主链路体验）。
+- `mp-wechat`：面向 C 端游客的微信小程序端。
+- `h5-demo`：纯静态沉浸演示，用于体验对齐参考。
 
-����ֿ⵱ǰ�ص���ǰ����Ϣ�ܹ���ҳ��ԭ�ͺͿ�˹�����֯����˷����ڱ��ֿ��ڡ�
+本仓库重点在前端应用、共享协议与跨端工程组织；后端服务不在本仓库内。
 
-## ��Ŀ����
+## 项目概览
 
-�ؾ�Ѱ�ٵĺ���Ŀ�꣬�ǰѴ�ͳ����ݵ�������Ϊ������̽�� + ������� + ���·���������Ϸ�����顣ǰ�˲�����ˣ�
+秘径寻踪的核心目标，是把传统博物馆导览升级为「主题探索 + 谜题解锁 + 故事反馈」的游戏化体验。前端按端拆分：
 
-- ��̨����ݲ����ݹ������������á�����·�߱��ź���Ӫ������
-- С������������롢�½��ƽ������⽻���ͽ���������
+- 后台负责馆藏内容管理、谜题配置、主题路线编排和运营发布。
+- H5 / 小程序负责任务进入、章节推进、谜题交互和奖励反馈。
 
-Ŀǰ�ֿ�״̬���£�
+目前仓库状态如下：
 
-- `apps/web-admin` ���н������ĺ�̨��Ϣ�ܹ�չʾҳ��
-- `apps/mp-wechat` �Դ��ڻ������ּܽ׶Σ���ҳ����Ĭ��ʾ��ҳ��
-- `packages/*` ��ǰֻ�������������Լ����ȾԤ��������ǰ�����̨ UI ����
-- `docs/` �±����˲�Ʒ�����������滮�͹��̲ο��ĵ���
+- `apps/web-admin`：Nuxt 后台，含路线编辑、馆藏、运营等控制台能力。
+- `apps/h5-client`：Vue 3 H5 主客户端，对接真实公开 C 端接口。
+- `apps/mp-wechat`：uni-app 微信小程序端。
+- `apps/h5-demo`：静态 demo，作为 H5 体验对照基准。
+- `packages/*`：共享类型、玩法运行时、题型渲染器、UI 与状态能力。
+- `docs/`：产品方案、接口约定与对齐进度文档。
 
-## ����ջ
+## 技术栈
 
 ### Workspace
 
 - `pnpm workspace`
 - `TypeScript`
 
-### B �˺�̨��`apps/web-admin`
+### B 端后台：`apps/web-admin`
 
 - `Nuxt 4`
 - `Vue 3`
@@ -37,14 +41,22 @@
 - `shadcn-vue`
 - `@vueuse/nuxt`
 - `@nuxt/image`
-- `@nuxt/icon`
 
-����˵����
+补充说明：
 
-- ��ǰ `Nuxt` ����Ϊ `ssr: false`����ƫ��̨ԭ�ͺͽ����͹������档
-- Ŀ¼�Ѳ��� Nuxt 4 �Ƽ��� `app/` �ṹ��
+- 当前 `Nuxt` 配置为 `ssr: false`，更偏后台管理与交互型界面。
+- 目录采用 Nuxt 4 推荐的 `app/` 结构。
 
-### ΢��С����ˣ�`apps/mp-wechat`
+### H5 客户端：`apps/h5-client`
+
+- `Vue 3`
+- `Vite`
+- `Vue Router`
+- `Pinia`
+- `Tailwind CSS`
+- `GSAP`
+
+### 微信小程序端：`apps/mp-wechat`
 
 - `uni-app`
 - `Vue 3`
@@ -52,139 +64,131 @@
 - `Tailwind CSS`
 - `GSAP`
 
-## Ŀ¼�ṹ
+## 目录结构
 
 ```text
 .
-���� apps/
-��  ���� web-admin/     # Nuxt 4 ��̨ԭ��
-��  ���� mp-wechat/     # uni-app ΢��С����
-���� packages/
-��  ���� ts-shared/     # �����ȶ��Ŀ�� TS ��Լ
-��  ���� game-renderer/ # ������ȾЭ����ǰ����Ⱦ����Ԥ��
-���� docs/
-��  ���� 01-product-solution.md
-��  ���� 02-development-plan.md
-��  ���� 03-frontend-skills-mcp-reference.md
-���� scripts/
-��  ���� install-all.ps1
-��  ���� install-all.sh
-���� package.json
-���� pnpm-workspace.yaml
+├─ apps/
+│  ├─ web-admin/     # Nuxt 4 后台
+│  ├─ h5-client/     # Vue 3 H5 主客户端
+│  ├─ mp-wechat/     # uni-app 微信小程序
+│  └─ h5-demo/       # 静态体验 demo
+├─ packages/
+│  ├─ ui/              # 共享 UI 组件
+│  ├─ ts-shared/       # 共享 TS 类型与契约
+│  ├─ game-renderer/   # 题型渲染器与预览
+│  ├─ game-runtime/    # 会话 / 草稿 / 评分等运行时
+│  ├─ client-state/    # 客户端通用状态（如 toast）
+│  └─ tailwind-config/ # 共享 Tailwind 主题
+├─ docs/
+│  ├─ 01-product-solution.md
+│  ├─ 32-chat-send-sse-api.md
+│  ├─ h5-client-demo-alignment-status.md
+│  └─ schema.json
+├─ scripts/
+│  ├─ install-all.ps1
+│  └─ install-all.sh
+├─ package.json
+└─ pnpm-workspace.yaml
 ```
 
-## ���ٿ�ʼ
+## 快速开始
 
-### 1. ׼������
+### 1. 准备环境
 
-����ȷ�������Ѱ�װ��
+请先确保本机已安装：
 
 - `Node.js`
-- `pnpm`���ֿ������İ��������汾Ϊ `pnpm@11.7.0`
+- `pnpm`（仓库声明版本：`pnpm@11.7.0`）
 
-�����ʹ�� `corepack`������ֱ��ִ�У�
+如果使用 `corepack`：
 
 ```bash
 corepack enable
 corepack prepare pnpm@11.7.0 --activate
 ```
 
-### 2. ��װ����
+### 2. 安装依赖
 
-�ڲֿ��Ŀ¼ִ�У�
+在仓库根目录执行：
 
 ```bash
 pnpm install
 ```
 
-Windows Ҳ����ֱ��ʹ�ýű���
+Windows：
 
 ```powershell
 ./scripts/install-all.ps1
 ```
 
-macOS / Linux��
+macOS / Linux：
 
 ```bash
 bash ./scripts/install-all.sh
 ```
 
-### 3. ������Ŀ
+### 3. 启动项目
 
-������̨ԭ�ͣ�
+启动后台：
 
 ```bash
 pnpm dev:web-admin
 ```
 
-����С����� H5 ���԰汾��
+启动 H5 主客户端：
+
+```bash
+pnpm dev:h5-client
+```
+
+启动小程序 H5 调试：
 
 ```bash
 pnpm dev:h5
 ```
 
-����΢��С���򹹽�Ŀ�꣺
+启动微信小程序构建目标：
 
 ```bash
-pnpm dev:mp-wexin
+pnpm dev:mp-weixin
 ```
 
-����˵����
+## 常用命令
 
-- ���ű������ﱣ���� `wexin` �����ʷƴд����ʵ��ӳ����� `mp-weixin`��
-- ������ϰ�߽�����Ӧ��Ŀ¼��Ҳ����ֱ��ʹ�ø��� `package.json` ��Ľű���
-
-## ��������
-
-| ���� | ˵�� |
+| 命令 | 说明 |
 | --- | --- |
-| `pnpm dev:web-admin` | ���� Nuxt ��̨�������� |
-| `pnpm build:web-admin` | ������̨ |
-| `pnpm dev:h5` | ���� uni-app �� H5 ���� |
-| `pnpm dev:mp-wexin` | ����΢��С����Ŀ�� |
-| `pnpm build:mp-wexin` | ����΢��С����Ŀ�� |
-| `pnpm typecheck` | �ݹ�ִ�� workspace ���ͼ�� |
+| `pnpm dev:web-admin` | 启动 Nuxt 后台开发环境 |
+| `pnpm build:web-admin` | 构建后台 |
+| `pnpm dev:h5-client` | 启动 H5 主客户端 |
+| `pnpm build:h5-client` | 构建 H5 主客户端 |
+| `pnpm typecheck:h5-client` | H5 客户端类型检查 |
+| `pnpm dev:h5` | 启动 uni-app H5 调试 |
+| `pnpm dev:mp-weixin` | 启动微信小程序目标 |
+| `pnpm build:mp-weixin` | 构建微信小程序目标 |
+| `pnpm typecheck` | 递归执行 workspace 类型检查 |
 
-## ��ǰҳ����ģ��
+## 共享包说明
 
-### `apps/web-admin`
-
-��ǰ��̨��������һ��Χ�Ʋ�Ʒ������ҳ��Ǽܣ�
-
-- `/`����̨������չʾ��Ŀ��λ��ҵ��ģ�͡�����������������̡�
-- `/collections`���ݲ����ݹ�����ǿ�������ʲ�����¼�����ȼ���
-- `/routes`������·����籾���š�
-- `/operations`����Ӫ������ָ�꿴��� MVP ��Χ��
-
-�ⲿ�ָ��ӽ�����Ʒ�������ӻ���̨ԭ�͡����������Ѿ��Ӻú�˵�����ϵͳ��
-
-### `apps/mp-wechat`
-
-��ǰ���ǻ������ּ�״̬��
-
-- ����� `uni-app` ���̳�ʼ����
-- �����ö�˽ű������� H5 �� `mp-weixin`��
-- ��ҳĿǰ����Ĭ��ʾ�����ݣ�ҵ��ҳ����δ��ʼ��ء�
-
-## ������˵��
-
-| ���� | ��; |
+| 包名 | 用途 |
 | --- | --- |
-| `@path-seeker/ts-shared` | ֻ�����Ѿ��ȶ����һᱻ����Ӧ�ù�ͬ���ѵ������볣�� |
-| `@path-seeker/game-renderer` | Ϊ��������Ԥ�� / С��������Ⱦ�㱣����СЭ����� |
+| `@path-seeker/ui` | 共享 UI 组件 |
+| `@path-seeker/ts-shared` | 共享类型、枚举与契约 |
+| `@path-seeker/game-renderer` | 题型渲染器、玩法预览宿主 |
+| `@path-seeker/game-runtime` | 草稿、进度、评分等运行时逻辑 |
+| `@path-seeker/client-state` | 客户端通用状态（如 toast） |
+| `@path-seeker/tailwind-config` | 共享主题与 Tailwind 配置 |
 
-## �ĵ�����
+## 文档索引
 
-���Ҫ������ȫҵ�񱳾���滮�����ȿ���Щ�ĵ���
+- `docs/01-product-solution.md`：产品方案与业务模型。
+- `docs/schema.json`：公开 C 端接口契约参考。
+- `docs/h5-client-demo-alignment-status.md`：H5 与 demo 体验对齐进度。
+- `docs/32-chat-send-sse-api.md`：对话 / SSE 相关接口说明。
 
-- `docs/01-product-solution.md`����Ʒ������ҵ��ģ�͡�
-- `docs/02-development-plan.md`��ǰ��˲�֡�����ջ�ͽ׶�ʵʩ���顣
-- `docs/03-frontend-skills-mcp-reference.md`����ǰǰ�� skill / MCP �ο���¼��
+## 开发说明
 
-## ����˵��
-
-- ���ֿ������ǰ�˹������������� `.NET` ��˷���ʵ�֡�
-- `web-admin` ��ǰ��ƫ��Ϣ�ܹ���ҳ��ԭ�ͣ���̨����ȱ����� `apps/web-admin/app/components` �ڲ����������� `ui-admin` ����
-- `mp-wechat` ��ǰ��ƫ���ּܣ��ɴ�������ҳ���½ڵ�ͼ��������Ⱦ�������߼����ƽ���
-- �����Ҫ����Э�飬���ȳ����� `packages/ts-shared` �� `packages/game-renderer`��ǰ���������Ѿ�������Ӧ�ù�ͬ���ѡ�
-- `docs/02-development-plan.md` �������Ǹ����ڵ�Ŀ��ṹ����ǰ�ֿⰴ������������� app ����ء��Ĳ���ִ�С�
+- 本仓库仅覆盖前端工作区，不包含后端服务实现。
+- 跨端共享协议优先沉淀到 `packages/ts-shared`、`packages/game-renderer`、`packages/game-runtime`，避免在各应用内复制。
+- H5 主链路以 `apps/h5-client` 为准；`apps/h5-demo` 仅作体验对照，不作为生产入口。
+- 文件请使用 **UTF-8** 编码保存，避免中文再次出现乱码。

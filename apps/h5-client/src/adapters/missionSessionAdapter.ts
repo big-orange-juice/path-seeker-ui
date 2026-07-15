@@ -175,9 +175,9 @@ export function buildRestoredMissionSession(
 
 /**
  * 进入某一站时的路径决策：
- * - 11 解说：无需扫一扫 / 播片 → narration
- * - 10 找一找：扫一扫 → 成功后自动播片 → 播完直接完成（不进 puzzle）
- * - 1~9 练习：扫一扫 → 成功后自动播片 → puzzle
+ * - 11 解说：独立 narration 页
+ * - 1~10：统一进 brief 本站页，页内按闸门切换 找一找 → 短片 →（1~9）闯关
+ * - 10 播片完成后若已 videoWatched 但未 solved：回 map 防循环
  */
 export function resolveChapterEnterPath(
   routeId: string,
@@ -191,26 +191,17 @@ export function resolveChapterEnterPath(
 
   const type = Number(interactionType || 0)
 
-  // 11 解说导览：不需要扫一扫、不需要播片
+  // 11 解说导览：听讲页独立
   if (type === 11) {
     return `/missions/${routeId}/chapters/${chapterId}/narration`
   }
 
-  // 10 找一找：播片结束后进入完成页（由 video 页提交），此处若已播完回 map 防循环
+  // 10 找一找：播片提交完成后若仍残留 videoWatched，回 map
   if (type === 10 && progress.videoWatched) {
     return `/missions/${routeId}/map`
   }
 
-  // 1~9：播片后进闯关
-  if (type !== 10 && progress.videoWatched) {
-    return `/missions/${routeId}/chapters/${chapterId}/puzzle`
-  }
-
-  // 扫一扫成功后自动进播片（非 11）
-  if (progress.recognized) {
-    return `/missions/${routeId}/chapters/${chapterId}/video`
-  }
-
+  // 1~10：线索 / 扫一扫 / 短片 / 闯关 同页分阶段
   return `/missions/${routeId}/chapters/${chapterId}/brief`
 }
 
@@ -219,10 +210,12 @@ export function resolveMissionResumePath(input: {
   session: MissionSession
   mission: MissionDetail
   chapterId: string | null
+  /** @deprecated 本站页内按闸门恢复阶段，保留入参兼容 */
   hasDraft?: boolean
+  /** @deprecated 本站页内按闸门恢复阶段，保留入参兼容 */
   hasHint?: boolean
 }) {
-  const { session, mission, chapterId, hasDraft = false, hasHint = false } = input
+  const { session, mission, chapterId } = input
 
   if (session.status === "completed" || session.latestChapterResult?.finalChapter) {
     return `/missions/${session.routeId}/finale`
@@ -261,16 +254,6 @@ export function resolveMissionResumePath(input: {
   }
 
   const interactionType = chapter.interactionType ?? chapter.puzzle?.interactionType
-  const type = Number(interactionType || 0)
-
-  // 10 / 11 不走 puzzle 草稿恢复
-  if (type === 10 || type === 11) {
-    return resolveChapterEnterPath(session.routeId, chapter.id, progress, interactionType)
-  }
-
-  if (hasDraft || hasHint || progress.videoWatched) {
-    return `/missions/${session.routeId}/chapters/${chapter.id}/puzzle`
-  }
-
+  // 1~11 统一到 brief / narration；页内按闸门展示阶段
   return resolveChapterEnterPath(session.routeId, chapter.id, progress, interactionType)
 }
