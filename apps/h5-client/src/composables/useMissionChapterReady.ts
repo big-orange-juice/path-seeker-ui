@@ -10,20 +10,13 @@ export function useMissionChapterReady() {
   const router = useRouter()
 
   async function ensureMissionChapter(routeId: string, chapterId?: string) {
-    // 有会话但 mission 未缓存：用 MyRouteProgress 恢复
-    if (missionStore.activeSession?.routeId === routeId && !missionStore.activeMission) {
-      const restored = await missionStore.restoreActiveMission()
-      if (!restored) {
-        return false
-      }
-    }
-
     // 无本路线会话：不隐式 Join，回路线让用户明确开始
     if (missionStore.activeSession?.routeId !== routeId) {
       await router.replace(`/missions/${routeId}/map`)
       return false
     }
 
+    // 有会话但 mission 未缓存：恢复（store 内 inflight 去重）
     if (!missionStore.activeMission) {
       const restored = await missionStore.restoreActiveMission()
       if (!restored) {

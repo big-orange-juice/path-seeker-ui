@@ -32,6 +32,7 @@ const chapterTimeline = computed(() => {
 })
 
 async function restoreMission() {
+  // 仅有会话且 mission 未缓存时恢复；有缓存则跳过（与 main bootstrap 去重）
   if (!missionStore.activeSession || missionStore.activeMission) {
     return
   }

@@ -10,14 +10,24 @@ import {
   ClientInput,
 } from "@/components/ui"
 import { useAuthStore } from "@/stores/useAuthStore"
+import { useMissionStore } from "@/stores/useMissionStore"
 
 type AuthMode = "guest" | "login" | "register"
 
 const authStore = useAuthStore()
+const missionStore = useMissionStore()
 const toastStore = useToastStore()
 const route = useRoute()
 const router = useRouter()
 const mode = shallowRef<AuthMode>("guest")
+
+/** 登录成功后拉列表；有本地会话且无 mission 缓存时再恢复 */
+async function afterAuthSuccess() {
+  void missionStore.loadRouteCards({ force: true })
+  if (missionStore.activeSession && !missionStore.getMission(missionStore.activeSession.routeId)) {
+    void missionStore.restoreActiveMission()
+  }
+}
 
 const loginForm = reactive({
   account: "",
@@ -55,6 +65,7 @@ async function submitLogin() {
   const result = await authStore.login(loginForm.account, loginForm.password)
   if (result) {
     toastStore.success("欢迎回来", "任务进度已恢复到当前设备。")
+    await afterAuthSuccess()
     await backHome()
   }
 }
@@ -75,6 +86,7 @@ async function submitRegister() {
 
   if (result) {
     toastStore.success("账号已创建", "已自动登录，可以开始探索。")
+    await afterAuthSuccess()
     await backHome()
   }
 }
@@ -83,6 +95,7 @@ async function submitGuestLogin() {
   const result = await authStore.loginAsGuest()
   if (result) {
     toastStore.success("出发！", "游客模式已就绪。")
+    await afterAuthSuccess()
     await backHome()
   }
 }

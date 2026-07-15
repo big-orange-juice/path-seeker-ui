@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue"
+import { computed, onMounted, shallowRef } from "vue"
 import type { SelectOption } from "@path-seeker/ui"
 import { Filter } from "lucide-vue-next"
 import {
@@ -51,8 +51,14 @@ const taskKindOptions: SelectOption[] = [
   })),
 ]
 
+const hasRoutes = computed(() => missionStore.filteredRoutes.length > 0)
+const listFailed = computed(() => Boolean(missionStore.routeListError) && !hasRoutes.value)
+
+const emptyTitle = computed(() => (listFailed.value ? "路线加载失败" : "没有匹配路线"))
 const emptyText = computed(() =>
-  missionStore.routeListError || "没有匹配路线，换个年龄或难度再试试。",
+  listFailed.value
+    ? missionStore.routeListError || "请检查网络后重试。"
+    : "没有匹配路线，换个年龄或难度再试试。",
 )
 
 const filterOn = computed(() =>
@@ -72,6 +78,15 @@ const filterSummary = computed(() =>
 function closeFilterSheet() {
   filterSheetOpen.value = false
 }
+
+async function refreshRoutes(force = false) {
+  await missionStore.ensureRouteCards({ force })
+}
+
+onMounted(() => {
+  // 回展厅：空列表 / 失败 / 过期 TTL 时再拉；有缓存则不打接口
+  void refreshRoutes(false)
+})
 </script>
 
 <template>
@@ -107,6 +122,16 @@ function closeFilterSheet() {
       </span>
     </div>
 
+    <p
+      v-if="missionStore.routeListError && hasRoutes"
+      class="text-xs text-muted-foreground"
+    >
+      列表刷新失败，仍显示上次结果。
+      <button type="button" class="text-primary underline-offset-2 hover:underline" @click="refreshRoutes(true)">
+        重试
+      </button>
+    </p>
+
     <ClientSheet v-model="filterSheetOpen">
       <ClientSheetContent side="bottom">
         <ClientSheetHeader>
@@ -141,7 +166,7 @@ function closeFilterSheet() {
       </ClientSheetContent>
     </ClientSheet>
 
-    <div v-if="missionStore.filteredRoutes.length" class="mission-rail">
+    <div v-if="hasRoutes" class="mission-rail">
       <MissionPreviewCard
         v-for="mission in missionStore.filteredRoutes"
         :key="mission.id"
@@ -159,8 +184,10 @@ function closeFilterSheet() {
 
     <ClientEmptyState
       v-else
-      title="没有匹配路线"
+      :title="emptyTitle"
       :description="emptyText"
+      :action-text="listFailed ? '重新加载' : ''"
+      @action="refreshRoutes(true)"
     />
   </div>
 </template>
