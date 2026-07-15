@@ -1,5 +1,5 @@
 import { createApp } from "vue"
-import { createPinia } from "pinia"
+import { createPinia, setActivePinia } from "pinia"
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate"
 import App from "./App.vue"
 import router from "./router"
@@ -7,18 +7,23 @@ import { useAuthStore } from "@/stores/useAuthStore"
 import { useMissionStore } from "@/stores/useMissionStore"
 import "./assets/styles/index.css"
 
+const app = createApp(App)
 const pinia = createPinia()
 pinia.use(piniaPluginPersistedstate)
 
-const app = createApp(App)
-
+// 必须先安装 pinia，再挂 router / 调 store，否则生产包会出现 reading '_s' of undefined
 app.use(pinia)
+setActivePinia(pinia)
+app.use(router)
 
 /**
  * 启动顺序：鉴权就绪 → 列表 / 会话恢复。
  * 避免 PageList 与 token 刷新竞态导致列表被清空且不再重试。
  */
 async function bootstrapClient() {
+  // 确保任意异步回调里 useStore 都能拿到同一 pinia
+  setActivePinia(pinia)
+
   const authStore = useAuthStore(pinia)
   const missionStore = useMissionStore(pinia)
 
@@ -26,7 +31,6 @@ async function bootstrapClient() {
     return
   }
 
-  // 过期则刷新；未过期时 refreshTokenIfNeeded 直接返回 null，仍视为可用
   if (authStore.isTokenExpired) {
     const refreshed = await authStore.refreshTokenIfNeeded(true)
     if (!refreshed || !authStore.isLoggedIn) {
@@ -35,16 +39,12 @@ async function bootstrapClient() {
   }
 
   void authStore.loadProfile()
-
-  // 列表优先；失败由展厅 ensure + 重试兜底
   void missionStore.loadRouteCards({ force: true })
 
-  // 仅在有会话且 mission 未缓存时恢复，避免无意义的 Detail/Stages 风暴
   if (missionStore.activeSession && !missionStore.getMission(missionStore.activeSession.routeId)) {
     void missionStore.restoreActiveMission()
   }
 }
 
+app.mount("#app")
 void bootstrapClient()
-
-app.use(router).mount("#app")
