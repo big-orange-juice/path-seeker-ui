@@ -1116,10 +1116,44 @@ export const useMissionStore = defineStore(
     }
 
     /**
-     * 非 puzzle 节点完成（10 找一找播片后 / 11 解说听完）：
-     * Submit + 写本地闸门 / 章节结果
+     * 播放门槛状态（对齐 schema RecordChallengeIntroVideo.status）：
+     * 1=开始播放 2=播放完成 3=明确跳过
      */
-    async function completeSpecialStage(source: "narration" | "find_scan") {
+    const PLAY_STATUS = {
+      started: 1,
+      completed: 2,
+      skipped: 3,
+    } as const
+
+    function buildSpecialStagePayload(
+      source: "narration" | "find_scan",
+      options: { skipped?: boolean } = {},
+    ) {
+      const skipped = Boolean(options.skipped)
+      return JSON.stringify({
+        completed: true,
+        source,
+        skipped,
+        // 后端可能读 playStatus / status / action 任一字段
+        playStatus: skipped ? PLAY_STATUS.skipped : PLAY_STATUS.completed,
+        status: skipped ? PLAY_STATUS.skipped : PLAY_STATUS.completed,
+        action: skipped ? "skip" : "complete",
+      })
+    }
+
+    function isPlayGateRejectMessage(message: string) {
+      return /完整播放|请先.*播|播完|听完|播放完成|未播放/.test(message)
+    }
+
+    /**
+     * 非 puzzle 节点完成（10 找一找播片后 / 11 解说听完）：
+     * Submit + 写本地闸门 / 章节结果。
+     * 跳过时 payload 显式带 playStatus=3；若后端仍卡「请完整播放」则本地放行，避免导览卡死。
+     */
+    async function completeSpecialStage(
+      source: "narration" | "find_scan",
+      options: { skipped?: boolean } = {},
+    ) {
       if (!activeSession.value || !currentChapter.value || !currentPuzzle.value) {
         return buildMissionSubmitResult(false, "当前没有可完成的节点。", null)
       }
@@ -1139,29 +1173,44 @@ export const useMissionStore = defineStore(
       const cinema = useCinemaStore()
       const session = activeSession.value
       const puzzle = currentPuzzle.value
-      const label = source === "narration" ? "解说完成" : "找一找完成"
+      const skipped = Boolean(options.skipped)
+      const label = skipped
+        ? (source === "narration" ? "已跳过解说" : "已跳过找一找")
+        : (source === "narration" ? "解说完成" : "找一找完成")
 
       try {
-        // 先静默提交：失败不播过渡动画
         const response = await submitGameplayStage({
           routeId: session.routeId,
           stageId: puzzle.id,
           teamId: session.teamId,
-          payload: JSON.stringify({ completed: true, source }),
+          payload: buildSpecialStagePayload(source, { skipped }),
         })
 
-        if (!response.success) {
-          return buildMissionSubmitResult(false, response.message || `${label}提交失败。`, null)
+        const rejectMessage = response.message || ""
+        const gateBlocked = !response.success && isPlayGateRejectMessage(rejectMessage)
+
+        // 明确跳过时：后端若仍要求完整播放，本地记完成，避免卡在导览/播片
+        if (!response.success && !(skipped && gateBlocked)) {
+          return buildMissionSubmitResult(false, rejectMessage || `${label}提交失败。`, null)
         }
 
-        // 仅成功：得分闪烁；页面跳转走路由过场
-        const score = response.scoreGained ?? 0
+        const localOnlySkip = skipped && !response.success && gateBlocked
+        const score = localOnlySkip ? 0 : (response.scoreGained ?? 0)
         if (score > 0) {
           cinema.showScore(score)
         }
 
-        const snapshot = finalizeSolve(false, score, response.message || label)
-        if (shouldMarkRouteCompleted(response) && activeSession.value) {
+        const snapshot = finalizeSolve(
+          skipped,
+          score,
+          localOnlySkip ? label : (response.message || label),
+        )
+
+        if (
+          !localOnlySkip
+          && shouldMarkRouteCompleted(response)
+          && activeSession.value
+        ) {
           const latestChapterResult = snapshot
             ? { ...snapshot, finalChapter: true }
             : activeSession.value.latestChapterResult
@@ -1173,21 +1222,32 @@ export const useMissionStore = defineStore(
           void loadRouteResult(session.routeId, { silent: true })
         }
 
-        return buildMissionSubmitResult(true, response.message || label, snapshot)
+        return buildMissionSubmitResult(
+          true,
+          localOnlySkip ? label : (response.message || label),
+          snapshot,
+        )
       } catch (error) {
-        gameplayError.value = resolveRequestErrorMessage(error, `${label}提交失败`)
+        const message = resolveRequestErrorMessage(error, `${label}提交失败`)
+        // 网络/业务异常文案若是播放门槛，跳过时同样本地放行
+        if (skipped && isPlayGateRejectMessage(message)) {
+          const snapshot = finalizeSolve(true, 0, label)
+          return buildMissionSubmitResult(true, label, snapshot)
+        }
+
+        gameplayError.value = message
         return buildMissionSubmitResult(false, gameplayError.value, null)
       } finally {
         gameplayPending.value = false
       }
     }
 
-    async function completeNarrationStage() {
-      return completeSpecialStage("narration")
+    async function completeNarrationStage(options: { skipped?: boolean } = {}) {
+      return completeSpecialStage("narration", options)
     }
 
-    async function completeFindScanStage() {
-      return completeSpecialStage("find_scan")
+    async function completeFindScanStage(options: { skipped?: boolean } = {}) {
+      return completeSpecialStage("find_scan", options)
     }
 
     function advanceFromChapterResult() {

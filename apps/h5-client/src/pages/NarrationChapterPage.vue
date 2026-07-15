@@ -74,7 +74,8 @@ const audioActionLabel = computed(() => {
     return "生成失败，重试"
   }
 
-  if (audioStatus.value === NARRATION_AUDIO_STATUS.Stale) {
+  // 已有音频或文本已更新：统一「重新生成」
+  if (audioUrl.value || audioStatus.value === NARRATION_AUDIO_STATUS.Stale) {
     return "重新生成语音"
   }
 
@@ -103,10 +104,7 @@ function isAudioStillGenerating(item: NarrationDetailResponse | null) {
     return false
   }
 
-  if (String(item.audioUrl || "").trim()) {
-    return false
-  }
-
+  // 重新生成时旧 audioUrl 可能仍在，以 status 为准
   const status = Number(item.audioStatus ?? 0)
   return status === NARRATION_AUDIO_STATUS.Queued || status === NARRATION_AUDIO_STATUS.Generating
 }
@@ -164,36 +162,60 @@ function pollAudio(attempt = 0) {
     }
 
     generatingAudio.value = false
+    if (String(next?.audioUrl || "").trim()) {
+      toastStore.info("语音已就绪", "可点击播放试听。")
+    }
   }, 2000)
 }
 
 async function handleGenerateAudio() {
-  if (!chapterId.value || audioBusy.value || !narrationText.value) {
+  if (!chapterId.value || audioBusy.value || !narrationText.value || finishing.value) {
     return
   }
 
   generatingAudio.value = true
   try {
     await generateNarrationAudio(chapterId.value)
-    await loadDetail(true)
-    pollAudio()
+    const next = await loadDetail(true)
+    if (isAudioStillGenerating(next)) {
+      pollAudio()
+      return
+    }
+    // 已就绪或仍有旧链但状态已结束：再拉一次确保 URL 更新
+    generatingAudio.value = false
+    if (String(next?.audioUrl || "").trim()) {
+      toastStore.info("语音已更新", "可点击播放试听。")
+    }
   } catch (error) {
     generatingAudio.value = false
     toastStore.warning("语音生成失败", error instanceof Error ? error.message : "请稍后重试")
   }
 }
 
-async function completeNarration() {
+/**
+ * 完成本站解说。
+ * 有无音频均可：跳过收听 / 跳过生成，直接提交进度。
+ */
+async function completeNarration(options: { skipped?: boolean } = {}) {
   if (finishing.value || !missionStore.activeSession || !chapter.value) {
     return
   }
 
   finishing.value = true
+  clearAudioPoll()
+  generatingAudio.value = false
+
   try {
-    const result = await missionStore.completeNarrationStage()
+    const result = await missionStore.completeNarrationStage({
+      skipped: Boolean(options.skipped),
+    })
     if (!result.isCorrect) {
       toastStore.warning("提交失败", result.message || "请稍后重试")
       return
+    }
+
+    if (options.skipped) {
+      toastStore.info("已跳过解说", "本站已记为完成。")
     }
 
     await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/result`)
@@ -202,6 +224,10 @@ async function completeNarration() {
   } finally {
     finishing.value = false
   }
+}
+
+async function skipNarration() {
+  await completeNarration({ skipped: true })
 }
 
 async function bootstrap() {
@@ -257,18 +283,26 @@ onBeforeUnmount(() => {
 
         <div class="rounded-[1.1rem] border border-primary/20 bg-black/30 p-4 space-y-3">
           <template v-if="audioUrl">
-            <audio class="w-full" controls :src="audioUrl" preload="metadata" />
+            <audio
+              :key="audioUrl"
+              class="w-full"
+              controls
+              :src="audioUrl"
+              preload="metadata"
+            />
             <p v-if="durationLabel" class="text-xs text-muted-foreground">
               时长 {{ durationLabel }}
             </p>
             <ClientButton
-              v-if="audioStatus === NARRATION_AUDIO_STATUS.Stale || audioStatus === NARRATION_AUDIO_STATUS.Failed"
               variant="outline"
               class="w-full"
-              :disabled="audioBusy || !narrationText"
+              :disabled="audioBusy || !narrationText || finishing"
               @click="handleGenerateAudio">
               {{ audioActionLabel }}
             </ClientButton>
+            <p class="text-xs leading-5 text-muted-foreground">
+              可重新生成语音；生成期间仍可跳过本站。
+            </p>
           </template>
           <template v-else>
             <div class="flex h-12 items-end justify-center gap-1 px-2" aria-hidden="true">
@@ -281,12 +315,12 @@ onBeforeUnmount(() => {
             </div>
             <ClientButton
               class="w-full"
-              :disabled="audioBusy || !narrationText || loading"
+              :disabled="audioBusy || !narrationText || loading || finishing"
               @click="handleGenerateAudio">
               {{ audioActionLabel }}
             </ClientButton>
             <p class="text-xs leading-5 text-muted-foreground">
-              暂无语音时点击生成；生成完成后可在线收听。
+              暂无语音时可生成收听；也可直接跳过本站。
             </p>
           </template>
         </div>
@@ -306,14 +340,25 @@ onBeforeUnmount(() => {
           {{ narrationText }}
         </div>
         <p v-else class="text-sm text-muted-foreground">
-          暂无解说词，请稍后重试或联系工作人员。
+          暂无解说词，可跳过本站继续探索。
         </p>
 
         <div class="grid gap-3">
-          <ClientButton class="w-full" :disabled="finishing || loading" @click="completeNarration">
+          <ClientButton
+            v-if="audioUrl"
+            class="w-full"
+            :disabled="finishing"
+            @click="completeNarration()">
             {{ finishing ? "提交中…" : "听完了，继续" }}
           </ClientButton>
-          <ClientButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">
+          <ClientButton
+            class="w-full"
+            :variant="audioUrl ? 'outline' : 'default'"
+            :disabled="finishing"
+            @click="skipNarration()">
+            {{ finishing ? "提交中…" : "跳过解说" }}
+          </ClientButton>
+          <ClientButton variant="outline" class="w-full" :disabled="finishing" @click="router.push(`/missions/${routeId}/map`)">
             返回路线
           </ClientButton>
         </div>

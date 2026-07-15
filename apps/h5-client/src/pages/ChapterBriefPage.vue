@@ -243,7 +243,7 @@ function unlockVideo() {
   missionStore.markChapterVideoWatched(chapterId.value)
 }
 
-async function afterVideo() {
+async function afterVideo(options: { skipped?: boolean } = {}) {
   if (finishingVideo.value) {
     return
   }
@@ -251,9 +251,11 @@ async function afterVideo() {
   cinemaStore.setVideoPlaying(false)
   unlockVideo()
 
-  // type 10：扫一扫 + 播片即本站完成
+  // type 10：扫一扫 + 播片即本站完成（跳过短片时带 skipped，避免后端「请完整播放」卡死）
   if (interactionType.value === 10) {
-    const result = await missionStore.completeFindScanStage()
+    const result = await missionStore.completeFindScanStage({
+      skipped: Boolean(options.skipped),
+    })
     if (!result.isCorrect) {
       finishingVideo.value = false
       toastStore.warning("提交失败", result.message || "请稍后重试")
@@ -270,7 +272,7 @@ async function afterVideo() {
 
 async function skipVideo() {
   toastStore.info("已跳过短片", "可继续当前站点流程。")
-  await afterVideo()
+  await afterVideo({ skipped: true })
 }
 
 async function tryAutoplay() {

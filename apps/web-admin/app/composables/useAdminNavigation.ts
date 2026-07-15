@@ -12,5 +12,6 @@ export const adminNavItems: AdminNavItem[] = [
   { label: '主体维护', to: `${ADMIN_CONSOLE_HOME_PATH}/museums`, icon: 'library-big' },
   { label: '馆藏内容', to: `${ADMIN_CONSOLE_HOME_PATH}/collections`, icon: 'library' },
   { label: '主题路线', to: `${ADMIN_CONSOLE_HOME_PATH}/routes`, icon: 'route' },
+  { label: '导游管理', to: `${ADMIN_CONSOLE_HOME_PATH}/guides`, icon: 'user-round' },
   { label: '运营发布', to: `${ADMIN_CONSOLE_HOME_PATH}/operations`, icon: 'bar-chart-3' },
 ];
