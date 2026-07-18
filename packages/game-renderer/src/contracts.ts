@@ -322,6 +322,15 @@ export type NarrationAudioStatusCode =
   (typeof NARRATION_AUDIO_STATUS)[keyof typeof NARRATION_AUDIO_STATUS]
 
 /**
+ * 渲染表面模式：
+ * - play：C 端游玩（只读内容 + 播放/完成）
+ * - studio：B 端预览/微调（可编辑字段 + 生成语音，不做玩家提交）
+ *
+ * 模式差异只在渲染器内部用 props 分支；双端 adapter 只负责数据注入与副作用。
+ */
+export type RendererSurfaceMode = "play" | "studio"
+
+/**
  * 应用层从 Narration/detail 拉回后注入预览的解说数据。
  */
 export interface GameplayPreviewNarration {
@@ -338,6 +347,18 @@ export interface GameplayPreviewNarration {
 }
 
 export type GameplayPreviewNarrationStatus = "idle" | "loading" | "ready" | "error"
+
+/**
+ * 解说渲染器可编辑草稿（studio 模式）。
+ * 字段命名贴近展示语义；adapter 负责映射回 config / API。
+ */
+export interface NarrationRendererDraft {
+  title?: string
+  narrationText?: string
+  sceneContext?: string
+  style?: string
+  targetDurationSeconds?: number
+}
 
 export interface GameplayPreviewStage {
   stageId: string

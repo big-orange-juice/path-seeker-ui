@@ -36,7 +36,7 @@ const hasAside = computed(() => Boolean(useSlots().aside));
 
 <template>
   <div class="flex min-h-0 flex-1 gap-3">
-    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-background">
+    <div class="chat-shell flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <ChatMessageList
         :messages="props.messages"
         :tools="props.tools"
@@ -45,7 +45,7 @@ const hasAside = computed(() => Boolean(useSlots().aside));
         :empty-description="props.emptyDescription"
         @retry="emit('retry')" />
 
-      <div v-if="props.errorMessage" class="border-t border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+      <div v-if="props.errorMessage" class="chat-error">
         {{ props.errorMessage }}
       </div>
 
@@ -59,8 +59,32 @@ const hasAside = computed(() => Boolean(useSlots().aside));
 
     <aside
       v-if="hasAside"
-      class="hidden min-h-0 w-[300px] shrink-0 overflow-hidden rounded-xl border border-border/70 bg-background md:flex md:flex-col xl:w-[320px]">
+      class="chat-aside hidden min-h-0 w-[300px] shrink-0 overflow-hidden md:flex md:flex-col xl:w-[340px]">
       <slot name="aside" />
     </aside>
   </div>
 </template>
+
+<style scoped>
+.chat-shell,
+.chat-aside {
+  border-radius: 0.95rem;
+  border: 1px solid rgba(209, 178, 111, 0.12);
+  background:
+    linear-gradient(180deg, rgba(209, 178, 111, 0.04), transparent 18%),
+    rgba(12, 13, 16, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+.chat-error {
+  margin: 0 0.75rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.08);
+  padding: 0.4rem 0.65rem;
+  font-size: 12px;
+  color: hsl(var(--destructive));
+}
+</style>

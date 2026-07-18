@@ -143,8 +143,8 @@ const submitManual = () => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="flex h-[90vh] max-w-[1080px] flex-col overflow-hidden">
-      <div class="flex items-start justify-between gap-3 border-b border-border/70 px-5 py-4">
+    <DialogContent class="flex h-[90vh] max-w-[min(96vw,1280px)] flex-col overflow-hidden p-0">
+      <div class="flex shrink-0 items-start justify-between gap-3 border-b border-border/70 px-5 py-4">
         <DialogHeader class="space-y-1">
           <DialogTitle>新增主题路线</DialogTitle>
           <DialogDescription>可通过对话创建，或使用参数表单生成。</DialogDescription>
@@ -160,7 +160,7 @@ const submitManual = () => {
         </Button>
       </div>
 
-      <div class="flex border-b border-border/70 px-5 pt-4">
+      <div class="flex shrink-0 border-b border-border/70 px-5 pt-3">
         <button
           type="button"
           class="inline-flex h-9 items-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors"
@@ -187,7 +187,7 @@ const submitManual = () => {
           @route-published="emit('routePublished', $event)" />
       </div>
 
-      <form v-show="activeTab === 'manual'" class="flex min-h-0 flex-1 flex-col" @submit.prevent="submitManual">
+      <div v-show="activeTab === 'manual'" class="flex min-h-0 flex-1 flex-col">
         <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div v-if="localError" class="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {{ localError }}
@@ -237,16 +237,20 @@ const submitManual = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        <DialogFooter class="shrink-0 border-t border-border/70 px-5 py-4">
-          <Button variant="outline" type="button" :disabled="props.submitting" @click="isOpen = false">
-            取消
-          </Button>
-          <Button type="submit" :disabled="props.submitting || !canSubmitManual">
-            {{ props.submitting ? '生成中...' : '开始生成' }}
-          </Button>
-        </DialogFooter>
-      </form>
+      <DialogFooter class="shrink-0 border-t border-border/70 px-5 py-3">
+        <Button variant="outline" type="button" :disabled="props.submitting" @click="isOpen = false">
+          {{ activeTab === 'manual' ? '取消' : '关闭' }}
+        </Button>
+        <Button
+          v-if="activeTab === 'manual'"
+          type="button"
+          :disabled="props.submitting || !canSubmitManual"
+          @click="submitManual">
+          {{ props.submitting ? '生成中...' : '开始生成' }}
+        </Button>
+      </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>

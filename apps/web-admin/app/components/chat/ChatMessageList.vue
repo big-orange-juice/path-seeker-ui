@@ -54,13 +54,13 @@ const lastMessage = computed(() => props.messages.at(-1) ?? null);
 </script>
 
 <template>
-  <div ref="scrollerRef" class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+  <div ref="scrollerRef" class="chat-stream min-h-0 flex-1 overflow-y-auto">
     <ChatEmptyState
       v-if="!props.messages.length"
       :title="props.emptyTitle"
       :description="props.emptyDescription" />
 
-    <div v-else class="space-y-4">
+    <div v-else class="chat-stream__list">
       <ChatMessageItem
         v-for="message in props.messages"
         :key="message.id"
@@ -74,3 +74,19 @@ const lastMessage = computed(() => props.messages.at(-1) ?? null);
     </div>
   </div>
 </template>
+
+<style scoped>
+.chat-stream {
+  position: relative;
+  background:
+    radial-gradient(120% 70% at 12% 0%, rgba(209, 178, 111, 0.07), transparent 42%),
+    radial-gradient(90% 50% at 100% 100%, rgba(209, 178, 111, 0.04), transparent 48%);
+}
+
+.chat-stream__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.95rem;
+  padding: 0.9rem 0.85rem 1rem;
+}
+</style>

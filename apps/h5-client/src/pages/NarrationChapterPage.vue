@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { NARRATION_AUDIO_STATUS } from "@path-seeker/game-renderer"
+import {
+  NARRATION_AUDIO_STATUS,
+  NarrationRenderer,
+} from "@path-seeker/game-renderer"
 import { useToastStore } from "@path-seeker/client-state"
 import { ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
@@ -38,17 +41,6 @@ const audioStatus = computed(() => {
   const status = detail.value?.audioStatus
   return typeof status === "number" && Number.isFinite(status) ? status : NARRATION_AUDIO_STATUS.NotGenerated
 })
-const durationLabel = computed(() => {
-  const ms = detail.value?.durationMs
-  if (typeof ms !== "number" || !Number.isFinite(ms) || ms <= 0) {
-    return ""
-  }
-
-  const totalSec = Math.round(ms / 1000)
-  const minutes = Math.floor(totalSec / 60)
-  const seconds = totalSec % 60
-  return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${seconds}″`
-})
 
 const audioBusy = computed(() => {
   if (generatingAudio.value) {
@@ -59,27 +51,6 @@ const audioBusy = computed(() => {
     audioStatus.value === NARRATION_AUDIO_STATUS.Queued
     || audioStatus.value === NARRATION_AUDIO_STATUS.Generating
   )
-})
-
-const audioActionLabel = computed(() => {
-  if (generatingAudio.value || audioStatus.value === NARRATION_AUDIO_STATUS.Queued) {
-    return "排队生成中…"
-  }
-
-  if (audioStatus.value === NARRATION_AUDIO_STATUS.Generating) {
-    return "语音生成中…"
-  }
-
-  if (audioStatus.value === NARRATION_AUDIO_STATUS.Failed) {
-    return "生成失败，重试"
-  }
-
-  // 已有音频或文本已更新：统一「重新生成」
-  if (audioUrl.value || audioStatus.value === NARRATION_AUDIO_STATUS.Stale) {
-    return "重新生成语音"
-  }
-
-  return "生成语音"
 })
 
 const guideLabel = computed(() => {
@@ -267,103 +238,41 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="space-y-4">
-    <ClientCard v-if="ready && chapter" class="overflow-hidden border-border/50 bg-[#0c0d10]">
-      <div class="space-y-5 p-5">
-        <div class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-            第 {{ chapter.stageNo }} 站 · 解说导览
-          </p>
-          <h2 class="font-display text-2xl leading-tight text-foreground">
-            {{ chapter.artifact?.title || chapter.title }}
-          </h2>
-          <p v-if="guideLabel" class="text-sm text-muted-foreground">
-            {{ guideLabel }}
-          </p>
-        </div>
+    <div
+      v-if="ready && chapter"
+      class="space-y-4 rounded-xl border border-border/40 bg-[#0c0d10] px-4 py-4">
+      <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
+        第 {{ chapter.stageNo }} 站 · 解说导览
+      </p>
 
-        <div class="rounded-[1.1rem] border border-primary/20 bg-black/30 p-4 space-y-3">
-          <template v-if="audioUrl">
-            <audio
-              :key="audioUrl"
-              class="w-full"
-              controls
-              :src="audioUrl"
-              preload="metadata"
-            />
-            <p v-if="durationLabel" class="text-xs text-muted-foreground">
-              时长 {{ durationLabel }}
-            </p>
-            <ClientButton
-              variant="outline"
-              class="w-full"
-              :disabled="audioBusy || !narrationText || finishing"
-              @click="handleGenerateAudio">
-              {{ audioActionLabel }}
-            </ClientButton>
-            <p class="text-xs leading-5 text-muted-foreground">
-              可重新生成语音；生成期间仍可跳过本站。
-            </p>
-          </template>
-          <template v-else>
-            <div class="flex h-12 items-end justify-center gap-1 px-2" aria-hidden="true">
-              <span
-                v-for="bar in 16"
-                :key="bar"
-                class="w-1.5 rounded-full bg-primary/50"
-                :style="{ height: `${30 + ((bar * 13) % 55)}%` }"
-              />
-            </div>
-            <ClientButton
-              class="w-full"
-              :disabled="audioBusy || !narrationText || loading || finishing"
-              @click="handleGenerateAudio">
-              {{ audioActionLabel }}
-            </ClientButton>
-            <p class="text-xs leading-5 text-muted-foreground">
-              暂无语音时可生成收听；也可直接跳过本站。
-            </p>
-          </template>
-        </div>
-
-        <div v-if="loading" class="space-y-2">
-          <ClientSkeleton class="h-4 w-24" />
-          <ClientSkeleton class="h-20 w-full" />
-        </div>
-        <div
-          v-else-if="loadError"
-          class="rounded-[1rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          {{ loadError }}
-        </div>
-        <div
-          v-else-if="narrationText"
-          class="rounded-[1rem] border border-border/60 bg-background/50 px-4 py-3 text-sm leading-7 text-foreground/90 whitespace-pre-wrap">
-          {{ narrationText }}
-        </div>
-        <p v-else class="text-sm text-muted-foreground">
-          暂无解说词，可跳过本站继续探索。
-        </p>
-
-        <div class="grid gap-3">
+      <NarrationRenderer
+        mode="play"
+        :title="chapter.artifact?.title || chapter.title"
+        :exhibit-name="chapter.artifact?.title || chapter.title"
+        :guide-name="guideLabel"
+        :narration-text="narrationText"
+        :audio-url="audioUrl"
+        :audio-status="audioStatus"
+        :duration-ms="detail?.durationMs"
+        :status="loading ? 'loading' : loadError ? 'error' : 'ready'"
+        :error-message="loadError"
+        :generating-audio="generatingAudio"
+        :completing="finishing"
+        :show-play-actions="true"
+        @generate-audio="handleGenerateAudio"
+        @complete="completeNarration()"
+        @skip="skipNarration">
+        <template #footer>
           <ClientButton
-            v-if="audioUrl"
+            variant="outline"
             class="w-full"
             :disabled="finishing"
-            @click="completeNarration()">
-            {{ finishing ? "提交中…" : "听完了，继续" }}
-          </ClientButton>
-          <ClientButton
-            class="w-full"
-            :variant="audioUrl ? 'outline' : 'default'"
-            :disabled="finishing"
-            @click="skipNarration()">
-            {{ finishing ? "提交中…" : "跳过解说" }}
-          </ClientButton>
-          <ClientButton variant="outline" class="w-full" :disabled="finishing" @click="router.push(`/missions/${routeId}/map`)">
+            @click="router.push(`/missions/${routeId}/map`)">
             返回路线
           </ClientButton>
-        </div>
-      </div>
-    </ClientCard>
+        </template>
+      </NarrationRenderer>
+    </div>
 
     <ClientCard v-else-if="!ready || missionStore.gameplayPending || missionStore.detailPending">
       <div class="space-y-4 p-5">

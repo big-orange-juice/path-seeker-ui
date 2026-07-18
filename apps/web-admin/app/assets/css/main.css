@@ -30,6 +30,8 @@
 @layer base {
   * {
     @apply border-border;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(209, 178, 111, 0.28) transparent;
   }
 
   html,
@@ -58,13 +60,17 @@
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 5px;
+    height: 5px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(209, 178, 111, 0.18);
+    background: rgba(209, 178, 111, 0.22);
     border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(209, 178, 111, 0.36);
   }
 
   ::-webkit-scrollbar-track {

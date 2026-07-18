@@ -386,7 +386,6 @@ const submitConfirmedAction = async () => {
       v-model:open="detailDialogOpen"
       :detail="routeDetail"
       :pending="detailPending"
-      @refresh="refreshRouteDetail()"
       @refresh-silent="refreshRouteDetail({ silent: true })" />
 
     <Dialog v-model:open="confirmDialogOpen">

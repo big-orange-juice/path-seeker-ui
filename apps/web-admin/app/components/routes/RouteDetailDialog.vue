@@ -8,13 +8,14 @@ import {
   parseStageConfig,
   type GameplayPreviewNarration,
   type GameplayPreviewNarrationStatus,
-  type GameplayPreviewStage,
+  type GameplayPreviewStage
 } from '@path-seeker/game-renderer';
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
 import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
+import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
@@ -25,8 +26,6 @@ import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
 import '@vue-flow/controls/dist/style.css';
 
-type RightPaneTab = 'chat' | 'preview';
-
 interface Props {
   open: boolean;
   detail: RouteDetailResponse | null;
@@ -34,13 +33,11 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  pending: false,
+  pending: false
 });
 
 const emit = defineEmits<{
   'update:open': [value: boolean];
-  /** 手动刷新（可带 loading） */
-  refresh: [];
   /** SSE 驱动的静默刷新，不遮挡 workflow */
   'refresh-silent': [];
 }>();
@@ -48,8 +45,10 @@ const emit = defineEmits<{
 const { request } = useApiClient();
 
 const selectedStageId = shallowRef('');
-const rightPane = ref<RightPaneTab>('chat');
-const chatPaneRef = shallowRef<{ resetSession: () => void; abortActiveRun: () => void } | null>(null);
+const chatPaneRef = shallowRef<{
+  resetSession: () => void;
+  abortActiveRun: () => void;
+} | null>(null);
 const narrationDetail = shallowRef<NarrationDetailResponse | null>(null);
 const narrationStatus = ref<GameplayPreviewNarrationStatus>('idle');
 const narrationErrorMessage = ref('');
@@ -62,7 +61,7 @@ let narrationAudioPollTimer: ReturnType<typeof setTimeout> | null = null;
 
 const isOpen = computed({
   get: () => props.open,
-  set: (value: boolean) => emit('update:open', value),
+  set: (value: boolean) => emit('update:open', value)
 });
 
 const sortedNodes = computed(() =>
@@ -70,15 +69,19 @@ const sortedNodes = computed(() =>
     const leftOrder = left.sortOrder || left.stageNo || 0;
     const rightOrder = right.sortOrder || right.stageNo || 0;
     return leftOrder - rightOrder;
-  }),
+  })
 );
 
-const selectedNode = computed(() =>
-  sortedNodes.value.find((node) => node.stageId === selectedStageId.value) ?? null,
+const selectedNode = computed(
+  () =>
+    sortedNodes.value.find((node) => node.stageId === selectedStageId.value) ??
+    null
 );
 
 /** 预览：有选中用选中，否则回退第一个节点方便查看 */
-const previewNode = computed(() => selectedNode.value ?? sortedNodes.value[0] ?? null);
+const previewNode = computed(
+  () => selectedNode.value ?? sortedNodes.value[0] ?? null
+);
 
 /** 垂直串联：节点居中对齐，自上而下连接 */
 const FLOW_NODE_X = 0;
@@ -90,15 +93,18 @@ const flowNodes = computed<Node[]>(() =>
     type: 'default',
     position: {
       x: FLOW_NODE_X,
-      y: index * FLOW_NODE_GAP_Y,
+      y: index * FLOW_NODE_GAP_Y
     },
     sourcePosition: Position.Bottom,
     targetPosition: Position.Top,
     data: {
-      label: `${node.sortOrder || index + 1}. ${node.title || '未命名节点'}\n${getInteractionTypeName(node.interactionType)}`,
+      label: `${node.sortOrder || index + 1}. ${node.title || '未命名节点'}\n${getInteractionTypeName(node.interactionType)}`
     },
-    class: node.stageId && node.stageId === selectedStageId.value ? 'is-selected-route-node' : '',
-  })),
+    class:
+      node.stageId && node.stageId === selectedStageId.value
+        ? 'is-selected-route-node'
+        : ''
+  }))
 );
 
 const flowEdges = computed<Edge[]>(() =>
@@ -107,25 +113,32 @@ const flowEdges = computed<Edge[]>(() =>
     source: flowNodes.value[index]?.id ?? '',
     target: node.id,
     type: 'smoothstep',
-    animated: true,
-  })),
+    animated: true
+  }))
 );
 
-const mapNarrationPreview = (detail: NarrationDetailResponse | null): GameplayPreviewNarration | null => {
+const mapNarrationPreview = (
+  detail: NarrationDetailResponse | null
+): GameplayPreviewNarration | null => {
   if (!detail) {
     return null;
   }
 
   return {
-    narrationText: detail.narrationText != null ? String(detail.narrationText) : null,
+    narrationText:
+      detail.narrationText != null ? String(detail.narrationText) : null,
     audioUrl: detail.audioUrl != null ? String(detail.audioUrl) : null,
     guideId: detail.guideId != null ? String(detail.guideId) : null,
     guideName: detail.guideName != null ? String(detail.guideName) : null,
-    resolvedStyle: detail.resolvedStyle != null ? String(detail.resolvedStyle) : null,
-    durationMs: typeof detail.durationMs === 'number' ? detail.durationMs : null,
-    textStatus: typeof detail.textStatus === 'number' ? detail.textStatus : null,
-    audioStatus: typeof detail.audioStatus === 'number' ? detail.audioStatus : null,
-    textError: detail.textError != null ? String(detail.textError) : null,
+    resolvedStyle:
+      detail.resolvedStyle != null ? String(detail.resolvedStyle) : null,
+    durationMs:
+      typeof detail.durationMs === 'number' ? detail.durationMs : null,
+    textStatus:
+      typeof detail.textStatus === 'number' ? detail.textStatus : null,
+    audioStatus:
+      typeof detail.audioStatus === 'number' ? detail.audioStatus : null,
+    textError: detail.textError != null ? String(detail.textError) : null
   };
 };
 
@@ -149,7 +162,7 @@ const previewStage = computed<GameplayPreviewStage | null>(() => {
     config: parseNodeConfig(node),
     narration: isNarration ? mapNarrationPreview(narrationDetail.value) : null,
     narrationStatus: isNarration ? narrationStatus.value : 'idle',
-    narrationErrorMessage: isNarration ? narrationErrorMessage.value : null,
+    narrationErrorMessage: isNarration ? narrationErrorMessage.value : null
   };
 });
 
@@ -193,7 +206,10 @@ const isAudioStillGenerating = (detail: NarrationDetailResponse | null) => {
   return status === 1 || status === 2;
 };
 
-const loadNarrationDetail = async (stageId: string, options?: { silent?: boolean }) => {
+const loadNarrationDetail = async (
+  stageId: string,
+  options?: { silent?: boolean }
+) => {
   const requestId = ++narrationRequestSeq;
   const silent = Boolean(options?.silent);
 
@@ -204,12 +220,15 @@ const loadNarrationDetail = async (stageId: string, options?: { silent?: boolean
   }
 
   try {
-    const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
-      method: 'GET',
-      query: {
-        stageId,
-      },
-    });
+    const detail = await request<NarrationDetailResponse | null>(
+      '/api/narration/detail',
+      {
+        method: 'GET',
+        query: {
+          stageId
+        }
+      }
+    );
 
     if (requestId !== narrationRequestSeq) {
       return null;
@@ -236,7 +255,10 @@ const loadNarrationDetail = async (stageId: string, options?: { silent?: boolean
     if (!silent) {
       narrationDetail.value = null;
       narrationStatus.value = 'error';
-      narrationErrorMessage.value = resolveRequestErrorMessage(error, '解说词加载失败。');
+      narrationErrorMessage.value = resolveRequestErrorMessage(
+        error,
+        '解说词加载失败。'
+      );
     }
 
     narrationAudioGenerating.value = false;
@@ -279,15 +301,18 @@ const handleGenerateNarrationAudio = async (stageId: string) => {
     await request('/api/narration/generate-audio', {
       method: 'POST',
       body: {
-        stageId: id,
-      },
+        stageId: id
+      }
     });
 
     await loadNarrationDetail(id, { silent: true });
     pollNarrationAudio(id);
   } catch (error) {
     narrationAudioGenerating.value = false;
-    narrationErrorMessage.value = resolveRequestErrorMessage(error, '语音生成请求失败。');
+    narrationErrorMessage.value = resolveRequestErrorMessage(
+      error,
+      '语音生成请求失败。'
+    );
   }
 };
 
@@ -296,15 +321,14 @@ watch(
     const node = previewNode.value;
     return {
       open: props.open,
-      tab: rightPane.value,
       stageId: node?.stageId ? String(node.stageId) : '',
       interactionType: node?.interactionType ?? 0,
       // 静默刷新 detail 后重拉解说（Agent 可能刚生成文本）
-      detailStamp: `${props.detail?.route?.id || ''}:${props.detail?.nodes?.length ?? 0}`,
+      detailStamp: `${props.detail?.route?.id || ''}:${props.detail?.nodes?.length ?? 0}`
     };
   },
   (state) => {
-    if (!state.open || state.tab !== 'preview' || state.interactionType !== 11 || !state.stageId) {
+    if (!state.open || state.interactionType !== 11 || !state.stageId) {
       narrationRequestSeq += 1;
       clearNarrationAudioPoll();
       narrationDetail.value = null;
@@ -316,7 +340,7 @@ watch(
 
     void loadNarrationDetail(state.stageId);
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 const routeId = computed(() => String(props.detail?.route?.id ?? '').trim());
@@ -336,8 +360,9 @@ const stageAttachmentLabel = computed(() => {
     return '';
   }
 
-  const order = node.sortOrder
-    || sortedNodes.value.findIndex((item) => item.stageId === node.stageId) + 1;
+  const order =
+    node.sortOrder ||
+    sortedNodes.value.findIndex((item) => item.stageId === node.stageId) + 1;
   const title = node.title || '未命名节点';
   return `${order}. ${title}`;
 });
@@ -402,14 +427,13 @@ watch(
       selectedStageId.value = '';
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
   () => props.open,
   (open) => {
     if (open) {
-      rightPane.value = 'chat';
       return;
     }
 
@@ -418,7 +442,7 @@ watch(
     selectedStageId.value = '';
     chatPaneRef.value?.abortActiveRun();
     chatPaneRef.value?.resetSession();
-  },
+  }
 );
 
 watch(routeId, (next, prev) => {
@@ -439,7 +463,7 @@ function parseNodeConfig(node: RouteNodeResponse): Record<string, unknown> {
 }
 
 function selectFlowNode(event: { node: Node }) {
-  // 仅用户点击 workflow 节点时挂上 stage 附件；不自动切预览 tab
+  // 仅用户点击 workflow 节点时挂上 stage 附件
   selectedStageId.value = String(event.node.id || '').trim();
 }
 
@@ -448,7 +472,10 @@ function clearStageAttachment() {
 }
 
 function getInteractionTypeName(interactionType: number) {
-  return getInteractionTypeMeta(interactionType)?.label || `未知玩法 ${interactionType}`;
+  return (
+    getInteractionTypeMeta(interactionType)?.label ||
+    `未知玩法 ${interactionType}`
+  );
 }
 
 function closeDialog() {
@@ -458,8 +485,9 @@ function closeDialog() {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="flex h-[92vh] max-w-[1320px] flex-col overflow-hidden">
-      <DialogHeader class="border-b border-border/70 px-5 py-4">
+    <DialogContent
+      class="flex h-[92vh] max-w-[min(96vw,1560px)] flex-col overflow-hidden p-0">
+      <DialogHeader class="shrink-0 border-b border-border/70 px-5 py-4">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <DialogTitle class="truncate">
@@ -469,25 +497,30 @@ function closeDialog() {
               {{ routeMeta }}
             </DialogDescription>
           </div>
-          <div class="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" :disabled="props.pending" @click="emit('refresh')">
-              <AppIcon name="refresh-cw" class="h-3.5 w-3.5" />
-              刷新
-            </Button>
-            <Button variant="ghost" size="icon" title="关闭详情" @click="closeDialog">
-              <AppIcon name="x" class="h-4 w-4" />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="关闭"
+            class="shrink-0"
+            @click="closeDialog">
+            <AppIcon name="x" class="h-4 w-4" />
+          </Button>
         </div>
       </DialogHeader>
 
-      <div v-if="props.pending && !props.detail" class="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+      <div
+        v-if="props.pending && !props.detail"
+        class="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
         正在加载路线详情...
       </div>
 
-      <div v-else class="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_400px] gap-4 overflow-hidden px-5 py-4">
+      <div
+        v-else
+        class="grid min-h-0 flex-1 grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-5 overflow-hidden px-5 py-4">
+        <!-- 左：画布 ~2 -->
         <section class="flex min-h-0 min-w-0 flex-col">
-          <div class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background/70">
+          <div
+            class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background/70">
             <VueFlow
               :nodes="flowNodes"
               :edges="flowEdges"
@@ -508,57 +541,54 @@ function closeDialog() {
           </div>
         </section>
 
-        <aside class="flex min-h-0 min-w-0 flex-col gap-3">
-          <div class="flex shrink-0 rounded-lg border border-border/70 bg-muted/30 p-0.5">
-            <button
-              type="button"
-              class="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-              :class="rightPane === 'chat'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'"
-              @click="rightPane = 'chat'">
-              对话
-            </button>
-            <button
-              type="button"
-              class="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-              :class="rightPane === 'preview'
-                ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground'"
-              @click="rightPane = 'preview'">
-              预览
-            </button>
-          </div>
+        <!-- 中：手机模拟器外框（与左右列同高同宽占满） -->
+        <aside class="flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <div class="route-device__chrome min-h-0 flex-1">
+            <div class="route-device__status" aria-hidden="true">
+              <span class="route-device__time">&nbsp;</span>
+              <span class="route-device__island" />
+              <span class="route-device__signal">&nbsp;</span>
+            </div>
 
-          <div class="min-h-0 flex-1 overflow-hidden">
-            <RouteEditChatPane
-              v-show="rightPane === 'chat'"
-              ref="chatPaneRef"
-              class="h-full"
-              :active="props.open"
-              :route-id="routeId"
-              :route-label="routeTitle"
-              :stage-id="selectedStageId"
-              :stage-label="stageAttachmentLabel"
-              @clear-stage="clearStageAttachment"
-              @request-detail-refresh="handleRequestDetailRefresh"
-              @flush-detail-refresh="handleFlushDetailRefresh" />
-
-            <div
-              v-show="rightPane === 'preview'"
-              class="h-full min-h-0 overflow-y-auto rounded-xl border border-border/70">
+            <div class="route-device__screen">
               <GameplayPreviewHost
                 v-if="previewStage"
+                class="h-full min-h-0"
                 :stage="previewStage"
                 :narration-audio-generating="narrationAudioGenerating"
                 @generate-audio="handleGenerateNarrationAudio" />
-              <div v-else class="flex h-full items-center justify-center px-4 text-sm text-muted-foreground">
-                暂无节点可预览
+              <div
+                v-else
+                class="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-sm text-white/45">
+                点击左侧节点预览
               </div>
             </div>
+
+            <div class="route-device__home" aria-hidden="true" />
           </div>
         </aside>
+
+        <!-- 右：对话 ~1 -->
+        <section class="flex min-h-0 min-w-0 flex-col">
+          <RouteEditChatPane
+            ref="chatPaneRef"
+            class="h-full min-h-0"
+            :active="props.open"
+            :route-id="routeId"
+            :route-label="routeTitle"
+            :stage-id="selectedStageId"
+            :stage-label="stageAttachmentLabel"
+            @clear-stage="clearStageAttachment"
+            @request-detail-refresh="handleRequestDetailRefresh"
+            @flush-detail-refresh="handleFlushDetailRefresh" />
+        </section>
       </div>
+
+      <DialogFooter class="shrink-0 border-t border-border/70 px-5 py-3">
+        <Button variant="outline" type="button" @click="closeDialog">
+          关闭
+        </Button>
+      </DialogFooter>
     </DialogContent>
   </Dialog>
 </template>
@@ -573,9 +603,9 @@ function closeDialog() {
 }
 
 :deep(.vue-flow__node) {
-  width: 200px;
-  max-width: 200px;
-  border-radius: 12px;
+  width: 168px;
+  max-width: 168px;
+  border-radius: 10px;
   border-color: hsl(var(--border));
   background: hsl(var(--card));
   color: hsl(var(--foreground));
@@ -590,5 +620,102 @@ function closeDialog() {
 
 :deep(.vue-flow__edge-path) {
   stroke: rgb(209 178 111 / 60%);
+}
+
+/* —— 中间列：手机模拟器外框 —— */
+.route-device__chrome {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 2rem;
+  border: 1px solid rgb(255 255 255 / 10%);
+  background: linear-gradient(165deg, #2a2d34 0%, #14161b 42%, #0c0d10 100%);
+  box-shadow:
+    0 12px 28px rgb(0 0 0 / 28%),
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    inset 0 0 0 1px rgb(0 0 0 / 35%);
+  padding: 8px 8px 10px;
+}
+
+.route-device__status {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  height: 22px;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  color: rgb(255 255 255 / 72%);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.route-device__time {
+  justify-self: start;
+  font-weight: 600;
+}
+
+.route-device__island {
+  width: 72px;
+  height: 18px;
+  border-radius: 999px;
+  background: #050506;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
+}
+
+.route-device__signal {
+  display: flex;
+  align-items: flex-end;
+  justify-self: end;
+  gap: 2px;
+  height: 10px;
+  padding-bottom: 1px;
+}
+
+.route-device__signal i {
+  display: block;
+  width: 3px;
+  border-radius: 1px;
+  background: rgb(255 255 255 / 72%);
+}
+
+.route-device__signal i:nth-child(1) {
+  height: 4px;
+}
+
+.route-device__signal i:nth-child(2) {
+  height: 6px;
+}
+
+.route-device__signal i:nth-child(3) {
+  height: 9px;
+}
+
+.route-device__screen {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1.15rem;
+  border: 1px solid rgb(255 255 255 / 6%);
+  background: #0b0c0f;
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 40%),
+    0 0 0 1px rgb(0 0 0 / 20%);
+}
+
+.route-device__home {
+  flex-shrink: 0;
+  width: 96px;
+  height: 4px;
+  margin: 8px auto 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 22%);
 }
 </style>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
-import ChatContextChips, { type ChatContextChip } from '@/components/chat/ChatContextChips.vue';
+import ChatContextChips, {
+  type ChatContextChip
+} from '@/components/chat/ChatContextChips.vue';
 import ChatComposer from '@/components/chat/ChatComposer.vue';
 import ChatMessageList from '@/components/chat/ChatMessageList.vue';
 import { useChatSession } from '@/composables/useChatSession';
@@ -17,7 +19,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   active: true,
   stageId: '',
-  stageLabel: '',
+  stageLabel: ''
 });
 
 const emit = defineEmits<{
@@ -28,7 +30,11 @@ const emit = defineEmits<{
   flushDetailRefresh: [routeId: string];
 }>();
 
-const buildOutboundMessage = (userText: string, routeId: string, stageId?: string) => {
+const buildOutboundMessage = (
+  userText: string,
+  routeId: string,
+  stageId?: string
+) => {
   const lines = ['【上下文】', `routeId: ${routeId}`];
 
   if (stageId) {
@@ -40,7 +46,10 @@ const buildOutboundMessage = (userText: string, routeId: string, stageId?: strin
 };
 
 const shouldRefreshFromEvent = (event: ChatEventResponse) => {
-  if (event.type !== 'ui.route.build.progress' && event.type !== 'ui.route.stage.updated') {
+  if (
+    event.type !== 'ui.route.build.progress' &&
+    event.type !== 'ui.route.stage.updated'
+  ) {
     return false;
   }
 
@@ -66,7 +75,7 @@ const {
   retryLastFailed,
   cancelRun,
   resetSession,
-  abortActiveRun,
+  abortActiveRun
 } = useChatSession({
   contextRouteId: props.routeId,
   onEvent: (event) => {
@@ -94,7 +103,7 @@ const {
     if (currentRouteId) {
       emit('flushDetailRefresh', currentRouteId);
     }
-  },
+  }
 });
 
 const contextChips = computed<ChatContextChip[]>(() => {
@@ -106,7 +115,7 @@ const contextChips = computed<ChatContextChip[]>(() => {
       kind: 'route',
       id: routeId,
       label: props.routeLabel || routeId,
-      removable: false,
+      removable: false
     });
   }
 
@@ -117,7 +126,7 @@ const contextChips = computed<ChatContextChip[]>(() => {
       kind: 'stage',
       id: stageId,
       label: props.stageLabel || stageId,
-      removable: true,
+      removable: true
     });
   }
 
@@ -157,7 +166,7 @@ watch(
       contextRouteId.value = nextId;
     }
   },
-  { immediate: true },
+  { immediate: true }
 );
 
 watch(
@@ -166,17 +175,17 @@ watch(
     if (!active) {
       abortActiveRun();
     }
-  },
+  }
 );
 
 defineExpose({
   resetSession,
-  abortActiveRun,
+  abortActiveRun
 });
 </script>
 
 <template>
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-background">
+  <div class="chat-shell flex min-h-0 flex-1 flex-col overflow-hidden">
     <ChatMessageList
       :messages="messages"
       :tools="activeTools"
@@ -185,7 +194,7 @@ defineExpose({
       empty-description="例如：给当前节点增加提示、调整难度，或按主题补几个节点。"
       @retry="retryLastFailed" />
 
-    <div v-if="errorMessage" class="border-t border-destructive/20 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+    <div v-if="errorMessage" class="chat-error">
       {{ errorMessage }}
     </div>
 
@@ -199,3 +208,26 @@ defineExpose({
       @cancel="cancelRun" />
   </div>
 </template>
+
+<style scoped>
+.chat-shell {
+  border-radius: 0.95rem;
+  border: 1px solid rgba(209, 178, 111, 0.12);
+  background:
+    linear-gradient(180deg, rgba(209, 178, 111, 0.04), transparent 18%),
+    rgba(12, 13, 16, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+.chat-error {
+  margin: 0 0.75rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.08);
+  padding: 0.4rem 0.65rem;
+  font-size: 12px;
+  color: hsl(var(--destructive));
+}
+</style>
