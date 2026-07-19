@@ -83,7 +83,9 @@
 ├─ docs/
 │  ├─ 01-product-solution.md
 │  ├─ 32-chat-send-sse-api.md
+│  ├─ 41-route-status-workflow.md
 │  ├─ h5-client-demo-alignment-status.md
+│  ├─ h5-client-progress-and-plan.md
 │  └─ schema.json
 ├─ scripts/
 │  ├─ install-all.ps1
@@ -183,8 +185,10 @@ pnpm dev:mp-weixin
 
 - `docs/01-product-solution.md`：产品方案与业务模型。
 - `docs/schema.json`：公开 C 端接口契约参考。
-- `docs/h5-client-demo-alignment-status.md`：H5 与 demo 体验对齐进度。
+- `docs/h5-client-demo-alignment-status.md`：H5 与 demo 体验对齐专项（07-15 切片）。
+- `docs/h5-client-progress-and-plan.md`：H5 实现总进度、未完成项与后续计划。
 - `docs/32-chat-send-sse-api.md`：对话 / SSE 相关接口说明。
+- `docs/41-route-status-workflow.md`：路线发布 / 审核状态动线。
 
 ## 开发说明
 
