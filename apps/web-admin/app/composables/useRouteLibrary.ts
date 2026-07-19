@@ -1,10 +1,16 @@
 import { computed, reactive, shallowRef, toValue, watch } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
+import {
+  ROUTE_AUDIT_STATUS_OPTIONS,
+  ROUTE_PUBLISH_STATUS_OPTIONS,
+} from '@/constants/routeWorkflow';
 import type {
   RouteAdminResponse,
   RouteAdminResponseListTotalPageResult,
+  RouteAuditPayload,
   RouteDetailResponse,
+  RouteIdPayload,
   RouteMutationPayload,
   RoutePageRequest,
   RouteRecord,
@@ -14,11 +20,7 @@ const DEFAULT_PAGE_SIZE = 10;
 
 const normalizeText = (value: string | null | undefined) => String(value ?? '').trim();
 
-export const ROUTE_PUBLISH_STATUS_OPTIONS = [
-  { label: '全部状态', value: -1 },
-  { label: '未发布', value: 1 },
-  { label: '已发布', value: 2 },
-] as const;
+export { ROUTE_PUBLISH_STATUS_OPTIONS, ROUTE_AUDIT_STATUS_OPTIONS };
 
 export const useRouteLibrary = (
   museumIdSource?: string | null | undefined | (() => string | null | undefined)
@@ -37,6 +39,7 @@ export const useRouteLibrary = (
   const filters = reactive({
     keyword: '',
     publishStatus: -1,
+    auditStatus: -1,
   });
 
   const pageIndex = shallowRef(1);
@@ -48,12 +51,13 @@ export const useRouteLibrary = (
     pageSize: pageSize.value,
     museumId: museumId.value || null,
     publishStatus: filters.publishStatus < 0 ? null : filters.publishStatus,
+    auditStatus: filters.auditStatus < 0 ? null : filters.auditStatus,
     keyword: filters.keyword.trim() || null,
   }));
 
   const { data, pending, error, refresh } = useAsyncData(
     computed(() => `route-library:list:${museumId.value}`),
-    () => request<RouteAdminResponseListTotalPageResult<RouteAdminResponse>>('/api/route/query', {
+    () => request<RouteAdminResponseListTotalPageResult<RouteAdminResponse>>('/api/route/page-list', {
       method: 'POST',
       body: queryPayload.value,
     }),
@@ -104,6 +108,10 @@ export const useRouteLibrary = (
       publishStatus: item.publishStatus ?? 0,
       auditStatus: item.auditStatus ?? 0,
       auditRemark: normalizeText(item.auditRemark),
+      // 缺省按需审展示；管理员免审路线后端会回 false
+      auditRequired: typeof item.auditRequired === 'boolean' ? item.auditRequired : true,
+      ownerId: normalizeText(item.ownerId) || null,
+      canEdit: typeof item.canEdit === 'boolean' ? item.canEdit : null,
       sortOrder: item.sortOrder ?? 0,
       isGenerating: Boolean(item.isGenerating),
     }));
@@ -144,6 +152,13 @@ export const useRouteLibrary = (
   const resetFilters = () => {
     filters.keyword = '';
     filters.publishStatus = -1;
+    filters.auditStatus = -1;
+    pageIndex.value = 1;
+  };
+
+  const setPendingAuditFilter = () => {
+    filters.publishStatus = -1;
+    filters.auditStatus = 1;
     pageIndex.value = 1;
   };
 
@@ -171,6 +186,24 @@ export const useRouteLibrary = (
     await refresh();
   };
 
+  const submitAudit = async (payload: RouteIdPayload) => {
+    await request('/api/route/submit-audit', {
+      method: 'POST',
+      body: payload,
+    });
+
+    await refresh();
+  };
+
+  const auditRoute = async (payload: RouteAuditPayload) => {
+    await request('/api/route/audit', {
+      method: 'POST',
+      body: payload,
+    });
+
+    await refresh();
+  };
+
   const deleteRoute = async (id: string) => {
     await request(`/api/route/${id}`, {
       method: 'DELETE',
@@ -185,9 +218,12 @@ export const useRouteLibrary = (
       query: { id },
     });
 
-  watch([museumId, () => filters.keyword, () => filters.publishStatus], () => {
-    pageIndex.value = 1;
-  });
+  watch(
+    [museumId, () => filters.keyword, () => filters.publishStatus, () => filters.auditStatus],
+    () => {
+      pageIndex.value = 1;
+    }
+  );
 
   return {
     museumId,
@@ -204,8 +240,11 @@ export const useRouteLibrary = (
     setPage,
     setPageSize,
     resetFilters,
+    setPendingAuditFilter,
     toggleSort,
     publishRoute,
+    submitAudit,
+    auditRoute,
     deleteRoute,
     fetchRouteDetail,
   };

@@ -17,6 +17,7 @@
     "@formkit/auto-animate": "0.9.0",
     "@nuxt/image": "2.0.0",
     "@path-seeker/game-renderer": "workspace:*",
+    "@path-seeker/ts-shared": "workspace:*",
     "@pinia/nuxt": "0.11.3",
     "@tanstack/vue-table": "^8.21.3",
     "@vue-flow/background": "^1.3.2",

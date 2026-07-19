@@ -8,7 +8,8 @@ import {
   parseStageConfig,
   type GameplayPreviewNarration,
   type GameplayPreviewNarrationStatus,
-  type GameplayPreviewStage
+  type GameplayPreviewStage,
+  type NarrationRendererDraft
 } from '@path-seeker/game-renderer';
 import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
@@ -19,9 +20,17 @@ import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
+import GuideSelectDialog from '@/components/guides/GuideSelectDialog.vue';
 import RouteEditChatPane from '@/components/routes/RouteEditChatPane.vue';
-import type { NarrationDetailResponse } from '@/types/narration';
-import type { RouteDetailResponse, RouteNodeResponse } from '@/types/route';
+import type { RouteWorkflowActions } from '@/constants/routeWorkflow';
+import { mapGuideResponse } from '@/composables/useGuideManagement';
+import type { GuideRecord, GuideResponse, GuideResponseListTotalPageResult } from '@/types/guide';
+import type {
+  NarrationDetailResponse,
+  UpdateNarrationStageResponse,
+} from '@/types/narration';
+import type { RouteDetailResponse, RouteNodeResponse, RouteRecord } from '@/types/route';
+import RouteStatusBadge from '@/components/routes/RouteStatusBadge.vue';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
 import '@vue-flow/controls/dist/style.css';
@@ -29,17 +38,29 @@ import '@vue-flow/controls/dist/style.css';
 interface Props {
   open: boolean;
   detail: RouteDetailResponse | null;
+  record?: RouteRecord | null;
   pending?: boolean;
+  canEdit?: boolean;
+  lockMessage?: string;
+  actions?: RouteWorkflowActions | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  pending: false
+  pending: false,
+  record: null,
+  canEdit: true,
+  lockMessage: '',
+  actions: null,
 });
 
 const emit = defineEmits<{
   'update:open': [value: boolean];
   /** SSE 驱动的静默刷新，不遮挡 workflow */
   'refresh-silent': [];
+  publish: [];
+  unpublish: [];
+  submitAudit: [];
+  audit: [];
 }>();
 
 const { request } = useApiClient();
@@ -53,11 +74,23 @@ const narrationDetail = shallowRef<NarrationDetailResponse | null>(null);
 const narrationStatus = ref<GameplayPreviewNarrationStatus>('idle');
 const narrationErrorMessage = ref('');
 const narrationAudioGenerating = ref(false);
+/** studio 本地覆盖：避免保存前/刷新间隙 props 冲掉用户刚改的 config */
+const stageConfigOverrides = ref<Record<string, Record<string, unknown>>>({});
+const stageTitleOverrides = ref<Record<string, string>>({});
+const stageSaveErrorMessage = ref('');
+const guidePickerOpen = shallowRef(false);
+const guidePickerStageId = shallowRef('');
+const guidePickerPending = shallowRef(false);
+const guidePickerRows = shallowRef<GuideRecord[]>([]);
 
 let detailRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSilentRefresh = false;
 let narrationRequestSeq = 0;
 let narrationAudioPollTimer: ReturnType<typeof setTimeout> | null = null;
+let stageSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let stageSaveSeq = 0;
+/** 待落库的解说草稿（按 stageId） */
+const pendingNarrationDrafts = new Map<string, NarrationRendererDraft>();
 
 const isOpen = computed({
   get: () => props.open,
@@ -88,23 +121,30 @@ const FLOW_NODE_X = 0;
 const FLOW_NODE_GAP_Y = 130;
 
 const flowNodes = computed<Node[]>(() =>
-  sortedNodes.value.map((node, index) => ({
-    id: node.stageId || `stage-${index + 1}`,
-    type: 'default',
-    position: {
-      x: FLOW_NODE_X,
-      y: index * FLOW_NODE_GAP_Y
-    },
-    sourcePosition: Position.Bottom,
-    targetPosition: Position.Top,
-    data: {
-      label: `${node.sortOrder || index + 1}. ${node.title || '未命名节点'}\n${getInteractionTypeName(node.interactionType)}`
-    },
-    class:
-      node.stageId && node.stageId === selectedStageId.value
-        ? 'is-selected-route-node'
-        : ''
-  }))
+  sortedNodes.value.map((node, index) => {
+    const stageId = String(node.stageId || '').trim();
+    const title =
+      (stageId && stageTitleOverrides.value[stageId])
+      || node.title
+      || '未命名节点';
+    return {
+      id: node.stageId || `stage-${index + 1}`,
+      type: 'default',
+      position: {
+        x: FLOW_NODE_X,
+        y: index * FLOW_NODE_GAP_Y
+      },
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
+      data: {
+        label: `${node.sortOrder || index + 1}. ${title}\n${getInteractionTypeName(node.interactionType)}`
+      },
+      class:
+        node.stageId && node.stageId === selectedStageId.value
+          ? 'is-selected-route-node'
+          : ''
+    };
+  })
 );
 
 const flowEdges = computed<Edge[]>(() =>
@@ -148,21 +188,29 @@ const previewStage = computed<GameplayPreviewStage | null>(() => {
     return null;
   }
 
+  const stageId = String(node.stageId || '').trim();
   const interactionType = node.interactionType || 0;
   const isNarration = interactionType === 11;
+  const titleOverride = stageId ? stageTitleOverrides.value[stageId] : undefined;
+  const configOverride = stageId ? stageConfigOverrides.value[stageId] : undefined;
 
   return {
-    stageId: node.stageId || '',
+    stageId,
     interactionType,
-    title: node.title || '未命名节点',
+    title: titleOverride || node.title || '未命名节点',
     subtitle: node.subtitle,
     exhibitName: node.exhibitName,
     galleryName: node.galleryName,
     score: node.score,
-    config: parseNodeConfig(node),
+    config: {
+      ...parseNodeConfig(node),
+      ...(configOverride ?? {})
+    },
     narration: isNarration ? mapNarrationPreview(narrationDetail.value) : null,
     narrationStatus: isNarration ? narrationStatus.value : 'idle',
-    narrationErrorMessage: isNarration ? narrationErrorMessage.value : null
+    narrationErrorMessage: isNarration
+      ? stageSaveErrorMessage.value || narrationErrorMessage.value
+      : null
   };
 });
 
@@ -289,6 +337,11 @@ const pollNarrationAudio = (stageId: string, attempt = 0) => {
 };
 
 const handleGenerateNarrationAudio = async (stageId: string) => {
+  // 只读（审核/已上架等）不允许触发生成
+  if (!props.canEdit) {
+    return;
+  }
+
   const id = String(stageId || '').trim();
   if (!id || narrationAudioGenerating.value) {
     return;
@@ -316,19 +369,356 @@ const handleGenerateNarrationAudio = async (stageId: string) => {
   }
 };
 
-watch(
-  () => {
-    const node = previewNode.value;
-    return {
-      open: props.open,
-      stageId: node?.stageId ? String(node.stageId) : '',
-      interactionType: node?.interactionType ?? 0,
-      // 静默刷新 detail 后重拉解说（Agent 可能刚生成文本）
-      detailStamp: `${props.detail?.route?.id || ''}:${props.detail?.nodes?.length ?? 0}`
+const clearStageSaveTimer = () => {
+  if (stageSaveTimer) {
+    clearTimeout(stageSaveTimer);
+    stageSaveTimer = null;
+  }
+};
+
+const applyNarrationDraftLocally = (
+  stageId: string,
+  draft: NarrationRendererDraft
+) => {
+  const prev = stageConfigOverrides.value[stageId] ?? {};
+  const next: Record<string, unknown> = { ...prev };
+
+  if (typeof draft.style === 'string') {
+    next.user_style_input = draft.style.trim();
+  }
+  if (typeof draft.sceneContext === 'string') {
+    next.scene_context = draft.sceneContext.trim();
+  }
+  if (typeof draft.targetDurationSeconds === 'number') {
+    const sec = Math.max(1, Math.round(draft.targetDurationSeconds) || 90);
+    next.target_duration_seconds = sec;
+  }
+  if (typeof draft.guideId === 'string') {
+    const guideId = draft.guideId.trim();
+    next.guide_id = guideId || null;
+  }
+  if (typeof draft.guideName === 'string') {
+    next.guide_name = draft.guideName.trim();
+  }
+
+  stageConfigOverrides.value = {
+    ...stageConfigOverrides.value,
+    [stageId]: next
+  };
+
+  if (typeof draft.title === 'string' && draft.title.trim()) {
+    stageTitleOverrides.value = {
+      ...stageTitleOverrides.value,
+      [stageId]: draft.title.trim()
     };
-  },
-  (state) => {
-    if (!state.open || state.interactionType !== 11 || !state.stageId) {
+  }
+};
+
+const resolveGuideIdForStage = (
+  stageId: string,
+  node: RouteNodeResponse,
+  draft: NarrationRendererDraft
+) => {
+  if (typeof draft.guideId === 'string' && draft.guideId.trim()) {
+    return draft.guideId.trim();
+  }
+  const override = stageConfigOverrides.value[stageId];
+  if (override && Object.prototype.hasOwnProperty.call(override, 'guide_id')) {
+    const value = override.guide_id;
+    if (value == null || value === '') {
+      return null;
+    }
+    return String(value).trim() || null;
+  }
+  const fromDetail = String(narrationDetail.value?.guideId ?? '').trim();
+  if (fromDetail) {
+    return fromDetail;
+  }
+  const config = parseNodeConfig(node);
+  if (config.guide_id != null && config.guide_id !== '') {
+    return String(config.guide_id).trim() || null;
+  }
+  return null;
+};
+
+const persistNarrationDraft = async (
+  stageId: string,
+  draft: NarrationRendererDraft
+) => {
+  if (!props.canEdit) {
+    return;
+  }
+
+  const node =
+    sortedNodes.value.find((item) => String(item.stageId || '') === stageId) ??
+    null;
+
+  if (!node) {
+    return;
+  }
+
+  const requestId = ++stageSaveSeq;
+  stageSaveErrorMessage.value = '';
+
+  try {
+    const mergedConfig = {
+      ...parseNodeConfig(node),
+      ...(stageConfigOverrides.value[stageId] ?? {})
+    };
+
+    const prevGuideId = String(
+      narrationDetail.value?.guideId
+      ?? mergedConfig.guide_id
+      ?? ''
+    ).trim();
+    const nextGuideId = resolveGuideIdForStage(stageId, node, draft);
+    const guideChanged =
+      String(nextGuideId ?? '').trim() !== prevGuideId;
+
+    const nextTitle =
+      stageTitleOverrides.value[stageId] ||
+      (typeof draft.title === 'string' ? draft.title.trim() : '') ||
+      node.title ||
+      null;
+
+    const sceneContext =
+      typeof draft.sceneContext === 'string'
+        ? draft.sceneContext.trim()
+        : String(mergedConfig.scene_context ?? '').trim() || null;
+
+    const userStyleInput =
+      typeof draft.style === 'string'
+        ? draft.style.trim()
+        : String(mergedConfig.user_style_input ?? '').trim() || null;
+
+    let targetDurationSeconds: number | null = null;
+    if (typeof draft.targetDurationSeconds === 'number') {
+      targetDurationSeconds = Math.min(
+        600,
+        Math.max(10, Math.round(draft.targetDurationSeconds) || 90)
+      );
+    } else {
+      const fromConfig = Number(mergedConfig.target_duration_seconds);
+      if (Number.isFinite(fromConfig) && fromConfig > 0) {
+        targetDurationSeconds = Math.min(600, Math.max(10, Math.round(fromConfig)));
+      }
+    }
+
+    // 导览节点：走 Narration/update-stage
+    const stageResult = await request<UpdateNarrationStageResponse | null>(
+      '/api/narration/update-stage',
+      {
+        method: 'POST',
+        body: {
+          stageId,
+          title: nextTitle,
+          subtitle: node.subtitle,
+          exhibitId: node.refExhibitId != null ? String(node.refExhibitId) : null,
+          guideId: nextGuideId,
+          userStyleInput,
+          sceneContext,
+          targetDurationSeconds,
+        }
+      }
+    );
+
+    // 仅正文真正变更时写解说 API；返回体直接回填，避免再 GET detail
+    const nextText = String(draft.narrationText ?? '').trim();
+    const currentText = String(narrationDetail.value?.narrationText ?? '').trim();
+    const textChanged = Boolean(nextText && nextText !== currentText);
+    if (textChanged) {
+      const version =
+        typeof narrationDetail.value?.version === 'number'
+          ? narrationDetail.value.version
+          : undefined;
+      const updated = await request<NarrationDetailResponse | null>(
+        '/api/narration/update-text',
+        {
+          method: 'POST',
+          body: {
+            stageId,
+            narrationText: nextText,
+            ...(version != null ? { version } : {})
+          }
+        }
+      );
+
+      if (requestId === stageSaveSeq && updated) {
+        narrationDetail.value = updated;
+        narrationStatus.value = 'ready';
+      }
+    } else if (
+      requestId === stageSaveSeq
+      && (guideChanged || Boolean(stageResult?.narrationReset))
+    ) {
+      // 换导游 / 产物被重置时才重拉解说；普通场景/时长修改用本地 override，避免连环 detail
+      await loadNarrationDetail(stageId, { silent: true });
+    }
+
+    // 画布标题已走 stageTitleOverrides，模拟器字段走本地 override；
+    // 不再每次编辑都静默拉 route detail，避免 detail → 再触发 narration/detail 连环请求
+  } catch (error) {
+    if (requestId !== stageSaveSeq) {
+      return;
+    }
+    stageSaveErrorMessage.value = resolveRequestErrorMessage(
+      error,
+      '节点编辑保存失败。'
+    );
+  }
+};
+
+const loadGuidePickerRows = async () => {
+  guidePickerPending.value = true;
+  try {
+    const result = await request<GuideResponseListTotalPageResult>(
+      '/api/guide/query',
+      {
+        query: {
+          status: 1,
+          pageIndex: 1,
+          pageSize: 100,
+        },
+      }
+    );
+    guidePickerRows.value = (result?.list ?? [])
+      .map((item: GuideResponse) => mapGuideResponse(item))
+      .filter((item) => Boolean(item.id) && !item.isGenerating);
+  } catch (error) {
+    guidePickerRows.value = [];
+    stageSaveErrorMessage.value = resolveRequestErrorMessage(
+      error,
+      '导游列表加载失败。'
+    );
+  } finally {
+    guidePickerPending.value = false;
+  }
+};
+
+const handlePickGuide = (stageId: string) => {
+  if (!props.canEdit) {
+    return;
+  }
+  const id = String(stageId || '').trim();
+  if (!id) {
+    return;
+  }
+  guidePickerStageId.value = id;
+  guidePickerOpen.value = true;
+  void loadGuidePickerRows();
+};
+
+const handleGuideSelected = (guide: GuideRecord) => {
+  const stageId = String(guidePickerStageId.value || '').trim();
+  if (!stageId || !props.canEdit) {
+    return;
+  }
+
+  const draft: NarrationRendererDraft = {
+    guideId: guide.id,
+    guideName: guide.name || '',
+  };
+  applyNarrationDraftLocally(stageId, draft);
+  pendingNarrationDrafts.set(stageId, {
+    ...(pendingNarrationDrafts.get(stageId) ?? {}),
+    ...draft,
+  });
+
+  // 乐观更新 detail 中的导游展示（config override 同步生效）
+  if (narrationDetail.value) {
+    const detailStageId = String(narrationDetail.value.stageId || '').trim();
+    if (!detailStageId || detailStageId === stageId) {
+      narrationDetail.value = {
+        ...narrationDetail.value,
+        guideId: guide.id,
+        guideName: guide.name || null,
+      };
+    }
+  }
+
+  clearStageSaveTimer();
+  stageSaveTimer = setTimeout(() => {
+    stageSaveTimer = null;
+    flushPendingNarrationDraft();
+  }, 200);
+};
+
+const currentGuideIdForPicker = computed(() => {
+  const stageId = String(guidePickerStageId.value || '').trim();
+  if (!stageId) {
+    return null;
+  }
+  const override = stageConfigOverrides.value[stageId];
+  if (override?.guide_id != null && override.guide_id !== '') {
+    return String(override.guide_id);
+  }
+  return narrationDetail.value?.guideId
+    ? String(narrationDetail.value.guideId)
+    : null;
+});
+
+const flushPendingNarrationDraft = () => {
+  clearStageSaveTimer();
+  const entries = [...pendingNarrationDrafts.entries()];
+  pendingNarrationDrafts.clear();
+
+  for (const [stageId, draft] of entries) {
+    void persistNarrationDraft(stageId, draft);
+  }
+};
+
+const handleNarrationDraft = (payload: {
+  stageId: string;
+  draft: NarrationRendererDraft;
+}) => {
+  const stageId = String(payload.stageId || '').trim();
+  if (!stageId || !props.canEdit) {
+    return;
+  }
+
+  const draft = payload.draft ?? {};
+  applyNarrationDraftLocally(stageId, draft);
+  pendingNarrationDrafts.set(stageId, {
+    ...(pendingNarrationDrafts.get(stageId) ?? {}),
+    ...draft
+  });
+
+  clearStageSaveTimer();
+  // 风格/场景弹层点确定、时长 blur 等都会触发；短防抖合并连点
+  stageSaveTimer = setTimeout(() => {
+    stageSaveTimer = null;
+    flushPendingNarrationDraft();
+  }, 350);
+};
+
+/**
+ * 用原始字符串作 watch 源，避免每次 props.detail 换引用都误触发。
+ * detailStamp 取当前导览节点 title/config，便于对话侧静默刷新后只拉一次解说。
+ */
+const narrationWatchKey = computed(() => {
+  if (!props.open) {
+    return '';
+  }
+  const node = previewNode.value;
+  if (!node || Number(node.interactionType || 0) !== 11) {
+    return '';
+  }
+  const stageId = String(node.stageId || '').trim();
+  if (!stageId) {
+    return '';
+  }
+  return [
+    stageId,
+    String(node.title || ''),
+    String(node.subtitle || ''),
+    String(node.config || ''),
+  ].join('\u0001');
+});
+
+watch(
+  narrationWatchKey,
+  (key) => {
+    if (!key) {
       narrationRequestSeq += 1;
       clearNarrationAudioPoll();
       narrationDetail.value = null;
@@ -338,7 +728,11 @@ watch(
       return;
     }
 
-    void loadNarrationDetail(state.stageId);
+    const stageId = key.split('\u0001')[0] || '';
+    if (!stageId) {
+      return;
+    }
+    void loadNarrationDetail(stageId);
   },
   { immediate: true }
 );
@@ -430,18 +824,37 @@ watch(
   { immediate: true }
 );
 
+const destroyLocalDialogState = () => {
+  clearDetailRefreshTimer();
+  clearNarrationAudioPoll();
+  clearStageSaveTimer();
+  pendingSilentRefresh = false;
+  pendingNarrationDrafts.clear();
+  stageSaveSeq += 1;
+  selectedStageId.value = '';
+  narrationDetail.value = null;
+  narrationStatus.value = 'idle';
+  narrationErrorMessage.value = '';
+  narrationAudioGenerating.value = false;
+  narrationRequestSeq += 1;
+  stageConfigOverrides.value = {};
+  stageTitleOverrides.value = {};
+  stageSaveErrorMessage.value = '';
+  guidePickerOpen.value = false;
+  guidePickerStageId.value = '';
+  guidePickerRows.value = [];
+  chatPaneRef.value?.abortActiveRun();
+  chatPaneRef.value?.resetSession();
+};
+
 watch(
   () => props.open,
   (open) => {
     if (open) {
       return;
     }
-
-    clearDetailRefreshTimer();
-    pendingSilentRefresh = false;
-    selectedStageId.value = '';
-    chatPaneRef.value?.abortActiveRun();
-    chatPaneRef.value?.resetSession();
+    // 关闭时销毁本轮详情侧状态（节点选中、解说、聊天会话）
+    destroyLocalDialogState();
   }
 );
 
@@ -455,6 +868,7 @@ watch(routeId, (next, prev) => {
 onBeforeUnmount(() => {
   clearDetailRefreshTimer();
   clearNarrationAudioPoll();
+  clearStageSaveTimer();
   chatPaneRef.value?.abortActiveRun();
 });
 
@@ -487,15 +901,28 @@ function closeDialog() {
   <Dialog v-model:open="isOpen">
     <DialogContent
       class="flex h-[92vh] max-w-[min(96vw,1560px)] flex-col overflow-hidden p-0">
-      <DialogHeader class="shrink-0 border-b border-border/70 px-5 py-4">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <DialogTitle class="truncate">
-              {{ routeTitle }}
-            </DialogTitle>
+      <DialogHeader class="shrink-0 border-b border-border/70 px-5 py-3">
+        <div class="flex min-w-0 items-start justify-between gap-3">
+          <div class="min-w-0 space-y-1.5">
+            <div class="flex min-w-0 flex-wrap items-center gap-2">
+              <DialogTitle class="truncate">
+                {{ routeTitle }}
+              </DialogTitle>
+              <RouteStatusBadge v-if="props.record" :record="props.record" />
+            </div>
             <DialogDescription>
               {{ routeMeta }}
             </DialogDescription>
+            <p
+              v-if="props.record?.auditStatus === 3 && props.record.auditRemark"
+              class="text-xs text-rose-300">
+              驳回原因：{{ props.record.auditRemark }}
+            </p>
+            <p
+              v-if="!props.canEdit && props.lockMessage"
+              class="text-xs text-amber-200/90">
+              {{ props.lockMessage }}
+            </p>
           </div>
           <Button
             variant="ghost"
@@ -559,8 +986,11 @@ function closeDialog() {
                   v-if="previewStage"
                   class="h-full min-h-0"
                   :stage="previewStage"
+                  :surface-mode="props.canEdit ? 'studio' : 'play'"
                   :narration-audio-generating="narrationAudioGenerating"
-                  @generate-audio="handleGenerateNarrationAudio" />
+                  @generate-audio="handleGenerateNarrationAudio"
+                  @narration-draft="handleNarrationDraft"
+                  @pick-guide="handlePickGuide" />
                 <div
                   v-else
                   class="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-sm text-white/45">
@@ -575,7 +1005,13 @@ function closeDialog() {
 
         <!-- 右：对话 ~1 -->
         <section class="flex min-h-0 min-w-0 flex-col">
+          <div
+            v-if="!props.canEdit"
+            class="mb-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+            {{ props.lockMessage || '当前状态不可编辑。' }}
+          </div>
           <RouteEditChatPane
+            v-if="props.canEdit"
             ref="chatPaneRef"
             class="h-full min-h-0"
             :active="props.open"
@@ -586,16 +1022,62 @@ function closeDialog() {
             @clear-stage="clearStageAttachment"
             @request-detail-refresh="handleRequestDetailRefresh"
             @flush-detail-refresh="handleFlushDetailRefresh" />
+          <div
+            v-else
+            class="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border/70 bg-background/40 px-4 text-center text-sm text-muted-foreground">
+            内容已锁定，可查看左侧节点与预览。
+          </div>
         </section>
       </div>
 
+      <!-- 业务操作统一右下角；待审时主按钮为「审核」 -->
       <DialogFooter class="shrink-0 border-t border-border/70 px-5 py-3">
         <Button variant="outline" type="button" @click="closeDialog">
           关闭
         </Button>
+        <Button
+          v-if="props.actions?.canUnpublish"
+          variant="outline"
+          type="button"
+          size="sm"
+          class="h-8 px-3 text-xs"
+          @click="emit('unpublish')">
+          下线
+        </Button>
+        <Button
+          v-if="props.actions?.canPublish"
+          type="button"
+          size="sm"
+          class="h-8 px-3 text-xs"
+          @click="emit('publish')">
+          {{ props.record?.publishStatus === 3 ? '重新上架' : '上架' }}
+        </Button>
+        <Button
+          v-if="props.actions?.canSubmitAudit"
+          type="button"
+          size="sm"
+          class="h-8 px-3 text-xs"
+          @click="emit('submitAudit')">
+          提交审核
+        </Button>
+        <Button
+          v-if="props.actions?.canAudit"
+          type="button"
+          size="sm"
+          class="h-8 px-3 text-xs"
+          @click="emit('audit')">
+          审核
+        </Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <GuideSelectDialog
+    v-model:open="guidePickerOpen"
+    :guides="guidePickerRows"
+    :pending="guidePickerPending"
+    :selected-id="currentGuideIdForPicker"
+    @select="handleGuideSelected" />
 </template>
 
 <style scoped>

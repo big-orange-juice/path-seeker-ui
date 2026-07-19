@@ -1,14 +1,22 @@
 import type {
+  PublishedRouteQueryRequest,
   RouteCardResponse,
-  RoutePageQueryRequest,
   RoutePageResult,
   StageHintResponse,
   StageSubmitResponse,
   UnlockHintResponse,
 } from "@/services/gameplay"
+import {
+  difficultyLevelCodeToKey,
+  difficultyLevelKeyToCode,
+  getDifficultyLevelLabel,
+  getScaleTypeLabel,
+  toScaleTypeCode,
+  type AgeBand,
+  type DifficultyLevel,
+  type ScaleTypeCode,
+} from "@path-seeker/ts-shared"
 import type {
-  AgeBand,
-  DifficultyLevel,
   HintLevel,
   MissionArchiveEntry,
   MissionChapter,
@@ -35,25 +43,8 @@ const AGE_GROUP_VALUE_MAP: Record<number, AgeBand> = {
   4: "15+",
 }
 
-const DIFFICULTY_FILTER_MAP: Record<DifficultyLevel, number> = {
-  L1: 1,
-  L2: 2,
-  L3: 3,
-}
-
-const DIFFICULTY_VALUE_MAP: Record<number, DifficultyLevel> = {
-  1: "L1",
-  2: "L2",
-  3: "L3",
-}
-
-const TASK_KIND_FILTER_MAP: Record<TaskKind, number> = {
-  family_adventure: 1,
-  story_detective: 2,
-  deep_reasoning: 3,
-}
-
-const TASK_KIND_VALUE_MAP: Record<number, TaskKind> = {
+/** 兼容旧 taskKind 字段的展示映射（不再表示玩法类型） */
+const SCALE_TO_TASK_KIND: Record<ScaleTypeCode, TaskKind> = {
   1: "family_adventure",
   2: "story_detective",
   3: "deep_reasoning",
@@ -67,12 +58,12 @@ function resolveAgeBand(ageGroup?: number | null) {
   return AGE_GROUP_VALUE_MAP[ageGroup || 0] ?? "10-15"
 }
 
-function resolveDifficultyLevel(level?: number | null) {
-  return DIFFICULTY_VALUE_MAP[level || 0] ?? "L2"
+function resolveDifficultyLevel(level?: number | null): DifficultyLevel {
+  return difficultyLevelCodeToKey(level)
 }
 
-function resolveTaskKind(scaleType?: number | null) {
-  return TASK_KIND_VALUE_MAP[scaleType || 0] ?? "story_detective"
+function resolveScaleType(scaleType?: number | null): ScaleTypeCode {
+  return toScaleTypeCode(scaleType, 2)
 }
 
 export function buildMissionArchiveEntry(
@@ -88,13 +79,15 @@ export function buildMissionArchiveEntry(
     completedAt?: string | null
   },
 ): MissionArchiveEntry {
+  const scaleType = mission.scaleType ?? resolveScaleType(mission.schemaMeta?.scaleType)
   return {
     routeId: mission.id,
     routeTitle: mission.title,
     rewardTitle: overrides?.rewardTitle || mission.rewardTitle || "",
     completedAt: overrides?.completedAt || new Date().toISOString(),
-    difficultyLabel,
-    taskKind: mission.taskKind,
+    difficultyLabel: difficultyLabel || getDifficultyLevelLabel(mission.difficultyLevel),
+    scaleLabel: getScaleTypeLabel(scaleType),
+    taskKind: SCALE_TO_TASK_KIND[scaleType],
     totalScore: overrides?.totalScore ?? session.totalScore,
     solvedCount: overrides?.solvedCount ?? session.solvedChapterIds.length,
     puzzleCount: overrides?.puzzleCount ?? mission.chapterCount,
@@ -112,22 +105,25 @@ export function buildRouteTaglines(input: { allowTeam?: number | null }) {
   return taglines
 }
 
+/** 构建 C 端已发布路线查询体（POST /api/Route/Published） */
 export function buildRoutePageQuery(input: {
   museumId?: string | null
   ageBand: AgeBand | "all"
   difficulty: DifficultyLevel | "all"
-  taskKind: TaskKind | "all"
-}): RoutePageQueryRequest {
+  scaleType: ScaleTypeCode | "all"
+  keyword?: string | null
+  pageIndex?: number
+  pageSize?: number
+}): PublishedRouteQueryRequest {
   return {
-    pageIndex: 1,
-    pageSize: 100,
+    pageIndex: input.pageIndex ?? 1,
+    pageSize: input.pageSize ?? 100,
     museumId: input.museumId || null,
-    scaleType: input.taskKind === "all" ? null : TASK_KIND_FILTER_MAP[input.taskKind],
-    difficultyLevel: input.difficulty === "all" ? null : DIFFICULTY_FILTER_MAP[input.difficulty],
+    scaleType: input.scaleType === "all" ? null : input.scaleType,
+    difficultyLevel:
+      input.difficulty === "all" ? null : difficultyLevelKeyToCode(input.difficulty),
     ageGroup: input.ageBand === "all" ? null : AGE_GROUP_FILTER_MAP[input.ageBand],
-    publishStatus: 2,
-    auditStatus: null,
-    keyword: null,
+    keyword: input.keyword?.trim() || null,
   }
 }
 
@@ -141,12 +137,13 @@ export function adaptRemoteRouteCard(route: RouteCardResponse): MissionRouteCard
 
   const recommendedAgeBand = resolveAgeBand(route.ageGroup)
   const difficultyLevel = resolveDifficultyLevel(route.difficultyLevel)
-  const taskKind = resolveTaskKind(route.scaleType)
+  const scaleType = resolveScaleType(route.scaleType)
+  const taskKind = SCALE_TO_TASK_KIND[scaleType]
   const puzzleCount = route.puzzleCount ?? 0
   const schemaMeta: MissionSchemaMeta = {
     ageGroup: route.ageGroup ?? AGE_GROUP_FILTER_MAP[recommendedAgeBand],
-    difficultyLevel: route.difficultyLevel ?? DIFFICULTY_FILTER_MAP[difficultyLevel],
-    scaleType: route.scaleType ?? TASK_KIND_FILTER_MAP[taskKind],
+    difficultyLevel: route.difficultyLevel ?? difficultyLevelKeyToCode(difficultyLevel),
+    scaleType: route.scaleType ?? scaleType,
   }
 
   // 列表卡严格跟 schema：无 intro/rewardTitle 则不编造；有则展示
@@ -167,6 +164,7 @@ export function adaptRemoteRouteCard(route: RouteCardResponse): MissionRouteCard
     recommendedAgeBand,
     availableAgeBands: [recommendedAgeBand],
     difficultyLevel,
+    scaleType,
     taskKind,
     estimatedMinutes: route.estimatedMinutes ?? undefined,
     totalScore: route.totalScore ?? undefined,

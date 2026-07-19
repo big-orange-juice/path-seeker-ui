@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { nextTick, useTemplateRef, watch } from "vue"
+import { nextTick, onMounted, useTemplateRef, watch } from "vue"
 import { useRouter } from "vue-router"
-import { Maximize2, Minimize2, Send, X } from "lucide-vue-next"
+import { Maximize2, MessageCircle, Minimize2, Paperclip, RefreshCw, Send, X } from "lucide-vue-next"
 import { storeToRefs } from "pinia"
+import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskStore } from "@/stores/useAskStore"
 
 interface Props {
@@ -15,7 +16,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const router = useRouter()
 const askStore = useAskStore()
-const { open, typing, attachment, messages } = storeToRefs(askStore)
+const { open, typing, attachment, messages, errorMessage, historyPending } = storeToRefs(askStore)
 const msgsRef = useTemplateRef<HTMLElement>("msgsEl")
 const draft = useTemplateRef<HTMLInputElement>("draftEl")
 
@@ -34,25 +35,43 @@ watch(
   { deep: true },
 )
 
+onMounted(() => {
+  if (props.fullPage || open.value) {
+    void askStore.ensureSession().then(() => askStore.loadHistory())
+  }
+})
+
+watch(open, (value) => {
+  if (value) {
+    void askStore.ensureSession().then(() => {
+      if (!messages.value.length) {
+        void askStore.loadHistory()
+      }
+    })
+  }
+})
+
 function handleSubmit(event: Event) {
   event.preventDefault()
   const input = draft.value
   const text = input?.value?.trim() || ""
-  if (!text) {
+  if (!text || typing.value) {
     return
   }
   if (input) {
     input.value = ""
   }
-  askStore.send(text)
+  void askStore.send(text)
 }
 
 function maximize() {
+  // 只关浮层标记，不改 attachment / dismissed，全屏页复用同一份 store 状态
   askStore.closeAsk()
   void router.push("/shell/ask")
 }
 
 function minifyToSheet() {
+  // 收起回浮层：强制保留当前附带（含已去掉），禁止 autoAttach 补回
   askStore.openAsk({ keepAttachment: true, autoAttach: false })
   void router.push("/shell/hall")
 }
@@ -70,6 +89,23 @@ const kindLabel: Record<string, string> = {
   chapter: "这一站",
   mission: "任务",
 }
+
+function isLastFailedAssistant(index: number) {
+  const msg = messages.value[index]
+  if (!msg || msg.role !== "assistant" || msg.status !== "failed") {
+    return false
+  }
+  for (let i = messages.value.length - 1; i >= 0; i -= 1) {
+    if (messages.value[i]?.role === "assistant") {
+      return i === index
+    }
+  }
+  return false
+}
+
+function isStreamingAssistant(msg: { role: string; status?: string }) {
+  return msg.role === "assistant" && (msg.status === "streaming" || msg.status === "pending")
+}
 </script>
 
 <template>
@@ -82,12 +118,21 @@ const kindLabel: Record<string, string> = {
   >
     <div v-if="!fullPage" class="ask-mask" @click="close()" />
     <div class="ask-panel" role="dialog" aria-label="问一问">
+      <div v-if="!fullPage" class="ask-grab" aria-hidden="true">
+        <span class="ask-grab-bar" />
+      </div>
+
       <header class="ask-head">
-        <div>
-          <p class="ask-kicker">馆内小助手</p>
-          <h2 class="ask-title">问一问</h2>
+        <div class="ask-brand">
+          <span class="ask-avatar" aria-hidden="true">
+            <MessageCircle class="h-4 w-4" />
+          </span>
+          <div class="min-w-0">
+            <p class="ask-kicker">馆内小助手</p>
+            <h2 class="ask-title">问一问</h2>
+          </div>
         </div>
-        <div class="flex gap-1.5">
+        <div class="ask-head-actions">
           <button
             v-if="fullPage"
             type="button"
@@ -113,57 +158,139 @@ const kindLabel: Record<string, string> = {
       </header>
 
       <div v-if="attachment" class="ask-attach">
-        <div class="min-w-0 flex-1 space-y-0.5">
-          <span class="text-[0.65rem] font-bold tracking-wide text-primary">
-            {{ kindLabel[attachment.kind] || "任务" }}
-          </span>
-          <p class="truncate text-sm font-semibold text-foreground">{{ attachment.title }}</p>
-          <p v-if="attachment.subtitle" class="truncate text-xs text-muted-foreground">
-            {{ attachment.subtitle }}
-          </p>
+        <span class="ask-attach-icon" aria-hidden="true">
+          <Paperclip class="h-3.5 w-3.5" />
+        </span>
+        <div class="ask-attach-body">
+          <span class="ask-attach-kind">{{ kindLabel[attachment.kind] || "任务" }}</span>
+          <p class="ask-attach-title">{{ attachment.title }}</p>
+          <p v-if="attachment.subtitle" class="ask-attach-sub">{{ attachment.subtitle }}</p>
         </div>
         <button
           type="button"
-          class="ask-icon-btn h-7 w-7 min-h-0 min-w-0 rounded-full p-0"
+          class="ask-icon-btn ask-icon-btn--sm"
           aria-label="去掉附带"
           @click="askStore.clearAttachment()"
         >
           <X class="h-3 w-3" />
         </button>
       </div>
-      <div v-else class="ask-attach ask-attach-empty">
-        <span>没有附带内容，也可以随便问</span>
+
+      <div v-if="errorMessage" class="ask-banner is-error" role="alert">
+        {{ errorMessage }}
+      </div>
+      <div v-else-if="historyPending" class="ask-banner is-muted">
+        正在加载历史…
       </div>
 
       <div ref="msgsEl" class="ask-msgs">
         <div
-          v-if="!messages.length"
-          class="ask-bubble is-bot"
+          v-if="!messages.length && !historyPending"
+          class="ask-welcome"
         >
-          你好。想找展品、听故事，或问这一站怎么走，都可以跟我说。
+          <p class="ask-welcome-title">你好，我在展厅里。</p>
+          <p class="ask-welcome-copy">
+            想找展品、听故事，或问这一站怎么走，都可以跟我说。
+          </p>
         </div>
+
         <div
           v-for="(msg, index) in messages"
-          :key="`${msg.role}-${index}-${msg.text.slice(0, 12)}`"
-          class="ask-bubble"
-          :class="msg.role === 'user' ? 'is-user' : 'is-bot'"
+          :key="msg.id"
+          class="ask-row"
+          :class="{
+            'is-user': msg.role === 'user',
+            'is-bot': msg.role === 'assistant',
+          }"
         >
-          {{ msg.text }}
+          <div
+            class="ask-bubble"
+            :class="{
+              'is-user': msg.role === 'user',
+              'is-bot': msg.role === 'assistant',
+              'is-failed': msg.status === 'failed',
+              'is-live': isStreamingAssistant(msg),
+            }"
+          >
+            <template v-if="msg.role === 'user'">
+              {{ msg.content }}
+            </template>
+            <template v-else>
+              <AskMarkdown
+                v-if="msg.content"
+                :markdown="msg.content"
+                :streaming="isStreamingAssistant(msg)"
+              />
+              <span
+                v-else-if="isStreamingAssistant(msg)"
+                class="ask-typing"
+                aria-label="正在回复"
+              >
+                <i /><i /><i />
+              </span>
+              <span v-else-if="msg.status === 'failed'" class="ask-fail-text">
+                {{ msg.errorMessage || "回复失败" }}
+              </span>
+
+              <div
+                v-if="msg.sources?.length"
+                class="ask-sources"
+              >
+                <span class="ask-sources-label">相关</span>
+                <span
+                  v-for="(source, sourceIndex) in msg.sources"
+                  :key="`${source.exhibitId || source.name}-${sourceIndex}`"
+                  class="ask-source-chip"
+                >
+                  {{ source.name || source.formalName || "相关展品" }}
+                </span>
+              </div>
+
+              <button
+                v-if="isLastFailedAssistant(index)"
+                type="button"
+                class="ask-retry"
+                @click="askStore.retryLastFailed()"
+              >
+                <RefreshCw class="h-3 w-3" />
+                重试
+              </button>
+            </template>
+          </div>
         </div>
-        <div v-if="typing" class="ask-bubble is-bot is-typing">…</div>
+
+        <div
+          v-if="typing && !messages.some((item) => item.role === 'assistant' && (item.status === 'pending' || item.status === 'streaming'))"
+          class="ask-row is-bot"
+        >
+          <div class="ask-bubble is-bot is-live">
+            <span class="ask-typing" aria-label="正在回复">
+              <i /><i /><i />
+            </span>
+          </div>
+        </div>
       </div>
 
       <form class="ask-composer" @submit="handleSubmit">
-        <input
-          ref="draftEl"
-          class="ask-input"
-          type="text"
-          placeholder="问问位置、故事或观察重点…"
-          autocomplete="off"
-        >
-        <button type="submit" class="ask-send" aria-label="发送">
-          <Send class="h-4 w-4" />
-        </button>
+        <div class="ask-composer-inner">
+          <input
+            ref="draftEl"
+            class="ask-input"
+            type="text"
+            placeholder="问问位置、故事或观察重点…"
+            autocomplete="off"
+            :disabled="typing"
+            maxlength="2000"
+          >
+          <button
+            type="submit"
+            class="ask-send"
+            aria-label="发送"
+            :disabled="typing"
+          >
+            <Send class="h-4 w-4" />
+          </button>
+        </div>
       </form>
     </div>
   </div>

@@ -1,7 +1,12 @@
 export interface AdminProfile {
   name: string;
   account: string;
+  /** 展示名：管理员 / 导游 等 */
   role: string;
+  /** 后端角色码：ADMIN / CREATOR */
+  roleCode: string;
+  /** 后台账号 ID，用于归属判断 */
+  adminId: string;
 }
 
 export interface AdminLoginForm {

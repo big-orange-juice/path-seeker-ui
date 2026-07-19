@@ -1,14 +1,10 @@
 import { getInteractionTypeMeta } from "@path-seeker/game-renderer"
+import { getDifficultyLevelLabel } from "@path-seeker/ts-shared"
 import type { DifficultyLevel, PuzzleTemplateType } from "@/types/mission"
 
-export function getDifficultyLabel(level: DifficultyLevel) {
-  const labels: Record<DifficultyLevel, string> = {
-    L1: "轻松",
-    L2: "进阶",
-    L3: "挑战",
-  }
-
-  return labels[level]
+/** 难度展示：统一 简单 / 中等 / 困难 */
+export function getDifficultyLabel(level: DifficultyLevel | number | null | undefined) {
+  return getDifficultyLevelLabel(level)
 }
 
 export function getPuzzleTypeLabel(type: PuzzleTemplateType, interactionType?: number | null) {

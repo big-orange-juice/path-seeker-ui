@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { shallowRef } from 'vue'
+import { shallowRef, watch } from 'vue'
+import { useDebounceFn } from '@vueuse/core'
 import GuideDataTable from '@/components/guides/GuideDataTable.vue'
 import GuideDetailDialog from '@/components/guides/GuideDetailDialog.vue'
 import GuideFormDialog from '@/components/guides/GuideFormDialog.vue'
@@ -23,6 +24,7 @@ import {
   GUIDE_VOICE_STATUS_OPTIONS,
   type GuideDraft,
   type GuideRecord,
+  type TtsVoiceResponse,
 } from '@/types/guide'
 
 definePageMeta({
@@ -45,6 +47,7 @@ const {
   setPageSize,
   resetFilters,
   fetchGuideDetail,
+  fetchTtsVoices,
   saveGuide,
   deleteGuide,
 } = useGuideManagement()
@@ -54,6 +57,8 @@ const formMode = shallowRef<'create' | 'edit'>('create')
 const formDraft = shallowRef<GuideDraft>(createEmptyGuideDraft())
 const formSubmitting = shallowRef(false)
 const formError = shallowRef('')
+const voiceOptions = shallowRef<TtsVoiceResponse[]>([])
+const voiceLoading = shallowRef(false)
 
 const detailOpen = shallowRef(false)
 const detailPending = shallowRef(false)
@@ -65,6 +70,31 @@ const actionPendingIds = shallowRef<string[]>([])
 const actionError = shallowRef('')
 const actionFeedback = shallowRef('')
 
+const loadVoiceOptions = async (keyword?: string) => {
+  voiceLoading.value = true
+  try {
+    voiceOptions.value = await fetchTtsVoices(keyword)
+  } catch {
+    voiceOptions.value = []
+  } finally {
+    voiceLoading.value = false
+  }
+}
+
+const searchVoiceOptions = useDebounceFn((keyword: string) => {
+  // 仅编辑弹窗需要音色列表
+  if (!formOpen.value || formMode.value !== 'edit') {
+    return
+  }
+  void loadVoiceOptions(keyword)
+}, 300)
+
+watch(formOpen, (open) => {
+  if (open && formMode.value === 'edit') {
+    void loadVoiceOptions()
+  }
+})
+
 const startCreate = () => {
   formMode.value = 'create'
   formDraft.value = createEmptyGuideDraft()
@@ -73,12 +103,15 @@ const startCreate = () => {
 }
 
 const startEdit = async (record: GuideRecord) => {
+  if (record.isGenerating) {
+    return
+  }
+
   formMode.value = 'edit'
   formError.value = ''
   formDraft.value = createGuideDraftFromRecord(record)
   formOpen.value = true
 
-  // 尽量拉详情补全字段
   try {
     const detail = await fetchGuideDetail(record.id)
     if (detail) {
@@ -114,12 +147,35 @@ const handleFormSubmit = async (draft: GuideDraft) => {
 
   try {
     await saveGuide(draft, formMode.value)
+    // 异步接口返回后即可关闭并刷新列表
     formOpen.value = false
-    actionFeedback.value = formMode.value === 'edit' ? '导游已更新。' : '导游已创建。'
+    actionFeedback.value =
+      formMode.value === 'edit'
+        ? '导游已提交更新，生成完成后可在列表中查看。'
+        : '导游已提交创建，生成完成后可在列表中查看。'
   } catch (caughtError) {
     formError.value = caughtError instanceof Error ? caughtError.message : '导游保存失败。'
   } finally {
     formSubmitting.value = false
+  }
+}
+
+const refreshGuideRow = async (record: GuideRecord) => {
+  if (actionPendingIds.value.includes(record.id)) {
+    return
+  }
+
+  actionPendingIds.value = [...actionPendingIds.value, record.id]
+  actionError.value = ''
+  actionFeedback.value = ''
+
+  try {
+    await refresh()
+    actionFeedback.value = `已刷新「${record.name || record.guideCode || record.id}」。`
+  } catch (caughtError) {
+    actionError.value = caughtError instanceof Error ? caughtError.message : '导游列表刷新失败。'
+  } finally {
+    actionPendingIds.value = actionPendingIds.value.filter((item) => item !== record.id)
   }
 }
 
@@ -200,7 +256,7 @@ const handleDetailEdit = (record: GuideRecord) => {
       <div class="flex flex-wrap items-end gap-3">
         <div class="min-w-[260px] flex-1 space-y-2">
           <label class="text-sm font-medium text-foreground">关键词</label>
-          <Input v-model="keyword" placeholder="搜索编码、名称、风格" />
+          <Input v-model="keyword" placeholder="搜索名称、简介" />
         </div>
         <div class="w-[150px] space-y-2">
           <label class="text-sm font-medium text-foreground">状态</label>
@@ -283,6 +339,7 @@ const handleDetailEdit = (record: GuideRecord) => {
         @detail="openDetail"
         @edit="startEdit"
         @remove="askRemove"
+        @refresh-row="refreshGuideRow"
       />
     </section>
 
@@ -291,7 +348,10 @@ const handleDetailEdit = (record: GuideRecord) => {
       :mode="formMode"
       :initial-value="formDraft"
       :submitting="formSubmitting"
+      :voice-options="voiceOptions"
+      :voice-loading="voiceLoading"
       @submit="handleFormSubmit"
+      @search-voice="searchVoiceOptions"
     />
 
     <GuideDetailDialog

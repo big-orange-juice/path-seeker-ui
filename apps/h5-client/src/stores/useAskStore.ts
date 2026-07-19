@@ -1,6 +1,23 @@
 import { computed, shallowRef } from "vue"
 import { acceptHMRUpdate, defineStore } from "pinia"
+import {
+  buildExhibitChatSendHeaders,
+  buildExhibitChatSendUrl,
+  createExhibitChatSession,
+  fetchExhibitChatHistory,
+} from "@/services/exhibitChat"
+import { resolveRequestErrorMessage } from "@/services/http"
 import { useMissionStore } from "@/stores/useMissionStore"
+import type {
+  AskUiMessage,
+  ExhibitChatDonePayload,
+  ExhibitChatErrorPayload,
+  ExhibitChatEvent,
+  ExhibitChatSource,
+  ExhibitChatTextDeltaPayload,
+} from "@/types/exhibitChat"
+import { parseExhibitChatEventData } from "@/utils/exhibitChatEvent"
+import { createSseParser } from "@/utils/sse"
 
 export type AskAttachmentKind = "mission" | "chapter" | "artifact"
 
@@ -12,61 +29,80 @@ export interface AskAttachment {
   chapterId?: string
 }
 
-export interface AskMessage {
-  role: "user" | "bot"
+/** @deprecated 使用 AskUiMessage */
+export type AskMessage = {
+  role: "user" | "bot" | "assistant"
   text: string
 }
 
-function buildReply(userText: string, attachment: AskAttachment | null) {
-  const q = userText.trim()
-  if (!q) {
-    return "你想了解哪一件展品？"
+function createLocalMessage(
+  role: AskUiMessage["role"],
+  content: string,
+  status: AskUiMessage["status"],
+  extra?: Partial<AskUiMessage>,
+): AskUiMessage {
+  return {
+    id: crypto.randomUUID(),
+    role,
+    content,
+    status,
+    createdAt: Date.now(),
+    ...extra,
+  }
+}
+
+function mapHistoryRole(role: string): AskUiMessage["role"] {
+  const normalized = role.toLowerCase()
+  if (normalized === "user" || normalized === "human") {
+    return "user"
+  }
+  return "assistant"
+}
+
+function buildWireMessage(userText: string, attachment: AskAttachment | null) {
+  if (!attachment) {
+    return userText
   }
 
-  if (/在哪|位置|怎么走|去哪/.test(q)) {
-    if (attachment?.subtitle) {
-      return `可以先去「${attachment.subtitle}」附近看看。慢慢找，不用着急。`
-    }
-    return "打开路线页，选一站，会告诉你大概在哪个展区。"
-  }
+  const kindLabel =
+    attachment.kind === "artifact" ? "展品" : attachment.kind === "chapter" ? "站点" : "路线"
+  const bits = [
+    `当前关注${kindLabel}：${attachment.title}`,
+    attachment.subtitle ? `位置/说明：${attachment.subtitle}` : "",
+  ].filter(Boolean)
 
-  if (/是什么|讲讲|介绍|故事|为什么/.test(q)) {
-    if (attachment?.kind === "artifact") {
-      return `「${attachment.title}」值得靠近一点看细节。光线好的时候，纹样会更清楚。你也可以问我纹样、材质或年代。`
-    }
-    if (attachment?.title) {
-      return `关于「${attachment.title}」，你更想听故事、找位置，还是解题小提示？`
-    }
-    return "你可以先选一条路线，或者告诉我展品的名字。"
-  }
-
-  if (/答案|怎么答|提示|不会|帮我/.test(q)) {
-    return "我不直接说答案。你可以先观察形状、纹样和说明牌，卡住时再问我「看哪里」。"
-  }
-
-  if (/你好|嗨|hello/i.test(q)) {
-    return "你好呀。想找展品、听故事，或问这一站该怎么走，都可以跟我说。"
-  }
-
-  if (attachment?.kind === "artifact") {
-    return `我们正聊着「${attachment.title}」。你可以问它在哪、有什么特别之处，或这一站该注意什么。`
-  }
-
-  if (attachment?.title) {
-    return `当前是「${attachment.title}」。你想问位置、观察重点，还是展品背后的小故事？`
-  }
-
-  return "可以说得具体一点，比如「青铜鼎在哪」或「联珠纹是什么」。"
+  return `${bits.join("；")}\n用户提问：${userText}`
 }
 
 export const useAskStore = defineStore("ask", () => {
   const open = shallowRef(false)
   const typing = shallowRef(false)
   const attachment = shallowRef<AskAttachment | null>(null)
-  const messages = shallowRef<AskMessage[]>([])
+  /**
+   * 用户主动点「去掉附带」后为 true。
+   * 浮层 ↔ 全屏切换时不得自动补回；仅 FAB 等「重新打开」且未 keepAttachment 时重置。
+   */
+  const attachmentDismissed = shallowRef(false)
+  const messages = shallowRef<AskUiMessage[]>([])
+  const sessionId = shallowRef("")
+  const lastEventId = shallowRef("")
+  const errorMessage = shallowRef("")
+  const historyPending = shallowRef(false)
+
+  let abortController: AbortController | null = null
+  let activeAssistantId = ""
 
   const hasMessages = computed(() => messages.value.length > 0)
+  const isRunning = computed(() => typing.value)
 
+  /**
+   * 按当前路由 / 进行中任务推断附带上下文（优先级从高到低）：
+   * 1. `/missions/:routeId/chapters/:chapterId` 且站点已识别并有展品 → artifact
+   * 2. 同上路径有章节 → chapter
+   * 3. `/missions/:routeId` 有任务 → mission
+   * 4. 否则若有 activeSession → mission
+   * 5. 都没有 → null（不带附件）
+   */
   function buildAttachmentFromContext(routePath = ""): AskAttachment | null {
     const missionStore = useMissionStore()
     const path = routePath || (typeof window !== "undefined" ? window.location.pathname : "")
@@ -124,6 +160,13 @@ export const useAskStore = defineStore("ask", () => {
     return null
   }
 
+  /**
+   * 打开问一问浮层。
+   * - `attachment` 显式传入时直接使用
+   * - `keepAttachment: true`：保留当前附带（含用户已去掉的 null），用于全屏收起回浮层
+   * - `autoAttach !== false` 且非 keep：按路由/任务重建附带（FAB「问」），并清除 dismissed
+   * - `autoAttach: false`：不改动附带
+   */
   function openAsk(options: {
     autoAttach?: boolean
     keepAttachment?: boolean
@@ -131,14 +174,20 @@ export const useAskStore = defineStore("ask", () => {
     path?: string
   } = {}) {
     const autoAttach = options.autoAttach !== false
+
     if (options.attachment !== undefined) {
       attachment.value = options.attachment
-    } else if (autoAttach && !options.keepAttachment) {
+      attachmentDismissed.value = options.attachment == null
+    } else if (options.keepAttachment) {
+      // 浮层/全屏切换：完全保留 attachment + dismissed
+    } else if (autoAttach) {
+      // FAB 等重新打开：按当前上下文刷新附带
       attachment.value = buildAttachmentFromContext(options.path)
-    } else if (autoAttach && !attachment.value) {
-      attachment.value = buildAttachmentFromContext(options.path)
+      attachmentDismissed.value = false
     }
+
     open.value = true
+    void ensureSession()
   }
 
   function closeAsk() {
@@ -147,43 +196,351 @@ export const useAskStore = defineStore("ask", () => {
 
   function clearAttachment() {
     attachment.value = null
+    attachmentDismissed.value = true
   }
 
   function setAttachment(next: AskAttachment | null) {
     attachment.value = next
+    // 外部显式写入非空附带时视为重新接受；写入 null 等同去掉
+    attachmentDismissed.value = next == null
   }
 
-  function send(text: string) {
+  /**
+   * 全屏页等场景：仅在尚未附带、且用户未主动去掉时补一次上下文。
+   * 避免「已去掉 → 放大全屏」把附件又补回来。
+   */
+  function ensureAttachmentFromContext(routePath = "") {
+    if (attachment.value || attachmentDismissed.value) {
+      return attachment.value
+    }
+    attachment.value = buildAttachmentFromContext(routePath)
+    return attachment.value
+  }
+
+  function updateMessage(id: string, patch: Partial<AskUiMessage>) {
+    messages.value = messages.value.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            ...patch,
+          }
+        : item,
+    )
+  }
+
+  function appendAssistantDelta(content: string) {
+    if (!activeAssistantId) {
+      return
+    }
+
+    const target = messages.value.find((item) => item.id === activeAssistantId)
+    if (!target) {
+      return
+    }
+
+    updateMessage(activeAssistantId, {
+      content: `${target.content}${content}`,
+      status: "streaming",
+    })
+  }
+
+  function abortActiveRun() {
+    if (abortController) {
+      abortController.abort()
+      abortController = null
+    }
+  }
+
+  async function ensureSession(seedTitle?: string) {
+    if (sessionId.value) {
+      return sessionId.value
+    }
+
+    const created = await createExhibitChatSession({
+      title: seedTitle?.slice(0, 256) || attachment.value?.title || "馆内问答",
+    })
+    sessionId.value = created.id
+    return sessionId.value
+  }
+
+  async function loadHistory() {
+    if (!sessionId.value || historyPending.value) {
+      return
+    }
+
+    historyPending.value = true
+    errorMessage.value = ""
+
+    try {
+      const history = await fetchExhibitChatHistory(sessionId.value)
+      if (!history.length) {
+        return
+      }
+
+      messages.value = history.map((item) =>
+        createLocalMessage(
+          mapHistoryRole(item.role),
+          item.content,
+          "completed",
+          {
+            id: item.id,
+            runId: item.runId || undefined,
+            sources: item.sources,
+            createdAt: item.createdAt ? Date.parse(item.createdAt) || Date.now() : Date.now(),
+          },
+        ),
+      )
+    } catch (error) {
+      errorMessage.value = resolveRequestErrorMessage(error, "历史消息加载失败。")
+    } finally {
+      historyPending.value = false
+    }
+  }
+
+  function handleEvent(event: ExhibitChatEvent) {
+    if (event.eventId) {
+      lastEventId.value = String(event.eventId)
+    }
+
+    switch (event.type) {
+      case "heartbeat": {
+        typing.value = true
+        break
+      }
+
+      case "text.delta": {
+        const payload = event.payload as ExhibitChatTextDeltaPayload
+        const content = String(payload?.content ?? "")
+        if (content) {
+          appendAssistantDelta(content)
+        }
+        break
+      }
+
+      case "done": {
+        const payload = (event.payload ?? {}) as ExhibitChatDonePayload
+        typing.value = false
+        if (activeAssistantId) {
+          const sources = Array.isArray(payload.sources)
+            ? (payload.sources as ExhibitChatSource[])
+            : undefined
+          updateMessage(activeAssistantId, {
+            status: "completed",
+            runId: String(event.runId || ""),
+            ...(sources?.length ? { sources } : {}),
+          })
+        }
+        activeAssistantId = ""
+        abortController = null
+        break
+      }
+
+      case "error": {
+        const payload = (event.payload ?? {}) as ExhibitChatErrorPayload
+        const detail = String(payload.message || "对话处理失败。")
+        typing.value = false
+        errorMessage.value = detail
+        if (activeAssistantId) {
+          updateMessage(activeAssistantId, {
+            status: "failed",
+            errorMessage: detail,
+            runId: String(event.runId || ""),
+          })
+        }
+        activeAssistantId = ""
+        abortController = null
+        break
+      }
+
+      default:
+        break
+    }
+  }
+
+  async function consumeSseStream(response: Response) {
+    if (!response.body) {
+      throw new Error("未收到可读的事件流。")
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder("utf-8")
+    let terminated = false
+
+    const parser = createSseParser((rawEvent) => {
+      const event = parseExhibitChatEventData(rawEvent.data)
+      if (!event) {
+        return
+      }
+
+      if (!event.type && rawEvent.event) {
+        event.type = rawEvent.event
+      }
+      if (!event.eventId && rawEvent.id) {
+        event.eventId = rawEvent.id
+      }
+
+      handleEvent(event)
+
+      if (event.type === "done" || event.type === "error") {
+        terminated = true
+      }
+    })
+
+    while (!terminated) {
+      const { done, value } = await reader.read()
+      if (done) {
+        parser.end()
+        break
+      }
+      parser.push(decoder.decode(value, { stream: true }))
+    }
+
+    if (!terminated && typing.value) {
+      typing.value = false
+      errorMessage.value = "连接已中断，请稍后重试。"
+      if (activeAssistantId) {
+        updateMessage(activeAssistantId, {
+          status: "failed",
+          errorMessage: errorMessage.value,
+        })
+        activeAssistantId = ""
+      }
+    }
+  }
+
+  async function send(text: string) {
     const trimmed = text.trim()
     if (!trimmed || typing.value) {
       return
     }
 
-    messages.value = [...messages.value, { role: "user", text: trimmed }]
+    errorMessage.value = ""
     typing.value = true
 
-    const delay = 480 + Math.random() * 420
-    window.setTimeout(() => {
-      messages.value = [
-        ...messages.value,
-        { role: "bot", text: buildReply(trimmed, attachment.value) },
-      ]
+    const clientMessageId = crypto.randomUUID()
+    const userMessage = createLocalMessage("user", trimmed, "completed", { clientMessageId })
+    const assistantMessage = createLocalMessage("assistant", "", "pending")
+    activeAssistantId = assistantMessage.id
+    messages.value = [...messages.value, userMessage, assistantMessage]
+
+    abortController = new AbortController()
+
+    try {
+      const ensuredSessionId = await ensureSession(trimmed)
+      const response = await fetch(buildExhibitChatSendUrl(), {
+        method: "POST",
+        headers: buildExhibitChatSendHeaders(lastEventId.value),
+        body: JSON.stringify({
+          sessionId: ensuredSessionId,
+          clientMessageId,
+          message: buildWireMessage(trimmed, attachment.value),
+        }),
+        signal: abortController.signal,
+      })
+
+      if (!response.ok) {
+        let detail = `请求失败（${response.status}）`
+        try {
+          const payload = (await response.json()) as {
+            message?: string
+            data?: { message?: string }
+          }
+          detail = payload.message || payload.data?.message || detail
+        } catch {
+          // ignore
+        }
+        throw new Error(detail)
+      }
+
+      updateMessage(assistantMessage.id, { status: "streaming" })
+      await consumeSseStream(response)
+
+      if (typing.value) {
+        typing.value = false
+        updateMessage(assistantMessage.id, { status: "completed" })
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        typing.value = false
+        updateMessage(assistantMessage.id, {
+          status: "failed",
+          errorMessage: "已取消发送。",
+        })
+        return
+      }
+
+      const detail = resolveRequestErrorMessage(error, "发送失败，请稍后重试。")
       typing.value = false
-    }, delay)
+      errorMessage.value = detail
+      updateMessage(assistantMessage.id, {
+        status: "failed",
+        errorMessage: detail,
+      })
+    } finally {
+      abortController = null
+      if (activeAssistantId === assistantMessage.id) {
+        activeAssistantId = ""
+      }
+    }
+  }
+
+  async function retryLastFailed() {
+    const lastUser = [...messages.value].reverse().find((item) => item.role === "user")
+    const lastAssistant = [...messages.value].reverse().find((item) => item.role === "assistant")
+    if (!lastUser || !lastAssistant || lastAssistant.status !== "failed") {
+      return
+    }
+
+    const dropIds = new Set([lastUser.id, lastAssistant.id])
+    messages.value = messages.value.filter((item) => !dropIds.has(item.id))
+    await send(lastUser.content)
+  }
+
+  function cancelRun() {
+    abortActiveRun()
+    typing.value = false
+    if (activeAssistantId) {
+      updateMessage(activeAssistantId, {
+        status: "failed",
+        errorMessage: "已取消。",
+      })
+      activeAssistantId = ""
+    }
+  }
+
+  function resetConversation() {
+    abortActiveRun()
+    sessionId.value = ""
+    messages.value = []
+    lastEventId.value = ""
+    errorMessage.value = ""
+    typing.value = false
+    activeAssistantId = ""
   }
 
   return {
     open,
     typing,
     attachment,
+    attachmentDismissed,
     messages,
+    sessionId,
+    errorMessage,
+    historyPending,
     hasMessages,
+    isRunning,
     openAsk,
     closeAsk,
     clearAttachment,
     setAttachment,
     buildAttachmentFromContext,
+    ensureAttachmentFromContext,
+    ensureSession,
+    loadHistory,
     send,
+    retryLastFailed,
+    cancelRun,
+    resetConversation,
   }
 })
 

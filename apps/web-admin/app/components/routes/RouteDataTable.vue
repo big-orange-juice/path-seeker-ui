@@ -1,9 +1,18 @@
 <script setup lang="ts">
 import { computed, h } from 'vue';
 import type { ColumnDef, SortingState } from '@tanstack/vue-table';
+import {
+  getDifficultyLevelLabel,
+  getScaleTypeLabel
+} from '@path-seeker/ts-shared';
 import CollectionDataTable from '@/components/collections/CollectionDataTable.vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
+import {
+  getRouteStatusPresentation,
+  getRouteWorkflowActions,
+  type RouteWorkflowContext
+} from '@/constants/routeWorkflow';
 import type { RouteRecord } from '@/types/route';
 
 interface Props {
@@ -11,32 +20,25 @@ interface Props {
   pending?: boolean;
   sorting?: SortingState;
   actingIds?: string[];
+  workflowContext: RouteWorkflowContext;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   pending: false,
   sorting: () => [],
-  actingIds: () => [],
+  actingIds: () => []
 });
 
 const emit = defineEmits<{
   sort: [columnId: string];
+  /** 打开详情：编辑 / 查看 / 审核（待审只读，底部再审） */
   detail: [record: RouteRecord];
   publish: [record: RouteRecord];
+  unpublish: [record: RouteRecord];
+  submitAudit: [record: RouteRecord];
   refreshRow: [record: RouteRecord];
   remove: [record: RouteRecord];
 }>();
-
-const difficultyMap: Record<number, string> = {
-  1: '简单',
-  2: '普通',
-  3: '困难',
-};
-
-const publishStatusMap: Record<number, { label: string; className: string }> = {
-  1: { label: '未发布', className: 'bg-slate-500/10 text-slate-300' },
-  2: { label: '已发布', className: 'bg-emerald-500/10 text-emerald-300' },
-};
 
 const getSortIconName = (columnId: string) => {
   const active = props.sorting.find((item) => item.id === columnId);
@@ -44,7 +46,7 @@ const getSortIconName = (columnId: string) => {
     return 'arrow-up-down' as const;
   }
 
-  return active.desc ? 'arrow-down' as const : 'arrow-up' as const;
+  return active.desc ? ('arrow-down' as const) : ('arrow-up' as const);
 };
 
 const renderHeader = (label: string, columnId: string) => () =>
@@ -52,21 +54,51 @@ const renderHeader = (label: string, columnId: string) => () =>
     'button',
     {
       type: 'button',
-      class: 'inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground',
+      class:
+        'inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground',
       onClick: () => emit('sort', columnId),
-      title: `${label}排序`,
+      title: `${label}排序`
     },
     [
       h('span', label),
       h(AppIcon, {
         name: getSortIconName(columnId),
         class: 'h-3.5 w-3.5 text-muted-foreground/80',
-        strokeWidth: 1.8,
-      }),
+        strokeWidth: 1.8
+      })
     ]
   );
 
 const isRecordActing = (recordId: string) => props.actingIds.includes(recordId);
+
+const renderStatus = (record: RouteRecord) => {
+  const presentation = getRouteStatusPresentation(record);
+  return h(
+    'div',
+    {
+      class: 'inline-flex max-w-full flex-wrap items-center gap-1',
+      title: presentation.title
+    },
+    [
+      h(
+        'span',
+        {
+          class: `inline-flex rounded-full px-2 py-0.5 text-[11px] ${presentation.primaryClass}`
+        },
+        presentation.primaryLabel
+      ),
+      presentation.secondaryLabel
+        ? h(
+            'span',
+            {
+              class: `inline-flex rounded-full px-2 py-0.5 text-[11px] ${presentation.secondaryClass}`
+            },
+            presentation.secondaryLabel
+          )
+        : null
+    ]
+  );
+};
 
 const columns = computed<ColumnDef<RouteRecord>[]>(() => [
   {
@@ -76,68 +108,136 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
       const record = row.original;
       return h('div', { class: 'min-w-0 space-y-1' }, [
         h('div', { class: 'flex items-center gap-2' }, [
-          h('p', { class: 'truncate font-medium text-foreground' }, record.title || '未命名路线'),
+          h(
+            'p',
+            { class: 'truncate font-medium text-foreground' },
+            record.title || '未命名路线'
+          ),
           record.isGenerating
             ? h(
                 'span',
                 {
-                  class: 'rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-200',
+                  class:
+                    'rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-200'
                 },
                 '生成中'
               )
             : null,
+          record.auditRequired
+            ? h(
+                'span',
+                {
+                  class:
+                    'rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-200'
+                },
+                '需审'
+              )
+            : null
         ]),
-        h('p', { class: 'text-xs text-muted-foreground' }, record.routeCode || 'NO-CODE'),
+        h(
+          'p',
+          { class: 'text-xs text-muted-foreground' },
+          record.routeCode || 'NO-CODE'
+        ),
+        record.auditStatus === 3 && record.auditRemark
+          ? h(
+              'p',
+              {
+                class: 'line-clamp-1 text-[11px] text-rose-300/90',
+                title: record.auditRemark
+              },
+              `驳回：${record.auditRemark}`
+            )
+          : null
       ]);
-    },
+    }
   },
   {
     accessorKey: 'theme',
     header: renderHeader('主题', 'theme'),
-    cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, row.original.theme || '未设置'),
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'text-sm text-muted-foreground' },
+        row.original.theme || '未设置'
+      )
   },
   {
     accessorKey: 'difficultyLevel',
     header: renderHeader('难度', 'difficultyLevel'),
-    cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, difficultyMap[row.original.difficultyLevel] || '未设置'),
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'text-sm text-muted-foreground' },
+        getDifficultyLevelLabel(row.original.difficultyLevel)
+      )
+  },
+  {
+    accessorKey: 'scaleType',
+    header: renderHeader('规模', 'scaleType'),
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'text-sm text-muted-foreground' },
+        getScaleTypeLabel(row.original.scaleType)
+      )
   },
   {
     accessorKey: 'puzzleCount',
     header: renderHeader('谜题数', 'puzzleCount'),
-    cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, String(row.original.puzzleCount)),
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'text-sm text-muted-foreground' },
+        String(row.original.puzzleCount)
+      )
   },
   {
     accessorKey: 'estimatedMinutes',
     header: renderHeader('时长', 'estimatedMinutes'),
-    cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, row.original.estimatedMinutes === null ? '未设置' : `${row.original.estimatedMinutes} 分钟`),
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'text-sm text-muted-foreground' },
+        row.original.estimatedMinutes === null
+          ? '未设置'
+          : `${row.original.estimatedMinutes} 分钟`
+      )
   },
   {
     accessorKey: 'publishStatus',
     header: renderHeader('状态', 'publishStatus'),
-    cell: ({ row }) =>
-      h(
-        'span',
-        {
-          class: `inline-flex rounded-full px-2 py-0.5 text-[11px] ${publishStatusMap[row.original.publishStatus]?.className || 'bg-secondary text-muted-foreground'}`,
-        },
-        publishStatusMap[row.original.publishStatus]?.label || '未知状态'
-      ),
+    cell: ({ row }) => renderStatus(row.original)
   },
   {
     accessorKey: 'sortOrder',
     header: renderHeader('排序', 'sortOrder'),
-    cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, String(row.original.sortOrder)),
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'text-sm text-muted-foreground' },
+        String(row.original.sortOrder)
+      )
   },
   {
     id: 'actions',
-    header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '操作'),
+    header: () =>
+      h(
+        'span',
+        {
+          class:
+            'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground'
+        },
+        '操作'
+      ),
     cell: ({ row }) => {
       const record = row.original;
       const acting = isRecordActing(record.id);
-      const actions = [];
+      const actions = getRouteWorkflowActions(record, props.workflowContext);
+      const nodes = [];
 
       if (record.isGenerating) {
-        actions.push(
+        nodes.push(
           h(
             Button,
             {
@@ -145,65 +245,126 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
               size: 'sm',
               class: 'h-7 px-2.5 text-xs',
               disabled: acting,
-              onClick: () => emit('refreshRow', record),
+              onClick: () => emit('refreshRow', record)
             },
             () => [
               h(AppIcon, {
                 name: 'refresh-cw',
                 class: 'h-3.5 w-3.5',
-                strokeWidth: 1.8,
+                strokeWidth: 1.8
               }),
-              h('span', '刷新'),
+              h('span', '刷新')
             ]
           )
         );
 
-        return h('div', { class: 'flex flex-wrap justify-end gap-1.5' }, actions);
+        return h('div', { class: 'flex flex-wrap justify-end gap-1.5' }, nodes);
       }
 
-      if (record.publishStatus === 1) {
-        actions.push(
+      if (actions.canSubmitAudit) {
+        nodes.push(
           h(
             Button,
             {
               size: 'sm',
               class: 'h-7 px-2.5 text-xs',
               disabled: acting,
-              onClick: () => emit('publish', record),
+              onClick: () => emit('submitAudit', record)
             },
-            () => '发布'
+            () => '提交审核'
           )
         );
       }
 
-      actions.push(
-        h(
-          Button,
-          {
-            variant: 'ghost',
-            size: 'sm',
-            class: 'h-7 px-2.5 text-xs',
-            disabled: acting,
-            onClick: () => emit('detail', record),
-          },
-          () => '查看详情'
-        ),
-        h(
-          Button,
-          {
-            variant: 'ghost',
-            size: 'sm',
-            class: 'h-7 px-2.5 text-xs text-destructive hover:text-destructive',
-            disabled: acting,
-            onClick: () => emit('remove', record),
-          },
-          () => '删除'
-        )
-      );
+      // 待审「审核」并入详情入口：点开只读查看，详情底部再通过/驳回
 
-      return h('div', { class: 'flex flex-wrap justify-end gap-1.5' }, actions);
-    },
-  },
+      if (actions.canPublish) {
+        nodes.push(
+          h(
+            Button,
+            {
+              size: 'sm',
+              class: 'h-7 px-2.5 text-xs',
+              disabled: acting,
+              onClick: () => emit('publish', record)
+            },
+            () => (record.publishStatus === 3 ? '重新上架' : '上架')
+          )
+        );
+      }
+
+      if (actions.canUnpublish) {
+        nodes.push(
+          h(
+            Button,
+            {
+              variant: 'outline',
+              size: 'sm',
+              class: 'h-7 px-2.5 text-xs',
+              disabled: acting,
+              onClick: () => emit('unpublish', record)
+            },
+            () => '下线'
+          )
+        );
+      }
+
+      // 详情入口：编辑 / 查看 / 审核（待审只读）
+      if (actions.canOpenDetail && actions.openLabel) {
+        nodes.push(
+          h(
+            Button,
+            {
+              variant: actions.canAudit
+                ? 'default'
+                : actions.canEditContent
+                  ? 'outline'
+                  : 'ghost',
+              size: 'sm',
+              class: 'h-7 px-2.5 text-xs',
+              disabled: acting,
+              title: actions.canAudit
+                ? '打开路线内容只读审阅，底部可提交审核结论'
+                : undefined,
+              onClick: () => emit('detail', record)
+            },
+            () => actions.openLabel
+          )
+        );
+      } else if (actions.isListOnly) {
+        nodes.push(
+          h(
+            'span',
+            {
+              class:
+                'inline-flex h-7 items-center px-1 text-[11px] text-muted-foreground',
+              title: '他人未上架/已下线路线仅列表可见；待审核可点「审核」打开只读详情'
+            },
+            ''
+          )
+        );
+      }
+
+      if (actions.canDelete) {
+        nodes.push(
+          h(
+            Button,
+            {
+              variant: 'ghost',
+              size: 'sm',
+              class:
+                'h-7 px-2.5 text-xs text-destructive hover:text-destructive',
+              disabled: acting,
+              onClick: () => emit('remove', record)
+            },
+            () => '删除'
+          )
+        );
+      }
+
+      return h('div', { class: 'flex flex-wrap justify-end gap-1.5' }, nodes);
+    }
+  }
 ]);
 </script>
 

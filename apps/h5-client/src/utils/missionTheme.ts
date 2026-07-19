@@ -6,6 +6,7 @@ export type MissionCoverTheme = "bronze" | "silk" | "jade"
 export function resolveMissionCoverTheme(
   mission: Pick<MissionRouteCard, "title" | "difficultyLevel" | "theme">,
 ): MissionCoverTheme {
+  // 简单 / 中等 / 困难（L1/L2/L3）
   if (mission.difficultyLevel === "L1") {
     return "jade"
   }

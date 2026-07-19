@@ -36,13 +36,13 @@ import {
   resolveMissionResumePath,
   sanitizeMissionHintTextMap,
 } from "@/adapters/missionSessionAdapter"
-import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, TASK_KIND_OPTIONS } from "@/constants/missionSchema"
+import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, SCALE_TYPE_FILTER_OPTIONS } from "@/constants/missionSchema"
 import {
   fetchExhibit,
   fetchGameplayStages,
   fetchMyRouteProgress,
   fetchRouteDetail,
-  fetchRoutePageList,
+  fetchPublishedRoutes,
   fetchRouteResult,
   fetchStageHints,
   joinGameplayRoute,
@@ -81,7 +81,8 @@ function defaultFilters(): MissionFilters {
   return {
     ageBand: "all",
     difficulty: "all",
-    taskKind: "all",
+    scaleType: "all",
+    keyword: "",
   }
 }
 
@@ -146,7 +147,7 @@ export const useMissionStore = defineStore(
     const hasActiveSession = computed(() => Boolean(activeSession.value))
 
     /**
-     * 列表以服务端 PageList 筛选为准，不再本地二次过滤
+     * 列表以服务端 Published 筛选为准，不再本地二次过滤
      *（避免与服务端条件不一致导致「接口有数据、UI 仍空」）。
      */
     const filteredRoutes = computed(() => routeCards.value)
@@ -209,7 +210,9 @@ export const useMissionStore = defineStore(
     const coverageSummary = computed(() => ({
       ageBands: AGE_BAND_OPTIONS.length,
       difficulties: DIFFICULTY_OPTIONS.length,
-      taskKinds: TASK_KIND_OPTIONS.length,
+      scaleTypes: SCALE_TYPE_FILTER_OPTIONS.length,
+      /** @deprecated 请用 scaleTypes */
+      taskKinds: SCALE_TYPE_FILTER_OPTIONS.length,
       missionCount: routeCards.value.length,
       archiveCount: archiveEntries.value.length,
       hasActiveSession: hasActiveSession.value,
@@ -229,14 +232,15 @@ export const useMissionStore = defineStore(
       return missionMap.value[routeId] || null
     }
 
+    /**
+     * 写入详情缓存。
+     * 首页列表只信 Published 接口结果，禁止把详情/恢复进度注入 routeCards，
+     * 否则会出现「接口 4 条、UI 渲染 5 条」（例如会话中的未在列表内路线被 prepend）。
+     */
     function putMission(mission: MissionDetail) {
       missionMap.value = {
         ...missionMap.value,
         [mission.id]: mission,
-      }
-
-      if (!routeCards.value.find((item) => item.id === mission.id)) {
-        routeCards.value = [mission, ...routeCards.value]
       }
     }
 
@@ -309,8 +313,20 @@ export const useMissionStore = defineStore(
       if (payload.difficulty) {
         filters.difficulty = payload.difficulty
       }
-      if (payload.taskKind) {
-        filters.taskKind = payload.taskKind
+      if (payload.scaleType !== undefined) {
+        filters.scaleType = payload.scaleType
+      }
+      if (payload.keyword !== undefined) {
+        filters.keyword = String(payload.keyword ?? "")
+      }
+      // 兼容旧 taskKind 筛选：映射为 scaleType
+      if (payload.taskKind && payload.taskKind !== "all") {
+        const legacy: Record<string, 1 | 2 | 3> = {
+          family_adventure: 1,
+          story_detective: 2,
+          deep_reasoning: 3,
+        }
+        filters.scaleType = legacy[payload.taskKind] ?? "all"
       }
     }
 
@@ -340,12 +356,21 @@ export const useMissionStore = defineStore(
       routeListError.value = ""
 
       try {
-        const response = await fetchRoutePageList(
+        // 兼容旧持久化筛选（仅有 taskKind、无 scaleType）
+        if (filters.scaleType === undefined || filters.scaleType === null) {
+          filters.scaleType = "all"
+        }
+        if (filters.keyword === undefined || filters.keyword === null) {
+          filters.keyword = ""
+        }
+
+        const response = await fetchPublishedRoutes(
           buildRoutePageQuery({
             museumId: DEFAULT_MUSEUM_ID,
-            ageBand: filters.ageBand,
+            ageBand: filters.ageBand ?? "all",
             difficulty: filters.difficulty,
-            taskKind: filters.taskKind,
+            scaleType: filters.scaleType ?? "all",
+            keyword: filters.keyword || null,
           }),
         )
 
@@ -1373,7 +1398,7 @@ export const useMissionStore = defineStore(
       return startRemoteMission(routeId, mission.recommendedAgeBand)
     }
 
-    // 筛选变更强制重拉；不在 store 创建时 immediate，避免抢在鉴权前打 PageList
+    // 筛选变更强制重拉；不在 store 创建时 immediate，避免抢在鉴权前打 Published
     watch(
       () => ({ ...filters }),
       () => {

@@ -10,7 +10,7 @@ const props = defineProps<Props>();
 const statusMap = {
   published: { label: '已发布', className: 'bg-emerald-500/10 text-emerald-300' },
   review: { label: '待审核', className: 'bg-amber-500/10 text-amber-300' },
-  draft: { label: '草稿', className: 'bg-slate-500/10 text-slate-300' },
+  draft: { label: '未上架', className: 'bg-slate-500/10 text-slate-300' },
 } as const;
 </script>
 

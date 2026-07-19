@@ -28,6 +28,7 @@ const resolveNumber = (value: unknown, fallback: number) => {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 };
 
+/** 对齐 schema：POST /api/Route/PageList（无 Query 接口） */
 export default defineEventHandler(async (event) => {
   const body = await readBody<RoutePageRequest>(event);
   const response = await backendFetch<ApiResponse<RouteAdminResponseListTotalPageResult<RouteAdminResponse>>>(

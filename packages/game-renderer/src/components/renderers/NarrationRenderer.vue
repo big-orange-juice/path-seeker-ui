@@ -8,7 +8,7 @@
  * - 双端 adapter 只注入数据、处理 generate-audio / 提交等副作用
  * - 视觉偏 H5 扁平流，避免多层卡片嵌套
  */
-import { computed, onBeforeUnmount, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue"
 import {
   NARRATION_AUDIO_STATUS,
   type GameplayPreviewNarrationStatus,
@@ -63,6 +63,8 @@ const emit = defineEmits<{
   complete: []
   skip: []
   "update:draft": [draft: NarrationRendererDraft]
+  /** studio：打开导游列表选择 */
+  "pick-guide": []
 }>()
 
 const isStudio = computed(() => props.mode === "studio")
@@ -70,14 +72,73 @@ const isStudio = computed(() => props.mode === "studio")
 const draftTitle = ref("")
 const draftText = ref("")
 const draftScene = ref("")
-const draftStyle = ref("")
 const draftDuration = ref(90)
+
+/** studio：场景上下文弹层编辑 */
+type MetaEditField = "scene" | null
+const metaEditField = ref<MetaEditField>(null)
+const metaEditBuffer = ref("")
+const metaEditTextareaRef = ref<HTMLTextAreaElement | null>(null)
+
+const metaEditTitle = computed(() =>
+  metaEditField.value === "scene" ? "场景上下文" : "",
+)
+
+const metaEditPlaceholder = computed(() =>
+  metaEditField.value === "scene"
+    ? "例如：上海博物馆东馆 · 青铜馆展厅；观众站在展柜前，背景有人流。"
+    : "",
+)
+
+const openMetaEdit = (field: "scene") => {
+  if (!isStudio.value) {
+    return
+  }
+  metaEditField.value = field
+  metaEditBuffer.value = draftScene.value
+  void nextTick(() => {
+    const el = metaEditTextareaRef.value
+    if (!el) {
+      return
+    }
+    el.focus()
+    const len = el.value.length
+    el.setSelectionRange(len, len)
+  })
+}
+
+const closeMetaEdit = () => {
+  metaEditField.value = null
+  metaEditBuffer.value = ""
+}
+
+const confirmMetaEdit = () => {
+  if (metaEditField.value === "scene") {
+    draftScene.value = metaEditBuffer.value.trim()
+  }
+  closeMetaEdit()
+  emitDraft()
+}
+
+const truncateMeta = (value: string, max = 28) => {
+  const text = value.trim()
+  if (!text) {
+    return ""
+  }
+  return text.length > max ? `${text.slice(0, max)}…` : text
+}
+
+const openGuidePicker = () => {
+  if (!isStudio.value) {
+    return
+  }
+  emit("pick-guide")
+}
 
 const syncDraftFromProps = () => {
   draftTitle.value = String(props.title || props.exhibitName || "").trim()
   draftText.value = String(props.narrationText || "").trim()
   draftScene.value = String(props.sceneContext || "").trim()
-  draftStyle.value = String(props.style || "").trim()
   const sec = Number(props.targetDurationSeconds)
   draftDuration.value = Number.isFinite(sec) && sec > 0 ? Math.round(sec) : 90
 }
@@ -88,10 +149,15 @@ watch(
     props.exhibitName,
     props.narrationText,
     props.sceneContext,
-    props.style,
+    props.guideId,
+    props.guideName,
     props.targetDurationSeconds,
   ] as const,
   () => {
+    // 弹层编辑中不要被 props 回写冲掉缓冲区外的草稿
+    if (metaEditField.value) {
+      return
+    }
     syncDraftFromProps()
   },
   { immediate: true },
@@ -106,7 +172,8 @@ const emitDraft = () => {
     title: draftTitle.value.trim(),
     narrationText: draftText.value,
     sceneContext: draftScene.value.trim(),
-    style: draftStyle.value.trim(),
+    guideId: String(props.guideId || "").trim() || undefined,
+    guideName: String(props.guideName || "").trim() || undefined,
     targetDurationSeconds: Math.max(1, Math.round(Number(draftDuration.value) || 90)),
   })
 }
@@ -116,7 +183,8 @@ const displayTitle = computed(() => {
     return draftTitle.value || "未命名节点"
   }
 
-  return String(props.exhibitName || props.title || "当前文物").trim() || "当前文物"
+  // 与编辑一致：节点 title 优先，其次 exhibitName
+  return String(props.title || props.exhibitName || "当前文物").trim() || "当前文物"
 })
 
 const displayText = computed(() => {
@@ -360,7 +428,7 @@ const metaChips = computed(() => {
     chips.push(guideLabel.value)
   }
 
-  const style = isStudio.value ? draftStyle.value.trim() : String(props.style || "").trim()
+  const style = String(props.style || "").trim()
   if (style) {
     chips.push(style)
   }
@@ -482,16 +550,35 @@ const metaChips = computed(() => {
       </p>
 
       <div v-if="isStudio" class="nr-studio-meta">
-        <StudioField
-          v-model="draftStyle"
-          label="解说风格"
-          placeholder="如：面向小学生，语言活泼"
-          @change="emitDraft" />
-        <StudioField
-          v-model="draftScene"
-          label="场景上下文"
-          placeholder="如：上海博物馆东馆"
-          @change="emitDraft" />
+        <!-- 导游选择：点击由宿主打开导游列表 -->
+        <div class="nr-meta-field">
+          <span class="nr-meta-field__label">导游</span>
+          <button
+            type="button"
+            class="nr-meta-field__control"
+            title="点击选择导游"
+            @click="openGuidePicker">
+            <span
+              class="nr-meta-field__value"
+              :class="{ 'is-empty': !guideLabel }">
+              {{ truncateMeta(guideLabel) || "点击选择…" }}
+            </span>
+          </button>
+        </div>
+        <div class="nr-meta-field">
+          <span class="nr-meta-field__label">场景上下文</span>
+          <button
+            type="button"
+            class="nr-meta-field__control"
+            title="点击编辑场景上下文"
+            @click="openMetaEdit('scene')">
+            <span
+              class="nr-meta-field__value"
+              :class="{ 'is-empty': !draftScene.trim() }">
+              {{ truncateMeta(draftScene) || "点击编辑…" }}
+            </span>
+          </button>
+        </div>
         <StudioField
           v-model="draftDuration"
           class="nr-field--sm"
@@ -554,6 +641,54 @@ const metaChips = computed(() => {
     </footer>
 
     <slot name="footer" />
+
+    <!-- studio：场景上下文弹层编辑；挂 body 以盖住后台 Dialog -->
+    <Teleport to="body">
+      <div
+        v-if="isStudio && metaEditField"
+        class="nr-meta-modal"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="metaEditTitle"
+        @keydown.esc.stop.prevent="closeMetaEdit">
+        <button
+          type="button"
+          class="nr-meta-modal__mask"
+          aria-label="关闭"
+          @click="closeMetaEdit" />
+        <div class="nr-meta-modal__panel" @click.stop>
+          <header class="nr-meta-modal__head">
+            <h4 class="nr-meta-modal__title">{{ metaEditTitle }}</h4>
+            <button
+              type="button"
+              class="nr-meta-modal__x"
+              title="关闭"
+              @click="closeMetaEdit">
+              ×
+            </button>
+          </header>
+          <textarea
+            ref="metaEditTextareaRef"
+            v-model="metaEditBuffer"
+            class="nr-meta-modal__textarea"
+            rows="8"
+            :placeholder="metaEditPlaceholder"
+            @keydown.enter.ctrl.prevent="confirmMetaEdit"
+            @keydown.enter.meta.prevent="confirmMetaEdit" />
+          <footer class="nr-meta-modal__foot">
+            <button type="button" class="nr-meta-modal__btn" @click="closeMetaEdit">
+              取消
+            </button>
+            <button
+              type="button"
+              class="nr-meta-modal__btn nr-meta-modal__btn--primary"
+              @click="confirmMetaEdit">
+              确定
+            </button>
+          </footer>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -864,6 +999,190 @@ const metaChips = computed(() => {
 
 .nr-field--sm {
   min-width: 0;
+}
+
+/* 风格 / 场景：label + 可点击 value（形态对齐 StudioField input） */
+.nr-meta-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nr-meta-field__label {
+  color: rgb(209 178 111 / 78%);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.nr-meta-field__control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 7px;
+  background: rgb(0 0 0 / 20%);
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.nr-meta-field__control:hover {
+  border-color: rgb(209 178 111 / 42%);
+  background: rgb(209 178 111 / 8%);
+}
+
+.nr-meta-field__control:focus-visible {
+  border-color: rgb(209 178 111 / 42%);
+  outline: none;
+}
+
+.nr-meta-field__value {
+  display: block;
+  overflow: hidden;
+  color: #fff8ea;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nr-meta-field__value.is-empty {
+  color: rgb(247 239 221 / 32%);
+}
+
+.nr-meta-modal {
+  position: fixed;
+  inset: 0;
+  /* 高于 web-admin Dialog 的 z-50 */
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.nr-meta-modal__mask {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(0 0 0 / 55%);
+  cursor: pointer;
+}
+
+.nr-meta-modal__panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: min(100%, 420px);
+  max-height: min(80vh, 520px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgb(209 178 111 / 22%);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #1a1814 0%, #12110e 100%);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 45%);
+}
+
+.nr-meta-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.nr-meta-modal__title {
+  margin: 0;
+  color: #f0dfb0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.nr-meta-modal__x {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgb(247 239 221 / 65%);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nr-meta-modal__x:hover {
+  background: rgb(255 255 255 / 6%);
+  color: #fff8ea;
+}
+
+.nr-meta-modal__textarea {
+  flex: 1 1 auto;
+  min-height: 180px;
+  margin: 12px 14px 0;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 8px;
+  background: rgb(0 0 0 / 28%);
+  padding: 10px 12px;
+  color: #fff8ea;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+
+.nr-meta-modal__textarea:focus {
+  border-color: rgb(209 178 111 / 42%);
+}
+
+.nr-meta-modal__textarea::placeholder {
+  color: rgb(247 239 221 / 32%);
+}
+
+.nr-meta-modal__foot {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid rgb(255 255 255 / 6%);
+  margin-top: 12px;
+}
+
+.nr-meta-modal__btn {
+  min-height: 32px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 8px;
+  background: transparent;
+  padding: 0 12px;
+  color: #fff8ea;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nr-meta-modal__btn--primary {
+  border: 0;
+  background: linear-gradient(145deg, #e0c384, #c4a35a);
+  color: #1a160f;
+}
+
+.nr-meta-modal__btn:hover {
+  border-color: rgb(209 178 111 / 35%);
+}
+
+.nr-meta-modal__btn--primary:hover {
+  filter: brightness(1.04);
 }
 
 /* —— 解说词：保证可见，占剩余高度 —— */

@@ -1,6 +1,7 @@
 import { computed, watch } from 'vue';
-import { ADMIN_CONSOLE_HOME_PATH } from '@/constants/admin-auth';
-import { adminNavItems, type AdminNavItem } from '@/composables/useAdminNavigation';
+import { ADMIN_CONSOLE_HOME_PATH, ADMIN_ROUTE_PREFIX } from '@/constants/admin-auth';
+import { useAdminNavigation, type AdminNavItem } from '@/composables/useAdminNavigation';
+import { useAdminAuthStore } from '@/stores/adminAuth';
 
 export interface AdminTabItem extends AdminNavItem {
   closable: boolean;
@@ -9,17 +10,27 @@ export interface AdminTabItem extends AdminNavItem {
 export function useAdminTabs() {
   const route = useRoute();
   const router = useRouter();
+  const authStore = useAdminAuthStore();
+  const { navItems } = useAdminNavigation();
+
+  const defaultHome = computed(
+    () => navItems.value[0] ?? { label: '主题路线', to: `${ADMIN_ROUTE_PREFIX}/routes`, icon: 'route' as const },
+  );
+
   const tabs = useState<AdminTabItem[]>('admin-tabs', () => [
     {
-      ...adminNavItems[0]!,
+      label: '主题路线',
+      to: `${ADMIN_ROUTE_PREFIX}/routes`,
+      icon: 'route',
       closable: false,
     },
   ]);
 
   const syncTabLabels = () => {
+    const items = navItems.value;
     tabs.value = tabs.value
       .map((tab) => {
-        const matched = adminNavItems.find((item) => item.to === tab.to);
+        const matched = items.find((item) => item.to === tab.to);
         if (!matched) {
           return tab;
         }
@@ -28,19 +39,24 @@ export function useAdminTabs() {
           ...tab,
           label: matched.label,
           icon: matched.icon,
-          closable: matched.to !== ADMIN_CONSOLE_HOME_PATH,
+          closable: matched.to !== items[0]?.to && matched.to !== ADMIN_CONSOLE_HOME_PATH,
         };
       })
-      .filter((tab) => adminNavItems.some((item) => item.to === tab.to));
+      .filter((tab) => items.some((item) => item.to === tab.to));
 
-    if (!tabs.value.length && adminNavItems[0]) {
-      tabs.value = [{ ...adminNavItems[0], closable: false }];
+    if (!tabs.value.length && defaultHome.value) {
+      tabs.value = [{ ...defaultHome.value, closable: false }];
     }
   };
 
   const ensureTab = (path: string) => {
-    const matched = adminNavItems.find((item) => item.to === path);
+    const items = navItems.value;
+    const matched = items.find((item) => item.to === path);
     if (!matched) {
+      // 导游访问无权限页时，回到其首页
+      if (authStore.isGuide && path.startsWith(ADMIN_ROUTE_PREFIX) && path !== defaultHome.value.to) {
+        void router.replace(defaultHome.value.to);
+      }
       return;
     }
 
@@ -50,7 +66,7 @@ export function useAdminTabs() {
         ...tabs.value,
         {
           ...matched,
-          closable: matched.to !== ADMIN_CONSOLE_HOME_PATH,
+          closable: matched.to !== items[0]?.to,
         },
       ];
       return;
@@ -67,6 +83,14 @@ export function useAdminTabs() {
     { immediate: true },
   );
 
+  watch(
+    navItems,
+    () => {
+      syncTabLabels();
+      ensureTab(route.path);
+    },
+  );
+
   const activeTab = computed(() => route.path);
 
   const closeTab = async (path: string) => {
@@ -81,7 +105,7 @@ export function useAdminTabs() {
       return;
     }
 
-    const fallback = nextTabs[nextTabs.length - 1] ?? adminNavItems[0];
+    const fallback = nextTabs[nextTabs.length - 1] ?? defaultHome.value;
     if (fallback) {
       await router.push(fallback.to);
     }

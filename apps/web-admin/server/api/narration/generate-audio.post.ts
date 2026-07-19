@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   if (!stageId) {
     throw createError({
       statusCode: 400,
-      statusMessage: '缺少节点 ID。',
+      message: '缺少节点 ID。',
     });
   }
 

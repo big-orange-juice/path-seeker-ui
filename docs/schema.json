@@ -8,7 +8,9 @@
   "paths": {
     "/api/Admin/Login": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "summary": "后台登录",
         "requestBody": {
           "content": {
@@ -55,7 +57,9 @@
     },
     "/api/Admin/CreateAdmin": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -101,7 +105,9 @@
     },
     "/api/Admin/Roles": {
       "get": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -128,7 +134,9 @@
     },
     "/api/Admin/CreateRole": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -174,7 +182,9 @@
     },
     "/api/Admin/UpdateRole": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -220,7 +230,9 @@
     },
     "/api/Admin/DeleteRole": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -266,7 +278,9 @@
     },
     "/api/Admin/AssignPermissions": {
       "post": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -312,7 +326,9 @@
     },
     "/api/Admin/Dashboard": {
       "get": {
-        "tags": ["Admin"],
+        "tags": [
+          "Admin"
+        ],
         "summary": "数据看板",
         "responses": {
           "200": {
@@ -338,112 +354,11 @@
         }
       }
     },
-    "/api/Admin/CuratorProfile/voice-preview": {
-      "get": {
-        "tags": ["AdminCuratorProfile"],
-        "parameters": [
-          {
-            "name": "voiceVersionId",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/Admin/CuratorProfile/private-download": {
-      "get": {
-        "tags": ["AdminCuratorProfile"],
-        "parameters": [
-          {
-            "name": "voiceVersionId",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/Admin/CuratorProfile/material-scan-result": {
-      "post": {
-        "tags": ["AdminCuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminCuratorMaterialScanResultRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminCuratorMaterialScanResultRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/AdminCuratorMaterialScanResultRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/Agent/BuildRouteFromTheme": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "③ 根据主题检索相关文物，随机选取后按难度组卷生成路线（RouteId 为空则新建）",
         "requestBody": {
           "content": {
@@ -490,7 +405,9 @@
     },
     "/api/Agent/GetRouteBuildTask": {
       "get": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -526,7 +443,9 @@
     },
     "/api/Agent/GetLatestRouteBuildTaskByRoute": {
       "get": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "parameters": [
           {
             "name": "routeId",
@@ -562,7 +481,9 @@
     },
     "/api/Agent/AgentStageCreate": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "Admin：由 Agent 按路线 + 文物 + 玩法类型单步生成一个 route_stage 节点。",
         "requestBody": {
           "content": {
@@ -609,7 +530,9 @@
     },
     "/api/Agent/AgentBuildStages": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "Admin：由 Agent 按路线 + 文物列表 + 玩法类型批量追加 route_stage 节点。",
         "requestBody": {
           "content": {
@@ -656,7 +579,9 @@
     },
     "/api/Agent/AgentStageEdit": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "Admin：由 Agent 编辑一个已有 route_stage 节点。",
         "requestBody": {
           "content": {
@@ -703,7 +628,9 @@
     },
     "/api/Agent/AgentEditStages": {
       "post": {
-        "tags": ["Agent"],
+        "tags": [
+          "Agent"
+        ],
         "summary": "Admin：由 Agent 批量编辑已有 route_stage 节点。",
         "requestBody": {
           "content": {
@@ -750,7 +677,9 @@
     },
     "/api/AppUser/Register": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "注册 (用户名/手机/邮箱 + 密码)",
         "requestBody": {
           "content": {
@@ -797,7 +726,9 @@
     },
     "/api/AppUser/Login": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "密码登录",
         "requestBody": {
           "content": {
@@ -844,7 +775,9 @@
     },
     "/api/AppUser/GuestLogin": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "游客登录 (扫码即用，无需注册)",
         "requestBody": {
           "content": {
@@ -891,7 +824,9 @@
     },
     "/api/AppUser/RefreshToken": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "刷新令牌",
         "requestBody": {
           "content": {
@@ -938,7 +873,9 @@
     },
     "/api/AppUser/Profile": {
       "get": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "获取当前用户资料",
         "responses": {
           "200": {
@@ -966,7 +903,9 @@
     },
     "/api/AppUser/UpdateProfile": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "更新当前用户资料",
         "requestBody": {
           "content": {
@@ -1013,7 +952,9 @@
     },
     "/api/AppUser/PageList": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "后台游客分页查询",
         "requestBody": {
           "content": {
@@ -1060,7 +1001,9 @@
     },
     "/api/AppUser/ChangeStatus": {
       "post": {
-        "tags": ["AppUser"],
+        "tags": [
+          "AppUser"
+        ],
         "summary": "后台启用/禁用游客",
         "requestBody": {
           "content": {
@@ -1107,7 +1050,9 @@
     },
     "/api/Badge/List": {
       "get": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "summary": "徽章列表 (公开，用于展示墙)",
         "responses": {
           "200": {
@@ -1135,7 +1080,9 @@
     },
     "/api/Badge/MyBadges": {
       "get": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "summary": "我的徽章 (含未点亮)",
         "responses": {
           "200": {
@@ -1163,7 +1110,9 @@
     },
     "/api/Badge/PageList": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1209,7 +1158,9 @@
     },
     "/api/Badge/Create": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1255,7 +1206,9 @@
     },
     "/api/Badge/Update": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1301,7 +1254,9 @@
     },
     "/api/Badge/Delete": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1347,7 +1302,9 @@
     },
     "/api/Badge/Grant": {
       "post": {
-        "tags": ["Badge"],
+        "tags": [
+          "Badge"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1393,7 +1350,9 @@
     },
     "/api/Chat/send": {
       "post": {
-        "tags": ["Chat"],
+        "tags": [
+          "Chat"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1422,7 +1381,9 @@
     },
     "/api/Chat/sessions": {
       "post": {
-        "tags": ["Chat"],
+        "tags": [
+          "Chat"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1466,7 +1427,9 @@
         }
       },
       "get": {
-        "tags": ["Chat"],
+        "tags": [
+          "Chat"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -1493,7 +1456,9 @@
     },
     "/api/Chat/history": {
       "get": {
-        "tags": ["Chat"],
+        "tags": [
+          "Chat"
+        ],
         "parameters": [
           {
             "name": "sessionId",
@@ -1530,7 +1495,9 @@
     },
     "/api/Chat/archive": {
       "post": {
-        "tags": ["Chat"],
+        "tags": [
+          "Chat"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1576,7 +1543,9 @@
     },
     "/api/Collection/List": {
       "get": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "summary": "收集图鉴定义 (可按类型筛选: 1=印章 2=碎片 3=角色卡 4=文物卡)",
         "parameters": [
           {
@@ -1614,7 +1583,9 @@
     },
     "/api/Collection/MyCollection": {
       "get": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "summary": "我的收集图鉴 (含未获得)",
         "responses": {
           "200": {
@@ -1642,7 +1613,9 @@
     },
     "/api/Collection/PageList": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1688,7 +1661,9 @@
     },
     "/api/Collection/Create": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1734,7 +1709,9 @@
     },
     "/api/Collection/Update": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1780,7 +1757,9 @@
     },
     "/api/Collection/Delete": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1826,7 +1805,9 @@
     },
     "/api/Collection/Grant": {
       "post": {
-        "tags": ["Collection"],
+        "tags": [
+          "Collection"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1863,848 +1844,6 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CollectibleResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/material/upload-init": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadInitRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadInitRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadInitRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorUploadInitResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorUploadInitResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorUploadInitResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/material/upload-part-sign": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadPartSignRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadPartSignRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadPartSignRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorUploadPartSignResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorUploadPartSignResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorUploadPartSignResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/material/upload-complete": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadCompleteRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadCompleteRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadCompleteRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorMaterialResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorMaterialResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorMaterialResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/material/upload-abort": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadAbortRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadAbortRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorUploadAbortRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/material-list": {
-      "get": {
-        "tags": ["CuratorProfile"],
-        "parameters": [
-          {
-            "name": "PageIndex",
-            "in": "query",
-            "schema": {
-              "maximum": 100000,
-              "minimum": 1,
-              "type": "integer",
-              "format": "int32"
-            }
-          },
-          {
-            "name": "PageSize",
-            "in": "query",
-            "schema": {
-              "maximum": 100,
-              "minimum": 1,
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorMaterialListResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorMaterialListResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorMaterialListResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/material-transcript": {
-      "get": {
-        "tags": ["CuratorProfile"],
-        "parameters": [
-          {
-            "name": "materialId",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorTranscriptResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorTranscriptResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorTranscriptResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/material-transcript-revise": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorTranscriptRevisionRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorTranscriptRevisionRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorTranscriptRevisionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorTranscriptResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorTranscriptResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorTranscriptResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/process": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorProcessResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorProcessResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorProcessResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/process-detail": {
-      "get": {
-        "tags": ["CuratorProfile"],
-        "parameters": [
-          {
-            "name": "runId",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorProcessDetailResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorProcessDetailResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorProcessDetailResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/process-retry": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessRetryRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessRetryRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessRetryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/process-cancel": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessCancelRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessCancelRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorProcessCancelRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/style-preview": {
-      "get": {
-        "tags": ["CuratorProfile"],
-        "parameters": [
-          {
-            "name": "versionId",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorStylePreviewResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorStylePreviewResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorStylePreviewResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/voice-preview": {
-      "get": {
-        "tags": ["CuratorProfile"],
-        "parameters": [
-          {
-            "name": "voiceVersionId",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/voice-list": {
-      "get": {
-        "tags": ["CuratorProfile"],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseListApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseListApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceVersionResponseListApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/private-download": {
-      "get": {
-        "tags": ["CuratorProfile"],
-        "parameters": [
-          {
-            "name": "attachmentId",
-            "in": "query",
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/voice-set-default": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceSetDefaultRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceSetDefaultRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceSetDefaultRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/voice-grant": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceGrantRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceGrantRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceGrantRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceGrantResponseApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceGrantResponseApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CuratorVoiceGrantResponseApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/voice-revoke": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceRevokeRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceRevokeRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorVoiceRevokeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/approve": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorApproveRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorApproveRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorApproveRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/CuratorProfile/reject": {
-      "post": {
-        "tags": ["CuratorProfile"],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorRejectRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorRejectRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/CuratorRejectRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             }
@@ -2714,7 +1853,9 @@
     },
     "/api/Exhibit/PageList": {
       "post": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2760,7 +1901,9 @@
     },
     "/api/Exhibit/Get": {
       "get": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -2797,7 +1940,9 @@
     },
     "/api/Exhibit/Create": {
       "post": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2843,7 +1988,9 @@
     },
     "/api/Exhibit/Update": {
       "post": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2889,7 +2036,9 @@
     },
     "/api/Exhibit/Delete": {
       "post": {
-        "tags": ["Exhibit"],
+        "tags": [
+          "Exhibit"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2933,9 +2082,204 @@
         }
       }
     },
+    "/api/ExhibitChat/sessions": {
+      "post": {
+        "tags": [
+          "ExhibitChat"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExhibitChatSessionRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExhibitChatSessionRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExhibitChatSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatSessionResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatSessionResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatSessionResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "ExhibitChat"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatSessionResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatSessionResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatSessionResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ExhibitChat/history": {
+      "get": {
+        "tags": [
+          "ExhibitChat"
+        ],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatMessageResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatMessageResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExhibitChatMessageResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ExhibitChat/archive": {
+      "post": {
+        "tags": [
+          "ExhibitChat"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ExhibitChat/send": {
+      "post": {
+        "tags": [
+          "ExhibitChat"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExhibitChatSendRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExhibitChatSendRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExhibitChatSendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/Feedback/Create": {
       "post": {
-        "tags": ["Feedback"],
+        "tags": [
+          "Feedback"
+        ],
         "summary": "提交反馈 (可匿名)",
         "requestBody": {
           "content": {
@@ -2982,7 +2326,9 @@
     },
     "/api/Feedback/MyFeedback": {
       "get": {
-        "tags": ["Feedback"],
+        "tags": [
+          "Feedback"
+        ],
         "summary": "我的反馈",
         "responses": {
           "200": {
@@ -3010,7 +2356,9 @@
     },
     "/api/Feedback/PageList": {
       "post": {
-        "tags": ["Feedback"],
+        "tags": [
+          "Feedback"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3056,7 +2404,9 @@
     },
     "/api/Feedback/Reply": {
       "post": {
-        "tags": ["Feedback"],
+        "tags": [
+          "Feedback"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3102,7 +2452,9 @@
     },
     "/api/Gallery/PageList": {
       "post": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3148,7 +2500,9 @@
     },
     "/api/Gallery/Get": {
       "get": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3185,7 +2539,9 @@
     },
     "/api/Gallery/Create": {
       "post": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3231,7 +2587,9 @@
     },
     "/api/Gallery/Update": {
       "post": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3277,7 +2635,9 @@
     },
     "/api/Gallery/Delete": {
       "post": {
-        "tags": ["Gallery"],
+        "tags": [
+          "Gallery"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -3323,7 +2683,9 @@
     },
     "/api/Gameplay/BuildStages": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "编排：把节点（可混合 interaction_type）写入路线",
         "requestBody": {
           "content": {
@@ -3370,7 +2732,9 @@
     },
     "/api/Gameplay/StagePageList": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：分页获取路线节点列表，用于后台手动维护路线骨架。",
         "requestBody": {
           "content": {
@@ -3417,7 +2781,9 @@
     },
     "/api/Gameplay/StageGet": {
       "get": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：根据ID获取单个路线节点详情。",
         "parameters": [
           {
@@ -3455,7 +2821,9 @@
     },
     "/api/Gameplay/StageCreate": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：手动创建一个路线节点。",
         "requestBody": {
           "content": {
@@ -3502,7 +2870,9 @@
     },
     "/api/Gameplay/StageUpdate": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：手动更新一个路线节点。",
         "requestBody": {
           "content": {
@@ -3549,7 +2919,9 @@
     },
     "/api/Gameplay/StageBatchUpdate": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：事务性批量更新普通路线节点；拍照寻宝挑战请使用挑战专用接口。",
         "requestBody": {
           "content": {
@@ -3596,7 +2968,9 @@
     },
     "/api/Gameplay/StageReorder": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：按完整节点 ID 列表精确重排普通路线；拍照寻宝路线请按挑战重排。",
         "requestBody": {
           "content": {
@@ -3643,7 +3017,9 @@
     },
     "/api/Gameplay/StageMove": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：显式移动节点到目标路线，并重排两条路线。",
         "requestBody": {
           "content": {
@@ -3690,7 +3066,9 @@
     },
     "/api/Gameplay/StageDelete": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：手动软删除一个路线节点。",
         "requestBody": {
           "content": {
@@ -3737,7 +3115,9 @@
     },
     "/api/Gameplay/StageBatchDelete": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "Admin：批量软删除节点，并按路线重排顺序、重算统计。",
         "requestBody": {
           "content": {
@@ -3784,7 +3164,9 @@
     },
     "/api/Gameplay/Stages": {
       "get": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：获取路线全部节点（含当前用户达成状态）",
         "parameters": [
           {
@@ -3831,7 +3213,9 @@
     },
     "/api/Gameplay/JoinRoute": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：明确加入/开始路线",
         "requestBody": {
           "content": {
@@ -3878,7 +3262,9 @@
     },
     "/api/Gameplay/MyRouteProgress": {
       "get": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：获取我的单人/组队路线进度",
         "parameters": [
           {
@@ -3925,7 +3311,9 @@
     },
     "/api/Gameplay/RouteResult": {
       "get": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：获取路线完成结算页数据",
         "parameters": [
           {
@@ -3972,7 +3360,9 @@
     },
     "/api/Gameplay/RecordActivity": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：记录进入/离开节点等弱行为",
         "requestBody": {
           "content": {
@@ -4019,7 +3409,9 @@
     },
     "/api/Gameplay/Submit": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：提交一个节点的交互结果（按节点 interaction_type 判定）",
         "requestBody": {
           "content": {
@@ -4066,7 +3458,9 @@
     },
     "/api/Gameplay/Hints": {
       "get": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：获取步骤提示列表（含已解锁状态）",
         "parameters": [
           {
@@ -4122,7 +3516,9 @@
     },
     "/api/Gameplay/UnlockHint": {
       "post": {
-        "tags": ["Gameplay"],
+        "tags": [
+          "Gameplay"
+        ],
         "summary": "C端：解锁一条提示/线索",
         "requestBody": {
           "content": {
@@ -4169,7 +3565,9 @@
     },
     "/api/Graph/GetNode": {
       "post": {
-        "tags": ["Graph"],
+        "tags": [
+          "Graph"
+        ],
         "summary": "查询节点详情 (含关联边和相邻节点)",
         "requestBody": {
           "content": {
@@ -4216,7 +3614,9 @@
     },
     "/api/Graph/Expand": {
       "post": {
-        "tags": ["Graph"],
+        "tags": [
+          "Graph"
+        ],
         "summary": "从节点出发沿指定维度扩展遍历",
         "requestBody": {
           "content": {
@@ -4263,7 +3663,9 @@
     },
     "/api/Graph/FindPath": {
       "post": {
-        "tags": ["Graph"],
+        "tags": [
+          "Graph"
+        ],
         "summary": "查找两点间最短路径",
         "requestBody": {
           "content": {
@@ -4310,7 +3712,9 @@
     },
     "/api/Graph/NaturalSearch": {
       "post": {
-        "tags": ["Graph"],
+        "tags": [
+          "Graph"
+        ],
         "summary": "自然语言图查询\n示例: \"黄飞虎相关的文物有哪些\" / \"大克鼎和哪些青铜器有纹样关联\"",
         "requestBody": {
           "content": {
@@ -4357,7 +3761,9 @@
     },
     "/api/Guide/list": {
       "get": {
-        "tags": ["Guide"],
+        "tags": [
+          "Guide"
+        ],
         "parameters": [
           {
             "name": "Keyword",
@@ -4427,7 +3833,9 @@
     },
     "/api/Guide/detail": {
       "get": {
-        "tags": ["Guide"],
+        "tags": [
+          "Guide"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -4464,7 +3872,9 @@
     },
     "/api/Guide/create": {
       "post": {
-        "tags": ["Guide"],
+        "tags": [
+          "Guide"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4501,6 +3911,304 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StringApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/create-with-material": {
+      "post": {
+        "tags": [
+          "Guide"
+        ],
+        "summary": "创建 Guide 并上传用于音色或语料风格分析的 MP3、MP4 或 TXT 材料。",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "Name"
+                ],
+                "type": "object",
+                "properties": {
+                  "GuideCode": {
+                    "type": "string"
+                  },
+                  "Name": {
+                    "type": "string"
+                  },
+                  "AvatarAttachmentId": {
+                    "type": "string"
+                  },
+                  "Description": {
+                    "type": "string"
+                  },
+                  "SemanticProfile": {
+                    "maxLength": 8000,
+                    "type": "string"
+                  },
+                  "VoiceStyle": {
+                    "type": "string"
+                  },
+                  "VoiceProvider": {
+                    "type": "string"
+                  },
+                  "ProviderVoiceId": {
+                    "type": "string"
+                  },
+                  "ProviderModel": {
+                    "type": "string"
+                  },
+                  "VoiceLanguage": {
+                    "type": "string"
+                  },
+                  "SpeechRate": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "Volume": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "Pitch": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "VoiceSampleAttachmentId": {
+                    "type": "string"
+                  },
+                  "VoiceStatus": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "IsSystemDefault": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "NarrationStyle": {
+                    "type": "string"
+                  },
+                  "StyleReferencePath": {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "Status": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "SortOrder": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "ReplacementGuideId": {
+                    "type": "string"
+                  },
+                  "material": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              },
+              "encoding": {
+                "GuideCode": {
+                  "style": "form"
+                },
+                "Name": {
+                  "style": "form"
+                },
+                "AvatarAttachmentId": {
+                  "style": "form"
+                },
+                "Description": {
+                  "style": "form"
+                },
+                "SemanticProfile": {
+                  "style": "form"
+                },
+                "VoiceStyle": {
+                  "style": "form"
+                },
+                "VoiceProvider": {
+                  "style": "form"
+                },
+                "ProviderVoiceId": {
+                  "style": "form"
+                },
+                "ProviderModel": {
+                  "style": "form"
+                },
+                "VoiceLanguage": {
+                  "style": "form"
+                },
+                "SpeechRate": {
+                  "style": "form"
+                },
+                "Volume": {
+                  "style": "form"
+                },
+                "Pitch": {
+                  "style": "form"
+                },
+                "VoiceSampleAttachmentId": {
+                  "style": "form"
+                },
+                "VoiceStatus": {
+                  "style": "form"
+                },
+                "IsSystemDefault": {
+                  "style": "form"
+                },
+                "NarrationStyle": {
+                  "style": "form"
+                },
+                "StyleReferencePath": {
+                  "style": "form"
+                },
+                "Status": {
+                  "style": "form"
+                },
+                "SortOrder": {
+                  "style": "form"
+                },
+                "ReplacementGuideId": {
+                  "style": "form"
+                },
+                "material": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationCreateResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationCreateResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationCreateResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/generation-status": {
+      "get": {
+        "tags": [
+          "Guide"
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationStatusResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationStatusResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationStatusResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Guide/voice-preview": {
+      "get": {
+        "tags": [
+          "Guide"
+        ],
+        "summary": "Redirects the Guide owner to a short-lived URL for the private generated preview.",
+        "parameters": [
+          {
+            "name": "guideId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Guide/generation-retry": {
+      "post": {
+        "tags": [
+          "Guide"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationRetryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationRetryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationRetryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
                 }
               }
             }
@@ -4510,7 +4218,9 @@
     },
     "/api/Guide/update": {
       "post": {
-        "tags": ["Guide"],
+        "tags": [
+          "Guide"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4554,9 +4264,214 @@
         }
       }
     },
+    "/api/Guide/update-with-material": {
+      "post": {
+        "tags": [
+          "Guide"
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "Id",
+                  "Name"
+                ],
+                "type": "object",
+                "properties": {
+                  "Id": {
+                    "type": "string"
+                  },
+                  "Version": {
+                    "maximum": 2147483647,
+                    "minimum": 1,
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "GuideCode": {
+                    "type": "string"
+                  },
+                  "Name": {
+                    "type": "string"
+                  },
+                  "AvatarAttachmentId": {
+                    "type": "string"
+                  },
+                  "Description": {
+                    "type": "string"
+                  },
+                  "SemanticProfile": {
+                    "maxLength": 8000,
+                    "type": "string"
+                  },
+                  "VoiceStyle": {
+                    "type": "string"
+                  },
+                  "VoiceProvider": {
+                    "type": "string"
+                  },
+                  "ProviderVoiceId": {
+                    "type": "string"
+                  },
+                  "ProviderModel": {
+                    "type": "string"
+                  },
+                  "VoiceLanguage": {
+                    "type": "string"
+                  },
+                  "SpeechRate": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "Volume": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "Pitch": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "VoiceSampleAttachmentId": {
+                    "type": "string"
+                  },
+                  "VoiceStatus": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "IsSystemDefault": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "NarrationStyle": {
+                    "type": "string"
+                  },
+                  "StyleReferencePath": {
+                    "maxLength": 500,
+                    "type": "string"
+                  },
+                  "Status": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "SortOrder": {
+                    "type": "integer",
+                    "format": "int32"
+                  },
+                  "ReplacementGuideId": {
+                    "type": "string"
+                  },
+                  "material": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              },
+              "encoding": {
+                "Id": {
+                  "style": "form"
+                },
+                "Version": {
+                  "style": "form"
+                },
+                "GuideCode": {
+                  "style": "form"
+                },
+                "Name": {
+                  "style": "form"
+                },
+                "AvatarAttachmentId": {
+                  "style": "form"
+                },
+                "Description": {
+                  "style": "form"
+                },
+                "SemanticProfile": {
+                  "style": "form"
+                },
+                "VoiceStyle": {
+                  "style": "form"
+                },
+                "VoiceProvider": {
+                  "style": "form"
+                },
+                "ProviderVoiceId": {
+                  "style": "form"
+                },
+                "ProviderModel": {
+                  "style": "form"
+                },
+                "VoiceLanguage": {
+                  "style": "form"
+                },
+                "SpeechRate": {
+                  "style": "form"
+                },
+                "Volume": {
+                  "style": "form"
+                },
+                "Pitch": {
+                  "style": "form"
+                },
+                "VoiceSampleAttachmentId": {
+                  "style": "form"
+                },
+                "VoiceStatus": {
+                  "style": "form"
+                },
+                "IsSystemDefault": {
+                  "style": "form"
+                },
+                "NarrationStyle": {
+                  "style": "form"
+                },
+                "StyleReferencePath": {
+                  "style": "form"
+                },
+                "Status": {
+                  "style": "form"
+                },
+                "SortOrder": {
+                  "style": "form"
+                },
+                "ReplacementGuideId": {
+                  "style": "form"
+                },
+                "material": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationCreateResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationCreateResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationCreateResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Guide/delete": {
       "post": {
-        "tags": ["Guide"],
+        "tags": [
+          "Guide"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4602,7 +4517,9 @@
     },
     "/api/Guide/client-list": {
       "get": {
-        "tags": ["Guide"],
+        "tags": [
+          "Guide"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -4627,9 +4544,247 @@
         }
       }
     },
+    "/api/test/guide-generation/asr": {
+      "post": {
+        "tags": [
+          "GuideGenerationTest"
+        ],
+        "summary": "Queues MP3 normalization followed by Aliyun recording-file transcription.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/test/guide-generation/style-extraction": {
+      "post": {
+        "tags": [
+          "GuideGenerationTest"
+        ],
+        "summary": "Queues style extraction. MP3 input is normalized and transcribed first; TXT input is analyzed directly.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/test/guide-generation/voice-clone": {
+      "post": {
+        "tags": [
+          "GuideGenerationTest"
+        ],
+        "summary": "Queues MP3 normalization, ASR, and MiniMax voice cloning.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideGenerationTestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/test/guide-generation/status": {
+      "get": {
+        "tags": [
+          "GuideGenerationTest"
+        ],
+        "summary": "Returns the workflow and step status for a queued test run.",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationStatusResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationStatusResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationStatusResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/test/guide-generation/asr-by-attachment": {
+      "post": {
+        "tags": [
+          "GuideGenerationTest"
+        ],
+        "summary": "上传 MP3 附件后直接排队 ASR 转录。入参仅需已上传的私有 .mp3 附件 ID。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideAsrByAttachmentRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideAsrByAttachmentRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuideAsrByAttachmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Leaderboard/Query": {
       "post": {
-        "tags": ["Leaderboard"],
+        "tags": [
+          "Leaderboard"
+        ],
         "summary": "查询排行榜 (Type: 1=路线积分榜 2=用户总分榜 3=路线用时榜)",
         "requestBody": {
           "content": {
@@ -4676,7 +4831,9 @@
     },
     "/api/test/minimax/voices": {
       "get": {
-        "tags": ["MiniMaxTest"],
+        "tags": [
+          "MiniMaxTest"
+        ],
         "summary": "查询 MiniMax 可用音色（官方 POST /v1/get_voice）。voiceType: system / voice_cloning / voice_generation / all。",
         "parameters": [
           {
@@ -4714,7 +4871,9 @@
     },
     "/api/test/minimax/get-voice": {
       "post": {
-        "tags": ["MiniMaxTest"],
+        "tags": [
+          "MiniMaxTest"
+        ],
         "summary": "与 GET 相同，便于按官方 POST 习惯调试。",
         "requestBody": {
           "content": {
@@ -4761,7 +4920,9 @@
     },
     "/api/Museum/Health": {
       "get": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "summary": "健康检查 — 无需鉴权",
         "responses": {
           "200": {
@@ -4789,7 +4950,9 @@
     },
     "/api/Museum/Get": {
       "get": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -4826,7 +4989,9 @@
     },
     "/api/Museum/PageList": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4872,7 +5037,9 @@
     },
     "/api/Museum/Floors": {
       "get": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "parameters": [
           {
             "name": "museumId",
@@ -4909,7 +5076,9 @@
     },
     "/api/Museum/Facilities": {
       "get": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "parameters": [
           {
             "name": "museumId",
@@ -4946,7 +5115,9 @@
     },
     "/api/Museum/Create": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -4992,7 +5163,9 @@
     },
     "/api/Museum/Update": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5038,7 +5211,9 @@
     },
     "/api/Museum/Delete": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5084,7 +5259,9 @@
     },
     "/api/Museum/CreateFloor": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5130,7 +5307,9 @@
     },
     "/api/Museum/UpdateFloor": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5176,7 +5355,9 @@
     },
     "/api/Museum/DeleteFloor": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5222,7 +5403,9 @@
     },
     "/api/Museum/CreateFacility": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5268,7 +5451,9 @@
     },
     "/api/Museum/UpdateFacility": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5314,7 +5499,9 @@
     },
     "/api/Museum/DeleteFacility": {
       "post": {
-        "tags": ["Museum"],
+        "tags": [
+          "Museum"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5360,7 +5547,9 @@
     },
     "/api/Narration/generate": {
       "post": {
-        "tags": ["Narration"],
+        "tags": [
+          "Narration"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5406,7 +5595,9 @@
     },
     "/api/Narration/generate-batch": {
       "post": {
-        "tags": ["Narration"],
+        "tags": [
+          "Narration"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5452,7 +5643,9 @@
     },
     "/api/Narration/update-text": {
       "post": {
-        "tags": ["Narration"],
+        "tags": [
+          "Narration"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5498,7 +5691,9 @@
     },
     "/api/Narration/generate-audio": {
       "post": {
-        "tags": ["Narration"],
+        "tags": [
+          "Narration"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5544,7 +5739,9 @@
     },
     "/api/Narration/detail": {
       "get": {
-        "tags": ["Narration"],
+        "tags": [
+          "Narration"
+        ],
         "parameters": [
           {
             "name": "stageId",
@@ -5579,9 +5776,60 @@
         }
       }
     },
+    "/api/Narration/update-stage": {
+      "post": {
+        "tags": [
+          "Narration"
+        ],
+        "summary": "编辑 AI 解说节点，并同步已有的解说产物元数据。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNarrationStageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNarrationStageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNarrationStageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateNarrationStageResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateNarrationStageResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateNarrationStageResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Narration/change-guide": {
       "post": {
-        "tags": ["Narration"],
+        "tags": [
+          "Narration"
+        ],
         "summary": "更换 AI 语音解说节点使用的导游；已有旧导游产物会失效，需重新生成解说。",
         "requestBody": {
           "content": {
@@ -5628,7 +5876,9 @@
     },
     "/api/Puzzle/Gameplays": {
       "get": {
-        "tags": ["Puzzle"],
+        "tags": [
+          "Puzzle"
+        ],
         "summary": "查看系统内置玩法目录。玩法来自新链路 route_type / interaction_type 映射，不再来自 puzzle_type 表。",
         "responses": {
           "200": {
@@ -5656,7 +5906,9 @@
     },
     "/api/Puzzle/Skill": {
       "get": {
-        "tags": ["Puzzle"],
+        "tags": [
+          "Puzzle"
+        ],
         "summary": "读取指定玩法的 skill.md 内容。",
         "parameters": [
           {
@@ -5704,7 +5956,9 @@
     },
     "/api/Puzzle/UpdateSkill": {
       "post": {
-        "tags": ["Puzzle"],
+        "tags": [
+          "Puzzle"
+        ],
         "summary": "更新指定玩法的 skill.md 内容。",
         "requestBody": {
           "content": {
@@ -5751,7 +6005,9 @@
     },
     "/api/Review/Create": {
       "post": {
-        "tags": ["Review"],
+        "tags": [
+          "Review"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5797,7 +6053,9 @@
     },
     "/api/Review/ListByTarget": {
       "post": {
-        "tags": ["Review"],
+        "tags": [
+          "Review"
+        ],
         "summary": "按目标查看评价 (公开)",
         "requestBody": {
           "content": {
@@ -5844,7 +6102,9 @@
     },
     "/api/Review/PageList": {
       "post": {
-        "tags": ["Review"],
+        "tags": [
+          "Review"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5890,7 +6150,9 @@
     },
     "/api/Review/Audit": {
       "post": {
-        "tags": ["Review"],
+        "tags": [
+          "Review"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5936,7 +6198,9 @@
     },
     "/api/Route/Published": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -5982,7 +6246,9 @@
     },
     "/api/Route/Detail": {
       "get": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -6019,7 +6285,9 @@
     },
     "/api/Route/PageList": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6065,7 +6333,9 @@
     },
     "/api/Route/Get": {
       "get": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -6102,7 +6372,9 @@
     },
     "/api/Route/Create": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6148,7 +6420,9 @@
     },
     "/api/Route/Update": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6194,7 +6468,9 @@
     },
     "/api/Route/Delete": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6240,7 +6516,9 @@
     },
     "/api/Route/Publish": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6286,7 +6564,9 @@
     },
     "/api/Route/SubmitAudit": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6332,7 +6612,9 @@
     },
     "/api/Route/Audit": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6378,7 +6660,9 @@
     },
     "/api/Route/CreateStory": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6424,7 +6708,9 @@
     },
     "/api/Route/UpdateStory": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6470,7 +6756,9 @@
     },
     "/api/Route/DeleteStory": {
       "post": {
-        "tags": ["Route"],
+        "tags": [
+          "Route"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6516,7 +6804,9 @@
     },
     "/api/Tag/List": {
       "get": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "summary": "标签列表 (可按分类筛选)",
         "parameters": [
           {
@@ -6554,7 +6844,9 @@
     },
     "/api/Tag/Targets": {
       "get": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "summary": "查询某业务对象的标签 (targetType: 1=展品 2=路线 3=谜题)",
         "parameters": [
           {
@@ -6600,7 +6892,9 @@
     },
     "/api/Tag/PageList": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6646,7 +6940,9 @@
     },
     "/api/Tag/Create": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6692,7 +6988,9 @@
     },
     "/api/Tag/Update": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6738,7 +7036,9 @@
     },
     "/api/Tag/Delete": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6784,7 +7084,9 @@
     },
     "/api/Tag/SetTargets": {
       "post": {
-        "tags": ["Tag"],
+        "tags": [
+          "Tag"
+        ],
         "summary": "覆盖式设置某业务对象的标签",
         "requestBody": {
           "content": {
@@ -6831,7 +7133,9 @@
     },
     "/api/Team/Create": {
       "post": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6877,7 +7181,9 @@
     },
     "/api/Team/Join": {
       "post": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6923,7 +7229,9 @@
     },
     "/api/Team/Leave": {
       "post": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -6969,7 +7277,9 @@
     },
     "/api/Team/Disband": {
       "post": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7015,7 +7325,9 @@
     },
     "/api/Team/Detail": {
       "get": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "parameters": [
           {
             "name": "id",
@@ -7052,7 +7364,9 @@
     },
     "/api/Team/MyTeams": {
       "get": {
-        "tags": ["Team"],
+        "tags": [
+          "Team"
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -7079,7 +7393,9 @@
     },
     "/api/TreasureHunt/AdminChallenges": {
       "get": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "Admin：获取拍照寻宝路线的完整挑战编辑列表。",
         "parameters": [
           {
@@ -7117,7 +7433,9 @@
     },
     "/api/TreasureHunt/AdminBatchUpdate": {
       "post": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "Admin：事务性批量修改挑战内容、练习配置和必做状态。",
         "requestBody": {
           "content": {
@@ -7164,7 +7482,9 @@
     },
     "/api/TreasureHunt/AdminReorder": {
       "post": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "Admin：按完整挑战 ID 列表重排挑战及其找寻/练习节点。",
         "requestBody": {
           "content": {
@@ -7211,7 +7531,9 @@
     },
     "/api/TreasureHunt/AdminBatchDelete": {
       "post": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "Admin：事务性批量删除挑战及其谜题、找寻节点和练习节点。",
         "requestBody": {
           "content": {
@@ -7258,7 +7580,9 @@
     },
     "/api/TreasureHunt/BindIntroVideo": {
       "post": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "内部运营：为挑战绑定介绍视频附件。",
         "requestBody": {
           "content": {
@@ -7305,7 +7629,9 @@
     },
     "/api/TreasureHunt/Challenges": {
       "get": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "获取路线挑战、找寻/练习进度和已解锁的视频。",
         "parameters": [
           {
@@ -7350,7 +7676,9 @@
     },
     "/api/TreasureHunt/CreatePhotoAttempt": {
       "post": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "使用现有图片附件创建异步文物识别任务。",
         "requestBody": {
           "content": {
@@ -7397,7 +7725,9 @@
     },
     "/api/TreasureHunt/PhotoAttempt": {
       "get": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "查询当前用户的一次照片识别结果。",
         "parameters": [
           {
@@ -7435,7 +7765,9 @@
     },
     "/api/TreasureHunt/RecordIntroVideo": {
       "post": {
-        "tags": ["TreasureHunt"],
+        "tags": [
+          "TreasureHunt"
+        ],
         "summary": "记录介绍视频开始、完成或明确跳过，用于服务端练习门槛。",
         "requestBody": {
           "content": {
@@ -7482,7 +7814,9 @@
     },
     "/api/TtsVoice/list": {
       "get": {
-        "tags": ["TtsVoice"],
+        "tags": [
+          "TtsVoice"
+        ],
         "summary": "查询全部公开音色及当前登录用户自己的私有音色。",
         "parameters": [
           {
@@ -7528,7 +7862,9 @@
     },
     "/api/Upload/UploadImage": {
       "post": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -7575,7 +7911,9 @@
     },
     "/api/Upload/UploadFile": {
       "post": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -7622,7 +7960,9 @@
     },
     "/api/Upload/CreateImageTask": {
       "post": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -7668,7 +8008,9 @@
     },
     "/api/Upload/GetTaskDetail": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -7705,7 +8047,9 @@
     },
     "/api/Upload/GetTaskStatus": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -7742,7 +8086,9 @@
     },
     "/api/Upload/GetFileDetail": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "fileId",
@@ -7779,7 +8125,9 @@
     },
     "/api/Upload/GetTaskOutputs": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -7816,7 +8164,9 @@
     },
     "/api/Upload/GetTaskAttachments": {
       "get": {
-        "tags": ["Upload"],
+        "tags": [
+          "Upload"
+        ],
         "parameters": [
           {
             "name": "taskId",
@@ -7854,27 +8204,11 @@
   },
   "components": {
     "schemas": {
-      "AdminCuratorMaterialScanResultRequest": {
-        "type": "object",
-        "properties": {
-          "attachmentId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          },
-          "passed": {
-            "type": "boolean"
-          },
-          "reason": {
-            "maxLength": 1000,
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
       "AdminLoginRequest": {
-        "required": ["password", "username"],
+        "required": [
+          "password",
+          "username"
+        ],
         "type": "object",
         "properties": {
           "username": {
@@ -7965,12 +8299,12 @@
           "startCount": {
             "type": "integer",
             "description": "开始次数",
-            "format": "int64"
+            "format": "int32"
           },
           "completeCount": {
             "type": "integer",
             "description": "完成次数",
-            "format": "int64"
+            "format": "int32"
           },
           "completionRate": {
             "type": "number",
@@ -7982,7 +8316,10 @@
         "description": "数据看板 — 分龄分布（按路线年龄段统计参与/完成）"
       },
       "AgentBuildGameplayStagesRequest": {
-        "required": ["items", "routeId"],
+        "required": [
+          "items",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -8086,7 +8423,9 @@
         "additionalProperties": false
       },
       "AgentBuildRouteFromThemeRequest": {
-        "required": ["themeQuery"],
+        "required": [
+          "themeQuery"
+        ],
         "type": "object",
         "properties": {
           "routeType": {
@@ -8243,7 +8582,11 @@
         "additionalProperties": false
       },
       "AgentCreateGameplayStageRequest": {
-        "required": ["exhibitId", "gameplayType", "routeId"],
+        "required": [
+          "exhibitId",
+          "gameplayType",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -8276,7 +8619,10 @@
         "description": "Agent 单步创建路线节点请求。gameplayType 来自 /api/Puzzle/Gameplays 的 routeType，仅用于选择 skill。"
       },
       "AgentEditGameplayStagesRequest": {
-        "required": ["routeId", "stageIds"],
+        "required": [
+          "routeId",
+          "stageIds"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -8543,7 +8889,10 @@
         "additionalProperties": false
       },
       "AgentUpdateGameplayStageRequest": {
-        "required": ["routeId", "stageId"],
+        "required": [
+          "routeId",
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -8624,7 +8973,7 @@
           "totalPoints": {
             "type": "integer",
             "description": "累计积分",
-            "format": "int64"
+            "format": "int32"
           },
           "status": {
             "type": "integer",
@@ -8883,8 +9232,7 @@
             "nullable": true
           },
           "fileSize": {
-            "type": "integer",
-            "format": "int64",
+            "type": "string",
             "nullable": true
           },
           "sha256": {
@@ -8972,7 +9320,9 @@
         "additionalProperties": false
       },
       "AssignPermissionsRequest": {
-        "required": ["roleId"],
+        "required": [
+          "roleId"
+        ],
         "type": "object",
         "properties": {
           "roleId": {
@@ -9012,8 +9362,7 @@
             "nullable": true
           },
           "fileSize": {
-            "type": "integer",
-            "format": "int64",
+            "type": "string",
             "nullable": true
           },
           "mimeType": {
@@ -9092,7 +9441,9 @@
         "additionalProperties": false
       },
       "AuditContentRequest": {
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -9114,7 +9465,9 @@
         "description": "内容审核（谜题/路线通用）"
       },
       "AuditReviewRequest": {
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -9343,7 +9696,10 @@
         "additionalProperties": false
       },
       "BatchDeleteTreasureChallengesRequest": {
-        "required": ["challengeIds", "routeId"],
+        "required": [
+          "challengeIds",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -9427,7 +9783,9 @@
         "additionalProperties": false
       },
       "BatchNarrationStageRequest": {
-        "required": ["stageIds"],
+        "required": [
+          "stageIds"
+        ],
         "type": "object",
         "properties": {
           "stageIds": {
@@ -9528,7 +9886,9 @@
         "additionalProperties": false
       },
       "BatchUpdateRouteStagesRequest": {
-        "required": ["stages"],
+        "required": [
+          "stages"
+        ],
         "type": "object",
         "properties": {
           "stages": {
@@ -9542,7 +9902,10 @@
         "additionalProperties": false
       },
       "BatchUpdateTreasureChallengesRequest": {
-        "required": ["items", "routeId"],
+        "required": [
+          "items",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -9560,7 +9923,10 @@
         "additionalProperties": false
       },
       "BindChallengeIntroVideoRequest": {
-        "required": ["attachmentId", "challengeId"],
+        "required": [
+          "attachmentId",
+          "challengeId"
+        ],
         "type": "object",
         "properties": {
           "challengeId": {
@@ -9613,7 +9979,9 @@
         "additionalProperties": false
       },
       "BuildRouteStagesRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -9672,7 +10040,10 @@
         "additionalProperties": false
       },
       "ChangeNarrationGuideRequest": {
-        "required": ["guideId", "stageId"],
+        "required": [
+          "guideId",
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "stageId": {
@@ -9747,7 +10118,9 @@
         "additionalProperties": false
       },
       "ChangeUserStatusRequest": {
-        "required": ["userId"],
+        "required": [
+          "userId"
+        ],
         "type": "object",
         "properties": {
           "userId": {
@@ -9776,8 +10149,8 @@
             "nullable": true
           },
           "sequenceNo": {
-            "type": "integer",
-            "format": "int64"
+            "type": "string",
+            "nullable": true
           },
           "role": {
             "type": "string",
@@ -9828,7 +10201,11 @@
         "additionalProperties": false
       },
       "ChatSendRequest": {
-        "required": ["clientMessageId", "message", "sessionId"],
+        "required": [
+          "clientMessageId",
+          "message",
+          "sessionId"
+        ],
         "type": "object",
         "properties": {
           "sessionId": {
@@ -10119,7 +10496,10 @@
         "additionalProperties": false
       },
       "CreateAdminRequest": {
-        "required": ["password", "username"],
+        "required": [
+          "password",
+          "username"
+        ],
         "type": "object",
         "properties": {
           "username": {
@@ -10157,7 +10537,10 @@
         "description": "创建管理员请求"
       },
       "CreateBadgeRequest": {
-        "required": ["badgeCode", "name"],
+        "required": [
+          "badgeCode",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "badgeCode": {
@@ -10249,7 +10632,10 @@
         "additionalProperties": false
       },
       "CreateCollectibleRequest": {
-        "required": ["collectibleCode", "name"],
+        "required": [
+          "collectibleCode",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "collectibleCode": {
@@ -10321,6 +10707,18 @@
         "additionalProperties": false,
         "description": "创建收集品请求"
       },
+      "CreateExhibitChatSessionRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateExhibitPhotoAttemptRequest": {
         "required": [
           "attachmentId",
@@ -10355,7 +10753,11 @@
         "additionalProperties": false
       },
       "CreateExhibitRequest": {
-        "required": ["exhibitCode", "museumId", "name"],
+        "required": [
+          "exhibitCode",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -10445,7 +10847,10 @@
         "description": "创建展品请求"
       },
       "CreateFacilityRequest": {
-        "required": ["museumId", "name"],
+        "required": [
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -10488,7 +10893,9 @@
         "description": "创建服务设施请求"
       },
       "CreateFeedbackRequest": {
-        "required": ["content"],
+        "required": [
+          "content"
+        ],
         "type": "object",
         "properties": {
           "feedbackType": {
@@ -10527,7 +10934,10 @@
         "description": "创建反馈请求"
       },
       "CreateFloorRequest": {
-        "required": ["floorCode", "museumId"],
+        "required": [
+          "floorCode",
+          "museumId"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -10570,7 +10980,11 @@
         "description": "创建楼层请求"
       },
       "CreateGalleryRequest": {
-        "required": ["galleryCode", "museumId", "name"],
+        "required": [
+          "galleryCode",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -10652,7 +11066,9 @@
         "description": "创建展馆请求"
       },
       "CreateImageGenerationTaskRequest": {
-        "required": ["prompt"],
+        "required": [
+          "prompt"
+        ],
         "type": "object",
         "properties": {
           "prompt": {
@@ -10725,7 +11141,10 @@
         "additionalProperties": false
       },
       "CreateMuseumRequest": {
-        "required": ["museumCode", "name"],
+        "required": [
+          "museumCode",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumCode": {
@@ -10835,7 +11254,10 @@
         "description": "创建博物馆请求"
       },
       "CreateReviewRequest": {
-        "required": ["targetId", "targetType"],
+        "required": [
+          "targetId",
+          "targetType"
+        ],
         "type": "object",
         "properties": {
           "targetType": {
@@ -10875,7 +11297,10 @@
         "description": "创建评价请求"
       },
       "CreateRoleRequest": {
-        "required": ["roleCode", "roleName"],
+        "required": [
+          "roleCode",
+          "roleName"
+        ],
         "type": "object",
         "properties": {
           "roleCode": {
@@ -10903,7 +11328,10 @@
         "description": "创建角色请求"
       },
       "CreateRouteContainerRequest": {
-        "required": ["routeCode", "title"],
+        "required": [
+          "routeCode",
+          "title"
+        ],
         "type": "object",
         "properties": {
           "routeCode": {
@@ -10992,7 +11420,9 @@
         "description": "创建路线容器请求（新链路手动后台入口，不绑定具体玩法）"
       },
       "CreateRouteStageRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "stageNo": {
@@ -11063,7 +11493,10 @@
         "additionalProperties": false
       },
       "CreateStoryRequest": {
-        "required": ["content", "routeId"],
+        "required": [
+          "content",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -11116,7 +11549,10 @@
         "description": "创建背景故事请求"
       },
       "CreateTagRequest": {
-        "required": ["name", "tagCode"],
+        "required": [
+          "name",
+          "tagCode"
+        ],
         "type": "object",
         "properties": {
           "tagCode": {
@@ -11159,7 +11595,9 @@
         "description": "创建标签请求"
       },
       "CreateTeamRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -11182,850 +11620,43 @@
         "additionalProperties": false,
         "description": "创建队伍请求"
       },
-      "CuratorApproveRequest": {
-        "type": "object",
-        "properties": {
-          "styleVersionId": {
-            "type": "integer",
-            "format": "int64",
-            "nullable": true
-          },
-          "voiceVersionId": {
-            "type": "integer",
-            "format": "int64",
-            "nullable": true
-          },
-          "bindPrimaryGuide": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorMaterialListResponse": {
-        "type": "object",
-        "properties": {
-          "total": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CuratorMaterialResponse"
-            },
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorMaterialListResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorMaterialListResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorMaterialResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "nullable": true
-          },
-          "attachmentId": {
-            "type": "string",
-            "nullable": true
-          },
-          "fileName": {
-            "type": "string",
-            "nullable": true
-          },
-          "fileSize": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "mimeType": {
-            "type": "string",
-            "nullable": true
-          },
-          "materialType": {
-            "type": "string",
-            "nullable": true
-          },
-          "sha256": {
-            "type": "string",
-            "nullable": true
-          },
-          "processingStatus": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorMaterialResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorMaterialResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorProcessCancelRequest": {
-        "type": "object",
-        "properties": {
-          "runId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorProcessDetailResponse": {
-        "type": "object",
-        "properties": {
-          "runId": {
-            "type": "string",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "progressPercent": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "pipelineVersion": {
-            "type": "string",
-            "nullable": true
-          },
-          "steps": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CuratorProcessStepResponse"
-            },
-            "nullable": true
-          },
-          "errorCode": {
-            "type": "string",
-            "nullable": true
-          },
-          "errorMessage": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorProcessDetailResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorProcessDetailResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorProcessRequest": {
-        "type": "object",
-        "properties": {
-          "materialIds": {
-            "minItems": 1,
-            "type": "array",
-            "items": {
-              "type": "integer",
-              "format": "int64"
-            },
-            "nullable": true
-          },
-          "operations": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorProcessResponse": {
-        "type": "object",
-        "properties": {
-          "runId": {
-            "type": "string",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "reused": {
-            "type": "boolean"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorProcessResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorProcessResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorProcessRetryRequest": {
-        "type": "object",
-        "properties": {
-          "runId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          },
-          "stepId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorProcessStepResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "nullable": true
-          },
-          "stepCode": {
-            "type": "string",
-            "nullable": true
-          },
-          "taskId": {
-            "type": "string",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "attemptCount": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "errorCode": {
-            "type": "string",
-            "nullable": true
-          },
-          "errorMessage": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorRejectRequest": {
-        "required": ["reason"],
-        "type": "object",
-        "properties": {
-          "styleVersionId": {
-            "type": "integer",
-            "format": "int64",
-            "nullable": true
-          },
-          "voiceVersionId": {
-            "type": "integer",
-            "format": "int64",
-            "nullable": true
-          },
-          "reason": {
-            "maxLength": 1000,
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorStylePreviewResponse": {
-        "type": "object",
-        "properties": {
-          "versionId": {
-            "type": "string",
-            "nullable": true
-          },
-          "version": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "structuredProfileJson": {
-            "type": "string",
-            "nullable": true
-          },
-          "renderedSemanticProfile": {
-            "type": "string",
-            "nullable": true
-          },
-          "confidence": {
-            "type": "number",
-            "format": "double"
-          },
-          "reviewStatus": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "sourceMaterialIdsJson": {
-            "type": "string",
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorStylePreviewResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorStylePreviewResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorTranscriptResponse": {
-        "type": "object",
-        "properties": {
-          "materialId": {
-            "type": "string",
-            "nullable": true
-          },
-          "outputId": {
-            "type": "string",
-            "nullable": true
-          },
-          "text": {
-            "type": "string",
-            "nullable": true
-          },
-          "metadataJson": {
-            "type": "string",
-            "nullable": true
-          },
-          "isManualRevision": {
-            "type": "boolean"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorTranscriptResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorTranscriptResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorTranscriptRevisionRequest": {
-        "required": ["text"],
-        "type": "object",
-        "properties": {
-          "materialId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          },
-          "text": {
-            "maxLength": 200000,
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadAbortRequest": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadCompleteRequest": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          },
-          "parts": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CuratorUploadPart"
-            },
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadInitRequest": {
-        "required": ["fileName", "mimeType", "sha256"],
-        "type": "object",
-        "properties": {
-          "fileName": {
-            "maxLength": 512,
-            "minLength": 1,
-            "type": "string"
-          },
-          "fileSize": {
-            "maximum": 524288000,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          },
-          "mimeType": {
-            "maxLength": 128,
-            "minLength": 1,
-            "type": "string"
-          },
-          "sha256": {
-            "minLength": 1,
-            "pattern": "^[a-fA-F0-9]{64}$",
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadInitResponse": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "type": "string",
-            "nullable": true
-          },
-          "objectKey": {
-            "type": "string",
-            "nullable": true
-          },
-          "multipart": {
-            "type": "boolean"
-          },
-          "partSize": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "partCount": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "uploadUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadInitResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorUploadInitResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadPart": {
-        "required": ["eTag"],
-        "type": "object",
-        "properties": {
-          "partNumber": {
-            "maximum": 10000,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32"
-          },
-          "eTag": {
-            "maxLength": 256,
-            "minLength": 1,
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadPartSignRequest": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          },
-          "partNumber": {
-            "maximum": 10000,
-            "minimum": 1,
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadPartSignResponse": {
-        "type": "object",
-        "properties": {
-          "sessionId": {
-            "type": "string",
-            "nullable": true
-          },
-          "partNumber": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "uploadUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorUploadPartSignResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorUploadPartSignResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorVoiceGrantRequest": {
-        "required": ["granteeType", "permissionScope"],
-        "type": "object",
-        "properties": {
-          "voiceVersionId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          },
-          "granteeType": {
-            "minLength": 1,
-            "pattern": "^(guide|admin)$",
-            "type": "string"
-          },
-          "granteeId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          },
-          "permissionScope": {
-            "minLength": 1,
-            "pattern": "^(preview|tts_use|manage)$",
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorVoiceGrantResponse": {
-        "type": "object",
-        "properties": {
-          "grantId": {
-            "type": "string",
-            "nullable": true
-          },
-          "status": {
-            "type": "integer",
-            "format": "int32"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorVoiceGrantResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorVoiceGrantResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorVoiceRevokeRequest": {
-        "type": "object",
-        "properties": {
-          "grantId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorVoiceSetDefaultRequest": {
-        "type": "object",
-        "properties": {
-          "voiceVersionId": {
-            "minimum": 1,
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorVoiceVersionResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "nullable": true
-          },
-          "ttsVoiceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "versionNo": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "providerVoiceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "voiceName": {
-            "type": "string",
-            "nullable": true
-          },
-          "reviewStatus": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "isDefault": {
-            "type": "boolean"
-          },
-          "previewAttachmentId": {
-            "type": "string",
-            "nullable": true
-          },
-          "previewUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorVoiceVersionResponseApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "$ref": "#/components/schemas/CuratorVoiceVersionResponse"
-          }
-        },
-        "additionalProperties": false
-      },
-      "CuratorVoiceVersionResponseListApiResponse": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string",
-            "nullable": true
-          },
-          "traceId": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CuratorVoiceVersionResponse"
-            },
-            "nullable": true
-          }
-        },
-        "additionalProperties": false
-      },
       "DashboardOverviewResponse": {
         "type": "object",
         "properties": {
           "userTotal": {
             "type": "integer",
             "description": "用户总数",
-            "format": "int64"
+            "format": "int32"
           },
           "exhibitTotal": {
             "type": "integer",
             "description": "展品总数",
-            "format": "int64"
+            "format": "int32"
           },
           "puzzleTotal": {
             "type": "integer",
             "description": "谜题总数",
-            "format": "int64"
+            "format": "int32"
           },
           "routeTotal": {
             "type": "integer",
             "description": "路线总数",
-            "format": "int64"
+            "format": "int32"
           },
           "publishedRouteTotal": {
             "type": "integer",
             "description": "已发布路线数",
-            "format": "int64"
+            "format": "int32"
           },
           "sessionTotal": {
             "type": "integer",
             "description": "游戏场次总数",
-            "format": "int64"
+            "format": "int32"
           },
           "completedSessionTotal": {
             "type": "integer",
             "description": "已完成场次数",
-            "format": "int64"
+            "format": "int32"
           },
           "completionRate": {
             "type": "number",
@@ -12035,12 +11666,12 @@
           "badgeGrantTotal": {
             "type": "integer",
             "description": "徽章颁发总数",
-            "format": "int64"
+            "format": "int32"
           },
           "teamTotal": {
             "type": "integer",
             "description": "组队总数",
-            "format": "int64"
+            "format": "int32"
           }
         },
         "additionalProperties": false,
@@ -12211,8 +11842,200 @@
         "additionalProperties": false,
         "description": "AI 文物档案响应（来自 exhibit_ai_archive）"
       },
+      "ExhibitChatMessageResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "runId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sequenceNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExhibitChatSourceResponse"
+            },
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitChatMessageResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExhibitChatMessageResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitChatSendRequest": {
+        "required": [
+          "clientMessageId",
+          "message",
+          "sessionId"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "clientMessageId": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitChatSessionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "museumId": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "messageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastActiveAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitChatSessionResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ExhibitChatSessionResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitChatSessionResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExhibitChatSessionResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitChatSourceResponse": {
+        "type": "object",
+        "properties": {
+          "exhibitId": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "formalName": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "ExhibitExtraItem": {
-        "required": ["attrKey"],
+        "required": [
+          "attrKey"
+        ],
         "type": "object",
         "properties": {
           "attrKey": {
@@ -12277,7 +12100,10 @@
         "description": "展品扩展属性响应项"
       },
       "ExhibitGameplayItem": {
-        "required": ["exhibitId", "gameplayType"],
+        "required": [
+          "exhibitId",
+          "gameplayType"
+        ],
         "type": "object",
         "properties": {
           "exhibitId": {
@@ -13349,7 +13175,10 @@
         "additionalProperties": false
       },
       "GrantBadgeRequest": {
-        "required": ["badgeId", "userId"],
+        "required": [
+          "badgeId",
+          "userId"
+        ],
         "type": "object",
         "properties": {
           "userId": {
@@ -13367,7 +13196,10 @@
         "description": "后台手动颁发徽章"
       },
       "GrantCollectibleRequest": {
-        "required": ["collectibleId", "userId"],
+        "required": [
+          "collectibleId",
+          "userId"
+        ],
         "type": "object",
         "properties": {
           "userId": {
@@ -13859,6 +13691,244 @@
         "additionalProperties": false,
         "description": "游客登录请求 (扫码即用，无需注册)"
       },
+      "GuideAsrByAttachmentRequest": {
+        "required": [
+          "attachmentId"
+        ],
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "已上传的私有 MP3 附件 ID（通过 /api/Upload/UploadFile 获得）"
+          }
+        },
+        "additionalProperties": false,
+        "description": "上传 MP3 附件后直接排队 ASR 转录。"
+      },
+      "GuideGenerationCreateResponse": {
+        "type": "object",
+        "properties": {
+          "guideId": {
+            "type": "string",
+            "nullable": true
+          },
+          "materialId": {
+            "type": "string",
+            "nullable": true
+          },
+          "runId": {
+            "type": "string",
+            "nullable": true
+          },
+          "generationStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "voiceStatus": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationCreateResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GuideGenerationCreateResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationRetryRequest": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationStatusResponse": {
+        "type": "object",
+        "properties": {
+          "guideId": {
+            "type": "string",
+            "nullable": true
+          },
+          "runId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "progressPercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideGenerationStepResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationStatusResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GuideGenerationStatusResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationStepResponse": {
+        "type": "object",
+        "properties": {
+          "stepCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationTestEnqueueResponse": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "nullable": true
+          },
+          "runId": {
+            "type": "string",
+            "nullable": true
+          },
+          "materialId": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetTaskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GuideGenerationTestStepResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationTestEnqueueResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GuideGenerationTestEnqueueResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationTestRequest": {
+        "type": "object",
+        "properties": {
+          "materialId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GuideGenerationTestStepResponse": {
+        "type": "object",
+        "properties": {
+          "stepCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "GuideResponse": {
         "type": "object",
         "properties": {
@@ -13887,6 +13957,10 @@
             "nullable": true
           },
           "semanticProfile": {
+            "type": "string",
+            "nullable": true
+          },
+          "styleProfileJson": {
             "type": "string",
             "nullable": true
           },
@@ -13933,6 +14007,22 @@
           "voiceStatus": {
             "type": "integer",
             "format": "int32"
+          },
+          "generationRunId": {
+            "type": "string",
+            "nullable": true
+          },
+          "generationStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "generationProgress": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "generationError": {
+            "type": "string",
+            "nullable": true
           },
           "isSystemDefault": {
             "type": "integer",
@@ -14085,7 +14175,9 @@
         "description": "数据看板 — 热门藏品（被解谜引用次数）"
       },
       "IdListRequest": {
-        "required": ["ids"],
+        "required": [
+          "ids"
+        ],
         "type": "object",
         "properties": {
           "ids": {
@@ -14133,7 +14225,9 @@
         "additionalProperties": false
       },
       "JoinRouteRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -14306,7 +14400,9 @@
         "description": "排行榜单条目"
       },
       "LeaderboardQueryRequest": {
-        "required": ["type"],
+        "required": [
+          "type"
+        ],
         "type": "object",
         "properties": {
           "type": {
@@ -14315,9 +14411,8 @@
             "format": "int32"
           },
           "routeId": {
-            "type": "integer",
+            "type": "string",
             "description": "路线 ID（Type=1/3 时必填）",
-            "format": "int64",
             "nullable": true
           },
           "top": {
@@ -14381,7 +14476,10 @@
         "additionalProperties": false
       },
       "LoginRequest": {
-        "required": ["account", "password"],
+        "required": [
+          "account",
+          "password"
+        ],
         "type": "object",
         "properties": {
           "account": {
@@ -14459,7 +14557,7 @@
           "expiresIn": {
             "type": "integer",
             "description": "AccessToken 过期秒数",
-            "format": "int64"
+            "format": "int32"
           }
         },
         "additionalProperties": false,
@@ -14498,7 +14596,10 @@
         "additionalProperties": false
       },
       "MoveRouteStageRequest": {
-        "required": ["id", "targetRouteId"],
+        "required": [
+          "id",
+          "targetRouteId"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -14917,7 +15018,9 @@
         "additionalProperties": false
       },
       "NarrationStageRequest": {
-        "required": ["stageId"],
+        "required": [
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "stageId": {
@@ -14991,7 +15094,9 @@
         "description": "发布形象响应"
       },
       "PublishRouteRequest": {
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -15069,12 +15174,12 @@
           "attemptCount": {
             "type": "integer",
             "description": "尝试次数",
-            "format": "int64"
+            "format": "int32"
           },
           "correctCount": {
             "type": "integer",
             "description": "正确次数",
-            "format": "int64"
+            "format": "int32"
           },
           "correctRate": {
             "type": "number",
@@ -15086,7 +15191,10 @@
         "description": "数据看板 — 卡点谜题（正确率低/尝试多）"
       },
       "RecordChallengeIntroVideoRequest": {
-        "required": ["challengeId", "routeId"],
+        "required": [
+          "challengeId",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -15112,7 +15220,10 @@
         "additionalProperties": false
       },
       "RecordRouteActivityRequest": {
-        "required": ["activityType", "routeId"],
+        "required": [
+          "activityType",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -15156,7 +15267,9 @@
         "description": "路线弱行为上报请求（进入/离开节点、恢复路线等）"
       },
       "RefreshTokenRequest": {
-        "required": ["refreshToken"],
+        "required": [
+          "refreshToken"
+        ],
         "type": "object",
         "properties": {
           "refreshToken": {
@@ -15169,7 +15282,9 @@
         "description": "刷新令牌请求"
       },
       "RegisterRequest": {
-        "required": ["password"],
+        "required": [
+          "password"
+        ],
         "type": "object",
         "properties": {
           "username": {
@@ -15218,7 +15333,10 @@
         "description": "注册请求 (用户名/手机号/邮箱 至少其一 + 密码)"
       },
       "ReorderRouteStagesRequest": {
-        "required": ["orderedStageIds", "routeId"],
+        "required": [
+          "orderedStageIds",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -15236,7 +15354,10 @@
         "additionalProperties": false
       },
       "ReorderTreasureChallengesRequest": {
-        "required": ["orderedChallengeIds", "routeId"],
+        "required": [
+          "orderedChallengeIds",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -15254,7 +15375,10 @@
         "additionalProperties": false
       },
       "ReplyFeedbackRequest": {
-        "required": ["id", "replyContent"],
+        "required": [
+          "id",
+          "replyContent"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -15301,7 +15425,10 @@
         "description": "评价分页查询请求（后台）"
       },
       "ReviewQueryRequest": {
-        "required": ["targetId", "targetType"],
+        "required": [
+          "targetId",
+          "targetType"
+        ],
         "type": "object",
         "properties": {
           "pageIndex": {
@@ -16119,7 +16246,7 @@
           "currentTotalPoints": {
             "type": "integer",
             "description": "当前用户个人总积分",
-            "format": "int64"
+            "format": "int32"
           },
           "solvedCount": {
             "type": "integer",
@@ -16348,7 +16475,9 @@
         "additionalProperties": false
       },
       "RouteStagePageRequest": {
-        "required": ["routeId"],
+        "required": [
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "pageIndex": {
@@ -16453,12 +16582,12 @@
           "startCount": {
             "type": "integer",
             "description": "开始次数",
-            "format": "int64"
+            "format": "int32"
           },
           "completeCount": {
             "type": "integer",
             "description": "完成次数",
-            "format": "int64"
+            "format": "int32"
           },
           "completionRate": {
             "type": "number",
@@ -16475,12 +16604,14 @@
         "description": "数据看板 — 路线维度"
       },
       "SaveGuideRequest": {
-        "required": ["guideCode", "name"],
+        "required": [
+          "name"
+        ],
         "type": "object",
         "properties": {
           "guideCode": {
-            "minLength": 1,
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "name": {
             "minLength": 1,
@@ -16568,7 +16699,10 @@
         "additionalProperties": false
       },
       "SetTargetTagsRequest": {
-        "required": ["targetId", "targetType"],
+        "required": [
+          "targetId",
+          "targetType"
+        ],
         "type": "object",
         "properties": {
           "targetType": {
@@ -17010,7 +17144,10 @@
         "description": "前端节点协议元信息"
       },
       "StageSubmitRequest": {
-        "required": ["routeId", "stageId"],
+        "required": [
+          "routeId",
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -17079,9 +17216,8 @@
             "format": "int32"
           },
           "currentTotalPoints": {
-            "type": "integer",
+            "type": "string",
             "description": "本次响应后的个人总积分",
-            "format": "int64",
             "nullable": true
           },
           "awardedBadges": {
@@ -17613,7 +17749,9 @@
         "additionalProperties": false
       },
       "TreasureChallengeEditItemRequest": {
-        "required": ["challengeId"],
+        "required": [
+          "challengeId"
+        ],
         "type": "object",
         "properties": {
           "challengeId": {
@@ -17811,7 +17949,11 @@
         "additionalProperties": false
       },
       "UnlockHintRequest": {
-        "required": ["clueId", "routeId", "stageId"],
+        "required": [
+          "clueId",
+          "routeId",
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -17889,7 +18031,11 @@
         "additionalProperties": false
       },
       "UpdateBadgeRequest": {
-        "required": ["badgeCode", "id", "name"],
+        "required": [
+          "badgeCode",
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "badgeCode": {
@@ -17970,7 +18116,11 @@
         "description": "更新徽章请求"
       },
       "UpdateCollectibleRequest": {
-        "required": ["collectibleCode", "id", "name"],
+        "required": [
+          "collectibleCode",
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "collectibleCode": {
@@ -18048,7 +18198,12 @@
         "description": "更新收集品请求"
       },
       "UpdateExhibitRequest": {
-        "required": ["exhibitCode", "id", "museumId", "name"],
+        "required": [
+          "exhibitCode",
+          "id",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -18143,7 +18298,11 @@
         "description": "更新展品请求"
       },
       "UpdateFacilityRequest": {
-        "required": ["id", "museumId", "name"],
+        "required": [
+          "id",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -18191,7 +18350,11 @@
         "description": "更新服务设施请求"
       },
       "UpdateFloorRequest": {
-        "required": ["floorCode", "id", "museumId"],
+        "required": [
+          "floorCode",
+          "id",
+          "museumId"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -18239,7 +18402,12 @@
         "description": "更新楼层请求"
       },
       "UpdateGalleryRequest": {
-        "required": ["galleryCode", "id", "museumId", "name"],
+        "required": [
+          "galleryCode",
+          "id",
+          "museumId",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumId": {
@@ -18326,7 +18494,10 @@
         "description": "更新展馆请求"
       },
       "UpdateGameplaySkillRequest": {
-        "required": ["content", "routeType"],
+        "required": [
+          "content",
+          "routeType"
+        ],
         "type": "object",
         "properties": {
           "routeType": {
@@ -18349,12 +18520,15 @@
         "description": "玩法 skill 更新请求"
       },
       "UpdateGuideRequest": {
-        "required": ["guideCode", "id", "name"],
+        "required": [
+          "id",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "guideCode": {
-            "minLength": 1,
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "name": {
             "minLength": 1,
@@ -18452,7 +18626,11 @@
         "additionalProperties": false
       },
       "UpdateMuseumRequest": {
-        "required": ["id", "museumCode", "name"],
+        "required": [
+          "id",
+          "museumCode",
+          "name"
+        ],
         "type": "object",
         "properties": {
           "museumCode": {
@@ -18566,8 +18744,110 @@
         "additionalProperties": false,
         "description": "更新博物馆请求"
       },
+      "UpdateNarrationStageRequest": {
+        "required": [
+          "stageId"
+        ],
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "subtitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "exhibitId": {
+            "type": "string",
+            "nullable": true
+          },
+          "guideId": {
+            "type": "string",
+            "nullable": true
+          },
+          "userStyleInput": {
+            "type": "string",
+            "nullable": true
+          },
+          "sceneContext": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetDurationSeconds": {
+            "maximum": 600,
+            "minimum": 10,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "编辑 interaction_type=11 的节点，并同步已有的解说产物元数据。"
+      },
+      "UpdateNarrationStageResponse": {
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "narrationUpdated": {
+            "type": "boolean"
+          },
+          "narrationReset": {
+            "type": "boolean"
+          },
+          "guideId": {
+            "type": "string",
+            "nullable": true
+          },
+          "resolvedStyle": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateNarrationStageResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/UpdateNarrationStageResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateNarrationTextRequest": {
-        "required": ["narrationText", "stageId"],
+        "required": [
+          "narrationText",
+          "stageId"
+        ],
         "type": "object",
         "properties": {
           "stageId": {
@@ -18627,7 +18907,11 @@
         "description": "更新用户资料请求"
       },
       "UpdateRoleRequest": {
-        "required": ["id", "roleCode", "roleName"],
+        "required": [
+          "id",
+          "roleCode",
+          "roleName"
+        ],
         "type": "object",
         "properties": {
           "roleCode": {
@@ -18660,7 +18944,11 @@
         "description": "更新角色请求"
       },
       "UpdateRouteRequest": {
-        "required": ["id", "routeCode", "title"],
+        "required": [
+          "id",
+          "routeCode",
+          "title"
+        ],
         "type": "object",
         "properties": {
           "routeCode": {
@@ -18754,7 +19042,10 @@
         "description": "更新路线请求"
       },
       "UpdateRouteStageRequest": {
-        "required": ["id", "routeId"],
+        "required": [
+          "id",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "stageNo": {
@@ -18835,7 +19126,11 @@
         "additionalProperties": false
       },
       "UpdateStoryRequest": {
-        "required": ["content", "id", "routeId"],
+        "required": [
+          "content",
+          "id",
+          "routeId"
+        ],
         "type": "object",
         "properties": {
           "routeId": {
@@ -18893,7 +19188,11 @@
         "description": "更新背景故事请求"
       },
       "UpdateTagRequest": {
-        "required": ["id", "name", "tagCode"],
+        "required": [
+          "id",
+          "name",
+          "tagCode"
+        ],
         "type": "object",
         "properties": {
           "tagCode": {
@@ -19211,7 +19510,7 @@
           "totalPoints": {
             "type": "integer",
             "description": "累计积分",
-            "format": "int64"
+            "format": "int32"
           },
           "status": {
             "type": "integer",
@@ -19282,6 +19581,10 @@
       "description": "收集系统 — 图鉴(公开)/我的收集 + 后台收集品管理"
     },
     {
+      "name": "ExhibitChat",
+      "description": "C 端馆藏文物多轮问答，只回答服务端固定博物馆内的文物资料。"
+    },
+    {
       "name": "Exhibit",
       "description": "展品/文物 — 公开查询匿名，管理操作需登录"
     },
@@ -19304,6 +19607,10 @@
     {
       "name": "Guide",
       "description": "导游与 TTS 音色管理。"
+    },
+    {
+      "name": "GuideGenerationTest",
+      "description": "Queues isolated Guide ASR, style extraction, and voice clone workflows for integration testing."
     },
     {
       "name": "Leaderboard",

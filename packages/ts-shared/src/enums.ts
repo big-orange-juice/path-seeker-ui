@@ -1,76 +1,194 @@
-﻿/**
- * 这个文件放跨应用稳定共享的产品词汇。
+/**
+ * 跨应用稳定共享的产品 / 后端对齐枚举。
  *
- * 要特别注意边界：
- * - 这里放的是前端选定的领域枚举
- * - 不是后端 swagger 整数枚举的原样拷贝
- * - 每个应用都应该在 API adapter 里把后端数值映射成这里的字面量
+ * 约定：
+ * - difficultyLevel / scaleType 等与后端 int 字段对齐，以 number code 为唯一真相
+ * - 展示文案统一用 label，双端不得各写一套
+ * - L1/L2/L3 仅作历史产品键兼容，新代码优先用 code
  */
 
 /**
- * 年龄档。
- *
- * 这里直接使用产品文档里的展示值，原因是它们会同时出现在：
- * - 后台筛选项
- * - 小程序任务筛选
- * - mock 数据
- * - 埋点标签
+ * 年龄档（产品展示值）。
  */
 export type AgeBand = "6-10" | "10-15" | "15+"
 
-/**
- * 固定顺序的年龄档列表。
- *
- * 用于筛选栏、下拉框和需要稳定排序的展示场景。
- */
 export const AGE_BANDS: readonly AgeBand[] = ["6-10", "10-15", "15+"]
 
-/**
- * 难度档。
- *
- * 对齐当前简化后的产品策略：
- * - L1：快速上手，重观察
- * - L2：需要关联多个线索，但不明显劝退
- * - L3：作为高峰挑战使用
- */
+// ---------------------------------------------------------------------------
+// 难度 difficultyLevel：1=简单 2=中等 3=困难
+// ---------------------------------------------------------------------------
+
+export type DifficultyLevelCode = 1 | 2 | 3
+
+/** 历史产品键，映射到 difficultyLevel code */
 export type DifficultyLevel = "L1" | "L2" | "L3"
 
-/**
- * 固定顺序的难度列表。
- */
+export const DIFFICULTY_LEVEL = {
+  Easy: 1,
+  Medium: 2,
+  Hard: 3,
+} as const
+
 export const DIFFICULTY_LEVELS: readonly DifficultyLevel[] = ["L1", "L2", "L3"]
+
+export const DIFFICULTY_LEVEL_CODES: readonly DifficultyLevelCode[] = [1, 2, 3]
+
+export interface DifficultyLevelOption {
+  value: DifficultyLevelCode
+  key: DifficultyLevel
+  label: string
+}
+
+/** 双端下拉 / 筛选用 */
+export const DIFFICULTY_LEVEL_OPTIONS: readonly DifficultyLevelOption[] = [
+  { value: 1, key: "L1", label: "简单" },
+  { value: 2, key: "L2", label: "中等" },
+  { value: 3, key: "L3", label: "困难" },
+] as const
+
+const DIFFICULTY_CODE_TO_KEY: Record<DifficultyLevelCode, DifficultyLevel> = {
+  1: "L1",
+  2: "L2",
+  3: "L3",
+}
+
+const DIFFICULTY_KEY_TO_CODE: Record<DifficultyLevel, DifficultyLevelCode> = {
+  L1: 1,
+  L2: 2,
+  L3: 3,
+}
+
+const DIFFICULTY_LABEL_BY_CODE: Record<DifficultyLevelCode, string> = {
+  1: "简单",
+  2: "中等",
+  3: "困难",
+}
+
+export function isDifficultyLevelCode(value: unknown): value is DifficultyLevelCode {
+  return value === 1 || value === 2 || value === 3
+}
+
+export function isDifficultyLevelKey(value: unknown): value is DifficultyLevel {
+  return value === "L1" || value === "L2" || value === "L3"
+}
+
+/** 任意输入 → 合法 code，非法回落默认中等 */
+export function toDifficultyLevelCode(
+  value?: number | string | null,
+  fallback: DifficultyLevelCode = 2,
+): DifficultyLevelCode {
+  if (isDifficultyLevelKey(value)) {
+    return DIFFICULTY_KEY_TO_CODE[value]
+  }
+
+  const num = typeof value === "number" ? value : Number(value)
+  if (isDifficultyLevelCode(num)) {
+    return num
+  }
+
+  return fallback
+}
+
+export function difficultyLevelCodeToKey(code?: number | null): DifficultyLevel {
+  return DIFFICULTY_CODE_TO_KEY[toDifficultyLevelCode(code)]
+}
+
+export function difficultyLevelKeyToCode(key: DifficultyLevel): DifficultyLevelCode {
+  return DIFFICULTY_KEY_TO_CODE[key]
+}
+
+/** 展示文案：支持 code 或 L1/L2/L3 */
+export function getDifficultyLevelLabel(value?: number | string | null): string {
+  if (value === null || value === undefined || value === "") {
+    return "未设置"
+  }
+
+  if (isDifficultyLevelKey(value)) {
+    return DIFFICULTY_LABEL_BY_CODE[DIFFICULTY_KEY_TO_CODE[value]]
+  }
+
+  const code = toDifficultyLevelCode(value)
+  return DIFFICULTY_LABEL_BY_CODE[code] ?? "未设置"
+}
+
+// ---------------------------------------------------------------------------
+// 规模 scaleType：1=小型 2=中型 3=大型
+// ---------------------------------------------------------------------------
+
+export type ScaleTypeCode = 1 | 2 | 3
+
+export const SCALE_TYPE = {
+  Small: 1,
+  Medium: 2,
+  Large: 3,
+} as const
+
+export const SCALE_TYPE_CODES: readonly ScaleTypeCode[] = [1, 2, 3]
+
+export interface ScaleTypeOption {
+  value: ScaleTypeCode
+  label: string
+}
+
+export const SCALE_TYPE_OPTIONS: readonly ScaleTypeOption[] = [
+  { value: 1, label: "小型" },
+  { value: 2, label: "中型" },
+  { value: 3, label: "大型" },
+] as const
+
+const SCALE_LABEL_BY_CODE: Record<ScaleTypeCode, string> = {
+  1: "小型",
+  2: "中型",
+  3: "大型",
+}
+
+export function isScaleTypeCode(value: unknown): value is ScaleTypeCode {
+  return value === 1 || value === 2 || value === 3
+}
+
+export function toScaleTypeCode(
+  value?: number | string | null,
+  fallback: ScaleTypeCode = 2,
+): ScaleTypeCode {
+  const num = typeof value === "number" ? value : Number(value)
+  if (isScaleTypeCode(num)) {
+    return num
+  }
+
+  return fallback
+}
+
+export function getScaleTypeLabel(value?: number | string | null): string {
+  if (value === null || value === undefined || value === "") {
+    return "未设置"
+  }
+
+  const code = toScaleTypeCode(value)
+  return SCALE_LABEL_BY_CODE[code] ?? "未设置"
+}
+
+// ---------------------------------------------------------------------------
+// 其它既有枚举
+// ---------------------------------------------------------------------------
 
 /**
  * 提示层级。
- *
- * 命名直接按玩家体验来定义，而不是按算法步骤来定义。这样在渲染器、
- * 埋点和后台配置里都能保持一致的可读性。
  */
 export type HintLevel = "observe" | "relation" | "direct"
 
-/**
- * 固定顺序的提示层级列表。
- */
 export const HINT_LEVELS: readonly HintLevel[] = ["observe", "relation", "direct"]
 
 /**
  * 游玩会话状态。
- *
- * 后端当前暴露的是数值状态，这里统一映射成前端可读字面量，避免
- * store 和组件里到处判断魔法数字。
  */
 export type PlaySessionStatus = "not_started" | "in_progress" | "completed"
 
 /**
  * 发布状态。
- *
- * 主要给后台列表和流程状态展示使用。
  */
 export type PublishStatus = "draft" | "reviewing" | "published" | "archived"
 
 /**
  * 奖励稀有度。
- *
- * 这个概念会同时出现在奖励页和后台配置页，足够稳定，适合下沉到共享层。
  */
 export type RewardRarity = "common" | "rare" | "epic" | "legendary"

@@ -356,7 +356,10 @@ export interface NarrationRendererDraft {
   title?: string
   narrationText?: string
   sceneContext?: string
+  /** @deprecated 已改为导游选择；保留兼容旧草稿 */
   style?: string
+  guideId?: string
+  guideName?: string
   targetDurationSeconds?: number
 }
 

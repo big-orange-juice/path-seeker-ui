@@ -1,13 +1,15 @@
 import { computed, reactive, shallowRef, toRefs, watch } from 'vue'
 import { useApiClient } from '@/composables/useApiClient'
-import type {
-  GuideDraft,
-  GuideListQuery,
-  GuideRecord,
-  GuideResponse,
-  GuideResponseListTotalPageResult,
-  SaveGuideRequest,
-  UpdateGuideRequest,
+import {
+  GUIDE_GENERATION_STATUS,
+  isGuideGenerationIncomplete,
+  type GuideDraft,
+  type GuideGenerationCreateResponse,
+  type GuideListQuery,
+  type GuideRecord,
+  type GuideResponse,
+  type GuideResponseListTotalPageResult,
+  type TtsVoiceResponse,
 } from '@/types/guide'
 
 const DEFAULT_PAGE_SIZE = 20
@@ -16,51 +18,112 @@ const DEFAULT_VOICE_STATUS = 1
 
 const normalizeText = (value: string | null | undefined) => String(value ?? '').trim()
 
-const toNullableText = (value: string | null | undefined) => {
-  const text = normalizeText(value)
-  return text || null
+const appendFormField = (
+  formData: FormData,
+  key: string,
+  value: string | number | null | undefined,
+) => {
+  if (value === null || value === undefined) {
+    return
+  }
+  const text = String(value).trim()
+  if (!text && typeof value !== 'number') {
+    return
+  }
+  formData.append(key, String(value))
 }
 
-const toOptionalNumber = (value: number | null | undefined) => {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+/**
+ * 后端常返回 `/api/Guide/voice-preview?guideId=`（需鉴权的相对路径）。
+ * 转为 Nuxt 同源代理地址，供 `<audio>` 携带登录 cookie 播放。
+ */
+export const resolveGuideVoiceSamplePlayUrl = (
+  voiceSampleUrl: string | null | undefined,
+  guideId: string | null | undefined,
+): string | null => {
+  const raw = normalizeText(voiceSampleUrl)
+  const id = normalizeText(guideId)
+  if (!raw) {
     return null
   }
-  return Number(value)
+
+  // 已是本站代理地址
+  if (raw.startsWith('/api/guide/voice-preview')) {
+    return raw
+  }
+
+  // 公网直链可直接播
+  if (/^https?:\/\//i.test(raw) && !/\/api\/Guide\/voice-preview/i.test(raw)) {
+    return raw
+  }
+
+  let resolvedGuideId = id
+  try {
+    const parsed = new URL(raw, 'http://local.invalid')
+    const fromQuery = normalizeText(parsed.searchParams.get('guideId'))
+    if (fromQuery) {
+      resolvedGuideId = fromQuery
+    }
+  } catch {
+    // ignore parse errors
+  }
+
+  if (!resolvedGuideId) {
+    return null
+  }
+
+  return `/api/guide/voice-preview?guideId=${encodeURIComponent(resolvedGuideId)}`
 }
 
-export const mapGuideResponse = (item: GuideResponse): GuideRecord => ({
-  id: String(item.id ?? '').trim(),
-  guideCode: item.guideCode ?? '',
-  name: item.name ?? '',
-  avatarAttachmentId: item.avatarAttachmentId ? String(item.avatarAttachmentId) : null,
-  avatarUrl: item.avatarUrl ?? null,
-  description: item.description ?? '',
-  semanticProfile: item.semanticProfile ?? '',
-  voiceStyle: item.voiceStyle ?? '',
-  voiceProvider: item.voiceProvider ?? '',
-  providerVoiceId: item.providerVoiceId ?? '',
-  providerModel: item.providerModel ?? '',
-  voiceLanguage: item.voiceLanguage ?? '',
-  speechRate: item.speechRate ?? null,
-  volume: item.volume ?? null,
-  pitch: item.pitch ?? null,
-  voiceSampleAttachmentId: item.voiceSampleAttachmentId
-    ? String(item.voiceSampleAttachmentId)
-    : null,
-  voiceSampleUrl: item.voiceSampleUrl ?? null,
-  voiceStatus: item.voiceStatus ?? DEFAULT_VOICE_STATUS,
-  isSystemDefault: item.isSystemDefault ?? 0,
-  narrationStyle: item.narrationStyle ?? '',
-  status: item.status ?? DEFAULT_STATUS,
-  sortOrder: item.sortOrder ?? 0,
-  version: item.version ?? 1,
-  updatedAt: item.updatedAt ?? null,
-})
+export const mapGuideResponse = (item: GuideResponse): GuideRecord => {
+  const generationStatus =
+    typeof item.generationStatus === 'number'
+      ? item.generationStatus
+      : GUIDE_GENERATION_STATUS.Completed
+
+  const id = String(item.id ?? '').trim()
+
+  return {
+    id,
+    guideCode: item.guideCode ?? '',
+    name: item.name ?? '',
+    avatarAttachmentId: item.avatarAttachmentId ? String(item.avatarAttachmentId) : null,
+    avatarUrl: item.avatarUrl ?? null,
+    description: item.description ?? '',
+    semanticProfile: item.semanticProfile ?? '',
+    voiceStyle: item.voiceStyle ?? '',
+    voiceProvider: item.voiceProvider ?? '',
+    providerVoiceId: item.providerVoiceId ?? '',
+    providerModel: item.providerModel ?? '',
+    voiceLanguage: item.voiceLanguage ?? '',
+    speechRate: item.speechRate ?? null,
+    volume: item.volume ?? null,
+    pitch: item.pitch ?? null,
+    voiceSampleAttachmentId: item.voiceSampleAttachmentId
+      ? String(item.voiceSampleAttachmentId)
+      : null,
+    voiceSampleUrl: resolveGuideVoiceSamplePlayUrl(item.voiceSampleUrl, id),
+    voiceStatus: item.voiceStatus ?? DEFAULT_VOICE_STATUS,
+    generationRunId: item.generationRunId ? String(item.generationRunId) : null,
+    generationStatus,
+    generationProgress:
+      typeof item.generationProgress === 'number' ? item.generationProgress : null,
+    generationError: item.generationError ?? null,
+    isSystemDefault: item.isSystemDefault ?? 0,
+    narrationStyle: item.narrationStyle ?? '',
+    status: item.status ?? DEFAULT_STATUS,
+    sortOrder: item.sortOrder ?? 0,
+    version: item.version ?? 1,
+    updatedAt: item.updatedAt ?? null,
+    isGenerating: isGuideGenerationIncomplete(generationStatus),
+  }
+}
 
 export const createEmptyGuideDraft = (): GuideDraft => ({
   guideCode: '',
   name: '',
   avatarAttachmentId: null,
+  avatarPreviewUrl: null,
   description: '',
   semanticProfile: '',
   voiceStyle: '',
@@ -78,6 +141,8 @@ export const createEmptyGuideDraft = (): GuideDraft => ({
   status: DEFAULT_STATUS,
   sortOrder: 0,
   version: 1,
+  materialFile: null,
+  materialFileName: '',
 })
 
 export const createGuideDraftFromRecord = (record: GuideRecord): GuideDraft => ({
@@ -85,16 +150,17 @@ export const createGuideDraftFromRecord = (record: GuideRecord): GuideDraft => (
   guideCode: record.guideCode,
   name: record.name,
   avatarAttachmentId: record.avatarAttachmentId,
+  avatarPreviewUrl: record.avatarUrl,
   description: record.description,
   semanticProfile: record.semanticProfile,
   voiceStyle: record.voiceStyle,
   voiceProvider: record.voiceProvider,
   providerVoiceId: record.providerVoiceId,
   providerModel: record.providerModel,
-  voiceLanguage: record.voiceLanguage,
-  speechRate: record.speechRate,
-  volume: record.volume,
-  pitch: record.pitch,
+  voiceLanguage: record.voiceLanguage || 'zh-CN',
+  speechRate: record.speechRate ?? 1,
+  volume: record.volume ?? 1,
+  pitch: record.pitch ?? 1,
   voiceSampleAttachmentId: record.voiceSampleAttachmentId,
   voiceStatus: record.voiceStatus,
   isSystemDefault: record.isSystemDefault,
@@ -102,29 +168,45 @@ export const createGuideDraftFromRecord = (record: GuideRecord): GuideDraft => (
   status: record.status,
   sortOrder: record.sortOrder,
   version: record.version,
+  materialFile: null,
+  materialFileName: '',
 })
 
-const toSavePayload = (draft: GuideDraft): SaveGuideRequest => ({
-  guideCode: normalizeText(draft.guideCode),
-  name: normalizeText(draft.name),
-  avatarAttachmentId: toNullableText(draft.avatarAttachmentId),
-  description: toNullableText(draft.description),
-  semanticProfile: toNullableText(draft.semanticProfile),
-  voiceStyle: toNullableText(draft.voiceStyle),
-  voiceProvider: toNullableText(draft.voiceProvider),
-  providerVoiceId: toNullableText(draft.providerVoiceId),
-  providerModel: toNullableText(draft.providerModel),
-  voiceLanguage: toNullableText(draft.voiceLanguage),
-  speechRate: toOptionalNumber(draft.speechRate) ?? 1,
-  volume: toOptionalNumber(draft.volume) ?? 1,
-  pitch: toOptionalNumber(draft.pitch) ?? 1,
-  voiceSampleAttachmentId: toNullableText(draft.voiceSampleAttachmentId),
-  voiceStatus: draft.voiceStatus || DEFAULT_VOICE_STATUS,
-  isSystemDefault: draft.isSystemDefault ? 1 : 0,
-  narrationStyle: toNullableText(draft.narrationStyle),
-  status: draft.status || DEFAULT_STATUS,
-  sortOrder: Number.isFinite(draft.sortOrder) ? Number(draft.sortOrder) : 0,
-})
+const buildMaterialFormData = (draft: GuideDraft, mode: 'create' | 'edit') => {
+  const formData = new FormData()
+  const name = normalizeText(draft.name)
+
+  if (mode === 'edit') {
+    appendFormField(formData, 'Id', normalizeText(draft.id))
+    appendFormField(formData, 'Version', draft.version || 1)
+  }
+
+  appendFormField(formData, 'GuideCode', normalizeText(draft.guideCode) || undefined)
+  appendFormField(formData, 'Name', name)
+  appendFormField(formData, 'AvatarAttachmentId', draft.avatarAttachmentId)
+  appendFormField(formData, 'Description', draft.description)
+  appendFormField(formData, 'SemanticProfile', draft.semanticProfile)
+  appendFormField(formData, 'VoiceStyle', draft.voiceStyle)
+  appendFormField(formData, 'VoiceProvider', draft.voiceProvider)
+  appendFormField(formData, 'ProviderVoiceId', draft.providerVoiceId)
+  appendFormField(formData, 'ProviderModel', draft.providerModel)
+  appendFormField(formData, 'VoiceLanguage', draft.voiceLanguage || 'zh-CN')
+  appendFormField(formData, 'SpeechRate', draft.speechRate ?? 1)
+  appendFormField(formData, 'Volume', draft.volume ?? 1)
+  appendFormField(formData, 'Pitch', draft.pitch ?? 1)
+  appendFormField(formData, 'VoiceSampleAttachmentId', draft.voiceSampleAttachmentId)
+  appendFormField(formData, 'VoiceStatus', draft.voiceStatus || DEFAULT_VOICE_STATUS)
+  appendFormField(formData, 'IsSystemDefault', draft.isSystemDefault ? 1 : 0)
+  appendFormField(formData, 'NarrationStyle', draft.narrationStyle)
+  appendFormField(formData, 'Status', draft.status || DEFAULT_STATUS)
+  appendFormField(formData, 'SortOrder', Number.isFinite(draft.sortOrder) ? draft.sortOrder : 0)
+
+  if (draft.materialFile instanceof File) {
+    formData.append('material', draft.materialFile, draft.materialFile.name)
+  }
+
+  return formData
+}
 
 export const useGuideManagement = () => {
   const { request } = useApiClient()
@@ -209,41 +291,37 @@ export const useGuideManagement = () => {
     return detail ? mapGuideResponse(detail) : null
   }
 
-  const createGuide = async (draft: GuideDraft) => {
-    const payload = toSavePayload(draft)
-    const id = await request<string>('/api/guide/create', {
-      method: 'POST',
-      body: payload,
+  const fetchTtsVoices = async (keyword?: string) => {
+    const list = await request<TtsVoiceResponse[]>('/api/tts-voice/list', {
+      query: {
+        keyword: keyword?.trim() || undefined,
+      },
     })
-    await refresh()
-    return String(id || '').trim()
+    return Array.isArray(list) ? list : []
   }
 
-  const updateGuide = async (draft: GuideDraft) => {
-    const id = String(draft.id || '').trim()
-    if (!id) {
+  /** 异步创建/更新：拿到返回即可关闭弹窗并刷新列表 */
+  const saveGuide = async (draft: GuideDraft, mode: 'create' | 'edit') => {
+    const name = normalizeText(draft.name)
+    if (!name) {
+      throw new Error('请填写导游名称。')
+    }
+
+    if (mode === 'edit' && !normalizeText(draft.id)) {
       throw new Error('缺少导游 ID。')
     }
 
-    const payload: UpdateGuideRequest = {
-      ...toSavePayload(draft),
-      id,
-      version: draft.version || 1,
-    }
+    const formData = buildMaterialFormData(draft, mode)
+    const endpoint =
+      mode === 'edit' ? '/api/guide/update-with-material' : '/api/guide/create-with-material'
 
-    await request('/api/guide/update', {
+    const result = await request<GuideGenerationCreateResponse | null>(endpoint, {
       method: 'POST',
-      body: payload,
+      body: formData,
     })
-    await refresh()
-    return id
-  }
 
-  const saveGuide = async (draft: GuideDraft, mode: 'create' | 'edit') => {
-    if (mode === 'edit') {
-      return updateGuide(draft)
-    }
-    return createGuide(draft)
+    await refresh()
+    return result
   }
 
   const deleteGuide = async (id: string, replacementGuideId?: string | null) => {
@@ -271,6 +349,7 @@ export const useGuideManagement = () => {
     setPageSize,
     resetFilters,
     fetchGuideDetail,
+    fetchTtsVoices,
     saveGuide,
     deleteGuide,
     createEmptyGuideDraft,

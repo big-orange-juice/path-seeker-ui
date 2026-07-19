@@ -29,17 +29,22 @@ export interface RouteCardResponse {
   personaId?: string | null
 }
 
-export interface RoutePageQueryRequest {
+/**
+ * C 端已发布路线查询（对齐 schema PublishedRouteQueryRequest）。
+ * 不含 publishStatus / auditStatus，服务端固定返回已发布列表。
+ */
+export interface PublishedRouteQueryRequest {
   pageIndex: number
   pageSize: number
   museumId?: string | null
   scaleType?: number | null
   difficultyLevel?: number | null
   ageGroup?: number | null
-  publishStatus?: number | null
-  auditStatus?: number | null
   keyword?: string | null
 }
+
+/** @deprecated 请用 PublishedRouteQueryRequest；保留别名避免零散引用报错 */
+export type RoutePageQueryRequest = PublishedRouteQueryRequest
 
 export interface RoutePageResult {
   list?: RouteCardResponse[] | null
@@ -353,11 +358,17 @@ export const ROUTE_ACTIVITY_TYPE = {
   resumeRoute: 3,
 } as const
 
-export function fetchRoutePageList(payload: RoutePageQueryRequest) {
-  return request<RoutePageResult>("/api/Route/PageList", {
+/** C 端任务大厅：已发布路线分页列表 */
+export function fetchPublishedRoutes(payload: PublishedRouteQueryRequest) {
+  return request<RoutePageResult>("/api/Route/Published", {
     method: "POST",
     data: payload,
   })
+}
+
+/** @deprecated 请用 fetchPublishedRoutes */
+export function fetchRoutePageList(payload: PublishedRouteQueryRequest) {
+  return fetchPublishedRoutes(payload)
 }
 
 export function fetchRouteDetail(routeId: string) {

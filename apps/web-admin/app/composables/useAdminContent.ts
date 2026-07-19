@@ -75,7 +75,7 @@ const bModules: Array<Record<string, string>> = [
   { module: '基础数据管理', description: '维护博物馆、展馆楼层、展厅、展柜、标签和主题分类', value: '打通内容基础设施' },
   { module: '馆藏内容管理', description: '维护文物图文、音频、年代、材质、作者、故事和位置', value: '建立高质量内容底座' },
   { module: '主题剧本编排', description: '按主题、路线、时长将多个谜题组合成完整游戏', value: '形成 C 端可玩产品' },
-  { module: '审核与发布', description: '支持草稿、审核、发布、下线与版本管理', value: '控制内容质量' },
+  { module: '审核与发布', description: '支持未上架、审核、上架、下线与版本管理', value: '控制内容质量' },
 ];
 
 const cModuleColumns: TableColumn[] = [

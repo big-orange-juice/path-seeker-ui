@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { DIFFICULTY_LEVEL_OPTIONS } from '@path-seeker/ts-shared';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
@@ -13,6 +14,8 @@ import Textarea from '@/components/shadcn/textarea/Textarea.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import RouteChatWorkspace from '@/components/routes/RouteChatWorkspace.vue';
 import type { BuildRouteFromThemePayload } from '@/types/route';
+
+const difficultyOptions = DIFFICULTY_LEVEL_OPTIONS;
 
 interface MuseumOption {
   value: string;
@@ -100,7 +103,9 @@ watch(
       return;
     }
 
+    // 关闭时中断流式并清空表单/会话，避免下次打开残留上一次内容
     chatWorkspaceRef.value?.abortActiveRun();
+    resetForm();
   },
 );
 
@@ -230,9 +235,12 @@ const submitManual = () => {
             <div class="space-y-2">
               <label class="text-sm font-medium text-foreground">难度</label>
               <Select :model-value="String(formState.difficulty)" @update:model-value="formState.difficulty = Number($event)">
-                <option value="1">简单</option>
-                <option value="2">普通</option>
-                <option value="3">困难</option>
+                <option
+                  v-for="option in difficultyOptions"
+                  :key="option.value"
+                  :value="String(option.value)">
+                  {{ option.label }}
+                </option>
               </Select>
             </div>
           </div>

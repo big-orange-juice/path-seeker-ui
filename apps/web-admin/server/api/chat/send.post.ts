@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
   if (!backendBaseUrl) {
     throw createError({
       statusCode: 500,
-      statusMessage: '服务端未配置 backendBaseUrl。',
+      message: '服务端未配置 backendBaseUrl。',
     });
   }
 
@@ -57,7 +57,7 @@ export default defineEventHandler(async (event) => {
   if (!sessionId || !clientMessageId || !message) {
     throw createError({
       statusCode: 400,
-      statusMessage: '会话 ID、消息幂等 ID 与消息内容均不能为空。',
+      message: '会话 ID、消息幂等 ID 与消息内容均不能为空。',
     });
   }
 
@@ -112,7 +112,7 @@ export default defineEventHandler(async (event) => {
 
     throw createError({
       statusCode: backendCode === 10002 ? 401 : upstream.status,
-      statusMessage: backendMessage,
+      message: backendMessage,
       data: {
         code: backendCode,
         message: backendMessage,
@@ -124,7 +124,7 @@ export default defineEventHandler(async (event) => {
   if (!upstream.body) {
     throw createError({
       statusCode: 502,
-      statusMessage: '上游未返回可读的事件流。',
+      message: '上游未返回可读的事件流。',
     });
   }
 

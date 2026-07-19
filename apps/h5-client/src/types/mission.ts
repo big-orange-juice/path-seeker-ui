@@ -13,11 +13,15 @@ import type {
   SelectPayload,
   SortPayload,
 } from "@path-seeker/game-renderer"
+import type {
+  AgeBand,
+  DifficultyLevel,
+  ScaleTypeCode,
+} from "@path-seeker/ts-shared"
 
-export type AgeBand = "6-10" | "10-15" | "15+"
+export type { AgeBand, DifficultyLevel, ScaleTypeCode }
 
-export type DifficultyLevel = "L1" | "L2" | "L3"
-
+/** @deprecated 规模请用 ScaleTypeCode；保留兼容旧存档字段 */
 export type TaskKind = "family_adventure" | "story_detective" | "deep_reasoning"
 
 export type ShellTab = "hall" | "playing" | "archive"
@@ -55,7 +59,11 @@ export interface MissionRouteCard {
   summary?: string
   recommendedAgeBand: AgeBand
   availableAgeBands: AgeBand[]
+  /** 产品键 L1/L2/L3，对应后端 1/2/3 = 简单/中等/困难 */
   difficultyLevel: DifficultyLevel
+  /** 后端 scaleType：1 小型 / 2 中型 / 3 大型 */
+  scaleType: ScaleTypeCode
+  /** @deprecated 请用 scaleType */
   taskKind: TaskKind
   estimatedMinutes?: number
   totalScore?: number
@@ -284,7 +292,10 @@ export interface MissionArchiveEntry {
   rewardTitle: string
   completedAt: string
   difficultyLabel: string
-  taskKind: TaskKind
+  /** 规模文案：小型 / 中型 / 大型 */
+  scaleLabel: string
+  /** @deprecated 请用 scaleLabel */
+  taskKind?: TaskKind
   totalScore: number
   solvedCount: number
   puzzleCount: number
@@ -292,7 +303,13 @@ export interface MissionArchiveEntry {
 }
 
 export interface MissionFilters {
-  ageBand: AgeBand | "all"
+  /** @deprecated 首页筛选不再用年龄 */
+  ageBand?: AgeBand | "all"
   difficulty: DifficultyLevel | "all"
-  taskKind: TaskKind | "all"
+  /** 规模筛选，对应 scaleType 1-3 */
+  scaleType: ScaleTypeCode | "all"
+  /** 标题关键字 */
+  keyword: string
+  /** @deprecated 请用 scaleType */
+  taskKind?: TaskKind | "all"
 }

@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!(file instanceof Blob)) {
     throw createError({
       statusCode: 400,
-      statusMessage: '缺少上传文件。',
+      message: '缺少上传文件。',
     });
   }
 

@@ -37,6 +37,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   "generate-audio": [stageId: string]
   "narration-draft": [payload: { stageId: string; draft: NarrationRendererDraft }]
+  /** studio：请求打开导游选择列表 */
+  "pick-guide": [stageId: string]
   /** 通用 studio 草稿（adapter 落库） */
   "stage-draft": [payload: {
     stageId: string
@@ -121,7 +123,9 @@ watch(
   () => props.stage,
   (stage) => {
     studioTitle.value = String(stage?.title || "").trim()
-    studioHints.value = mapHintsFromConfig()
+    // 导览节点无 hint
+    studioHints.value =
+      Number(stage?.interactionType || 0) === 11 ? [] : mapHintsFromConfig()
   },
   { immediate: true },
 )
@@ -146,6 +150,17 @@ const narrationErrorMessage = computed(() =>
 )
 
 const narrationGuideId = computed(() => {
+  // config 覆盖优先（studio 刚选导游时尚未回写 detail）
+  if (Object.prototype.hasOwnProperty.call(config.value, "guide_id")) {
+    const fromConfig = readString("guide_id")
+    if (fromConfig) {
+      return fromConfig
+    }
+    const numeric = readNumber("guide_id")
+    if (numeric) {
+      return String(numeric)
+    }
+  }
   const fromApi = String(narrationFromApi.value?.guideId ?? "").trim()
   if (fromApi) {
     return fromApi
@@ -157,36 +172,52 @@ const narrationGuideId = computed(() => {
   return readString("guide_id")
 })
 
-const narrationGuideName = computed(() =>
-  String(narrationFromApi.value?.guideName ?? "").trim(),
-)
+const narrationGuideName = computed(() => {
+  const fromConfig = readString("guide_name")
+  if (fromConfig) {
+    return fromConfig
+  }
+  return String(narrationFromApi.value?.guideName ?? "").trim()
+})
 
-const narrationStyle = computed(
-  () =>
-    String(narrationFromApi.value?.resolvedStyle ?? "").trim()
-    || readString("user_style_input"),
-)
+/**
+ * 查看 / 编辑统一以 config 为准（与 studio 编辑字段一致），
+ * detail 仅作缺省兜底（如 resolvedStyle、durationMs、narrationText）。
+ */
+const narrationStyle = computed(() => {
+  const fromConfig = readString("user_style_input")
+  const fromApi = String(narrationFromApi.value?.resolvedStyle ?? "").trim()
+  // config 显式带 user_style_input（含空串）时用它，避免 resolvedStyle 盖住
+  if (Object.prototype.hasOwnProperty.call(config.value, "user_style_input")) {
+    return fromConfig
+  }
+  return fromConfig || fromApi
+})
 
 const narrationScene = computed(() => readString("scene_context"))
 
 const narrationDurationSec = computed(() => {
+  const fromConfig = readNumber("target_duration_seconds")
+  if (fromConfig > 0) {
+    return fromConfig
+  }
   const fromApiMs = narrationFromApi.value?.durationMs
   if (typeof fromApiMs === "number" && Number.isFinite(fromApiMs) && fromApiMs > 0) {
     return Math.round(fromApiMs / 1000)
   }
-  const seconds = readNumber("target_duration_seconds")
-  return seconds > 0 ? seconds : 90
+  return 90
 })
 
 const narrationText = computed(
   () =>
-    String(narrationFromApi.value?.narrationText ?? "").trim()
-    || readString("narration_text"),
+    readString("narration_text")
+    || String(narrationFromApi.value?.narrationText ?? "").trim(),
 )
 
 const narrationAudioUrl = computed(
   () =>
-    String(narrationFromApi.value?.audioUrl ?? "").trim() || readString("audio_url"),
+    readString("audio_url")
+    || String(narrationFromApi.value?.audioUrl ?? "").trim(),
 )
 
 const narrationAudioStatus = computed(() => {
@@ -223,6 +254,14 @@ function handleNarrationDraft(draft: NarrationRendererDraft) {
   emitStageDraft({ extra: { narration: draft } })
 }
 
+function handlePickGuide() {
+  const stageId = String(props.stage?.stageId || "").trim()
+  if (!stageId) {
+    return
+  }
+  emit("pick-guide", stageId)
+}
+
 const findScanTitle = computed(
   () =>
     props.stage?.exhibitName
@@ -250,19 +289,46 @@ const findScanClue = computed(
     || "",
 )
 
+/** 导览（11）无 hint，不展示也不编辑 */
+const showHints = computed(() => interactionType.value !== 11)
+
 const hints = computed(() => {
+  if (!showHints.value) {
+    return [] as Array<{
+      key: string
+      content: string
+    }>
+  }
   if (isStudio.value) {
     return studioHints.value.map((content, index) => ({
+      key: `studio-${index}`,
       content,
-      level: index + 1,
     }))
   }
   const source = config.value.hints
-  return Array.isArray(source)
-    ? source.filter(
-        (item): item is HintItem => typeof item === "object" && item !== null,
-      )
-    : []
+  if (!Array.isArray(source)) {
+    return []
+  }
+  return source
+    .map((item, index) => {
+      if (typeof item === "string") {
+        const content = item.trim()
+        return content ? { key: `s-${index}`, content } : null
+      }
+      if (item && typeof item === "object") {
+        const record = item as HintItem
+        const content = String(record.content ?? "").trim()
+        if (!content) {
+          return null
+        }
+        const key =
+          String(record.hint_id || record.clueId || "").trim()
+          || `o-${index}`
+        return { key, content }
+      }
+      return null
+    })
+    .filter((item): item is { key: string; content: string } => Boolean(item))
 })
 
 const puzzlePrompt = computed(() => {
@@ -317,7 +383,10 @@ function emitStageDraft(partial?: {
     stageId,
     title: partial?.title ?? studioTitle.value,
     prompt: partial?.prompt ?? studioPrompt.value,
-    hints: partial?.hints ?? [...studioHints.value],
+    // 导览节点不携带 hints
+    hints: showHints.value
+      ? (partial?.hints ?? [...studioHints.value])
+      : undefined,
     extra: partial?.extra,
   })
 }
@@ -358,15 +427,24 @@ const handleFindScanContent = (payload: {
 }
 
 function addHint() {
+  if (!showHints.value) {
+    return
+  }
   studioHints.value = [...studioHints.value, ""]
 }
 
 function removeHint(index: number) {
+  if (!showHints.value) {
+    return
+  }
   studioHints.value = studioHints.value.filter((_, i) => i !== index)
   emitStageDraft()
 }
 
 function updateHint(index: number, value: string | number) {
+  if (!showHints.value) {
+    return
+  }
   const next = [...studioHints.value]
   next[index] = String(value)
   studioHints.value = next
@@ -458,7 +536,8 @@ function updateHint(index: number, value: string | number) {
           :generating-audio="props.narrationAudioGenerating"
           :show-play-actions="false"
           @generate-audio="requestGenerateAudio"
-          @update:draft="handleNarrationDraft" />
+          @update:draft="handleNarrationDraft"
+          @pick-guide="handlePickGuide" />
       </section>
 
       <section v-else class="preview-panel">
@@ -467,8 +546,8 @@ function updateHint(index: number, value: string | number) {
         </p>
       </section>
 
-      <!-- 关卡提示：全题型可编辑 -->
-      <div v-if="isStudio" class="studio-hints">
+      <!-- 关卡提示：谜题/找一找可编辑；导览节点无 hint -->
+      <div v-if="showHints && isStudio" class="studio-hints">
         <div class="studio-hints__head">
           <span class="studio-hints__title">关卡提示</span>
           <button type="button" class="studio-hints__add" @click="addHint">
@@ -500,10 +579,10 @@ function updateHint(index: number, value: string | number) {
           暂无关卡提示，可点击「添加提示」
         </p>
       </div>
-      <div v-else-if="hints.length" class="hint-strip">
+      <div v-else-if="showHints && hints.length" class="hint-strip">
         <span
           v-for="hint in hints"
-          :key="hint.hint_id || hint.clueId || hint.content || String(hint.level)">
+          :key="hint.key">
           {{ hint.content || "提示待解锁" }}
         </span>
       </div>

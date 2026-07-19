@@ -1,73 +1,54 @@
-import type {
-  AgeBand,
-  DifficultyLevel,
-  PuzzleTemplateType,
-  SchemaMappedOption,
-  TaskKind,
-} from "@/types/mission"
+import {
+  AGE_BANDS,
+  DIFFICULTY_LEVEL_OPTIONS,
+  SCALE_TYPE_OPTIONS,
+  type AgeBand,
+  type DifficultyLevel,
+  type ScaleTypeCode,
+} from "@path-seeker/ts-shared"
+import type { PuzzleTemplateType, SchemaMappedOption } from "@/types/mission"
 
 export const AGE_BAND_OPTIONS: SchemaMappedOption<AgeBand>[] = [
   {
     value: "6-10",
     label: "6-10 岁",
-    schemaValue: 1,
+    schemaValue: 2,
     description: "短句、直接、鼓励感强，适合亲子线和基础教育线。",
   },
   {
     value: "10-15",
     label: "10-15 岁",
-    schemaValue: 2,
+    schemaValue: 3,
     description: "允许轻推理和悬念表达，适合校园线与剧情线。",
   },
   {
     value: "15+",
     label: "15+",
-    schemaValue: 3,
+    schemaValue: 4,
     description: "可承载更高知识密度和多线索推理。",
   },
 ]
 
-export const DIFFICULTY_OPTIONS: SchemaMappedOption<DifficultyLevel>[] = [
-  {
-    value: "L1",
-    label: "L1 观察型",
-    schemaValue: 1,
-    description: "1 个明显线索，1 步完成，默认就给观察提示。",
-  },
-  {
-    value: "L2",
-    label: "L2 关联型",
-    schemaValue: 2,
-    description: "2-3 条线索关联，保留完整三级提示。",
-  },
-  {
-    value: "L3",
-    label: "L3 推理型",
-    schemaValue: 3,
-    description: "多线索交叉验证，作为终局高峰挑战使用。",
-  },
-]
+/** 难度：与后端 difficultyLevel 1-3 对齐，文案 简单/中等/困难 */
+export const DIFFICULTY_OPTIONS: SchemaMappedOption<DifficultyLevel>[] =
+  DIFFICULTY_LEVEL_OPTIONS.map((item) => ({
+    value: item.key,
+    label: item.label,
+    schemaValue: item.value,
+    description: item.label,
+  }))
 
-export const TASK_KIND_OPTIONS: SchemaMappedOption<TaskKind>[] = [
-  {
-    value: "family_adventure",
-    label: "亲子冒险",
-    schemaValue: 1,
-    description: "轻量目标明确，强调陪伴观察和即时反馈。",
-  },
-  {
-    value: "story_detective",
-    label: "剧情推理",
-    schemaValue: 2,
-    description: "沿着人物、证据和剧情反转推进。",
-  },
-  {
-    value: "deep_reasoning",
-    label: "深度推理",
-    schemaValue: 3,
-    description: "知识密度更高，适合成人和高阶挑战。",
-  },
-]
+/** 规模：与后端 scaleType 1-3 对齐，文案 小型/中型/大型 */
+export const SCALE_TYPE_FILTER_OPTIONS: SchemaMappedOption<`${ScaleTypeCode}`>[] =
+  SCALE_TYPE_OPTIONS.map((item) => ({
+    value: String(item.value) as `${ScaleTypeCode}`,
+    label: item.label,
+    schemaValue: item.value,
+    description: item.label,
+  }))
+
+/** @deprecated 规模请用 SCALE_TYPE_FILTER_OPTIONS；保留避免旧引用报错 */
+export const TASK_KIND_OPTIONS = SCALE_TYPE_FILTER_OPTIONS
 
 export const PUZZLE_TEMPLATE_OPTIONS: Array<SchemaMappedOption<PuzzleTemplateType>> = [
   {
@@ -134,10 +115,19 @@ export const DIFFICULTY_MAP = Object.fromEntries(
   DIFFICULTY_OPTIONS.map((item) => [item.value, item.schemaValue]),
 ) as Record<DifficultyLevel, number>
 
-export const TASK_KIND_MAP = Object.fromEntries(
-  TASK_KIND_OPTIONS.map((item) => [item.value, item.schemaValue]),
-) as Record<TaskKind, number>
+export const SCALE_TYPE_MAP = Object.fromEntries(
+  SCALE_TYPE_OPTIONS.map((item) => [item.value, item.value]),
+) as Record<ScaleTypeCode, ScaleTypeCode>
+
+/** @deprecated 请用 SCALE_TYPE_MAP */
+export const TASK_KIND_MAP = {
+  family_adventure: 1,
+  story_detective: 2,
+  deep_reasoning: 3,
+} as const
 
 export const PUZZLE_TYPE_MAP = Object.fromEntries(
   PUZZLE_TEMPLATE_OPTIONS.map((item) => [item.value, item.schemaValue]),
 ) as Record<PuzzleTemplateType, number>
+
+export { AGE_BANDS, DIFFICULTY_LEVEL_OPTIONS, SCALE_TYPE_OPTIONS }

@@ -429,7 +429,7 @@ const handleUiEvent = (event: ChatEventResponse) => {
         emit('routeChanged', routeId);
 
         if (payload?.published) {
-          publishedHint.value = '路线已发布';
+          publishedHint.value = '路线状态已更新，请在列表中继续提交审核或上架';
           emit('routePublished', routeId);
         }
       }

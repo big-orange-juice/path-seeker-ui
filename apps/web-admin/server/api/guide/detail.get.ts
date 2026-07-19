@@ -9,7 +9,7 @@ export default defineEventHandler(async (event): Promise<GuideResponse | null> =
   if (!id) {
     throw createError({
       statusCode: 400,
-      statusMessage: '缺少导游 ID。',
+      message: '缺少导游 ID。',
     })
   }
 

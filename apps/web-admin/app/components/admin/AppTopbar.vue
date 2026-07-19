@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { adminNavItems } from '@/composables/useAdminNavigation';
+import { useAdminNavigation } from '@/composables/useAdminNavigation';
 import { useAdminAuthStore } from '@/stores/adminAuth';
 
 const route = useRoute();
 const authStore = useAdminAuthStore();
+const { navItems } = useAdminNavigation();
 
 const currentPage = computed(() => {
-  return adminNavItems.find((item) => item.to === route.path) ?? adminNavItems[0]!;
+  return navItems.value.find((item) => item.to === route.path) ?? navItems.value[0]!;
 });
 
 const handleLogout = async () => {
@@ -26,7 +27,7 @@ const handleLogout = async () => {
         <div class="hidden h-5 w-px bg-border sm:block" />
         <div class="min-w-0">
           <p class="text-[11px] uppercase tracking-[0.24em] text-primary/80">path seeker museum</p>
-          <h1 class="truncate pt-1 text-base font-semibold text-foreground">{{ currentPage.label }}</h1>
+          <h1 class="truncate pt-1 text-base font-semibold text-foreground">{{ currentPage?.label || '控制台' }}</h1>
         </div>
       </div>
 

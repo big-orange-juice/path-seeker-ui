@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef } from "vue"
+import { computed, onMounted, ref, shallowRef, watch } from "vue"
 import type { SelectOption } from "@path-seeker/ui"
-import { Filter } from "lucide-vue-next"
+import { Filter, Search } from "lucide-vue-next"
 import {
   ClientButton,
-  ClientCard,
   ClientEmptyState,
+  ClientInput,
   ClientSelect,
   ClientSheet,
   ClientSheetContent,
@@ -17,23 +17,15 @@ import {
 } from "@/components/ui"
 import MissionPreviewCard from "@/components/shell/MissionPreviewCard.vue"
 import {
-  AGE_BAND_OPTIONS,
   DIFFICULTY_OPTIONS,
-  TASK_KIND_OPTIONS,
+  SCALE_TYPE_FILTER_OPTIONS,
 } from "@/constants/missionSchema"
 import { useMissionStore } from "@/stores/useMissionStore"
-import type { AgeBand, DifficultyLevel, TaskKind } from "@/types/mission"
+import type { DifficultyLevel, ScaleTypeCode } from "@/types/mission"
 
 const missionStore = useMissionStore()
 const filterSheetOpen = shallowRef(false)
-
-const ageBandOptions: SelectOption[] = [
-  { label: "全部年龄", value: "all" },
-  ...AGE_BAND_OPTIONS.map((item) => ({
-    label: item.label,
-    value: item.value,
-  })),
-]
+const keywordDraft = ref(missionStore.filters.keyword || "")
 
 const difficultyOptions: SelectOption[] = [
   { label: "全部难度", value: "all" },
@@ -43,9 +35,9 @@ const difficultyOptions: SelectOption[] = [
   })),
 ]
 
-const taskKindOptions: SelectOption[] = [
-  { label: "全部玩法", value: "all" },
-  ...TASK_KIND_OPTIONS.map((item) => ({
+const scaleTypeOptions: SelectOption[] = [
+  { label: "全部规模", value: "all" },
+  ...SCALE_TYPE_FILTER_OPTIONS.map((item) => ({
     label: item.label,
     value: item.value,
   })),
@@ -58,40 +50,68 @@ const emptyTitle = computed(() => (listFailed.value ? "路线加载失败" : "�
 const emptyText = computed(() =>
   listFailed.value
     ? missionStore.routeListError || "请检查网络后重试。"
-    : "没有匹配路线，换个年龄或难度再试试。",
+    : "没有匹配路线，换个难度、规模或标题再试试。",
 )
 
 const filterOn = computed(() =>
-  missionStore.filters.ageBand !== "all"
-  || missionStore.filters.difficulty !== "all"
-  || missionStore.filters.taskKind !== "all",
+  missionStore.filters.difficulty !== "all"
+  || missionStore.filters.scaleType !== "all"
+  || Boolean(String(missionStore.filters.keyword || "").trim()),
 )
 
 const filterSummary = computed(() =>
   [
-    ageBandOptions.find((item) => item.value === missionStore.filters.ageBand)?.label,
     difficultyOptions.find((item) => item.value === missionStore.filters.difficulty)?.label,
-    taskKindOptions.find((item) => item.value === missionStore.filters.taskKind)?.label,
+    scaleTypeOptions.find((item) => item.value === String(missionStore.filters.scaleType))?.label,
+    String(missionStore.filters.keyword || "").trim()
+      ? `「${String(missionStore.filters.keyword).trim()}」`
+      : "",
   ].filter((item) => item && !String(item).startsWith("全部")),
 )
 
+/** 骨架屏假高度轮询，真实卡片按站数分档 */
+function skeletonHeightTone(index: number): "tall" | "mid" | "short" {
+  const pattern = ["tall", "mid", "short", "mid"] as const
+  return pattern[index % pattern.length] ?? "mid"
+}
+
 function closeFilterSheet() {
   filterSheetOpen.value = false
+}
+
+function applyKeyword() {
+  missionStore.setFilters({ keyword: keywordDraft.value.trim() })
+}
+
+function resetFilters() {
+  keywordDraft.value = ""
+  missionStore.resetFilters()
+}
+
+function confirmFilters() {
+  applyKeyword()
+  closeFilterSheet()
 }
 
 async function refreshRoutes(force = false) {
   await missionStore.ensureRouteCards({ force })
 }
 
+watch(
+  () => missionStore.filters.keyword,
+  (value) => {
+    keywordDraft.value = value || ""
+  },
+)
+
 onMounted(() => {
-  // 回展厅：空列表 / 失败 / 过期 TTL 时再拉；有缓存则不打接口
   void refreshRoutes(false)
 })
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div class="hall-hud">
+  <div class="hall-page">
+    <header class="hall-top">
       <div class="space-y-1">
         <span class="client-tag is-gold">今日路线</span>
         <p class="text-xs text-muted-foreground">
@@ -103,16 +123,17 @@ onMounted(() => {
       </div>
       <button
         type="button"
-        class="ask-icon-btn"
-        :class="{ 'text-primary border-primary/40': filterOn }"
+        class="hall-filter-btn"
+        :class="{ 'is-on': filterOn }"
         aria-label="筛选"
         @click="filterSheetOpen = true"
       >
         <Filter class="h-4 w-4" />
+        <span>筛选</span>
       </button>
-    </div>
+    </header>
 
-    <div v-if="filterSummary.length" class="flex flex-wrap gap-2">
+    <div v-if="filterSummary.length" class="hall-chips">
       <span
         v-for="item in filterSummary"
         :key="item"
@@ -132,41 +153,8 @@ onMounted(() => {
       </button>
     </p>
 
-    <ClientSheet v-model="filterSheetOpen">
-      <ClientSheetContent side="bottom">
-        <ClientSheetHeader>
-          <ClientSheetTitle>筛选</ClientSheetTitle>
-          <ClientSheetDescription>
-            按年龄、难度和玩法收窄路线。
-          </ClientSheetDescription>
-        </ClientSheetHeader>
-
-        <div class="mt-5 grid gap-3">
-          <ClientSelect
-            :model-value="missionStore.filters.ageBand"
-            :options="ageBandOptions"
-            @update:model-value="missionStore.setFilters({ ageBand: $event as AgeBand })"
-          />
-          <ClientSelect
-            :model-value="missionStore.filters.difficulty"
-            :options="difficultyOptions"
-            @update:model-value="missionStore.setFilters({ difficulty: $event as DifficultyLevel })"
-          />
-          <ClientSelect
-            :model-value="missionStore.filters.taskKind"
-            :options="taskKindOptions"
-            @update:model-value="missionStore.setFilters({ taskKind: $event as TaskKind })"
-          />
-        </div>
-
-        <ClientSheetFooter>
-          <ClientButton variant="outline" class="w-full" @click="missionStore.resetFilters()">重置</ClientButton>
-          <ClientButton class="w-full" @click="closeFilterSheet()">确定</ClientButton>
-        </ClientSheetFooter>
-      </ClientSheetContent>
-    </ClientSheet>
-
-    <div v-if="hasRoutes" class="mission-rail">
+    <!-- 瀑布流 -->
+    <div v-if="hasRoutes" class="hall-waterfall">
       <MissionPreviewCard
         v-for="mission in missionStore.filteredRoutes"
         :key="mission.id"
@@ -174,13 +162,11 @@ onMounted(() => {
       />
     </div>
 
-    <ClientCard v-else-if="missionStore.routeListPending">
-      <div class="space-y-4 p-5">
-        <ClientSkeleton class="h-32 w-full" />
-        <ClientSkeleton class="h-32 w-full" />
-        <ClientSkeleton class="h-32 w-full" />
+    <div v-else-if="missionStore.routeListPending" class="hall-waterfall">
+      <div v-for="n in 4" :key="n" class="hall-skeleton" :class="`is-${skeletonHeightTone(n - 1)}`">
+        <ClientSkeleton class="h-full w-full rounded-[0.5rem]" />
       </div>
-    </ClientCard>
+    </div>
 
     <ClientEmptyState
       v-else
@@ -189,5 +175,132 @@ onMounted(() => {
       :action-text="listFailed ? '重新加载' : ''"
       @action="refreshRoutes(true)"
     />
+
+    <!-- 底部筛选：仅难度 / 规模 / 标题 -->
+    <ClientSheet v-model="filterSheetOpen">
+      <ClientSheetContent side="bottom" class="hall-picker">
+        <ClientSheetHeader>
+          <ClientSheetTitle>筛选路线</ClientSheetTitle>
+          <ClientSheetDescription>
+            按难度、规模和标题收窄列表。
+          </ClientSheetDescription>
+        </ClientSheetHeader>
+
+        <div class="mt-5 grid gap-4">
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-muted-foreground">标题</label>
+            <div class="relative">
+              <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <ClientInput
+                v-model="keywordDraft"
+                class="pl-9"
+                placeholder="搜索路线标题"
+                @keydown.enter.prevent="confirmFilters"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-muted-foreground">难度</label>
+            <ClientSelect
+              :model-value="missionStore.filters.difficulty"
+              :options="difficultyOptions"
+              @update:model-value="missionStore.setFilters({ difficulty: $event as DifficultyLevel | 'all' })"
+            />
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-muted-foreground">规模</label>
+            <ClientSelect
+              :model-value="missionStore.filters.scaleType === 'all' ? 'all' : String(missionStore.filters.scaleType)"
+              :options="scaleTypeOptions"
+              @update:model-value="missionStore.setFilters({
+                scaleType: $event === 'all' ? 'all' : Number($event) as ScaleTypeCode,
+              })"
+            />
+          </div>
+        </div>
+
+        <ClientSheetFooter class="mt-6">
+          <ClientButton variant="outline" class="w-full" @click="resetFilters">
+            重置
+          </ClientButton>
+          <ClientButton class="w-full" @click="confirmFilters">
+            确定
+          </ClientButton>
+        </ClientSheetFooter>
+      </ClientSheetContent>
+    </ClientSheet>
   </div>
 </template>
+
+<style scoped>
+.hall-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-bottom: 0.5rem;
+}
+
+.hall-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.hall-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 248, 230, 0.1);
+  border-radius: 999px;
+  background: rgba(18, 17, 15, 0.88);
+  padding: 0.45rem 0.75rem;
+  color: rgba(242, 235, 224, 0.78);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hall-filter-btn.is-on {
+  border-color: rgba(209, 178, 111, 0.4);
+  background: rgba(209, 178, 111, 0.12);
+  color: #e8c98a;
+}
+
+.hall-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* 双列瀑布流 */
+.hall-waterfall {
+  column-count: 2;
+  column-gap: 10px;
+}
+
+.hall-skeleton {
+  break-inside: avoid;
+  margin-bottom: 10px;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: rgba(18, 17, 15, 0.9);
+}
+
+.hall-skeleton.is-tall {
+  height: 248px;
+}
+
+.hall-skeleton.is-mid {
+  height: 210px;
+}
+
+.hall-skeleton.is-short {
+  height: 178px;
+}
+
+.hall-picker :deep(label) {
+  display: block;
+}
+</style>

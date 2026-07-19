@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   if (!id) {
     throw createError({
       statusCode: 400,
-      statusMessage: '缺少会话 ID。',
+      message: '缺少会话 ID。',
     });
   }
 

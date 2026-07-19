@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { adminNavItems } from '@/composables/useAdminNavigation';
+import { useAdminNavigation } from '@/composables/useAdminNavigation';
 
 const route = useRoute();
+const { navItems } = useAdminNavigation();
 </script>
 
 <template>
   <aside class="hidden h-full border-r border-border bg-[#0f1012] lg:flex lg:flex-col lg:overflow-hidden">
     <nav class="flex-1 space-y-1 overflow-y-auto px-3 py-4">
       <NuxtLink
-        v-for="item in adminNavItems"
+        v-for="item in navItems"
         :key="item.to"
         :to="item.to"
         class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors"

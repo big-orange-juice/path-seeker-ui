@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useSlots } from 'vue';
+import { computed, nextTick, ref, useSlots, useTemplateRef, watch } from 'vue';
 import { onClickOutside } from '#imports';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import { cn } from '@/utils/cn';
@@ -17,18 +17,32 @@ interface Props {
   class?: string;
   placeholder?: string;
   disabled?: boolean;
+  /** 下拉内嵌搜索框，按 label / value 过滤 */
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  emptyText?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   class: '',
   placeholder: '请选择',
   disabled: false,
+  searchable: false,
+  searchPlaceholder: '搜索…',
+  emptyText: '无匹配项',
 });
+
+const emit = defineEmits<{
+  /** 搜索关键词变化（可用于远端检索） */
+  search: [keyword: string];
+}>();
 
 const model = defineModel<string>({ default: '' });
 const slots = useSlots();
 const rootRef = ref<HTMLElement | null>(null);
+const searchInputRef = useTemplateRef<HTMLInputElement>('searchInput');
 const open = ref(false);
+const searchKeyword = ref('');
 
 const extractText = (children: VNode['children']): string => {
   if (typeof children === 'string') {
@@ -91,6 +105,23 @@ const options = computed(() => flattenOptions(slots.default?.() as VNodeArrayChi
 const selectedOption = computed(() => options.value.find((option) => option.value === model.value) ?? null);
 const triggerLabel = computed(() => selectedOption.value?.label || props.placeholder);
 
+const filteredOptions = computed(() => {
+  if (!props.searchable) {
+    return options.value;
+  }
+
+  const keyword = searchKeyword.value.trim().toLowerCase();
+  if (!keyword) {
+    return options.value;
+  }
+
+  return options.value.filter((option) => {
+    const label = option.label.toLowerCase();
+    const value = option.value.toLowerCase();
+    return label.includes(keyword) || value.includes(keyword);
+  });
+});
+
 const toggleOpen = () => {
   if (props.disabled) {
     return;
@@ -106,7 +137,28 @@ const selectOption = (option: SelectOption) => {
 
   model.value = option.value;
   open.value = false;
+  searchKeyword.value = '';
 };
+
+watch(open, (isOpen) => {
+  if (!isOpen) {
+    searchKeyword.value = '';
+    return;
+  }
+
+  if (props.searchable) {
+    void nextTick(() => {
+      searchInputRef.value?.focus();
+    });
+  }
+});
+
+watch(searchKeyword, (keyword) => {
+  if (!props.searchable) {
+    return;
+  }
+  emit('search', keyword.trim());
+});
 
 onClickOutside(rootRef, () => {
   open.value = false;
@@ -134,21 +186,41 @@ onClickOutside(rootRef, () => {
 
     <div
       v-if="open"
-      class="absolute left-0 z-50 mt-1 max-h-72 w-max min-w-full max-w-[min(520px,calc(100vw-2rem))] overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-md">
-      <button
-        v-for="option in options"
-        :key="`${option.value}:${option.label}`"
-        type="button"
-        :title="option.label"
-        :disabled="option.disabled"
-        :class="cn(
-          'flex w-full min-w-0 items-center rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors',
-          option.value === model ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-accent hover:text-accent-foreground',
-          option.disabled && 'pointer-events-none opacity-50',
-        )"
-        @click="selectOption(option)">
-        <span class="block min-w-0 max-w-full truncate whitespace-nowrap">{{ option.label }}</span>
-      </button>
+      class="absolute left-0 z-50 mt-1 w-max min-w-full max-w-[min(520px,calc(100vw-2rem))] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md">
+      <div
+        v-if="props.searchable"
+        class="border-b border-border/70 p-1.5"
+        @click.stop>
+        <input
+          ref="searchInput"
+          v-model="searchKeyword"
+          type="search"
+          :placeholder="props.searchPlaceholder"
+          class="flex h-8 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
+          @keydown.esc.stop.prevent="open = false">
+      </div>
+
+      <div class="max-h-60 overflow-auto p-1">
+        <p
+          v-if="!filteredOptions.length"
+          class="px-2 py-2 text-center text-xs text-muted-foreground">
+          {{ props.emptyText }}
+        </p>
+        <button
+          v-for="option in filteredOptions"
+          :key="`${option.value}:${option.label}`"
+          type="button"
+          :title="option.label"
+          :disabled="option.disabled"
+          :class="cn(
+            'flex w-full min-w-0 items-center rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors',
+            option.value === model ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-accent hover:text-accent-foreground',
+            option.disabled && 'pointer-events-none opacity-50',
+          )"
+          @click="selectOption(option)">
+          <span class="block min-w-0 max-w-full truncate whitespace-nowrap">{{ option.label }}</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>

@@ -16,7 +16,7 @@ const tabs = [
   { label: '全部', value: 'all' },
   { label: '已发布', value: 'published' },
   { label: '待审核', value: 'review' },
-  { label: '草稿', value: 'draft' },
+  { label: '未上架', value: 'draft' },
 ] as const;
 </script>
 

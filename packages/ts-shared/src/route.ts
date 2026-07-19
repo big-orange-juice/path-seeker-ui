@@ -1,5 +1,5 @@
 ﻿import type { DurationSeconds, EntityId, ScoreValue } from "./core"
-import type { AgeBand, DifficultyLevel } from "./enums"
+import type { AgeBand, DifficultyLevel, ScaleTypeCode } from "./enums"
 import type { PersonaProfile } from "./persona"
 
 /**
@@ -16,7 +16,10 @@ export interface RouteCard {
   theme?: string | null
   coverImageUrl?: string | null
   ageBand: AgeBand
+  /** 产品键 L1/L2/L3，对应后端 difficultyLevel 1/2/3 */
   difficultyLevel: DifficultyLevel
+  /** 后端 scaleType：1 小型 / 2 中型 / 3 大型 */
+  scaleType?: ScaleTypeCode
   allowTeam: boolean
   estimatedMinutes?: number | null
   totalScore: ScoreValue

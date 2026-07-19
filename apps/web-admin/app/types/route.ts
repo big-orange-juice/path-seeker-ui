@@ -112,6 +112,12 @@ export interface RouteAdminResponse {
   publishStatus: number;
   auditStatus: number;
   auditRemark: string | null;
+  /** 是否需要管理员审核；管理员创建的路线为 false */
+  auditRequired?: boolean | null;
+  /** 路线归属的后台账号 ID */
+  ownerId?: string | null;
+  /** 当前操作者是否可以编辑该路线 */
+  canEdit?: boolean | null;
   sortOrder: number;
   isGenerating?: boolean | null;
 }
@@ -137,6 +143,19 @@ export interface RouteRecord {
   publishStatus: number;
   auditStatus: number;
   auditRemark: string;
+  auditRequired: boolean;
+  ownerId: string | null;
+  canEdit: boolean | null;
   sortOrder: number;
   isGenerating: boolean;
+}
+
+export interface RouteAuditPayload {
+  id: string;
+  pass: boolean;
+  remark?: string | null;
+}
+
+export interface RouteIdPayload {
+  id: string;
 }

@@ -18,7 +18,7 @@ app.use(router)
 
 /**
  * 启动顺序：鉴权就绪 → 列表 / 会话恢复。
- * 避免 PageList 与 token 刷新竞态导致列表被清空且不再重试。
+ * 避免 Published 列表与 token 刷新竞态导致列表被清空且不再重试。
  */
 async function bootstrapClient() {
   // 确保任意异步回调里 useStore 都能拿到同一 pinia

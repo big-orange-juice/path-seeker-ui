@@ -11,10 +11,12 @@ import {
   type PuzzleTemplateType,
 } from "@path-seeker/game-renderer"
 import {
-  DIFFICULTY_MAP,
-  PUZZLE_TYPE_MAP,
-  TASK_KIND_MAP,
-} from "@/constants/missionSchema"
+  difficultyLevelCodeToKey,
+  difficultyLevelKeyToCode,
+  toScaleTypeCode,
+  type ScaleTypeCode,
+} from "@path-seeker/ts-shared"
+import { PUZZLE_TYPE_MAP } from "@/constants/missionSchema"
 import type {
   ExhibitResponse,
   MyRouteProgressResponse,
@@ -63,13 +65,7 @@ const AGE_GROUP_VALUE_MAP: Record<number, AgeBand> = {
   4: "15+",
 }
 
-const DIFFICULTY_VALUE_MAP: Record<number, DifficultyLevel> = {
-  1: "L1",
-  2: "L2",
-  3: "L3",
-}
-
-const TASK_KIND_VALUE_MAP: Record<number, TaskKind> = {
+const SCALE_TO_TASK_KIND: Record<ScaleTypeCode, TaskKind> = {
   1: "family_adventure",
   2: "story_detective",
   3: "deep_reasoning",
@@ -129,22 +125,22 @@ function resolveAgeBand(ageGroup?: number | null): AgeBand {
 }
 
 function resolveDifficultyLevel(level?: number | null): DifficultyLevel {
-  return DIFFICULTY_VALUE_MAP[level || 0] ?? "L2"
+  return difficultyLevelCodeToKey(level)
 }
 
-function resolveTaskKind(scaleType?: number | null): TaskKind {
-  return TASK_KIND_VALUE_MAP[scaleType || 0] ?? "story_detective"
+function resolveScaleType(scaleType?: number | null): ScaleTypeCode {
+  return toScaleTypeCode(scaleType, 2)
 }
 
 function buildSchemaMeta(route: RouteCardResponse | null | undefined, stage?: StageLike): MissionSchemaMeta {
   const difficultyLevel = resolveDifficultyLevel(stage?.difficultyLevel ?? route?.difficultyLevel)
-  const taskKind = resolveTaskKind(stage?.scaleType ?? route?.scaleType)
+  const scaleType = resolveScaleType(stage?.scaleType ?? route?.scaleType)
   const ageBand = resolveAgeBand(route?.ageGroup)
 
   return {
     ageGroup: route?.ageGroup ?? (ageBand === "6-10" ? 2 : ageBand === "15+" ? 4 : 3),
-    difficultyLevel: stage?.difficultyLevel ?? route?.difficultyLevel ?? DIFFICULTY_MAP[difficultyLevel],
-    scaleType: stage?.scaleType ?? route?.scaleType ?? TASK_KIND_MAP[taskKind],
+    difficultyLevel: stage?.difficultyLevel ?? route?.difficultyLevel ?? difficultyLevelKeyToCode(difficultyLevel),
+    scaleType: stage?.scaleType ?? route?.scaleType ?? scaleType,
   }
 }
 
@@ -436,7 +432,8 @@ function adaptRouteCard(route: RouteCardResponse, detail?: RouteDetailResponse |
   const routeId = normalizeText(route.id)
   const recommendedAgeBand = resolveAgeBand(route.ageGroup)
   const difficultyLevel = resolveDifficultyLevel(route.difficultyLevel)
-  const taskKind = resolveTaskKind(route.scaleType)
+  const scaleType = resolveScaleType(route.scaleType)
+  const taskKind = SCALE_TO_TASK_KIND[scaleType]
   const chapterCount = (detail?.nodes || []).length || Number(route.puzzleCount ?? 0)
   const theme = normalizeText(route.theme) || undefined
   const summary = normalizeText(detail?.intro ?? route.intro) || undefined
@@ -457,6 +454,7 @@ function adaptRouteCard(route: RouteCardResponse, detail?: RouteDetailResponse |
     recommendedAgeBand,
     availableAgeBands: [recommendedAgeBand],
     difficultyLevel,
+    scaleType,
     taskKind,
     estimatedMinutes,
     totalScore,

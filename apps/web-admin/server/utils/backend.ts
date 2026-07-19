@@ -21,7 +21,8 @@ interface BackendErrorPayload {
 const createBackendBusinessError = (payload: BackendErrorPayload, fallbackStatusCode = 500) =>
   createError({
     statusCode: payload.code === 10002 ? 401 : fallbackStatusCode,
-    statusMessage: payload.message || (payload.code === 10002 ? '未登录或登录已过期，请重新登录' : '后端业务处理失败。'),
+    // h3：长文案用 message，勿用 statusMessage（会被当成 HTTP reason phrase）
+    message: payload.message || (payload.code === 10002 ? '未登录或登录已过期，请重新登录' : '后端业务处理失败。'),
     data: {
       code: payload.code,
       message: payload.message,
@@ -280,7 +281,7 @@ export const backendFetch = async <T>(
   if (!backendBaseUrl) {
     throw createError({
       statusCode: 500,
-      statusMessage: '服务端未配置 backendBaseUrl。',
+      message: '服务端未配置 backendBaseUrl。',
       data: { path },
     });
   }
@@ -344,10 +345,11 @@ export const backendFetch = async <T>(
 
     throw createError({
       statusCode: backendCode === 10002 ? 401 : response.status,
-      statusMessage: backendMessage || response.statusText || 'Backend request failed',
+      message: backendMessage || response.statusText || 'Backend request failed',
       data: {
         path,
         code: backendCode,
+        message: backendMessage,
         traceId: backendTraceId,
         backendStatus: response.status,
         backendStatusText: response.statusText,
