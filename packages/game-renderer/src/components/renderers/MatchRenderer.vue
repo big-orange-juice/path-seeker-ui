@@ -9,6 +9,7 @@ interface Props {
   puzzle: MatchPuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
+  studioMode?: boolean
 }
 
 const props = defineProps<Props>()

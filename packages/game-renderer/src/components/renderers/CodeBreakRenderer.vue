@@ -8,6 +8,7 @@ interface Props {
   puzzle: CodeBreakPuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
+  studioMode?: boolean
 }
 
 const props = defineProps<Props>()

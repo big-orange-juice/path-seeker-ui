@@ -1,30 +1,35 @@
 <script setup lang="ts">
-import { computed, nextTick, watch } from "vue"
+import { computed, nextTick, ref, watch } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
 import type { ObserveChoicePuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
+import StudioField from "../StudioField.vue"
 
 interface Props {
   puzzle: ObserveChoicePuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
+  /** B 端预览：可微调节选项文案 */
+  studioMode?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   readonlyMode: false,
+  studioMode: false,
 })
 
 const emit = defineEmits<{
   "update:modelValue": [value: PuzzleAnswerDraft]
+  "update:content": [payload: { options: Array<{ id: string; label: string }> }]
 }>()
 
 const { root, animateSelector } = useRendererMotion(() => {
   gsap.from(".choice-card, .answer-field", {
     autoAlpha: 0,
-    y: 18,
-    duration: 0.42,
+    y: 10,
+    duration: 0.32,
     ease: "power2.out",
-    stagger: 0.06,
+    stagger: 0.04,
   })
 })
 
@@ -34,6 +39,21 @@ const isFreeText = computed(() => options.value.length === 0)
 
 const textValue = computed(() =>
   typeof props.modelValue?.value === "string" ? props.modelValue.value : "",
+)
+
+/** studio 本地可编辑标签 */
+const draftLabels = ref<Record<string, string>>({})
+
+watch(
+  options,
+  (list) => {
+    const next: Record<string, string> = {}
+    for (const option of list) {
+      next[option.id] = option.label
+    }
+    draftLabels.value = next
+  },
+  { immediate: true, deep: true },
 )
 
 function selectOption(optionId: string) {
@@ -59,6 +79,19 @@ function handleTextInput(event: Event) {
   })
 }
 
+function emitOptionDraft() {
+  if (!props.studioMode) {
+    return
+  }
+
+  emit("update:content", {
+    options: options.value.map((option) => ({
+      id: option.id,
+      label: String(draftLabels.value[option.id] ?? option.label ?? "").trim() || option.label,
+    })),
+  })
+}
+
 watch(
   () => props.modelValue?.value,
   async (value) => {
@@ -69,21 +102,24 @@ watch(
     await nextTick()
     animateSelector(
       ".choice-card.is-active",
-      { scale: 0.94, y: 6 },
-      { scale: 1, y: 0, duration: 0.34, ease: "back.out(1.8)" },
+      { scale: 0.96, y: 4 },
+      { scale: 1, y: 0, duration: 0.28, ease: "back.out(1.6)" },
     )
   },
 )
 </script>
 
 <template>
-  <div ref="root" class="choice-list" :class="{ 'is-readonly': readonlyMode }">
+  <div
+    ref="root"
+    class="choice-list"
+    :class="{ 'is-readonly': readonlyMode, 'is-studio': studioMode }">
     <template v-if="isFreeText">
       <label class="answer-field">
         <span class="answer-label">你的答案</span>
         <textarea
           class="answer-textarea"
-          rows="4"
+          rows="3"
           :value="textValue"
           :readonly="readonlyMode"
           :disabled="readonlyMode"
@@ -96,18 +132,33 @@ watch(
     </template>
 
     <template v-else>
-      <button
+      <div
         v-for="(option, index) in options"
         :key="option.id"
-        type="button"
         class="choice-card"
         :class="{ 'is-active': modelValue?.value === option.id }"
-        :disabled="readonlyMode"
-        @click="selectOption(option.id)"
       >
-        <span class="choice-index">{{ index + 1 }}</span>
-        <span class="choice-title">{{ option.label }}</span>
-      </button>
+        <button
+          v-if="!studioMode"
+          type="button"
+          class="choice-hit"
+          :disabled="readonlyMode"
+          @click="selectOption(option.id)"
+        >
+          <span class="choice-index">{{ index + 1 }}</span>
+          <span class="choice-title">{{ option.label }}</span>
+        </button>
+        <div v-else class="choice-studio">
+          <span class="choice-index">{{ index + 1 }}</span>
+          <StudioField
+            v-model="draftLabels[option.id]"
+            class="choice-studio-field"
+            :label="`选项 ${index + 1}`"
+            placeholder="选项文案"
+            @change="emitOptionDraft"
+          />
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -116,18 +167,18 @@ watch(
 .choice-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .answer-field {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .answer-label {
   color: rgba(247, 239, 221, 0.62);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -136,21 +187,18 @@ watch(
 .answer-textarea {
   display: block;
   width: 100%;
-  min-height: 7.5rem;
+  min-height: 5.5rem;
   resize: vertical;
   border: 1px solid rgba(247, 239, 221, 0.12);
-  border-radius: 18px;
-  padding: 14px 16px;
+  border-radius: 10px;
+  padding: 10px 12px;
   background: rgba(8, 9, 12, 0.72);
   color: #fff8ea;
   font: inherit;
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.55;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
   outline: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  -webkit-appearance: none;
-  appearance: none;
 }
 
 .answer-textarea::placeholder {
@@ -160,9 +208,6 @@ watch(
 
 .answer-textarea:focus {
   border-color: rgba(209, 178, 111, 0.55);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.04),
-    0 0 0 3px rgba(209, 178, 111, 0.14);
 }
 
 .answer-textarea:disabled,
@@ -174,61 +219,77 @@ watch(
 .choice-card {
   display: flex;
   align-items: center;
-  gap: 16px;
-  min-height: 86px;
-  padding: 16px;
-  border: 0;
-  border-radius: 22px;
+  min-height: 48px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.045);
-  text-align: left;
-  cursor: pointer;
-}
-
-.choice-card:disabled {
-  cursor: default;
+  overflow: hidden;
 }
 
 .choice-card.is-active {
-  background: rgba(209, 178, 111, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(209, 178, 111, 0.44);
+  background: rgba(209, 178, 111, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(209, 178, 111, 0.4);
+}
+
+.choice-hit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.choice-hit:disabled {
+  cursor: default;
 }
 
 .choice-index {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 28px;
+  height: 28px;
+  margin-left: 10px;
   border-radius: 999px;
   background: rgba(247, 239, 221, 0.08);
   color: #d1b26f;
-  font-size: 22px;
-  font-weight: 900;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.choice-hit .choice-index {
+  margin-left: 0;
 }
 
 .choice-title {
   flex: 1;
   color: #fff8ea;
-  font-size: 28px;
-  font-weight: 800;
-  line-height: 1.28;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
-@media (max-width: 420px) {
-  .choice-title {
-    font-size: 18px;
-  }
+.choice-studio {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: end;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+}
 
-  .choice-index {
-    width: 38px;
-    height: 38px;
-    font-size: 16px;
-  }
+.choice-studio .choice-index {
+  margin: 0 0 2px;
+}
 
-  .choice-card {
-    min-height: 64px;
-    gap: 12px;
-    padding: 12px;
-  }
+.choice-studio-field {
+  min-width: 0;
 }
 </style>

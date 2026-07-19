@@ -1,19 +1,25 @@
 <script setup lang="ts">
-import { computed, nextTick, watch } from "vue"
+import { computed, nextTick, ref, watch } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
 import type { PuzzleAnswerDraft, SelectPuzzleDefinition } from "../../contracts"
+import StudioField from "../StudioField.vue"
 
 interface Props {
   puzzle: SelectPuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
+  studioMode?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  readonlyMode: false,
+  studioMode: false,
+})
 
 const emit = defineEmits<{
   "update:modelValue": [value: PuzzleAnswerDraft]
+  "update:content": [payload: { options?: Array<{ id: string; label: string }> }]
 }>()
 
 const { root, animateSelector } = useRendererMotion(() => {
@@ -39,6 +45,32 @@ const pickedIds = computed<string[]>(() => {
   const value = props.modelValue?.value
   return Array.isArray(value) ? (value as unknown[]).filter((item): item is string => typeof item === "string") : []
 })
+
+const draftLabels = ref<Record<string, string>>({})
+
+watch(
+  () => props.puzzle.questionPayload.candidates,
+  (list) => {
+    const next: Record<string, string> = {}
+    for (const item of list) {
+      next[item.id] = item.label
+    }
+    draftLabels.value = next
+  },
+  { immediate: true, deep: true },
+)
+
+function emitCandidateDraft() {
+  if (!props.studioMode) {
+    return
+  }
+  emit("update:content", {
+    options: props.puzzle.questionPayload.candidates.map((item) => ({
+      id: item.id,
+      label: String(draftLabels.value[item.id] ?? item.label ?? "").trim() || item.label,
+    })),
+  })
+}
 
 const hasCandidates = computed(() => props.puzzle.questionPayload.candidates.length > 0)
 const minPick = computed(() => Math.max(1, props.puzzle.questionPayload.minPick || 1))
@@ -122,7 +154,16 @@ watch(
 
     <span class="select-rule">{{ pickCopy }}</span>
 
-    <div v-if="hasCandidates" class="select-grid">
+    <div v-if="studioMode && hasCandidates" class="select-studio">
+      <StudioField
+        v-for="(candidate, index) in puzzle.questionPayload.candidates"
+        :key="candidate.id"
+        v-model="draftLabels[candidate.id]"
+        :label="`候选项 ${index + 1}`"
+        placeholder="候选项名称"
+        @change="emitCandidateDraft" />
+    </div>
+    <div v-else-if="hasCandidates" class="select-grid">
       <div
         v-for="candidate in puzzle.questionPayload.candidates"
         :key="candidate.id"
@@ -155,6 +196,12 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.select-studio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .select-brief {

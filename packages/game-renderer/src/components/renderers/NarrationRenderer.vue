@@ -15,6 +15,7 @@ import {
   type NarrationRendererDraft,
   type RendererSurfaceMode,
 } from "../../contracts"
+import StudioField from "../StudioField.vue"
 
 interface Props {
   mode?: RendererSurfaceMode
@@ -379,20 +380,20 @@ const metaChips = computed(() => {
     <!-- 上半：标题 + 播放 + 元信息（放大、扁平） -->
     <section class="nr-top">
       <header class="nr-head">
-        <template v-if="isStudio">
-          <input
-            v-model="draftTitle"
-            class="nr-title-input"
-            type="text"
-            placeholder="节点标题"
-            @change="emitDraft" />
+        <StudioField
+          v-if="isStudio"
+          v-model="draftTitle"
+          label="节点标题"
+          placeholder="解说节点名称"
+          @change="emitDraft" />
+        <template v-else>
+          <h3 class="nr-title">
+            {{ displayTitle }}
+          </h3>
+          <p v-if="guideLabel" class="nr-sub">
+            {{ guideLabel }}
+          </p>
         </template>
-        <h3 v-else class="nr-title">
-          {{ displayTitle }}
-        </h3>
-        <p v-if="guideLabel && !isStudio" class="nr-sub">
-          {{ guideLabel }}
-        </p>
       </header>
 
       <div
@@ -481,23 +482,24 @@ const metaChips = computed(() => {
       </p>
 
       <div v-if="isStudio" class="nr-studio-meta">
-        <label class="nr-field">
-          <span>风格</span>
-          <input v-model="draftStyle" type="text" placeholder="解说风格" @change="emitDraft" />
-        </label>
-        <label class="nr-field">
-          <span>场景</span>
-          <input v-model="draftScene" type="text" placeholder="场景上下文" @change="emitDraft" />
-        </label>
-        <label class="nr-field nr-field--sm">
-          <span>时长(秒)</span>
-          <input
-            v-model.number="draftDuration"
-            type="number"
-            min="1"
-            max="600"
-            @change="emitDraft" />
-        </label>
+        <StudioField
+          v-model="draftStyle"
+          label="解说风格"
+          placeholder="如：面向小学生，语言活泼"
+          @change="emitDraft" />
+        <StudioField
+          v-model="draftScene"
+          label="场景上下文"
+          placeholder="如：上海博物馆东馆"
+          @change="emitDraft" />
+        <StudioField
+          v-model="draftDuration"
+          class="nr-field--sm"
+          label="目标时长(秒)"
+          type="number"
+          :min="1"
+          :max="600"
+          @change="emitDraft" />
       </div>
       <div v-else-if="metaChips.length" class="nr-chips">
         <span v-for="chip in metaChips" :key="chip">{{ chip }}</span>
@@ -506,28 +508,32 @@ const metaChips = computed(() => {
 
     <!-- 下半：解说词（始终可见，可滚动） -->
     <section class="nr-script">
-      <div class="nr-script-label">
-        解说词
-      </div>
-
       <div v-if="props.status === 'loading'" class="nr-script-state">
         正在加载解说词…
       </div>
       <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
         {{ props.errorMessage || "解说词加载失败" }}
       </div>
-      <textarea
+      <StudioField
         v-else-if="isStudio"
         v-model="draftText"
-        class="nr-script-input"
-        placeholder="在此微调解说词…"
+        class="nr-script-field"
+        label="解说词"
+        type="textarea"
+        :rows="8"
+        placeholder="在此微调解说词正文…"
         @change="emitDraft" />
-      <div v-else-if="displayText" class="nr-script-body">
-        {{ displayText }}
-      </div>
-      <div v-else class="nr-script-state">
-        暂无解说词
-      </div>
+      <template v-else>
+        <div class="nr-script-label">
+          解说词
+        </div>
+        <div v-if="displayText" class="nr-script-body">
+          {{ displayText }}
+        </div>
+        <div v-else class="nr-script-state">
+          暂无解说词
+        </div>
+      </template>
     </section>
 
     <footer v-if="!isStudio && showPlayActions" class="nr-actions">
@@ -584,22 +590,6 @@ const metaChips = computed(() => {
   font-weight: 650;
   line-height: 1.35;
   letter-spacing: 0.01em;
-}
-
-.nr-title-input {
-  width: 100%;
-  border: 1px solid rgb(209 178 111 / 22%);
-  border-radius: 8px;
-  background: rgb(0 0 0 / 22%);
-  padding: 8px 10px;
-  color: #fff8ea;
-  font-size: 15px;
-  font-weight: 600;
-  outline: none;
-}
-
-.nr-title-input:focus {
-  border-color: rgb(209 178 111 / 48%);
 }
 
 .nr-sub {
@@ -868,39 +858,12 @@ const metaChips = computed(() => {
 
 .nr-studio-meta {
   display: grid;
-  grid-template-columns: 1fr 1fr 72px;
+  grid-template-columns: 1fr 1fr 88px;
   gap: 10px;
 }
 
-.nr-field {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.nr-field span {
-  color: rgb(247 239 221 / 48%);
-  font-size: 11px;
-}
-
-.nr-field input {
-  width: 100%;
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: 7px;
-  background: rgb(0 0 0 / 18%);
-  padding: 6px 8px;
-  color: #fff8ea;
-  font-size: 12px;
-  outline: none;
-}
-
-.nr-field input:focus {
-  border-color: rgb(209 178 111 / 40%);
-}
-
 .nr-field--sm {
-  width: auto;
+  min-width: 0;
 }
 
 /* —— 解说词：保证可见，占剩余高度 —— */
@@ -931,25 +894,18 @@ const metaChips = computed(() => {
   white-space: pre-wrap;
 }
 
-.nr-script-input {
-  display: block;
-  width: 100%;
+.nr-script-field {
+  display: flex;
   min-height: 160px;
   flex: 1 1 auto;
-  resize: none;
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: 8px;
-  background: rgb(0 0 0 / 18%);
-  padding: 10px;
-  color: rgb(247 239 221 / 92%);
-  font: inherit;
-  font-size: 14px;
-  line-height: 1.7;
-  outline: none;
+  flex-direction: column;
 }
 
-.nr-script-input:focus {
-  border-color: rgb(209 178 111 / 40%);
+.nr-script-field :deep(textarea.sf__control) {
+  min-height: 160px;
+  flex: 1 1 auto;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .nr-script-state {

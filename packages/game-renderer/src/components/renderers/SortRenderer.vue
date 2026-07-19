@@ -9,6 +9,8 @@ interface Props {
   puzzle: SortPuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
+  /** B 端预览；排序项文案可在宿主「题干」区编辑，此处保留开关兼容 */
+  studioMode?: boolean
 }
 
 interface LayoutRect {

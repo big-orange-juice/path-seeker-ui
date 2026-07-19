@@ -541,26 +541,31 @@ function closeDialog() {
           </div>
         </section>
 
-        <!-- 中：手机模拟器外框（与左右列同高同宽占满） -->
+        <!-- 中：手机模拟器外框（画面铺满，灵动岛叠在上方） -->
         <aside class="flex min-h-0 min-w-0 flex-col overflow-hidden">
           <div class="route-device__chrome min-h-0 flex-1">
-            <div class="route-device__status" aria-hidden="true">
-              <span class="route-device__time">&nbsp;</span>
-              <span class="route-device__island" />
-              <span class="route-device__signal">&nbsp;</span>
-            </div>
-
             <div class="route-device__screen">
-              <GameplayPreviewHost
-                v-if="previewStage"
-                class="h-full min-h-0"
-                :stage="previewStage"
-                :narration-audio-generating="narrationAudioGenerating"
-                @generate-audio="handleGenerateNarrationAudio" />
-              <div
-                v-else
-                class="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-sm text-white/45">
-                点击左侧节点预览
+              <!-- 状态栏 / 灵动岛：绝对定位叠在画面顶，不占布局高度 -->
+              <div class="route-device__status" aria-hidden="true">
+                <span class="route-device__time">9:41</span>
+                <span class="route-device__island" />
+                <span class="route-device__signal">
+                  <i /><i /><i />
+                </span>
+              </div>
+
+              <div class="route-device__viewport">
+                <GameplayPreviewHost
+                  v-if="previewStage"
+                  class="h-full min-h-0"
+                  :stage="previewStage"
+                  :narration-audio-generating="narrationAudioGenerating"
+                  @generate-audio="handleGenerateNarrationAudio" />
+                <div
+                  v-else
+                  class="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-sm text-white/45">
+                  点击左侧节点预览
+                </div>
               </div>
             </div>
 
@@ -639,20 +644,38 @@ function closeDialog() {
   padding: 8px 8px 10px;
 }
 
-.route-device__status {
+/* 屏幕铺满机身；状态栏 / 灵动岛叠在画面顶上 */
+.route-device__screen {
   position: relative;
-  z-index: 2;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1.35rem;
+  border: 1px solid rgb(255 255 255 / 6%);
+  background: #0b0c0f;
+  box-shadow:
+    inset 0 0 0 1px rgb(0 0 0 / 40%),
+    0 0 0 1px rgb(0 0 0 / 20%);
+}
+
+.route-device__status {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 20;
   display: grid;
-  flex-shrink: 0;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  height: 22px;
-  margin-bottom: 6px;
-  padding: 0 10px;
-  color: rgb(255 255 255 / 72%);
-  font-size: 10px;
+  height: 34px;
+  padding: 8px 16px 0;
+  color: rgb(255 255 255 / 78%);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
+  pointer-events: none;
 }
 
 .route-device__time {
@@ -661,11 +684,13 @@ function closeDialog() {
 }
 
 .route-device__island {
-  width: 72px;
-  height: 18px;
+  width: 86px;
+  height: 22px;
   border-radius: 999px;
   background: #050506;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 6%),
+    0 1px 4px rgb(0 0 0 / 35%);
 }
 
 .route-device__signal {
@@ -696,18 +721,24 @@ function closeDialog() {
   height: 9px;
 }
 
-.route-device__screen {
+/* 画面从顶部铺满，内容可滚入灵动岛下方 */
+.route-device__viewport {
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 1.15rem;
-  border: 1px solid rgb(255 255 255 / 6%);
-  background: #0b0c0f;
-  box-shadow:
-    inset 0 0 0 1px rgb(0 0 0 / 40%),
-    0 0 0 1px rgb(0 0 0 / 20%);
+}
+
+.route-device__viewport :deep(.gameplay-preview-root) {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* 顶栏安全区：内容从状态栏下开始，但背景仍延伸到岛下 */
+.route-device__viewport :deep(.preview-shell) {
+  padding-top: 36px;
 }
 
 .route-device__home {

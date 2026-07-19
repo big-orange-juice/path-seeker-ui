@@ -12,6 +12,7 @@ interface Props {
   puzzle: MultiStepReasoningPuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
+  studioMode?: boolean
 }
 
 const props = defineProps<Props>()

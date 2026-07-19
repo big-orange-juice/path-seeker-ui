@@ -1,25 +1,30 @@
 <script setup lang="ts">
-import { computed, nextTick, onUnmounted, shallowRef } from "vue"
+import { computed, nextTick, onUnmounted, shallowRef, watch } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
 import type { ImagePuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
+import StudioField from "../StudioField.vue"
 
 interface Props {
   puzzle: ImagePuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
+  studioMode?: boolean
 }
 
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
   "update:modelValue": [value: PuzzleAnswerDraft]
+  "update:content": [payload: { prompt?: string }]
 }>()
 
 const boardRef = shallowRef<HTMLElement | null>(null)
 const draggingFrom = shallowRef<number | null>(null)
 const hoverTo = shallowRef<number | null>(null)
+const draftHint = shallowRef("")
 let activePointerId: number | null = null
+let didInitShuffle = false
 
 function isStringOrder(value: PuzzleAnswerDraft["value"] | undefined): value is string[] {
   if (!Array.isArray(value)) {
@@ -30,8 +35,6 @@ function isStringOrder(value: PuzzleAnswerDraft["value"] | undefined): value is 
 
 /**
  * 入场只做位移/缩放，不碰 autoAlpha。
- * 旧实现 from(autoAlpha:0) 在父级重渲染、swap killTweens、或 context.revert
- * 时容易卡在半透明，表现为拼块（尤其 stagger 后半段）发黑发暗。
  */
 const { root, animateSelector } = useRendererMotion(() => {
   const tiles = gsap.utils.toArray<HTMLElement>(".puzzle-tile")
@@ -42,12 +45,12 @@ const { root, animateSelector } = useRendererMotion(() => {
   gsap.set(tiles, { autoAlpha: 1, opacity: 1, visibility: "visible" })
   gsap.fromTo(
     tiles,
-    { scale: 0.94, y: 10 },
+    { scale: 0.96, y: 6 },
     {
       scale: 1,
       y: 0,
-      duration: 0.28,
-      stagger: 0.022,
+      duration: 0.24,
+      stagger: 0.018,
       ease: "power2.out",
       overwrite: true,
       clearProps: "transform",
@@ -55,13 +58,97 @@ const { root, animateSelector } = useRendererMotion(() => {
   )
 })
 
+const correctIds = computed(() => {
+  const correct = props.puzzle.questionPayload.correctOrder
+  if (correct.length) {
+    return correct.map((id) => String(id))
+  }
+  return props.puzzle.questionPayload.pieces.map((piece) => piece.id)
+})
+
+function shuffleIds(source: string[]): string[] {
+  const next = [...source]
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const a = next[i]
+    const b = next[j]
+    if (a === undefined || b === undefined) {
+      continue
+    }
+    next[i] = b
+    next[j] = a
+  }
+
+  // 避免仍是正解
+  if (
+    next.length > 1
+    && next.every((id, index) => id === source[index])
+  ) {
+    const last = next.length - 1
+    const head = next[0]
+    const tail = next[last]
+    if (head !== undefined && tail !== undefined) {
+      next[0] = tail
+      next[last] = head
+    }
+  }
+
+  return next
+}
+
+function updateOrder(nextOrder: string[]) {
+  emit("update:modelValue", {
+    templateType: "image_puzzle",
+    value: nextOrder,
+  })
+}
+
 const currentOrder = computed<string[]>(() => {
   const value = props.modelValue?.value
   if (isStringOrder(value) && value.length > 0) {
     return value
   }
-  return props.puzzle.questionPayload.pieces.map((piece) => piece.id)
+  return correctIds.value
 })
+
+/** 无答案草稿时自动打乱一次 */
+watch(
+  () => props.puzzle.id,
+  () => {
+    didInitShuffle = false
+  },
+)
+
+watch(
+  () => [props.puzzle.id, props.modelValue?.value, correctIds.value.join("|")] as const,
+  () => {
+    const value = props.modelValue?.value
+    if (isStringOrder(value) && value.length > 0) {
+      didInitShuffle = true
+      return
+    }
+
+    if (didInitShuffle || !correctIds.value.length) {
+      return
+    }
+
+    didInitShuffle = true
+    updateOrder(shuffleIds(correctIds.value))
+  },
+  { immediate: true },
+)
+
+watch(
+  () =>
+    props.puzzle.questionPayload.trayTitle
+    || props.puzzle.questionPayload.prompt
+    || props.puzzle.prompt
+    || "",
+  (text) => {
+    draftHint.value = String(text || "").trim()
+  },
+  { immediate: true },
+)
 
 const gridSize = computed(() => {
   const configured = Number(props.puzzle.questionPayload.gridSize || 0)
@@ -78,7 +165,7 @@ const gridSize = computed(() => {
 const hasImage = computed(() => Boolean(String(props.puzzle.questionPayload.imageUrl || "").trim()))
 
 const isSolved = computed(() => {
-  const correct = props.puzzle.questionPayload.correctOrder
+  const correct = correctIds.value
   if (!correct.length || !currentOrder.value.length) {
     return false
   }
@@ -89,21 +176,20 @@ const isSolved = computed(() => {
 })
 
 const hintText = computed(() =>
-  props.puzzle.questionPayload.trayTitle
-  || props.puzzle.questionPayload.prompt
+  draftHint.value
   || "将碎片拖回正确位置，完成纹样复原。",
 )
 
-function updateOrder(nextOrder: string[]) {
-  emit("update:modelValue", {
-    templateType: "image_puzzle",
-    value: nextOrder,
-  })
+function emitHintDraft() {
+  if (!props.studioMode) {
+    return
+  }
+  emit("update:content", { prompt: draftHint.value.trim() })
 }
 
 /** 拼块背景：编号块用 piece 在正确序中的行列切图 */
 function tileFaceStyle(pieceId: string) {
-  const correctIndex = props.puzzle.questionPayload.correctOrder.indexOf(pieceId)
+  const correctIndex = correctIds.value.indexOf(pieceId)
   const total = gridSize.value
   const safeIndex = correctIndex >= 0 ? correctIndex : 0
   const row = Math.floor(safeIndex / total)
@@ -125,7 +211,7 @@ function tileFaceStyle(pieceId: string) {
 }
 
 function pieceNumber(pieceId: string) {
-  const correctIndex = props.puzzle.questionPayload.correctOrder.indexOf(pieceId)
+  const correctIndex = correctIds.value.indexOf(pieceId)
   if (correctIndex >= 0) {
     return correctIndex + 1
   }
@@ -143,7 +229,6 @@ function slotFromPoint(clientX: number, clientY: number): number | null {
     return null
   }
 
-  // 用元素命中，避免 transform 位移导致的错位
   const el = document.elementFromPoint(clientX, clientY)
   const tile = el?.closest?.("[data-slot]") as HTMLElement | null
   if (!tile || !board.contains(tile)) {
@@ -211,14 +296,13 @@ async function onPointerUp(event: PointerEvent) {
   updateOrder(next)
 
   await nextTick()
-  // 交换反馈同样不改 opacity，避免 kill 入场 tween 后遗留暗色
   animateSelector(
     ".puzzle-tile",
-    { scale: 0.97 },
+    { scale: 0.98 },
     {
       scale: 1,
-      duration: 0.18,
-      stagger: 0.012,
+      duration: 0.16,
+      stagger: 0.01,
       ease: "power2.out",
       overwrite: "auto",
       clearProps: "transform",
@@ -235,6 +319,13 @@ function onPointerCancel(event: PointerEvent) {
   activePointerId = null
 }
 
+function reshuffle() {
+  if (props.readonlyMode) {
+    return
+  }
+  updateOrder(shuffleIds(correctIds.value))
+}
+
 onUnmounted(() => {
   draggingFrom.value = null
   hoverTo.value = null
@@ -243,8 +334,26 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="root" class="image-puzzle-stage">
-    <p class="puzzle-hint">{{ hintText }}</p>
+  <div ref="root" class="image-puzzle-stage" :class="{ 'is-studio': studioMode }">
+    <div class="puzzle-hint-row">
+      <StudioField
+        v-if="studioMode"
+        v-model="draftHint"
+        class="puzzle-hint-field"
+        label="操作提示"
+        placeholder="如：将碎片拖回正确位置，完成纹样复原"
+        @change="emitHintDraft" />
+      <p v-else class="puzzle-hint">
+        {{ hintText }}
+      </p>
+      <button
+        v-if="studioMode"
+        type="button"
+        class="puzzle-reshuffle"
+        @click="reshuffle">
+        打乱
+      </button>
+    </div>
 
     <div
       ref="boardRef"
@@ -276,7 +385,9 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <p v-if="isSolved" class="puzzle-solved">已复原</p>
+    <p v-if="isSolved" class="puzzle-solved">
+      已复原
+    </p>
     <p v-else-if="!puzzle.questionPayload.pieces.length" class="puzzle-empty">
       暂无拼图碎片配置
     </p>
@@ -287,23 +398,50 @@ onUnmounted(() => {
 .image-puzzle-stage {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+}
+
+.puzzle-hint-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.puzzle-hint-field {
+  min-width: 0;
 }
 
 .puzzle-hint {
   margin: 0;
+  grid-column: 1 / -1;
   color: rgba(247, 239, 221, 0.58);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.puzzle-reshuffle {
+  flex-shrink: 0;
+  height: 30px;
+  border: 1px solid rgba(209, 178, 111, 0.28);
+  border-radius: 999px;
+  background: rgba(209, 178, 111, 0.1);
+  padding: 0 10px;
+  color: #f0dfb0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .puzzle-grid {
   display: grid;
-  gap: 8px;
+  gap: 2px;
   width: 100%;
-  /* 正方形棋盘，避免宽高比导致视觉错位 */
   aspect-ratio: 1;
   padding: 0;
+  overflow: hidden;
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .puzzle-tile {
@@ -316,21 +454,18 @@ onUnmounted(() => {
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 14px;
-  /* 保证可见：禁止入场/中断动画把 opacity 留在 0 */
+  border-radius: 0;
   opacity: 1;
   visibility: visible;
   background-color: rgba(255, 255, 255, 0.08);
   background-repeat: no-repeat;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   color: inherit;
   touch-action: none;
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
-  transition:
-    box-shadow 0.15s ease,
-    background-color 0.15s ease;
+  transition: box-shadow 0.15s ease;
 }
 
 .puzzle-tile.has-image {
@@ -348,6 +483,7 @@ onUnmounted(() => {
   box-shadow:
     inset 0 0 0 1.5px rgba(243, 217, 157, 0.5),
     0 0 0 1px rgba(209, 178, 111, 0.18);
+  z-index: 2;
 }
 
 .puzzle-tile.is-target {
@@ -357,7 +493,7 @@ onUnmounted(() => {
 
 .tile-number {
   color: rgba(243, 217, 157, 0.88);
-  font-size: clamp(1rem, 4.2vw, 1.2rem);
+  font-size: clamp(0.9rem, 3.6vw, 1.1rem);
   font-weight: 600;
   letter-spacing: 0.02em;
   pointer-events: none;
