@@ -42,6 +42,7 @@ export type ExhibitChatEventType =
   | "text.delta"
   | "tool.call.start"
   | "tool.call.result"
+  | "suggestions"
   | "done"
   | "error"
   | string
@@ -58,6 +59,11 @@ export interface ExhibitChatEvent<T = unknown> {
 
 export interface ExhibitChatTextDeltaPayload {
   content?: string | null
+}
+
+/** SSE suggestions：本轮后续建议（2-4 条；失败时为空数组） */
+export interface ExhibitChatSuggestionsPayload {
+  items?: string[] | null
 }
 
 export interface ExhibitChatDonePayload {
@@ -82,4 +88,6 @@ export interface AskUiMessage {
   runId?: string
   errorMessage?: string
   sources?: ExhibitChatSource[]
+  /** 本轮 done 前下发的后续建议，以 chip 展示 */
+  suggestions?: string[]
 }

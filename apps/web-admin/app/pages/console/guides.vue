@@ -14,6 +14,7 @@ import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue'
 import Input from '@/components/shadcn/input/Input.vue'
 import Select from '@/components/shadcn/select/Select.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import { resolveApiErrorMessage } from '@/composables/useApiClient'
 import {
   createEmptyGuideDraft,
   createGuideDraftFromRecord,
@@ -134,7 +135,7 @@ const openDetail = async (record: GuideRecord) => {
       detailRecord.value = detail
     }
   } catch (caughtError) {
-    actionError.value = caughtError instanceof Error ? caughtError.message : '导游详情加载失败。'
+    actionError.value = resolveApiErrorMessage(caughtError, '导游详情加载失败。')
   } finally {
     detailPending.value = false
   }
@@ -154,7 +155,7 @@ const handleFormSubmit = async (draft: GuideDraft) => {
         ? '导游已提交更新，生成完成后可在列表中查看。'
         : '导游已提交创建，生成完成后可在列表中查看。'
   } catch (caughtError) {
-    formError.value = caughtError instanceof Error ? caughtError.message : '导游保存失败。'
+    formError.value = resolveApiErrorMessage(caughtError, '导游保存失败。')
   } finally {
     formSubmitting.value = false
   }
@@ -173,7 +174,7 @@ const refreshGuideRow = async (record: GuideRecord) => {
     await refresh()
     actionFeedback.value = `已刷新「${record.name || record.guideCode || record.id}」。`
   } catch (caughtError) {
-    actionError.value = caughtError instanceof Error ? caughtError.message : '导游列表刷新失败。'
+    actionError.value = resolveApiErrorMessage(caughtError, '导游列表刷新失败。')
   } finally {
     actionPendingIds.value = actionPendingIds.value.filter((item) => item !== record.id)
   }
@@ -213,7 +214,7 @@ const submitRemove = async () => {
     }
     actionFeedback.value = '导游已删除。'
   } catch (caughtError) {
-    actionError.value = caughtError instanceof Error ? caughtError.message : '导游删除失败。'
+    actionError.value = resolveApiErrorMessage(caughtError, '导游删除失败。')
   } finally {
     finishActing(record.id)
   }

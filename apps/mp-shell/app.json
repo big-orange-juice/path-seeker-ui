@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "pages/index/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "秘径寻踪",
+    "navigationBarBackgroundColor": "#0a0908",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#0a0908",
+    "backgroundColorTop": "#0a0908",
+    "backgroundColorBottom": "#0a0908",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

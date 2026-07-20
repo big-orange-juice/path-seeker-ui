@@ -9,6 +9,7 @@ import {
   type GuideRecord,
   type GuideResponse,
   type GuideResponseListTotalPageResult,
+  type GuideStyleReferenceFile,
   type TtsVoiceResponse,
 } from '@/types/guide'
 
@@ -37,6 +38,48 @@ const appendFormField = (
  * 后端常返回 `/api/Guide/voice-preview?guideId=`（需鉴权的相对路径）。
  * 转为 Nuxt 同源代理地址，供 `<audio>` 携带登录 cookie 播放。
  */
+/** 从文件 URL 提取展示用文件名（用于风格参考 Tabs） */
+export const extractStyleReferenceFileName = (fileUrl: string): string => {
+  const raw = normalizeText(fileUrl)
+  if (!raw) {
+    return '未命名文件'
+  }
+
+  try {
+    const pathname = new URL(raw, 'http://local.invalid').pathname
+    const segment = pathname.split('/').filter(Boolean).pop() || ''
+    const decoded = decodeURIComponent(segment).trim()
+    if (decoded) {
+      return decoded
+    }
+  } catch {
+    // ignore parse errors
+  }
+
+  const fallback = raw.split(/[\\/]/).filter(Boolean).pop()
+  return fallback?.trim() || raw
+}
+
+export const mapStyleReferenceFiles = (urls: string[] | null | undefined): GuideStyleReferenceFile[] => {
+  if (!Array.isArray(urls)) {
+    return []
+  }
+
+  const nameCount = new Map<string, number>()
+
+  return urls
+    .map((item) => normalizeText(item))
+    .filter(Boolean)
+    .map((url) => {
+      const baseName = extractStyleReferenceFileName(url)
+      const seen = nameCount.get(baseName) ?? 0
+      nameCount.set(baseName, seen + 1)
+      // 同名文件追加序号，保证 Tab key/label 可区分
+      const name = seen === 0 ? baseName : `${baseName} (${seen + 1})`
+      return { url, name }
+    })
+}
+
 export const resolveGuideVoiceSamplePlayUrl = (
   voiceSampleUrl: string | null | undefined,
   guideId: string | null | undefined,
@@ -299,6 +342,22 @@ export const useGuideManagement = () => {
     return detail ? mapGuideResponse(detail) : null
   }
 
+  /** 风格参考文件地址列表（按文件名拆 Tab） */
+  const fetchGuideStyleReferenceFiles = async (id: string) => {
+    const list = await request<string[]>('/api/guide/style-reference-files', {
+      query: { id },
+    })
+    return mapStyleReferenceFiles(list)
+  }
+
+  /** 通过文件链接读取文本内容 */
+  const fetchGuideStyleReferenceFileContent = async (fileUrl: string) => {
+    const result = await request<{ text: string }>('/api/guide/style-reference-file-content', {
+      query: { url: fileUrl },
+    })
+    return typeof result?.text === 'string' ? result.text : ''
+  }
+
   const fetchTtsVoices = async (keyword?: string) => {
     const list = await request<TtsVoiceResponse[]>('/api/tts-voice/list', {
       query: {
@@ -357,6 +416,8 @@ export const useGuideManagement = () => {
     setPageSize,
     resetFilters,
     fetchGuideDetail,
+    fetchGuideStyleReferenceFiles,
+    fetchGuideStyleReferenceFileContent,
     fetchTtsVoices,
     saveGuide,
     deleteGuide,

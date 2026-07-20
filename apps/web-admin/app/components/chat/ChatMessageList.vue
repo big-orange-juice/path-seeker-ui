@@ -22,6 +22,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   retry: [];
+  suggestion: [text: string];
 }>();
 
 const scrollerRef = ref<HTMLElement | null>(null);
@@ -41,6 +42,7 @@ watch(
   () => [
     props.messages.length,
     props.messages.at(-1)?.content,
+    props.messages.at(-1)?.suggestions?.length,
     props.tools.length,
     props.isRunning,
   ] as const,
@@ -66,7 +68,9 @@ const lastMessage = computed(() => props.messages.at(-1) ?? null);
         :key="message.id"
         :message="message"
         :show-retry="message.role === 'assistant' && message.status === 'failed' && message.id === lastMessage?.id"
-        @retry="emit('retry')" />
+        :suggestions-disabled="props.isRunning"
+        @retry="emit('retry')"
+        @suggestion="emit('suggestion', $event)" />
 
       <ChatToolStatus
         v-if="props.isRunning || props.tools.length"

@@ -38,6 +38,14 @@ const voiceStatusMap: Record<number, { label: string; className: string }> = {
   3: { label: '异常', className: 'bg-amber-500/10 text-amber-200' },
 }
 
+/** 有 providerVoiceId 即视为音色已就绪 */
+const resolveVoiceStatusMeta = (record: GuideRecord) => {
+  if (String(record.providerVoiceId || '').trim()) {
+    return voiceStatusMap[2]!
+  }
+  return voiceStatusMap[record.voiceStatus] ?? voiceStatusMap[1]!
+}
+
 const isActing = (id: string) => props.actingIds.includes(id)
 
 const columns = computed<ColumnDef<GuideRecord>[]>(() => [
@@ -99,7 +107,7 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
     accessorKey: 'voiceStatus',
     header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '音色状态'),
     cell: ({ row }) => {
-      const meta = voiceStatusMap[row.original.voiceStatus] ?? voiceStatusMap[1]!
+      const meta = resolveVoiceStatusMeta(row.original)
       return h('span', { class: `inline-flex rounded-full px-2 py-0.5 text-xs ${meta.className}` }, meta.label)
     },
   },

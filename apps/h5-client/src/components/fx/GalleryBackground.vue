@@ -21,11 +21,8 @@ onUnmounted(() => {
 </script>
 
 <template>
+  <!-- 纯色底（与 mp-shell #0a0908 一致）+ 星点；无渐变/噪点/blur 光晕 -->
   <div class="gallery-bg" aria-hidden="true">
     <canvas ref="starCanvas" class="starfield" />
-    <div class="gallery-glow gallery-glow-a" />
-    <div class="gallery-glow gallery-glow-b" />
-    <div class="gallery-wash" />
-    <div class="gallery-grain" />
   </div>
 </template>

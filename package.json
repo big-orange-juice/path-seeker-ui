@@ -9,8 +9,10 @@
     "dev:h5": "pnpm --filter @path-seeker/mp-wechat dev:h5",
     "dev:h5-client": "pnpm --filter @path-seeker/h5-client dev",
     "dev:mp-weixin": "pnpm --filter @path-seeker/mp-wechat dev:mp-weixin",
+    "dev:mp-shell": "pnpm --filter @path-seeker/mp-shell dev",
     "build:h5-client": "pnpm --filter @path-seeker/h5-client build",
     "build:mp-weixin": "pnpm --filter @path-seeker/mp-wechat build:mp-weixin",
+    "build:mp-shell": "pnpm --filter @path-seeker/mp-shell build",
     "typecheck": "pnpm -r typecheck",
     "typecheck:h5-client": "pnpm --filter @path-seeker/h5-client type-check"
   }

@@ -1,0 +1,10 @@
+<!--
+  web-view 会铺满整页（含状态栏区域），不要在外面再包 view，
+  否则原生层可能在顶部露出 page 背景色。
+-->
+<web-view
+  src="{{h5Url}}"
+  bindmessage="onMessage"
+  bindload="onWebViewLoad"
+  binderror="onWebViewError"
+/>

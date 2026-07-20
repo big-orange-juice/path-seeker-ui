@@ -1,3 +1,8 @@
+import {
+  isTechnicalHttpMessage,
+  resolveHttpErrorMessage,
+  resolveHttpStatusMessage,
+} from "@path-seeker/ts-shared"
 import { getAccessToken } from "@/services/authSession"
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
@@ -81,11 +86,14 @@ function isApiResponse<T>(value: unknown): value is ApiResponse<T> {
 
 function normalizeErrorMessage(message: unknown, fallback: string) {
   const normalized = typeof message === "string" ? message.trim() : ""
-  return normalized || fallback
+  if (!normalized || isTechnicalHttpMessage(normalized)) {
+    return fallback
+  }
+  return normalized
 }
 
 function createStatusError(statusCode: number, payload: unknown) {
-  const fallback = `请求失败（${statusCode}）`
+  const fallback = resolveHttpStatusMessage(statusCode)
   const payloadMessage = isApiResponse(payload)
     ? payload.message
     : (typeof payload === "object" && payload && "message" in payload ? (payload as { message?: unknown }).message : null)
@@ -100,10 +108,15 @@ function createStatusError(statusCode: number, payload: unknown) {
 
 function unwrapApiResponse<T>(payload: ApiResponse<T>) {
   if (payload.code !== 0) {
+    const fallback =
+      payload.code === 10002
+        ? resolveHttpStatusMessage(401)
+        : "接口处理失败，请稍后重试"
     throw new ApiRequestError(
-      normalizeErrorMessage(payload.message, "接口处理失败，请稍后重试"),
+      normalizeErrorMessage(payload.message, fallback),
       {
         code: payload.code,
+        statusCode: payload.code === 10002 ? 401 : undefined,
         traceId: payload.traceId,
         payload,
       },
@@ -124,15 +137,10 @@ async function parseResponsePayload(response: Response) {
 }
 
 export function resolveRequestErrorMessage(error: unknown, fallback = "请求失败，请稍后重试") {
-  if (error instanceof ApiRequestError) {
-    return normalizeErrorMessage(error.message, fallback)
-  }
-
-  if (error instanceof Error) {
-    return normalizeErrorMessage(error.message, fallback)
-  }
-
-  return fallback
+  return resolveHttpErrorMessage(error, {
+    fallback,
+    statusCode: error instanceof ApiRequestError ? error.statusCode : undefined,
+  })
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}) {

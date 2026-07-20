@@ -74,11 +74,6 @@
     pointer-events: none;
   }
 
-  body.fx-swirl .gallery-bg {
-    filter: brightness(1.08);
-    transition: filter 0.6s ease;
-  }
-
   a {
     @apply text-inherit no-underline;
   }
@@ -97,17 +92,15 @@
 
 @layer components {
   /* ----- Gallery / starfield ----- */
+  /* 纯色 #0a0908（与 mp-shell 一致）+ 星点；无渐变 / grain / blur */
   .gallery-bg {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
-    background:
-      radial-gradient(ellipse 100% 70% at 50% -20%, rgba(209, 178, 111, 0.1), transparent 55%),
-      radial-gradient(ellipse 80% 50% at 100% 80%, rgba(60, 80, 140, 0.08), transparent 50%),
-      radial-gradient(ellipse 70% 40% at 0% 60%, rgba(120, 80, 40, 0.08), transparent 45%),
-      #050508;
+    background: #0a0908;
+    background-color: #0a0908;
   }
 
   .starfield {
@@ -116,53 +109,6 @@
     width: 100%;
     height: 100%;
     opacity: 0.85;
-  }
-
-  .gallery-wash {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(180deg, transparent 0%, rgba(5, 5, 8, 0.15) 100%);
-    opacity: 0.9;
-  }
-
-  .gallery-glow {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-  }
-
-  .gallery-glow-a {
-    width: 280px;
-    height: 280px;
-    top: -80px;
-    right: -40px;
-    background: rgba(209, 178, 111, 0.14);
-    animation: gallery-drift 18s ease-in-out infinite alternate;
-  }
-
-  .gallery-glow-b {
-    width: 320px;
-    height: 320px;
-    bottom: 0;
-    left: -120px;
-    background: rgba(90, 70, 140, 0.08);
-    animation: gallery-drift 22s ease-in-out infinite alternate-reverse;
-  }
-
-  .gallery-grain {
-    position: absolute;
-    inset: 0;
-    opacity: 0.035;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
-
-  @keyframes gallery-drift {
-    from {
-      transform: translate3d(0, 0, 0);
-    }
-    to {
-      transform: translate3d(-12px, 18px, 0);
-    }
   }
 
   /* ----- App view + route fx ----- */
@@ -991,6 +937,53 @@
     color: #e8c98a;
     font-size: 0.62rem;
     font-weight: 600;
+  }
+
+  .ask-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.55rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid rgba(255, 248, 230, 0.06);
+  }
+
+  .ask-suggestion-chip {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid rgba(209, 178, 111, 0.3);
+    background: linear-gradient(
+      135deg,
+      rgba(209, 178, 111, 0.16),
+      rgba(209, 178, 111, 0.05)
+    );
+    padding: 0.28rem 0.62rem;
+    color: #f0e2bc;
+    font-size: 0.72rem;
+    font-weight: 550;
+    line-height: 1.35;
+    text-align: left;
+    transition:
+      border-color 0.15s ease,
+      background 0.15s ease,
+      color 0.15s ease,
+      opacity 0.15s ease;
+  }
+
+  .ask-suggestion-chip:active:not(:disabled) {
+    border-color: rgba(209, 178, 111, 0.5);
+    background: linear-gradient(
+      135deg,
+      rgba(209, 178, 111, 0.24),
+      rgba(209, 178, 111, 0.1)
+    );
+    color: #fff4d6;
+  }
+
+  .ask-suggestion-chip:disabled {
+    opacity: 0.45;
   }
 
   .ask-retry {

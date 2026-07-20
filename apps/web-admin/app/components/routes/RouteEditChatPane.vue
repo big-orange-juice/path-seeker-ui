@@ -192,7 +192,8 @@ defineExpose({
       :is-running="isRunning"
       empty-title="用对话编辑当前路线"
       empty-description="例如：给当前节点增加提示、调整难度，或按主题补几个节点。"
-      @retry="retryLastFailed" />
+      @retry="retryLastFailed"
+      @suggestion="handleSend" />
 
     <div v-if="errorMessage" class="chat-error">
       {{ errorMessage }}

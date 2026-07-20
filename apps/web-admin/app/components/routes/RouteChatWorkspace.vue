@@ -506,7 +506,8 @@ defineExpose({
       placeholder="描述主题、受众、节点数量或讲解风格…"
       @send="sendMessage"
       @cancel="cancelRun"
-      @retry="retryLastFailed">
+      @retry="retryLastFailed"
+      @suggestion="sendMessage">
       <template #aside>
         <RouteChatPreviewPane
           :route-detail="routeDetail"

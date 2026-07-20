@@ -1,0 +1,12 @@
+/**
+ * 当前生效环境配置（由 scripts/set-env.js 生成，勿手改）。
+ * 环境: development
+ * 重新切换: pnpm env:dev | pnpm env:prod
+ */
+/** 本地开发：指向本机已启动的 h5-client */
+module.exports = {
+  env: 'development',
+  /** h5-client 本地地址（微信开发者工具需关闭域名校验） */
+  h5BaseUrl: 'http://localhost:5174/'
+  // h5BaseUrl: 'http://43.142.248.191:8101/'
+};

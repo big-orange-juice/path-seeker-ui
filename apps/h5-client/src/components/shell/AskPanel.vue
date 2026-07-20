@@ -159,6 +159,30 @@ function isLastFailedAssistant(index: number) {
 function isStreamingAssistant(msg: { role: string; status?: string }) {
   return msg.role === "assistant" && (msg.status === "streaming" || msg.status === "pending")
 }
+
+function canUseSuggestions(msg: {
+  role: string
+  status?: string
+  suggestions?: string[]
+}) {
+  return (
+    msg.role === "assistant"
+    && msg.status === "completed"
+    && Array.isArray(msg.suggestions)
+    && msg.suggestions.some((item) => String(item ?? "").trim())
+  )
+}
+
+function handleSuggestion(text: string) {
+  const trimmed = text.trim()
+  if (!trimmed || typing.value) {
+    return
+  }
+  if (isVoiceMode.value) {
+    speech.unlock()
+  }
+  void askStore.send(trimmed)
+}
 </script>
 
 <template>
@@ -339,6 +363,22 @@ function isStreamingAssistant(msg: { role: string; status?: string }) {
                 >
                   {{ source.name || source.formalName || "相关展品" }}
                 </span>
+              </div>
+
+              <div
+                v-if="canUseSuggestions(msg)"
+                class="ask-suggestions"
+              >
+                <button
+                  v-for="(item, suggestionIndex) in (msg.suggestions || []).filter((text) => String(text || '').trim())"
+                  :key="`${msg.id}-sg-${suggestionIndex}`"
+                  type="button"
+                  class="ask-suggestion-chip"
+                  :disabled="typing"
+                  @click="handleSuggestion(item)"
+                >
+                  {{ item }}
+                </button>
               </div>
 
               <button

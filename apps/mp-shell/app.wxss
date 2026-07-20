@@ -1,0 +1,12 @@
+/**
+ * 壳本身几乎无原生 UI。
+ * 背景与 h5-client 的 --void（#0a0908）一致，
+ * 避免 web-view 加载前/下拉回弹时顶部露出异色。
+ */
+page {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #0a0908;
+  color: #f2ebe0;
+}

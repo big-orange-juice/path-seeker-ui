@@ -1,4 +1,8 @@
 import type { H3Event } from 'h3'
+import {
+  isTechnicalHttpMessage,
+  resolveHttpStatusMessage,
+} from '@path-seeker/ts-shared'
 import { ADMIN_AUTH_COOKIE_KEY } from '~~/app/constants/admin-auth'
 
 const ADMIN_AUTH_STORE_COOKIE_KEY = 'admin-auth'
@@ -77,7 +81,7 @@ export default defineEventHandler(async (event) => {
 
   if (!upstream.ok) {
     const rawText = await upstream.text()
-    let backendMessage = upstream.statusText || '音色试听获取失败'
+    let backendMessage = ''
     let backendCode: number | undefined
     let backendTraceId: string | undefined
 
@@ -87,7 +91,7 @@ export default defineEventHandler(async (event) => {
         message?: string | null
         traceId?: string | null
       }
-      backendMessage = parsed.message || backendMessage
+      backendMessage = String(parsed.message || '').trim()
       backendCode = parsed.code
       backendTraceId = parsed.traceId ?? undefined
     } catch {
@@ -96,12 +100,18 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    const statusCode = backendCode === 10002 ? 401 : upstream.status
+    const message =
+      backendMessage && !isTechnicalHttpMessage(backendMessage)
+        ? backendMessage
+        : resolveHttpStatusMessage(statusCode, '音色试听获取失败')
+
     throw createError({
-      statusCode: backendCode === 10002 ? 401 : upstream.status,
-      message: backendMessage,
+      statusCode,
+      message,
       data: {
         code: backendCode,
-        message: backendMessage,
+        message: backendMessage || message,
         traceId: backendTraceId,
       },
     })

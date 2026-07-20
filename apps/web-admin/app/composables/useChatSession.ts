@@ -6,6 +6,7 @@ import type {
   ChatDonePayload,
   ChatErrorPayload,
   ChatEventResponse,
+  ChatSuggestionsPayload,
   ChatTextDeltaPayload,
   ChatToolActivity,
   ChatToolCallResultPayload,
@@ -14,6 +15,7 @@ import type {
   ChatRunStatus,
   CreateChatSessionRequest,
 } from '@/types/chat';
+import { resolveHttpErrorMessage } from '@path-seeker/ts-shared';
 import { parseChatEventData, resolveToolStatusLabel } from '@/utils/chat-payload';
 import { createSseParser } from '@/utils/sse';
 
@@ -39,23 +41,8 @@ const createLocalMessage = (
   ...extra,
 });
 
-const resolveErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  if (error && typeof error === 'object') {
-    const record = error as Record<string, unknown>;
-    if (typeof record.statusMessage === 'string' && record.statusMessage) {
-      return record.statusMessage;
-    }
-    if (typeof record.message === 'string' && record.message) {
-      return record.message;
-    }
-  }
-
-  return fallback;
-};
+const resolveErrorMessage = (error: unknown, fallback: string) =>
+  resolveHttpErrorMessage(error, fallback);
 
 const resolveAppApiUrl = (baseURL: string, path: string) => {
   const normalizedBase = String(baseURL || '/').replace(/\/?$/, '/');
@@ -277,6 +264,21 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         const payload = event.payload as ChatConfirmationPayload;
         pendingConfirmation.value = payload;
         options.onConfirmationRequired?.(payload, event);
+        break;
+      }
+
+      case 'suggestions': {
+        // done 之前下发；失败时 items 为空数组，不影响主回答
+        const payload = (event.payload ?? {}) as ChatSuggestionsPayload;
+        const items = Array.isArray(payload.items)
+          ? payload.items.map((item) => String(item ?? '').trim()).filter(Boolean)
+          : [];
+
+        if (activeAssistantId) {
+          updateMessage(activeAssistantId, {
+            suggestions: items,
+          });
+        }
         break;
       }
 

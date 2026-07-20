@@ -1,4 +1,8 @@
 import type { H3Event } from 'h3';
+import {
+  isTechnicalHttpMessage,
+  resolveHttpStatusMessage,
+} from '@path-seeker/ts-shared';
 import { ADMIN_AUTH_COOKIE_KEY } from '~~/app/constants/admin-auth';
 
 type BackendQueryValue = string | number | boolean | null | undefined;
@@ -18,18 +22,33 @@ interface BackendErrorPayload {
   [key: string]: unknown;
 }
 
-const createBackendBusinessError = (payload: BackendErrorPayload, fallbackStatusCode = 500) =>
-  createError({
-    statusCode: payload.code === 10002 ? 401 : fallbackStatusCode,
+const resolveBackendErrorMessage = (
+  payloadMessage: string | null | undefined,
+  statusCode: number,
+) => {
+  const businessMessage = String(payloadMessage ?? '').trim();
+  if (businessMessage && !isTechnicalHttpMessage(businessMessage)) {
+    return businessMessage;
+  }
+
+  return resolveHttpStatusMessage(statusCode);
+};
+
+const createBackendBusinessError = (payload: BackendErrorPayload, fallbackStatusCode = 500) => {
+  const statusCode = payload.code === 10002 ? 401 : fallbackStatusCode;
+  const message = resolveBackendErrorMessage(payload.message, statusCode);
+
+  return createError({
+    statusCode,
     // h3：长文案用 message，勿用 statusMessage（会被当成 HTTP reason phrase）
-    message: payload.message || (payload.code === 10002 ? '未登录或登录已过期，请重新登录' : '后端业务处理失败。'),
+    message,
     data: {
       code: payload.code,
-      message: payload.message,
+      message: payload.message ?? message,
       traceId: payload.traceId,
     },
   });
-
+};
 const normalizeAuthorization = (value: string | null | undefined) => {
   const token = String(value ?? '').trim();
 
@@ -343,13 +362,16 @@ export const backendFetch = async <T>(
         ? (backendResponse as BackendErrorPayload).traceId
         : undefined;
 
+    const statusCode = backendCode === 10002 ? 401 : response.status;
+    const message = resolveBackendErrorMessage(backendMessage, statusCode);
+
     throw createError({
-      statusCode: backendCode === 10002 ? 401 : response.status,
-      message: backendMessage || response.statusText || 'Backend request failed',
+      statusCode,
+      message,
       data: {
         path,
         code: backendCode,
-        message: backendMessage,
+        message: backendMessage || message,
         traceId: backendTraceId,
         backendStatus: response.status,
         backendStatusText: response.statusText,

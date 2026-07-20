@@ -41,6 +41,7 @@ export type ChatEventType =
   | 'ui.route.build.progress'
   | 'ui.route.build.complete'
   | 'confirmation.required'
+  | 'suggestions'
   | 'done'
   | 'error';
 
@@ -84,6 +85,11 @@ export interface ChatConfirmationPayload {
   confirmationToken?: string | null;
   operation?: string | null;
   arguments?: Record<string, unknown> | null;
+}
+
+/** SSE suggestions：本轮后续建议（2-4 条；失败时为空数组） */
+export interface ChatSuggestionsPayload {
+  items?: string[] | null;
 }
 
 export interface ChatRouteListUpdatedPayload {
@@ -211,6 +217,8 @@ export interface ChatUiMessage {
   runId?: string;
   errorMessage?: string;
   createdAt: number;
+  /** 本轮 done 前下发的后续建议，以 chip 展示 */
+  suggestions?: string[];
 }
 
 export interface ChatToolActivity {

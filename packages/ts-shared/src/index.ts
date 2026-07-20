@@ -6,6 +6,7 @@
  */
 export * from "./core"
 export * from "./enums"
+export * from "./http-errors"
 export * from "./persona"
 export * from "./reward"
 export * from "./route"

@@ -49,11 +49,11 @@ Last-Event-ID: 2076895560304037888
 
 字段说明：
 
-| 字段 | 类型 | 必填 | 约束 | 说明 |
-|---|---|---:|---|---|
-| `sessionId` | string | 是 | 有效长整型字符串 | Chat 会话 ID。使用字符串传输以避免 JavaScript 大整数精度丢失 |
-| `clientMessageId` | string | 是 | 最大 64 字符 | 客户端消息幂等 ID。每条新消息必须使用新的 ID |
-| `message` | string | 是 | 最大 20000 字符 | 用户输入内容 |
+| 字段              | 类型   | 必填 | 约束             | 说明                                                         |
+| ----------------- | ------ | ---: | ---------------- | ------------------------------------------------------------ |
+| `sessionId`       | string |   是 | 有效长整型字符串 | Chat 会话 ID。使用字符串传输以避免 JavaScript 大整数精度丢失 |
+| `clientMessageId` | string |   是 | 最大 64 字符     | 客户端消息幂等 ID。每条新消息必须使用新的 ID                 |
+| `message`         | string |   是 | 最大 20000 字符  | 用户输入内容                                                 |
 
 ### 2.3 `clientMessageId` 幂等规则
 
@@ -138,15 +138,15 @@ data: {"eventId":"2076895560304037889","sessionId":"2076894321939976192","runId"
 
 字段说明：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `eventId` | string | 事件唯一 ID，同时作为 SSE 的 `id:` |
-| `sessionId` | string | 当前 Chat 会话 ID |
-| `runId` | string | 本次用户消息对应的 Agent run ID |
-| `sequence` | number | 当前 run 内的持久化事件顺序号 |
-| `type` | string | 事件类型，与 SSE 的 `event:` 相同 |
-| `occurredAt` | string | ISO 8601 时间，可能使用 UTC `Z` 或时区偏移 `+08:00` |
-| `payload` | object / array / string / null | 事件业务数据，具体结构由 `type` 决定 |
+| 字段         | 类型                           | 说明                                                |
+| ------------ | ------------------------------ | --------------------------------------------------- |
+| `eventId`    | string                         | 事件唯一 ID，同时作为 SSE 的 `id:`                  |
+| `sessionId`  | string                         | 当前 Chat 会话 ID                                   |
+| `runId`      | string                         | 本次用户消息对应的 Agent run ID                     |
+| `sequence`   | number                         | 当前 run 内的持久化事件顺序号                       |
+| `type`       | string                         | 事件类型，与 SSE 的 `event:` 相同                   |
+| `occurredAt` | string                         | ISO 8601 时间，可能使用 UTC `Z` 或时区偏移 `+08:00` |
+| `payload`    | object / array / string / null | 事件业务数据，具体结构由 `type` 决定                |
 
 所有 ID 都应按字符串处理，不要转换成 JavaScript `Number`。
 
@@ -187,23 +187,25 @@ data: {"eventId":"2076895560304037889","sessionId":"2076894321939976192","runId"
 
 ## 7. 事件类型总览
 
-当前接口定义了 13 种事件类型：
+当前接口定义了 14 种事件类型：
 
-| `type` | 是否持久化 | 是否终止 | 用途 |
-|---|---:|---:|---|
-| `heartbeat` | 否 | 否 | 通知客户端 run 已启动 |
-| `text.delta` | 否 | 否 | Agent 文本流增量 |
-| `tool.call.start` | 是 | 否 | Agent 开始调用工具 |
-| `tool.call.result` | 是 | 否 | Agent 工具调用完成 |
-| `ui.exhibit.selected` | 是 | 否 | 返回搜索或选择的文物 |
-| `ui.route.list.updated` | 是 | 否 | 路线列表发生变化 |
-| `ui.route.detail.updated` | 是 | 否 | 路线详情或预览发生变化 |
-| `ui.route.stage.updated` | 是 | 否 | 路线节点发生变化 |
-| `ui.route.build.progress` | 是 | 否 | `BuildStagesByAgent` 按文物生成节点的实时进度 |
-| `ui.route.build.complete` | 是 | 否 | 路线构建或发布完成 |
-| `confirmation.required` | 是 | 否 | 高风险操作需要管理员确认 |
-| `done` | 是 | 是 | 本次 run 成功完成 |
-| `error` | 通常是 | 是 | 本次 run 失败、取消或启动失败 |
+| `type`                       | 是否持久化 | 是否终止 | 用途                                                |
+| ---------------------------- | ---------: | -------: | --------------------------------------------------- |
+| `heartbeat`                  |         否 |       否 | 通知客户端 run 已启动                               |
+| `text.delta`                 |         否 |       否 | Agent 文本流增量                                    |
+| `tool.call.start`            |         是 |       否 | Agent 开始调用工具                                  |
+| `tool.call.result`           |         是 |       否 | Agent 工具调用完成                                  |
+| `ui.exhibit.selected`        |         是 |       否 | 返回搜索或选择的文物                                |
+| `ui.route.list.updated`      |         是 |       否 | 路线列表发生变化                                    |
+| `ui.route.detail.updated`    |         是 |       否 | 路线详情或预览发生变化                              |
+| `ui.route.stage.updated`     |         是 |       否 | 路线节点发生变化                                    |
+| `ui.route.challenge.updated` |         是 |       否 | routeType=10 挑战单元发生变化                       |
+| `ui.route.build.progress`    |         是 |       否 | 路线节点逐个生成的实时进度                          |
+| `ui.route.build.complete`    |         是 |       否 | 路线构建或发布完成                                  |
+| `confirmation.required`      |         是 |       否 | 高风险操作需要管理员确认                            |
+| `suggestions`                |         是 |       否 | 基于本轮对话生成 2-4 条后续建议；生成失败时为空数组 |
+| `done`                       |         是 |       是 | 本次 run 成功完成                                   |
+| `error`                      |     通常是 |       是 | 本次 run 失败、取消或启动失败                       |
 
 ## 8. 事件详细格式
 
@@ -250,8 +252,8 @@ Agent 返回的文本增量。
 
 字段：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
+| 字段              | 类型   | 说明                             |
+| ----------------- | ------ | -------------------------------- |
 | `payload.content` | string | 本次新增的文本片段，不是完整回复 |
 
 前端需要累计文本：
@@ -281,10 +283,10 @@ Agent 开始调用服务端工具。
 
 字段：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `payload.toolName` | string | 工具名称 |
-| `payload.callId` | string | 工具调用 ID，用于和结果事件对应 |
+| 字段               | 类型   | 说明                            |
+| ------------------ | ------ | ------------------------------- |
+| `payload.toolName` | string | 工具名称                        |
+| `payload.callId`   | string | 工具调用 ID，用于和结果事件对应 |
 
 当前可能出现的工具名称：
 
@@ -297,10 +299,18 @@ SelectRoute
 AddStage
 ListStages
 UpdateStage
+BatchUpdateStages
+ReorderStages
 DeleteStage
+BatchDeleteStages
 BuildStagesByAgent
+ListTreasureChallenges
+BatchUpdateTreasureChallenges
+ReorderTreasureChallenges
+BatchDeleteTreasureChallenges
 SelectGuide
 GenerateNarration
+BatchGenerateNarrations
 SetNarrationStyle
 PreviewRoute
 PublishRoute
@@ -308,14 +318,14 @@ PublishRoute
 
 建议状态文案：
 
-| 工具 | 建议文案 |
-|---|---|
-| `SearchExhibits` | 正在搜索文物 |
-| `GetExhibitDetail` | 正在读取文物资料 |
-| `CreateRoute` | 正在创建路线 |
-| `BuildStagesByAgent` | 正在生成路线节点 |
-| `GenerateNarration` | 正在生成解说词 |
-| `PublishRoute` | 正在发布路线 |
+| 工具                 | 建议文案                           |
+| -------------------- | ---------------------------------- |
+| `SearchExhibits`     | 正在搜索文物                       |
+| `GetExhibitDetail`   | 正在读取文物资料                   |
+| `CreateRoute`        | 正在创建路线                       |
+| `BuildStagesByAgent` | 正在生成路线节点                   |
+| `GenerateNarration`  | 正在生成解说词正文（不会生成音频） |
+| `PublishRoute`       | 正在发布路线                       |
 
 ### 8.4 `tool.call.result`
 
@@ -340,10 +350,10 @@ PublishRoute
 
 字段：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
+| 字段             | 类型   | 说明                                  |
+| ---------------- | ------ | ------------------------------------- |
 | `payload.callId` | string | 对应 `tool.call.start.payload.callId` |
-| `payload.result` | any | 工具返回值，不同工具的结构不同 |
+| `payload.result` | any    | 工具返回值，不同工具的结构不同        |
 
 前端一般不需要直接展示完整 `result`，可以等待对应的 `ui.*` 事件刷新界面。
 
@@ -387,42 +397,43 @@ PublishRoute
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `payload.query` | string | 本次搜索关键词 |
-| `payload.count` | number | 返回文物条数（通常等于 `exhibits.length`） |
-| `payload.exhibits` | array | 文物列表 |
-| `payload.exhibits[].exhibitId` | string | 文物主键，按字符串处理 |
-| `payload.exhibits[].name` | string | 文物名称 |
-| `payload.exhibits[].museumId` | string / null | 所属博物馆 ID |
-| `payload.exhibits[].exhibitCode` | string / null | 馆藏编号 |
-| `payload.exhibits[].dynasty` | string / null | 朝代 |
-| `payload.exhibits[].category` | string / null | 类别 |
-| `payload.exhibits[].material` | string / null | 材质 |
-| `payload.exhibits[].description` | string / null | 简介 |
-| `payload.exhibits[].imageAttachmentId` | string / null | 封面附件 ID |
-| `payload.exhibits[].showcaseNo` | string / null | 展柜号 |
-| `payload.exhibits[].recommendedMinutes` | number / null | 推荐停留分钟 |
-| `payload.exhibits[].coreMemoryPoints` | string / null | 记忆点 JSON 字符串或 null |
-| `payload.exhibits[].historicalValue` | string / null | 历史价值 JSON 字符串或 null |
+| 字段                                    | 类型          | 说明                                       |
+| --------------------------------------- | ------------- | ------------------------------------------ |
+| `payload.query`                         | string        | 本次搜索关键词                             |
+| `payload.count`                         | number        | 返回文物条数（通常等于 `exhibits.length`） |
+| `payload.exhibits`                      | array         | 文物列表                                   |
+| `payload.exhibits[].exhibitId`          | string        | 文物主键，按字符串处理                     |
+| `payload.exhibits[].name`               | string        | 文物名称                                   |
+| `payload.exhibits[].museumId`           | string / null | 所属博物馆 ID                              |
+| `payload.exhibits[].exhibitCode`        | string / null | 馆藏编号                                   |
+| `payload.exhibits[].dynasty`            | string / null | 朝代                                       |
+| `payload.exhibits[].category`           | string / null | 类别                                       |
+| `payload.exhibits[].material`           | string / null | 材质                                       |
+| `payload.exhibits[].description`        | string / null | 简介                                       |
+| `payload.exhibits[].imageAttachmentId`  | string / null | 封面附件 ID                                |
+| `payload.exhibits[].showcaseNo`         | string / null | 展柜号                                     |
+| `payload.exhibits[].recommendedMinutes` | number / null | 推荐停留分钟                               |
+| `payload.exhibits[].coreMemoryPoints`   | string / null | 记忆点 JSON 字符串或 null                  |
+| `payload.exhibits[].historicalValue`    | string / null | 历史价值 JSON 字符串或 null                |
 
 前端解析与侧栏展示建议（与 web-admin 实现对齐）：
 
 ```javascript
 // 1) 单项映射：主键优先 exhibitId，回退 id
 function mapExhibitItem(item) {
-  if (!item || typeof item !== "object") return null;
+  if (!item || typeof item !== 'object') return null;
   const id = item.exhibitId ?? item.id;
   const name = item.name;
   const normalizedId = id != null && String(id).trim() ? String(id) : null;
-  const normalizedName = name != null && String(name).trim() ? String(name) : null;
+  const normalizedName =
+    name != null && String(name).trim() ? String(name) : null;
   if (!normalizedId && !normalizedName) return null;
   return {
     id: normalizedId,
     name: normalizedName,
     dynasty: item.dynasty != null ? String(item.dynasty) : null,
     category: item.category != null ? String(item.category) : null,
-    exhibitCode: item.exhibitCode != null ? String(item.exhibitCode) : null,
+    exhibitCode: item.exhibitCode != null ? String(item.exhibitCode) : null
   };
 }
 
@@ -431,15 +442,15 @@ function normalizeExhibits(payload) {
   if (Array.isArray(payload)) {
     return payload.map(mapExhibitItem).filter(Boolean);
   }
-  if (!payload || typeof payload !== "object") return [];
+  if (!payload || typeof payload !== 'object') return [];
 
-  for (const key of ["exhibits", "items", "list", "data"]) {
+  for (const key of ['exhibits', 'items', 'list', 'data']) {
     if (Array.isArray(payload[key])) {
       return payload[key].map(mapExhibitItem).filter(Boolean);
     }
   }
 
-  if (payload.exhibit && typeof payload.exhibit === "object") {
+  if (payload.exhibit && typeof payload.exhibit === 'object') {
     const one = mapExhibitItem(payload.exhibit);
     return one ? [one] : [];
   }
@@ -454,17 +465,17 @@ function normalizeExhibits(payload) {
 function formatExhibitMeta(exhibit) {
   return [exhibit.dynasty, exhibit.category, exhibit.exhibitCode]
     .filter(Boolean)
-    .join(" · ");
+    .join(' · ');
 }
 ```
 
 侧栏卡片建议展示：
 
-| 行 | 内容 |
-|---|---|
-| 标题 | `name`，缺省「未命名文物」 |
+| 行     | 内容                                                                         |
+| ------ | ---------------------------------------------------------------------------- |
+| 标题   | `name`，缺省「未命名文物」                                                   |
 | 副标题 | `formatExhibitMeta` → `dynasty · category · exhibitCode`（全空则不渲染该行） |
-| 编号 | `id`（来自 `exhibitId`） |
+| 编号   | `id`（来自 `exhibitId`）                                                     |
 
 #### 8.5.2 单件文物详情
 
@@ -490,12 +501,12 @@ function formatExhibitMeta(exhibit) {
 
 前端需要兼容以下形态，避免只认文档早期示例导致右侧列表为空：
 
-| 形态 | 说明 |
-|---|---|
-| `{ query, count, exhibits: [...] }` | **当前主路径**。列表项主键优先 `exhibitId`，可回退 `id` |
-| `[{ id, name }, ...]` 或 `[{ exhibitId, name }, ...]` | 顶层直接为文物数组（历史/简化示例） |
-| `{ exhibit, archive? }` | 单件详情 |
-| 顶层单文物对象 | 含 `exhibitId`/`id` 与 `name` |
+| 形态                                                  | 说明                                                    |
+| ----------------------------------------------------- | ------------------------------------------------------- |
+| `{ query, count, exhibits: [...] }`                   | **当前主路径**。列表项主键优先 `exhibitId`，可回退 `id` |
+| `[{ id, name }, ...]` 或 `[{ exhibitId, name }, ...]` | 顶层直接为文物数组（历史/简化示例）                     |
+| `{ exhibit, archive? }`                               | 单件详情                                                |
+| 顶层单文物对象                                        | 含 `exhibitId`/`id` 与 `name`                           |
 
 不要假设 `payload` 一定是数组；也不要只读 `item.id` 而忽略 `item.exhibitId`。
 
@@ -513,64 +524,25 @@ function formatExhibitMeta(exhibit) {
   "occurredAt": "2026-07-14T13:20:05.1234567+08:00",
   "payload": {
     "routeId": "2076896000000000001",
-    "routeName": "商周礼乐——青铜器探索路线"
+    "title": "宋韵瓷华——宋朝瓷器解说路线",
+    "theme": "宋朝瓷器"
   }
 }
 ```
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `payload.routeId` | string | 路线 ID，按字符串处理 |
-| `payload.routeName` | string / null | 路线展示名称；web-admin 侧栏「当前路线」标题可直接使用 |
+字段说明：
+
+| 字段              | 类型          | 说明                                 |
+| ----------------- | ------------- | ------------------------------------ |
+| `payload.routeId` | string        | 新建路线 ID，必须按字符串处理        |
+| `payload.title`   | string / null | 路线名称；创建时提供了名称则一并推送 |
+| `payload.theme`   | string / null | 路线主题；创建时提供了主题则一并推送 |
 
 前端建议：
 
 - 刷新路线列表；
-- 将新路线设为当前路线；
-- 有 `routeName` 时立即更新侧栏标题，不必等待 `ui.route.detail.updated`；
-- 仍可按 `routeId` 请求路线详情补齐主题等字段。
-
-### 8.6.1 `ui.route.build.progress`
-
-`BuildStagesByAgent` 按文物逐个生成节点时实时发出。节点开始生成、单个节点成功/失败、整批完成时都会持久化并立即推送。
-
-字段使用 `interactionType`（对齐 `route_stage.interaction_type`），不是 `gameplayType`。
-
-```json
-{
-  "type": "ui.route.build.progress",
-  "payload": {
-    "routeId": "2076896000000000001",
-    "currentIndex": 2,
-    "totalCount": 4,
-    "processedCount": 1,
-    "createdCount": 1,
-    "failedCount": 0,
-    "exhibitId": "345536575083515905",
-    "exhibitName": "大克鼎",
-    "interactionType": 6,
-    "status": "running",
-    "message": "正在创建第 2 个节点，共 4 个"
-  }
-}
-```
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `payload.routeId` | string | 当前路线 ID |
-| `payload.currentIndex` | number | 当前文物序号，从 1 开始 |
-| `payload.totalCount` | number | **本次** `BuildStagesByAgent` 调用的文物总数 |
-| `payload.createdCount` | number | 本次调用已新增的 `route_stage` 数量 |
-| `payload.interactionType` | number | 运行时交互类型 |
-| `payload.status` | string | `running` / `succeeded` / `failed` / `completed` |
-| `payload.stageIds` | string[] / null | 仅成功事件可能返回 |
-| `payload.message` | string | 可直接展示的中文进度文案 |
-
-前端建议（web-admin）：
-
-- 同一 `runId + routeId` 下可能有多批工具调用，侧栏进度应按批累计 `createdCount / totalCount`；
-- 进度汇总只放右侧「生成结果」面板，对话区仅保留 tool tag；
-- tool tag 按 `toolName` 合并，展示 `已添加路线节点 ×N`（N 为调用次数）。
+- 将新路线设为当前路线，并优先使用 `payload.title` 立即显示路线名称；
+- 根据 `routeId` 请求路线详情。
 
 ### 8.7 `ui.route.detail.updated`
 
@@ -643,7 +615,129 @@ function formatExhibitMeta(exhibit) {
 
 前端建议收到该事件后重新请求节点分页接口，不要依赖 payload 一定包含完整节点数据。
 
-### 8.9 `ui.route.build.complete`
+#### 8.8.1 `ui.route.challenge.updated`
+
+`routeType=10` 挑战单元发生批量编辑、排序或删除后发出。事件持久化，可通过 `Last-Event-ID` 回放。
+
+```json
+{
+  "type": "ui.route.challenge.updated",
+  "payload": {
+    "routeId": "2076896000000000001",
+    "challengeIds": ["2076896100000000001", "2076896100000000002"],
+    "action": "reordered"
+  }
+}
+```
+
+`action` 当前可能为：
+
+```text
+batch.updated
+reordered
+batch.deleted
+```
+
+前端收到后应重新请求后台挑战列表，不要直接把 `findStageId` 和 `practiceStageId` 当作两个独立挑战刷新。
+
+### 8.9 `ui.route.build.progress`
+
+`BuildStagesByAgent` 按文物逐个生成节点时实时发出。该事件在节点开始生成、单个节点成功、单个节点失败以及整批完成时都会持久化并立即推送，不需要等待整个 Tool 调用结束。
+
+正在创建第 2 个节点：
+
+```json
+{
+  "eventId": "2076895560304037896",
+  "sessionId": "2076894321939976192",
+  "runId": "352344449231228929",
+  "sequence": 6,
+  "type": "ui.route.build.progress",
+  "occurredAt": "2026-07-14T13:20:07.1234567+08:00",
+  "payload": {
+    "routeId": "2076896000000000001",
+    "currentIndex": 2,
+    "totalCount": 4,
+    "processedCount": 1,
+    "createdCount": 1,
+    "failedCount": 0,
+    "exhibitId": "345536575083515905",
+    "exhibitName": "大克鼎",
+    "gameplayType": 6,
+    "status": "running",
+    "message": "正在创建第 2 个节点，共 4 个"
+  }
+}
+```
+
+第 2 个节点创建成功：
+
+```json
+{
+  "type": "ui.route.build.progress",
+  "payload": {
+    "routeId": "2076896000000000001",
+    "currentIndex": 2,
+    "totalCount": 4,
+    "processedCount": 2,
+    "createdCount": 2,
+    "failedCount": 0,
+    "exhibitId": "345536575083515905",
+    "exhibitName": "大克鼎",
+    "gameplayType": 6,
+    "status": "succeeded",
+    "stageIds": ["2076896100000000002"],
+    "message": "已创建 2 个节点，共 4 个"
+  }
+}
+```
+
+整批完成：
+
+```json
+{
+  "type": "ui.route.build.progress",
+  "payload": {
+    "routeId": "2076896000000000001",
+    "currentIndex": 4,
+    "totalCount": 4,
+    "processedCount": 4,
+    "createdCount": 4,
+    "failedCount": 0,
+    "gameplayType": 6,
+    "status": "completed",
+    "message": "节点生成完成，共创建 4 个"
+  }
+}
+```
+
+字段说明：
+
+| 字段                     | 类型            | 说明                                                            |
+| ------------------------ | --------------- | --------------------------------------------------------------- |
+| `payload.routeId`        | string          | 当前路线 ID，必须按字符串处理                                   |
+| `payload.currentIndex`   | number          | 当前处理到的文物序号，从 1 开始                                 |
+| `payload.totalCount`     | number          | 本次 `BuildStagesByAgent` 调用需要处理的文物总数                |
+| `payload.processedCount` | number          | 已结束处理的文物数量，包括成功和失败                            |
+| `payload.createdCount`   | number          | 本次调用已实际新增的 `route_stage` 数量                         |
+| `payload.failedCount`    | number          | 当前失败数量；当前实现遇到失败会终止本次调用，因此取值为 0 或 1 |
+| `payload.exhibitId`      | string / null   | 当前文物 ID；`completed` 事件不返回                             |
+| `payload.exhibitName`    | string / null   | 当前文物名称；未查询到时可能为空                                |
+| `payload.gameplayType`   | number          | 当前生成的练习玩法类型                                          |
+| `payload.status`         | string          | `running`、`succeeded`、`failed` 或 `completed`                 |
+| `payload.stageIds`       | string[] / null | 当前文物本次新增的节点 ID，仅成功事件返回                       |
+| `payload.message`        | string          | 可直接展示的中文进度文案                                        |
+
+前端建议：
+
+- 按 `runId + routeId + gameplayType` 保存本批进度；
+- `running` 时显示“正在创建第 N 个，共 X 个”；
+- `succeeded` 时更新已创建数量，并可局部刷新节点；
+- `failed` 时保留已完成进度并显示失败文案，随后仍会收到终止 `error`；
+- `completed` 时将本批进度标记为完成，随后等待 `ui.route.stage.updated` 和 `done`；
+- 断线重连或重复 `clientMessageId` 时，该事件会从 `chat_event` 回放，前端应按 `eventId` 去重。
+
+### 8.10 `ui.route.build.complete`
 
 路线构建或发布完成。目前主要由 `PublishRoute` 发出。
 
@@ -668,7 +762,7 @@ function formatExhibitMeta(exhibit) {
 - 刷新路线状态；
 - 展示发布成功提示。
 
-### 8.10 `confirmation.required`
+### 8.11 `confirmation.required`
 
 删除节点、发布路线等高风险操作需要管理员确认。
 
@@ -693,12 +787,12 @@ function formatExhibitMeta(exhibit) {
 
 字段：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `payload.requiresConfirmation` | boolean | 当前固定为 `true` |
-| `payload.confirmationToken` | string | 确认令牌，当前有效期约 10 分钟 |
-| `payload.operation` | string | 高风险操作对应的工具名称 |
-| `payload.arguments` | object | 待确认操作参数 |
+| 字段                           | 类型    | 说明                           |
+| ------------------------------ | ------- | ------------------------------ |
+| `payload.requiresConfirmation` | boolean | 当前固定为 `true`              |
+| `payload.confirmationToken`    | string  | 确认令牌，当前有效期约 10 分钟 |
+| `payload.operation`            | string  | 高风险操作对应的工具名称       |
+| `payload.arguments`            | object  | 待确认操作参数                 |
 
 当前可能需要确认的操作：
 
@@ -709,7 +803,31 @@ PublishRoute
 
 前端收到事件后应保存 `confirmationToken`、`operation` 和 `arguments`，并显示确认弹窗。
 
-### 8.11 `done`
+### 8.12 `suggestions`
+
+正常结束时，服务端在 `done` 之前返回后续对话建议：
+
+```json
+{
+  "eventId": "2076895560304037899",
+  "sessionId": "2076894321939976192",
+  "runId": "352344449231228929",
+  "sequence": "9",
+  "type": "suggestions",
+  "occurredAt": "2026-07-20T13:20:10+08:00",
+  "payload": {
+    "items": [
+      "继续完善这条路线的下一关",
+      "检查当前关卡的难度是否合理",
+      "为已选文物补充讲解词"
+    ]
+  }
+}
+```
+
+该事件持久化并支持断线回放。生成成功时 `payload.items` 包含 2-4 条字符串；生成失败时返回空数组，且不会影响主回答成功完成。
+
+### 8.13 `done`
 
 本次 run 成功完成，是成功流的终止事件。
 
@@ -731,11 +849,11 @@ PublishRoute
 
 字段：
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `payload.assistantMessageId` | string | 已落库的 assistant 消息 ID |
-| `payload.routeId` | string / null | 本轮结束时当前选中的路线 ID |
-| `payload.routeVersion` | number / null | 路线版本预留字段，当前实现返回 `null` |
+| 字段                         | 类型          | 说明                                  |
+| ---------------------------- | ------------- | ------------------------------------- |
+| `payload.assistantMessageId` | string        | 已落库的 assistant 消息 ID            |
+| `payload.routeId`            | string / null | 本轮结束时当前选中的路线 ID           |
+| `payload.routeVersion`       | number / null | 路线版本预留字段，当前实现返回 `null` |
 
 收到 `done` 后，前端应：
 
@@ -745,7 +863,7 @@ PublishRoute
 4. 刷新当前路线和节点；
 5. 结束本次 SSE 读取。
 
-### 8.12 `error`
+### 8.14 `error`
 
 本次 run 失败、取消或启动失败，是失败流的终止事件。
 
@@ -797,11 +915,11 @@ run 创建前启动失败：
 
 当前错误码：
 
-| `payload.code` | 含义 |
-|---|---|
-| `agent_error` | Agent、模型、工具或历史消息处理过程中发生异常 |
-| `cancelled` | 客户端断开、请求取消或 CancellationToken 被触发 |
-| `startup_error` | run 和 assistant 占位消息创建前发生异常 |
+| `payload.code`  | 含义                                            |
+| --------------- | ----------------------------------------------- |
+| `agent_error`   | Agent、模型、工具或历史消息处理过程中发生异常   |
+| `cancelled`     | 客户端断开、请求取消或 CancellationToken 被触发 |
+| `startup_error` | run 和 assistant 占位消息创建前发生异常         |
 
 收到 `error` 后，前端应：
 
@@ -826,6 +944,12 @@ tool.call.start          CreateRoute
 tool.call.result
 ui.route.list.updated
 tool.call.start          AddStage
+tool.call.result
+ui.route.stage.updated
+tool.call.start          BuildStagesByAgent
+ui.route.build.progress  running
+ui.route.build.progress  succeeded
+ui.route.build.progress  completed
 tool.call.result
 ui.route.stage.updated
 text.delta
@@ -887,12 +1011,12 @@ error
 请求示例：
 
 ```javascript
-const response = await fetch("/api/Chat/send", {
-  method: "POST",
+const response = await fetch('/api/Chat/send', {
+  method: 'POST',
   headers: {
     Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    Accept: "text/event-stream"
+    'Content-Type': 'application/json',
+    Accept: 'text/event-stream'
   },
   body: JSON.stringify({
     sessionId,
@@ -916,7 +1040,7 @@ function handleChatEvent(sseEvent) {
   let payload = event.payload;
 
   // 兼容旧数据库回放出来的双重序列化 payload。
-  if (typeof payload === "string") {
+  if (typeof payload === 'string') {
     try {
       payload = JSON.parse(payload);
     } catch {
@@ -925,62 +1049,73 @@ function handleChatEvent(sseEvent) {
   }
 
   switch (event.type) {
-    case "heartbeat":
+    case 'heartbeat':
       setLoading(true);
       break;
 
-    case "text.delta":
+    case 'text.delta':
       appendAssistantText(payload.content);
       break;
 
-    case "tool.call.start":
+    case 'tool.call.start':
       showToolStatus(payload.toolName, payload.callId);
       break;
 
-    case "tool.call.result":
+    case 'tool.call.result':
       completeToolStatus(payload.callId);
       break;
 
-    case "ui.exhibit.selected":
+    case 'ui.exhibit.selected':
       // payload 主路径：{ query, count, exhibits:[{ exhibitId, name, dynasty, category, exhibitCode, ... }] }
       // 兼容：顶层数组 / { exhibit, archive } / 单对象；主键优先 exhibitId。
       // 侧栏：normalizeExhibits(payload) + formatExhibitMeta(exhibit)
       updateExhibits(normalizeExhibits(payload));
       break;
 
-    case "ui.route.list.updated":
-      // payload: { routeId, routeName? }
+    case 'ui.route.list.updated':
       refreshRouteList();
-      setCurrentRoute(payload.routeId, payload.routeName);
       break;
 
-    case "ui.route.detail.updated":
+    case 'ui.route.detail.updated':
       updateRouteDetail(payload);
       break;
 
-    case "ui.route.stage.updated":
+    case 'ui.route.stage.updated':
       refreshRouteStages(payload.routeId);
       break;
 
-    case "ui.route.build.progress":
-      // 侧栏累计进度；勿在对话流底部重复展示大卡片
-      updateBuildProgress(payload);
+    case 'ui.route.challenge.updated':
+      refreshTreasureChallenges(payload.routeId);
       break;
 
-    case "ui.route.build.complete":
+    case 'ui.route.build.progress':
+      updateRouteBuildProgress({
+        routeId: payload.routeId,
+        current: payload.currentIndex,
+        total: payload.totalCount,
+        created: payload.createdCount,
+        failed: payload.failedCount,
+        exhibitName: payload.exhibitName,
+        gameplayType: payload.gameplayType,
+        status: payload.status,
+        message: payload.message
+      });
+      break;
+
+    case 'ui.route.build.complete':
       refreshRouteDetail(payload.routeId);
       break;
 
-    case "confirmation.required":
+    case 'confirmation.required':
       showConfirmationDialog(payload);
       break;
 
-    case "done":
+    case 'done':
       setLoading(false);
       refreshHistory();
       break;
 
-    case "error":
+    case 'error':
       setLoading(false);
       showError(payload.message);
       break;
@@ -1059,3 +1194,141 @@ failed
 - 收到 `error`：失败终止，不再等待 `done`。
 - HTTP 连接断开但未收到终止事件：状态标记为未知，可使用 `Last-Event-ID` 或历史接口恢复。
 
+## 15. 解说正文与音频提交
+
+Chat 中的 `GenerateNarration` 只生成并保存解说词正文，不会自动生成音频，也不会创建 TTS 任务。正文生成成功后，解说详情中的关键状态为：
+
+```json
+{
+  "textStatus": 2,
+  "audioStatus": 0,
+  "ttsTaskId": null,
+  "audioAttachmentId": null,
+  "audioUrl": null
+}
+```
+
+管理员检查并确认正文后，由页面按钮调用独立接口提交音频任务：
+
+```http
+POST /api/Narration/generate-audio
+Authorization: Bearer <admin-token>
+Content-Type: application/json
+```
+
+请求体：
+
+```json
+{
+  "stageId": "2076896100000000001"
+}
+```
+
+成功响应中的 `data` 是 TTS 任务 ID：
+
+```json
+{
+  "code": 0,
+  "message": "TTS 任务已入队",
+  "data": "2076897000000000001",
+  "traceId": null
+}
+```
+
+提交前置条件：
+
+- 节点必须是 `interactionType=11` 的解说节点；
+- 解说正文必须已生成成功，`textStatus=2`；
+- 当前正文和 `textHash` 必须有效；
+- 导游必须启用，并具备可用的 MiniMax 音色配置；
+- 相同节点、正文哈希、音色和音频参数重复提交时复用已有任务，不重复创建。
+
+任务提交成功后，重新请求解说详情可看到：
+
+```json
+{
+  "audioStatus": 1,
+  "ttsTaskId": "2076897000000000001"
+}
+```
+
+`audioStatus` 含义：
+
+|  值 | 状态           | 说明                       |
+| --: | -------------- | -------------------------- |
+| `0` | `NotGenerated` | 尚未手动提交音频任务       |
+| `1` | `Queued`       | TTS 任务已入队             |
+| `2` | `Generating`   | 正在生成音频               |
+| `3` | `Completed`    | 音频生成完成               |
+| `4` | `Failed`       | 音频生成失败               |
+| `5` | `Stale`        | 正文已变化，原音频不再匹配 |
+
+## 16. UI 批量编辑接口
+
+UI 和 Chat 共用相同的 Service 业务层。Controller 只负责 HTTP 参数适配，Chat Tool 只负责自然语言参数整理、幂等和确认事件。
+
+### 16.1 普通路线节点
+
+批量更新：
+
+```http
+POST /api/Gameplay/StageBatchUpdate
+```
+
+精确排序，`orderedStageIds` 必须完整包含路线当前全部节点：
+
+```http
+POST /api/Gameplay/StageReorder
+```
+
+批量删除：
+
+```http
+POST /api/Gameplay/StageBatchDelete
+```
+
+这些接口不允许直接编辑 `routeType=10` 挑战内部的找寻/练习节点。
+
+### 16.2 routeType=10 挑战单元
+
+后台挑战列表：
+
+```http
+GET /api/TreasureHunt/AdminChallenges?routeId=<routeId>
+```
+
+批量编辑挑战内容、练习配置和必做状态：
+
+```http
+POST /api/TreasureHunt/AdminBatchUpdate
+```
+
+按完整 challengeId 列表排序，并同步重排找寻/练习节点：
+
+```http
+POST /api/TreasureHunt/AdminReorder
+```
+
+批量删除挑战、谜题、找寻节点和练习节点：
+
+```http
+POST /api/TreasureHunt/AdminBatchDelete
+```
+
+上述写操作统一由 `ITreasureChallengeAuthoringService` 在事务中维护挑战聚合、寻宝配置和路线统计。
+
+### 16.3 批量重新生成解说词
+
+```http
+POST /api/Narration/generate-batch
+```
+
+请求体：
+
+```json
+{
+  "stageIds": ["2076896100000000001", "2076896100000000002"]
+}
+```
+
+逐节点生成正文，单项失败不会中断其他节点；不会生成音频，也不会提交 TTS 任务。响应包含每个节点的成功状态、正文详情或错误信息。

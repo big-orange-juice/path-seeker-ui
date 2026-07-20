@@ -1,0 +1,13 @@
+{
+  "name": "@path-seeker/mp-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "微信小程序壳：web-view 承载 h5-client",
+  "scripts": {
+    "env:dev": "node scripts/set-env.js development",
+    "env:prod": "node scripts/set-env.js production",
+    "dev": "node scripts/set-env.js development",
+    "build": "node scripts/set-env.js production",
+    "type-check": "node -e \"console.log('mp-shell: native miniprogram, no type-check')\""
+  }
+}

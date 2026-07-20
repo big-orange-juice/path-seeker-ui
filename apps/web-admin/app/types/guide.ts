@@ -115,6 +115,14 @@ export interface TtsVoiceResponse {
   providerCreatedDate?: string | null
 }
 
+/** GET /api/Guide/style-reference-files 单条文件视图 */
+export interface GuideStyleReferenceFile {
+  /** 原始文件地址 */
+  url: string
+  /** 用于 Tab 展示的文件名 */
+  name: string
+}
+
 /** 列表 / 表单统一视图模型，主键一律 string */
 export interface GuideRecord {
   id: string

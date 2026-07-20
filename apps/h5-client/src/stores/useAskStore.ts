@@ -14,6 +14,7 @@ import type {
   ExhibitChatErrorPayload,
   ExhibitChatEvent,
   ExhibitChatSource,
+  ExhibitChatSuggestionsPayload,
   ExhibitChatTextDeltaPayload,
 } from "@/types/exhibitChat"
 import { parseExhibitChatEventData } from "@/utils/exhibitChatEvent"
@@ -180,6 +181,21 @@ export const useAskStore = defineStore("ask", () => {
         const content = String(payload?.content ?? "")
         if (content) {
           appendAssistantDelta(content)
+        }
+        break
+      }
+
+      case "suggestions": {
+        // done 之前下发；失败时 items 为空数组，不影响主回答
+        const payload = (event.payload ?? {}) as ExhibitChatSuggestionsPayload
+        const items = Array.isArray(payload.items)
+          ? payload.items.map((item) => String(item ?? "").trim()).filter(Boolean)
+          : []
+
+        if (activeAssistantId) {
+          updateMessage(activeAssistantId, {
+            suggestions: items,
+          })
         }
         break
       }

@@ -7,20 +7,30 @@ import type { ChatUiMessage } from '@/types/chat';
 interface Props {
   message: ChatUiMessage;
   showRetry?: boolean;
+  /** 会话进行中时禁用建议点击 */
+  suggestionsDisabled?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   showRetry: false,
+  suggestionsDisabled: false,
 });
 
 const emit = defineEmits<{
   retry: [];
+  suggestion: [text: string];
 }>();
 
 const isUser = computed(() => props.message.role === 'user');
 const isAssistant = computed(() => props.message.role === 'assistant');
 const isStreaming = computed(() => props.message.status === 'streaming' || props.message.status === 'pending');
 const isFailed = computed(() => props.message.status === 'failed');
+const suggestions = computed(() =>
+  (props.message.suggestions ?? []).map((item) => String(item ?? '').trim()).filter(Boolean),
+);
+const canUseSuggestions = computed(
+  () => isAssistant.value && !isStreaming.value && !isFailed.value && suggestions.value.length > 0,
+);
 </script>
 
 <template>
@@ -84,6 +94,19 @@ const isFailed = computed(() => props.message.status === 'failed');
           v-if="isStreaming && message.content"
           class="chat-caret"
           aria-hidden="true" />
+      </div>
+
+      <div v-if="canUseSuggestions" class="chat-suggestions">
+        <button
+          v-for="(item, index) in suggestions"
+          :key="`${message.id}-sg-${index}`"
+          type="button"
+          class="chat-suggestion-chip"
+          :disabled="suggestionsDisabled"
+          @click="emit('suggestion', item)"
+        >
+          {{ item }}
+        </button>
       </div>
 
       <div v-if="isFailed && showRetry" class="pt-1">
@@ -469,5 +492,44 @@ const isFailed = computed(() => props.message.status === 'failed');
 .chat-md :deep(strong) {
   font-weight: 600;
   color: #f4e7c4;
+}
+
+.chat-suggestions {
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-top: 0.1rem;
+}
+
+.chat-suggestion-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(209, 178, 111, 0.28);
+  background:
+    linear-gradient(135deg, rgba(209, 178, 111, 0.14), rgba(209, 178, 111, 0.04));
+  padding: 0.28rem 0.65rem;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #f0e2bc;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.chat-suggestion-chip:hover:not(:disabled) {
+  border-color: rgba(209, 178, 111, 0.48);
+  background:
+    linear-gradient(135deg, rgba(209, 178, 111, 0.22), rgba(209, 178, 111, 0.08));
+  color: #fff4d6;
+}
+
+.chat-suggestion-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 </style>

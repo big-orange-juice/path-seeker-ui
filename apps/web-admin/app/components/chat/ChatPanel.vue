@@ -29,6 +29,7 @@ const emit = defineEmits<{
   send: [message: string];
   cancel: [];
   retry: [];
+  suggestion: [text: string];
 }>();
 
 const hasAside = computed(() => Boolean(useSlots().aside));
@@ -43,7 +44,8 @@ const hasAside = computed(() => Boolean(useSlots().aside));
         :is-running="props.isRunning"
         :empty-title="props.emptyTitle"
         :empty-description="props.emptyDescription"
-        @retry="emit('retry')" />
+        @retry="emit('retry')"
+        @suggestion="emit('suggestion', $event)" />
 
       <div v-if="props.errorMessage" class="chat-error">
         {{ props.errorMessage }}
