@@ -15,7 +15,6 @@ const setOpen = (value: boolean) => {
 
 watch(open, (value) => {
   emit('update:open', value);
-  document.body.style.overflow = value ? 'hidden' : '';
 });
 
 provide(dialogContextKey, {

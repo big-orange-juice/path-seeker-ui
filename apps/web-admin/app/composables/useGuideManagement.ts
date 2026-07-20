@@ -143,6 +143,8 @@ export const createEmptyGuideDraft = (): GuideDraft => ({
   version: 1,
   materialFile: null,
   materialFileName: '',
+  txtMaterialFile: null,
+  txtMaterialFileName: '',
 })
 
 export const createGuideDraftFromRecord = (record: GuideRecord): GuideDraft => ({
@@ -170,6 +172,8 @@ export const createGuideDraftFromRecord = (record: GuideRecord): GuideDraft => (
   version: record.version,
   materialFile: null,
   materialFileName: '',
+  txtMaterialFile: null,
+  txtMaterialFileName: '',
 })
 
 const buildMaterialFormData = (draft: GuideDraft, mode: 'create' | 'edit') => {
@@ -201,8 +205,12 @@ const buildMaterialFormData = (draft: GuideDraft, mode: 'create' | 'edit') => {
   appendFormField(formData, 'Status', draft.status || DEFAULT_STATUS)
   appendFormField(formData, 'SortOrder', Number.isFinite(draft.sortOrder) ? draft.sortOrder : 0)
 
+  // multipart 字段名与 schema 一致：material（音视频）/ txtmaterial（文本语义资料）
   if (draft.materialFile instanceof File) {
     formData.append('material', draft.materialFile, draft.materialFile.name)
+  }
+  if (draft.txtMaterialFile instanceof File) {
+    formData.append('txtmaterial', draft.txtMaterialFile, draft.txtMaterialFile.name)
   }
 
   return formData

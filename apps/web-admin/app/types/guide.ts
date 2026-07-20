@@ -164,9 +164,18 @@ export type GuideDraft = Omit<
   id?: string
   /** 表单预览用头像 URL（不提交） */
   avatarPreviewUrl?: string | null
-  /** 语义材料本地文件（txt / mp3 / mp4），提交 multipart */
+  /**
+   * 音色材料本地文件（mp3 / mp4），multipart 字段名 `material`
+   * 对齐 create-with-material / update-with-material
+   */
   materialFile?: File | null
   materialFileName?: string
+  /**
+   * 语义/语料资料本地文件（txt），multipart 字段名 `txtmaterial`
+   * 对齐 create-with-material / update-with-material
+   */
+  txtMaterialFile?: File | null
+  txtMaterialFileName?: string
 }
 
 export const GUIDE_STATUS_OPTIONS = [

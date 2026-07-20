@@ -38,6 +38,29 @@ const emit = defineEmits<{
 const form = reactive<GuideDraft>({ ...props.initialValue })
 const avatarPreviewUrls = shallowRef<string[]>([])
 const materialInputRef = useTemplateRef<HTMLInputElement>('materialInput')
+const txtMaterialInputRef = useTemplateRef<HTMLInputElement>('txtMaterialInput')
+const materialError = shallowRef('')
+const txtMaterialError = shallowRef('')
+
+/** 音色材料：mp3 / mp4 → multipart `material` */
+const isVoiceMaterialFile = (file: File) => {
+  const name = file.name.toLowerCase()
+  const type = (file.type || '').toLowerCase()
+  return (
+    name.endsWith('.mp3')
+    || name.endsWith('.mp4')
+    || type === 'audio/mpeg'
+    || type === 'audio/mp3'
+    || type === 'video/mp4'
+  )
+}
+
+/** 语义资料：txt → multipart `txtmaterial` */
+const isTxtMaterialFile = (file: File) => {
+  const name = file.name.toLowerCase()
+  const type = (file.type || '').toLowerCase()
+  return name.endsWith('.txt') || type === 'text/plain'
+}
 
 watch(
   () => [props.open, props.initialValue] as const,
@@ -49,7 +72,11 @@ watch(
       ...props.initialValue,
       materialFile: null,
       materialFileName: '',
+      txtMaterialFile: null,
+      txtMaterialFileName: '',
     })
+    materialError.value = ''
+    txtMaterialError.value = ''
     const preview = String(props.initialValue.avatarPreviewUrl || '').trim()
     avatarPreviewUrls.value = preview ? [preview] : []
   },
@@ -122,17 +149,70 @@ const openMaterialPicker = () => {
   materialInputRef.value?.click()
 }
 
+const openTxtMaterialPicker = () => {
+  txtMaterialInputRef.value?.click()
+}
+
 const handleMaterialChange = (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] ?? null
+  materialError.value = ''
+
+  if (!file) {
+    form.materialFile = null
+    form.materialFileName = ''
+    input.value = ''
+    return
+  }
+
+  if (!isVoiceMaterialFile(file)) {
+    materialError.value = '音色材料仅支持 MP3 / MP4。'
+    form.materialFile = null
+    form.materialFileName = ''
+    input.value = ''
+    return
+  }
+
   form.materialFile = file
-  form.materialFileName = file?.name || ''
+  form.materialFileName = file.name
+  input.value = ''
+}
+
+const handleTxtMaterialChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  txtMaterialError.value = ''
+
+  if (!file) {
+    form.txtMaterialFile = null
+    form.txtMaterialFileName = ''
+    input.value = ''
+    return
+  }
+
+  if (!isTxtMaterialFile(file)) {
+    txtMaterialError.value = '语义资料仅支持 TXT 文本。'
+    form.txtMaterialFile = null
+    form.txtMaterialFileName = ''
+    input.value = ''
+    return
+  }
+
+  form.txtMaterialFile = file
+  form.txtMaterialFileName = file.name
   input.value = ''
 }
 
 const clearMaterial = () => {
   form.materialFile = null
   form.materialFileName = ''
+  materialError.value = ''
+}
+
+const clearTxtMaterial = () => {
+  form.txtMaterialFile = null
+  form.txtMaterialFileName = ''
+  txtMaterialError.value = ''
 }
 
 const handleSubmit = () => {
@@ -143,6 +223,8 @@ const handleSubmit = () => {
     ...form,
     materialFile: form.materialFile ?? null,
     materialFileName: form.materialFileName || '',
+    txtMaterialFile: form.txtMaterialFile ?? null,
+    txtMaterialFileName: form.txtMaterialFileName || '',
   })
 }
 </script>
@@ -153,7 +235,7 @@ const handleSubmit = () => {
       <DialogHeader class="shrink-0 space-y-1 border-b border-border/60 px-5 py-4">
         <DialogTitle>{{ title }}</DialogTitle>
         <DialogDescription>
-          维护基础资料；语义画像通过材料文件异步生成。
+          维护基础资料；音色与语义画像通过材料文件异步生成。
         </DialogDescription>
       </DialogHeader>
 
@@ -199,43 +281,90 @@ const handleSubmit = () => {
 
         <section class="space-y-3 border-t border-border/50 pt-4">
           <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            语义信息
+            生成材料
           </p>
           <p class="text-xs leading-5 text-muted-foreground">
-            上传文本、音频或视频材料，用于生成音色与语料风格；其余参数使用默认值。
+            音色材料用于声线分析，语义资料用于语料风格与画像生成；可只传其一，其余参数使用默认值。
           </p>
 
-          <input
-            ref="materialInput"
-            type="file"
-            accept=".txt,.mp3,.mp4,text/plain,audio/mpeg,video/mp4"
-            class="hidden"
-            @change="handleMaterialChange"
-          >
+          <!-- 音色材料 → material -->
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-foreground">音色材料</label>
+            <input
+              ref="materialInput"
+              type="file"
+              accept=".mp3,.mp4,audio/mpeg,audio/mp3,video/mp4"
+              class="hidden"
+              @change="handleMaterialChange"
+            >
 
-          <button
-            type="button"
-            class="flex w-full items-center justify-center gap-3 rounded-xl border border-dashed border-primary/30 bg-secondary/25 px-4 py-4 text-center transition hover:border-primary/50 hover:bg-secondary/40"
-            @click="openMaterialPicker"
-          >
-            <span class="text-sm font-medium text-foreground">
-              {{ form.materialFileName ? '重新选择材料' : '上传语义材料' }}
-            </span>
-            <span class="text-xs text-muted-foreground">
-              TXT / MP3 / MP4
-            </span>
-          </button>
+            <button
+              type="button"
+              class="flex w-full items-center justify-center gap-3 rounded-lg border border-dashed border-primary/30 bg-secondary/25 px-4 py-3 text-center transition hover:border-primary/50 hover:bg-secondary/40"
+              @click="openMaterialPicker"
+            >
+              <span class="text-sm font-medium text-foreground">
+                {{ form.materialFileName ? '重新选择音色材料' : '上传音色材料' }}
+              </span>
+              <span class="text-xs text-muted-foreground">
+                MP3 / MP4
+              </span>
+            </button>
 
-          <div
-            v-if="form.materialFileName"
-            class="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/40 px-3 py-2"
-          >
-            <p class="min-w-0 truncate text-sm text-foreground">
-              {{ form.materialFileName }}
+            <div
+              v-if="form.materialFileName"
+              class="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/40 px-3 py-2"
+            >
+              <p class="min-w-0 truncate text-sm text-foreground">
+                {{ form.materialFileName }}
+              </p>
+              <Button variant="ghost" size="sm" type="button" @click="clearMaterial">
+                移除
+              </Button>
+            </div>
+            <p v-if="materialError" class="text-xs text-rose-300">
+              {{ materialError }}
             </p>
-            <Button variant="ghost" size="sm" type="button" @click="clearMaterial">
-              移除
-            </Button>
+          </div>
+
+          <!-- 语义资料 → txtmaterial -->
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-foreground">语义资料</label>
+            <input
+              ref="txtMaterialInput"
+              type="file"
+              accept=".txt,text/plain"
+              class="hidden"
+              @change="handleTxtMaterialChange"
+            >
+
+            <button
+              type="button"
+              class="flex w-full items-center justify-center gap-3 rounded-lg border border-dashed border-primary/30 bg-secondary/25 px-4 py-3 text-center transition hover:border-primary/50 hover:bg-secondary/40"
+              @click="openTxtMaterialPicker"
+            >
+              <span class="text-sm font-medium text-foreground">
+                {{ form.txtMaterialFileName ? '重新选择语义资料' : '上传语义资料' }}
+              </span>
+              <span class="text-xs text-muted-foreground">
+                TXT
+              </span>
+            </button>
+
+            <div
+              v-if="form.txtMaterialFileName"
+              class="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-background/40 px-3 py-2"
+            >
+              <p class="min-w-0 truncate text-sm text-foreground">
+                {{ form.txtMaterialFileName }}
+              </p>
+              <Button variant="ghost" size="sm" type="button" @click="clearTxtMaterial">
+                移除
+              </Button>
+            </div>
+            <p v-if="txtMaterialError" class="text-xs text-rose-300">
+              {{ txtMaterialError }}
+            </p>
           </div>
 
           <!-- 音色仅编辑时配置；新增阶段由材料异步生成 -->

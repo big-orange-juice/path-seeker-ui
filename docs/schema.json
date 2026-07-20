@@ -3832,6 +3832,10 @@
                   "material": {
                     "type": "string",
                     "format": "binary"
+                  },
+                  "txtmaterial": {
+                    "type": "string",
+                    "format": "binary"
                   }
                 }
               },
@@ -3900,6 +3904,9 @@
                   "style": "form"
                 },
                 "material": {
+                  "style": "form"
+                },
+                "txtmaterial": {
                   "style": "form"
                 }
               }
@@ -4174,6 +4181,10 @@
                   "material": {
                     "type": "string",
                     "format": "binary"
+                  },
+                  "txtmaterial": {
+                    "type": "string",
+                    "format": "binary"
                   }
                 }
               },
@@ -4248,6 +4259,9 @@
                   "style": "form"
                 },
                 "material": {
+                  "style": "form"
+                },
+                "txtmaterial": {
                   "style": "form"
                 }
               }

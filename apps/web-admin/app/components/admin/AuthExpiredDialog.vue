@@ -19,7 +19,9 @@ const handleConfirm = async () => {
 
 <template>
   <Dialog :open="store.sessionExpiredDialogOpen" @update:open="store.closeSessionExpiredDialog()">
-    <DialogContent class="max-w-[min(92vw,24rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
+    <DialogContent
+      :z-index="11000"
+      class="max-w-[min(92vw,24rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
       <DialogHeader class="space-y-2 px-5 pb-2 pt-4">
         <DialogTitle class="text-base font-semibold text-foreground">
           登录状态已失效
