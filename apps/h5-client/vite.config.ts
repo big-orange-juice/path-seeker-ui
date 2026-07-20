@@ -35,5 +35,25 @@ export default defineConfig({
       // 允许读 monorepo packages
       allow: [rootDir, fileURLToPath(new URL("../..", import.meta.url))],
     },
+    // MiniMax T2A 浏览器直连会 CORS；开发期同源代理
+    proxy: {
+      "/minimax-tts": {
+        target: "https://api.minimaxi.com",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/minimax-tts/, ""),
+      },
+    },
+  },
+  preview: {
+    // 预览构建产物时同样挂上代理，便于本地验语音
+    proxy: {
+      "/minimax-tts": {
+        target: "https://api.minimaxi.com",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/minimax-tts/, ""),
+      },
+    },
   },
 })

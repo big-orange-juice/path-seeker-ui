@@ -273,7 +273,7 @@ async function handleActionClick(item: FabActionItem) {
 
   if (item.action === 'ask') {
     displayedKey.value = item.key;
-    askStore.openAsk({ path: route.path });
+    askStore.openAsk();
     collapse();
     return;
   }

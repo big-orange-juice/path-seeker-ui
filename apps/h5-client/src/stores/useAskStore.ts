@@ -1,5 +1,6 @@
 import { computed, shallowRef } from "vue"
 import { acceptHMRUpdate, defineStore } from "pinia"
+import { v4 as uuidv4 } from "uuid"
 import {
   buildExhibitChatSendHeaders,
   buildExhibitChatSendUrl,
@@ -7,7 +8,6 @@ import {
   fetchExhibitChatHistory,
 } from "@/services/exhibitChat"
 import { resolveRequestErrorMessage } from "@/services/http"
-import { useMissionStore } from "@/stores/useMissionStore"
 import type {
   AskUiMessage,
   ExhibitChatDonePayload,
@@ -19,15 +19,8 @@ import type {
 import { parseExhibitChatEventData } from "@/utils/exhibitChatEvent"
 import { createSseParser } from "@/utils/sse"
 
-export type AskAttachmentKind = "mission" | "chapter" | "artifact"
-
-export interface AskAttachment {
-  kind: AskAttachmentKind
-  title: string
-  subtitle?: string
-  routeId?: string
-  chapterId?: string
-}
+/** 问一问交互模式：默认文字；语音模式仍打字输入，叠加 TTS 播报 */
+export type AskInteractionMode = "text" | "voice"
 
 /** @deprecated 使用 AskUiMessage */
 export type AskMessage = {
@@ -42,7 +35,7 @@ function createLocalMessage(
   extra?: Partial<AskUiMessage>,
 ): AskUiMessage {
   return {
-    id: crypto.randomUUID(),
+    id: uuidv4(),
     role,
     content,
     status,
@@ -59,30 +52,11 @@ function mapHistoryRole(role: string): AskUiMessage["role"] {
   return "assistant"
 }
 
-function buildWireMessage(userText: string, attachment: AskAttachment | null) {
-  if (!attachment) {
-    return userText
-  }
-
-  const kindLabel =
-    attachment.kind === "artifact" ? "展品" : attachment.kind === "chapter" ? "站点" : "路线"
-  const bits = [
-    `当前关注${kindLabel}：${attachment.title}`,
-    attachment.subtitle ? `位置/说明：${attachment.subtitle}` : "",
-  ].filter(Boolean)
-
-  return `${bits.join("；")}\n用户提问：${userText}`
-}
-
 export const useAskStore = defineStore("ask", () => {
   const open = shallowRef(false)
   const typing = shallowRef(false)
-  const attachment = shallowRef<AskAttachment | null>(null)
-  /**
-   * 用户主动点「去掉附带」后为 true。
-   * 浮层 ↔ 全屏切换时不得自动补回；仅 FAB 等「重新打开」且未 keepAttachment 时重置。
-   */
-  const attachmentDismissed = shallowRef(false)
+  /** 默认语音模式；浮层与全页共用 */
+  const interactionMode = shallowRef<AskInteractionMode>("voice")
   const messages = shallowRef<AskUiMessage[]>([])
   const sessionId = shallowRef("")
   const lastEventId = shallowRef("")
@@ -94,127 +68,20 @@ export const useAskStore = defineStore("ask", () => {
 
   const hasMessages = computed(() => messages.value.length > 0)
   const isRunning = computed(() => typing.value)
+  const isVoiceMode = computed(() => interactionMode.value === "voice")
 
-  /**
-   * 按当前路由 / 进行中任务推断附带上下文（优先级从高到低）：
-   * 1. `/missions/:routeId/chapters/:chapterId` 且站点已识别并有展品 → artifact
-   * 2. 同上路径有章节 → chapter
-   * 3. `/missions/:routeId` 有任务 → mission
-   * 4. 否则若有 activeSession → mission
-   * 5. 都没有 → null（不带附件）
-   */
-  function buildAttachmentFromContext(routePath = ""): AskAttachment | null {
-    const missionStore = useMissionStore()
-    const path = routePath || (typeof window !== "undefined" ? window.location.pathname : "")
-    const missionMatch = path.match(/^\/missions\/([^/]+)(?:\/chapters\/([^/]+))?/)
-    const session = missionStore.activeSession
-    const activeMission = missionStore.activeMission
-
-    if (missionMatch) {
-      const routeId = decodeURIComponent(missionMatch[1])
-      const chapterId = missionMatch[2] ? decodeURIComponent(missionMatch[2]) : null
-      const mission = missionStore.getMission(routeId) || (activeMission?.id === routeId ? activeMission : null)
-
-      if (chapterId && mission) {
-        const chapter = mission.chapters.find((item) => item.id === chapterId)
-        const progress = missionStore.getChapterProgress(chapterId)
-        if (chapter && progress.recognized && chapter.artifact) {
-          return {
-            kind: "artifact",
-            title: chapter.artifact.title || chapter.title,
-            subtitle: chapter.artifact.location || chapter.targetLocation || chapter.title,
-            routeId,
-            chapterId,
-          }
-        }
-        if (chapter) {
-          return {
-            kind: "chapter",
-            title: chapter.title,
-            subtitle: chapter.targetLocation || mission.title,
-            routeId,
-            chapterId,
-          }
-        }
-      }
-
-      if (mission) {
-        return {
-          kind: "mission",
-          title: mission.title,
-          subtitle: mission.theme || "探索中",
-          routeId,
-        }
-      }
-    }
-
-    if (session) {
-      return {
-        kind: "mission",
-        title: session.routeTitle || activeMission?.title || "当前任务",
-        subtitle: "进行中的探索",
-        routeId: session.routeId,
-      }
-    }
-
-    return null
+  function setInteractionMode(mode: AskInteractionMode) {
+    interactionMode.value = mode === "voice" ? "voice" : "text"
   }
 
-  /**
-   * 打开问一问浮层。
-   * - `attachment` 显式传入时直接使用
-   * - `keepAttachment: true`：保留当前附带（含用户已去掉的 null），用于全屏收起回浮层
-   * - `autoAttach !== false` 且非 keep：按路由/任务重建附带（FAB「问」），并清除 dismissed
-   * - `autoAttach: false`：不改动附带
-   */
-  function openAsk(options: {
-    autoAttach?: boolean
-    keepAttachment?: boolean
-    attachment?: AskAttachment | null
-    path?: string
-  } = {}) {
-    const autoAttach = options.autoAttach !== false
-
-    if (options.attachment !== undefined) {
-      attachment.value = options.attachment
-      attachmentDismissed.value = options.attachment == null
-    } else if (options.keepAttachment) {
-      // 浮层/全屏切换：完全保留 attachment + dismissed
-    } else if (autoAttach) {
-      // FAB 等重新打开：按当前上下文刷新附带
-      attachment.value = buildAttachmentFromContext(options.path)
-      attachmentDismissed.value = false
-    }
-
+  /** 打开问一问浮层 */
+  function openAsk() {
     open.value = true
     void ensureSession()
   }
 
   function closeAsk() {
     open.value = false
-  }
-
-  function clearAttachment() {
-    attachment.value = null
-    attachmentDismissed.value = true
-  }
-
-  function setAttachment(next: AskAttachment | null) {
-    attachment.value = next
-    // 外部显式写入非空附带时视为重新接受；写入 null 等同去掉
-    attachmentDismissed.value = next == null
-  }
-
-  /**
-   * 全屏页等场景：仅在尚未附带、且用户未主动去掉时补一次上下文。
-   * 避免「已去掉 → 放大全屏」把附件又补回来。
-   */
-  function ensureAttachmentFromContext(routePath = "") {
-    if (attachment.value || attachmentDismissed.value) {
-      return attachment.value
-    }
-    attachment.value = buildAttachmentFromContext(routePath)
-    return attachment.value
   }
 
   function updateMessage(id: string, patch: Partial<AskUiMessage>) {
@@ -257,7 +124,7 @@ export const useAskStore = defineStore("ask", () => {
     }
 
     const created = await createExhibitChatSession({
-      title: seedTitle?.slice(0, 256) || attachment.value?.title || "馆内问答",
+      title: seedTitle?.slice(0, 256) || "馆内问答",
     })
     sessionId.value = created.id
     return sessionId.value
@@ -417,7 +284,7 @@ export const useAskStore = defineStore("ask", () => {
     errorMessage.value = ""
     typing.value = true
 
-    const clientMessageId = crypto.randomUUID()
+    const clientMessageId = uuidv4()
     const userMessage = createLocalMessage("user", trimmed, "completed", { clientMessageId })
     const assistantMessage = createLocalMessage("assistant", "", "pending")
     activeAssistantId = assistantMessage.id
@@ -433,7 +300,7 @@ export const useAskStore = defineStore("ask", () => {
         body: JSON.stringify({
           sessionId: ensuredSessionId,
           clientMessageId,
-          message: buildWireMessage(trimmed, attachment.value),
+          message: trimmed,
         }),
         signal: abortController.signal,
       })
@@ -521,20 +388,17 @@ export const useAskStore = defineStore("ask", () => {
   return {
     open,
     typing,
-    attachment,
-    attachmentDismissed,
+    interactionMode,
     messages,
     sessionId,
     errorMessage,
     historyPending,
     hasMessages,
     isRunning,
+    isVoiceMode,
+    setInteractionMode,
     openAsk,
     closeAsk,
-    clearAttachment,
-    setAttachment,
-    buildAttachmentFromContext,
-    ensureAttachmentFromContext,
     ensureSession,
     loadHistory,
     send,

@@ -415,6 +415,7 @@ M4  多端一致
 | `docs/32-chat-send-sse-api.md` | B 端 Chat SSE |
 | `docs/41-route-status-workflow.md` | 路线发布 / 审核动线 |
 | `docs/h5-client-demo-alignment-status.md` | Demo 对齐专项 |
+| `docs/h5-client-minimax-tts-proxy.md` | 问一问语音 MiniMax TTS：Vite 代理与生产 Nginx 反代 |
 | 本文 | **实现进度 + 未完成 + 计划** |
 
 ---

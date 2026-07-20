@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from "uuid"
 import { getAccessToken } from "@/services/authSession"
 import { request } from "@/services/http"
 import type {
@@ -47,7 +48,7 @@ function mapMessage(item: Record<string, unknown> | null | undefined): ExhibitCh
     return null
   }
 
-  const id = normalizeText(item.id) || crypto.randomUUID()
+  const id = normalizeText(item.id) || uuidv4()
   const role = normalizeText(item.role).toLowerCase() || "assistant"
   const sourcesRaw = Array.isArray(item.sources) ? item.sources : []
 

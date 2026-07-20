@@ -1,10 +1,22 @@
 <script setup lang="ts">
-import { nextTick, onMounted, useTemplateRef, watch } from "vue"
+import { computed, nextTick, onMounted, onUnmounted, useTemplateRef, watch } from "vue"
 import { useRouter } from "vue-router"
-import { Maximize2, MessageCircle, Minimize2, Paperclip, RefreshCw, Send, X } from "lucide-vue-next"
+import {
+  AudioLines,
+  Maximize2,
+  MessageCircle,
+  Minimize2,
+  RefreshCw,
+  Send,
+  Square,
+  X,
+} from "lucide-vue-next"
 import { storeToRefs } from "pinia"
+import { useToastStore } from "@path-seeker/client-state"
 import AskMarkdown from "@/components/shell/AskMarkdown.vue"
-import { useAskStore } from "@/stores/useAskStore"
+import { useAskSpeech } from "@/composables/useAskSpeech"
+import { isMiniMaxTtsConfigured } from "@/services/minimaxTts"
+import { useAskStore, type AskInteractionMode } from "@/stores/useAskStore"
 
 interface Props {
   fullPage?: boolean
@@ -15,10 +27,27 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const router = useRouter()
+const toastStore = useToastStore()
 const askStore = useAskStore()
-const { open, typing, attachment, messages, errorMessage, historyPending } = storeToRefs(askStore)
+const { open, typing, messages, errorMessage, historyPending, interactionMode } =
+  storeToRefs(askStore)
+
+const speech = useAskSpeech()
 const msgsRef = useTemplateRef<HTMLElement>("msgsEl")
 const draft = useTemplateRef<HTMLInputElement>("draftEl")
+
+const isVoiceMode = computed(() => interactionMode.value === "voice")
+
+const voicePhaseLabel = computed(() => {
+  switch (speech.voicePhase.value) {
+    case "thinking":
+      return "思考中"
+    case "speaking":
+      return "朗读中"
+    default:
+      return "就绪"
+  }
+})
 
 async function scrollToBottom() {
   await nextTick()
@@ -28,17 +57,32 @@ async function scrollToBottom() {
 }
 
 watch(
-  [messages, typing, open],
+  [messages, typing, open, interactionMode],
   () => {
-    void scrollToBottom()
+    if (!isVoiceMode.value) {
+      void scrollToBottom()
+    }
   },
   { deep: true },
+)
+
+watch(
+  () => speech.speakError.value,
+  (value) => {
+    if (value && isVoiceMode.value) {
+      toastStore.warning("朗读失败", value)
+    }
+  },
 )
 
 onMounted(() => {
   if (props.fullPage || open.value) {
     void askStore.ensureSession().then(() => askStore.loadHistory())
   }
+})
+
+onUnmounted(() => {
+  speech.dispose()
 })
 
 watch(open, (value) => {
@@ -58,21 +102,36 @@ function handleSubmit(event: Event) {
   if (!text || typing.value) {
     return
   }
+  if (isVoiceMode.value) {
+    speech.unlock()
+  }
   if (input) {
     input.value = ""
   }
   void askStore.send(text)
 }
 
+function switchMode(mode: AskInteractionMode) {
+  if (mode === interactionMode.value) {
+    return
+  }
+  if (mode === "voice") {
+    if (!isMiniMaxTtsConfigured()) {
+      toastStore.warning("暂不可用", "未配置语音密钥，请检查本地环境变量。")
+      return
+    }
+    speech.unlock()
+  }
+  askStore.setInteractionMode(mode)
+}
+
 function maximize() {
-  // 只关浮层标记，不改 attachment / dismissed，全屏页复用同一份 store 状态
   askStore.closeAsk()
   void router.push("/shell/ask")
 }
 
 function minifyToSheet() {
-  // 收起回浮层：强制保留当前附带（含已去掉），禁止 autoAttach 补回
-  askStore.openAsk({ keepAttachment: true, autoAttach: false })
+  askStore.openAsk()
   void router.push("/shell/hall")
 }
 
@@ -82,12 +141,6 @@ function close() {
     return
   }
   askStore.closeAsk()
-}
-
-const kindLabel: Record<string, string> = {
-  artifact: "展品",
-  chapter: "这一站",
-  mission: "任务",
 }
 
 function isLastFailedAssistant(index: number) {
@@ -114,6 +167,7 @@ function isStreamingAssistant(msg: { role: string; status?: string }) {
     :class="{
       'is-open': fullPage || open,
       'is-full': fullPage,
+      'is-voice': isVoiceMode,
     }"
   >
     <div v-if="!fullPage" class="ask-mask" @click="close()" />
@@ -125,14 +179,41 @@ function isStreamingAssistant(msg: { role: string; status?: string }) {
       <header class="ask-head">
         <div class="ask-brand">
           <span class="ask-avatar" aria-hidden="true">
-            <MessageCircle class="h-4 w-4" />
+            <AudioLines v-if="isVoiceMode" class="h-4 w-4" />
+            <MessageCircle v-else class="h-4 w-4" />
           </span>
           <div class="min-w-0">
             <p class="ask-kicker">馆内小助手</p>
-            <h2 class="ask-title">问一问</h2>
+            <h2 class="ask-title">
+              {{ isVoiceMode ? "语音模式" : "问一问" }}
+            </h2>
           </div>
         </div>
         <div class="ask-head-actions">
+          <div class="ask-mode-switch" role="group" aria-label="交互模式">
+            <button
+              type="button"
+              class="ask-mode-btn"
+              :class="{ 'is-active': !isVoiceMode }"
+              title="文字模式"
+              aria-label="文字模式"
+              @click="switchMode('text')"
+            >
+              <MessageCircle class="h-3.5 w-3.5" />
+              <span class="ask-mode-btn-label">文字</span>
+            </button>
+            <button
+              type="button"
+              class="ask-mode-btn"
+              :class="{ 'is-active': isVoiceMode }"
+              title="语音模式"
+              aria-label="语音模式"
+              @click="switchMode('voice')"
+            >
+              <AudioLines class="h-3.5 w-3.5" />
+              <span class="ask-mode-btn-label">语音</span>
+            </button>
+          </div>
           <button
             v-if="fullPage"
             type="button"
@@ -157,25 +238,6 @@ function isStreamingAssistant(msg: { role: string; status?: string }) {
         </div>
       </header>
 
-      <div v-if="attachment" class="ask-attach">
-        <span class="ask-attach-icon" aria-hidden="true">
-          <Paperclip class="h-3.5 w-3.5" />
-        </span>
-        <div class="ask-attach-body">
-          <span class="ask-attach-kind">{{ kindLabel[attachment.kind] || "任务" }}</span>
-          <p class="ask-attach-title">{{ attachment.title }}</p>
-          <p v-if="attachment.subtitle" class="ask-attach-sub">{{ attachment.subtitle }}</p>
-        </div>
-        <button
-          type="button"
-          class="ask-icon-btn ask-icon-btn--sm"
-          aria-label="去掉附带"
-          @click="askStore.clearAttachment()"
-        >
-          <X class="h-3 w-3" />
-        </button>
-      </div>
-
       <div v-if="errorMessage" class="ask-banner is-error" role="alert">
         {{ errorMessage }}
       </div>
@@ -183,7 +245,40 @@ function isStreamingAssistant(msg: { role: string; status?: string }) {
         正在加载历史…
       </div>
 
-      <div ref="msgsEl" class="ask-msgs">
+      <!-- 语音模式：状态 + 字幕（无动画球） -->
+      <div v-if="isVoiceMode" class="ask-voice">
+        <p class="ask-voice-phase">{{ voicePhaseLabel }}</p>
+
+        <div v-if="speech.lastUserText.value" class="ask-voice-user">
+          <span class="ask-voice-label">你</span>
+          <p>{{ speech.lastUserText.value }}</p>
+        </div>
+
+        <div class="ask-voice-caption">
+          <span class="ask-voice-label">助手</span>
+          <p v-if="speech.captionText.value">{{ speech.captionText.value }}</p>
+          <p v-else class="ask-voice-placeholder">
+            {{
+              speech.voicePhase.value === "thinking"
+                ? "正在组织回答…"
+                : "打字提问，我会朗读回复"
+            }}
+          </p>
+        </div>
+
+        <button
+          v-if="speech.isSpeaking.value"
+          type="button"
+          class="ask-voice-stop"
+          @click="speech.stopSpeaking()"
+        >
+          <Square class="h-3 w-3" />
+          停止朗读
+        </button>
+      </div>
+
+      <!-- 文字模式：消息列表 -->
+      <div v-else ref="msgsEl" class="ask-msgs">
         <div
           v-if="!messages.length && !historyPending"
           class="ask-welcome"
@@ -277,7 +372,7 @@ function isStreamingAssistant(msg: { role: string; status?: string }) {
             ref="draftEl"
             class="ask-input"
             type="text"
-            placeholder="问问位置、故事或观察重点…"
+            :placeholder="isVoiceMode ? '打字提问，回复将朗读…' : '问问位置、故事或观察重点…'"
             autocomplete="off"
             :disabled="typing"
             maxlength="2000"

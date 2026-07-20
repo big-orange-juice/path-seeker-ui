@@ -15,3 +15,9 @@ apps/mini-app/dist
 apps/mini-app/node_modules
 apps/admin-web/node_modules
 
+
+# local secrets (Vite loads .env.local automatically)
+.env.local
+.env.*.local
+**/.env.local
+**/.env.*.local

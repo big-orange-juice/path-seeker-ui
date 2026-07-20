@@ -679,9 +679,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
-    padding: 0.55rem 0.95rem 0.75rem;
+    gap: 0.55rem;
+    padding: 0.55rem 0.75rem 0.75rem;
     border-bottom: 1px solid rgba(255, 248, 230, 0.06);
+  }
+
+  .ask-head .ask-brand {
+    flex: 1 1 auto;
   }
 
   .ask-brand {
@@ -727,7 +731,58 @@
   .ask-head-actions {
     display: flex;
     flex-shrink: 0;
+    align-items: center;
     gap: 0.35rem;
+  }
+
+  .ask-mode-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.12rem;
+    padding: 0.14rem;
+    border: 1px solid rgba(255, 248, 230, 0.1);
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.28);
+  }
+
+  .ask-mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    min-height: 1.7rem;
+    padding: 0.18rem 0.48rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--fg-dim);
+    font-size: 0.68rem;
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+
+  .ask-mode-btn.is-active {
+    background: linear-gradient(145deg, rgba(224, 195, 132, 0.95), rgba(176, 138, 63, 0.92));
+    color: var(--ink);
+    box-shadow: 0 4px 10px rgba(120, 90, 30, 0.22);
+  }
+
+  .ask-mode-btn:not(.is-active):active {
+    color: var(--gold-bright);
+  }
+
+  @media (max-width: 380px) {
+    .ask-mode-btn-label {
+      display: none;
+    }
+
+    .ask-mode-btn {
+      min-width: 1.7rem;
+      justify-content: center;
+      padding: 0.18rem;
+    }
   }
 
   .ask-icon-btn {
@@ -758,63 +813,6 @@
     min-width: 1.7rem;
     border-radius: 999px;
     padding: 0;
-  }
-
-  .ask-attach {
-    display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    margin: 0.65rem 0.85rem 0;
-    padding: 0.55rem 0.65rem;
-    border: 1px solid rgba(209, 178, 111, 0.22);
-    border-radius: 0.95rem;
-    background:
-      linear-gradient(135deg, rgba(209, 178, 111, 0.12), rgba(209, 178, 111, 0.04));
-    box-shadow: inset 0 1px 0 rgba(255, 248, 230, 0.04);
-  }
-
-  .ask-attach-icon {
-    display: grid;
-    width: 1.85rem;
-    height: 1.85rem;
-    flex-shrink: 0;
-    place-items: center;
-    border-radius: 0.6rem;
-    background: rgba(209, 178, 111, 0.14);
-    color: var(--gold-bright);
-  }
-
-  .ask-attach-body {
-    min-width: 0;
-    flex: 1;
-  }
-
-  .ask-attach-kind {
-    display: inline-block;
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--gold);
-  }
-
-  .ask-attach-title {
-    margin: 0.08rem 0 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.84rem;
-    font-weight: 650;
-    color: var(--fg);
-  }
-
-  .ask-attach-sub {
-    margin: 0.08rem 0 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.72rem;
-    color: var(--fg-dim);
   }
 
   .ask-banner {
@@ -1081,6 +1079,77 @@
   .ask-send:disabled {
     opacity: 0.45;
     box-shadow: none;
+  }
+
+  /* ----- Ask voice mode（无动画球，仅状态 + 字幕） ----- */
+  .ask-voice {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.7rem;
+    overflow: auto;
+    padding: 0.85rem 0.9rem 0.75rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ask-voice-phase {
+    margin: 0.15rem 0 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  .ask-voice-user,
+  .ask-voice-caption {
+    width: 100%;
+    padding: 0.7rem 0.85rem;
+    border-radius: 0.95rem;
+    border: 1px solid rgba(255, 248, 230, 0.07);
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  .ask-voice-user p,
+  .ask-voice-caption p {
+    margin: 0.28rem 0 0;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--fg);
+    word-break: break-word;
+  }
+
+  .ask-voice-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted-ink);
+  }
+
+  .ask-voice-placeholder {
+    color: var(--fg-dim) !important;
+  }
+
+  .ask-voice-stop {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2rem;
+    padding: 0.35rem 0.9rem;
+    border: 1px solid rgba(255, 248, 230, 0.14);
+    border-radius: 999px;
+    background: rgba(18, 17, 15, 0.65);
+    color: rgba(242, 235, 224, 0.88);
+    font-size: 0.75rem;
+    font-weight: 650;
+  }
+
+  .ask-voice-stop:active {
+    border-color: rgba(209, 178, 111, 0.35);
+    color: var(--gold-bright);
   }
 
   .client-tag {

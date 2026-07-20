@@ -520,11 +520,20 @@ export interface NarrationDetailResponse {
   version?: number
 }
 
-/** GET /api/Narration/detail — stageId 按 string 透传 */
+/**
+ * GET /api/Narration/c_detail — C 端导览节点详情
+ * 仅 interactionType=11 解说导览使用；stageId 按 string 透传（雪花 ID）
+ * B 端管理仍走 /api/Narration/detail
+ */
 export function fetchNarrationDetail(stageId: string) {
-  return request<NarrationDetailResponse>("/api/Narration/detail", {
+  const id = String(stageId || "").trim()
+  if (!id) {
+    return Promise.reject(new Error("缺少 stageId"))
+  }
+
+  return request<NarrationDetailResponse>("/api/Narration/c_detail", {
     query: {
-      stageId,
+      stageId: id,
     },
   })
 }
