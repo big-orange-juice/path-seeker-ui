@@ -1,18 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, shallowRef } from "vue"
+import { computed, onMounted, shallowRef } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import {
   NARRATION_AUDIO_STATUS,
-  NarrationRenderer,
+  StagePlaySurface,
+  type GameplayPreviewStage,
 } from "@path-seeker/game-renderer"
 import { useToastStore } from "@path-seeker/client-state"
 import { ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
-import {
-  fetchNarrationDetail,
-  generateNarrationAudio,
-  type NarrationDetailResponse,
-} from "@/services/gameplay"
+import { fetchNarrationDetail, type NarrationDetailResponse } from "@/services/gameplay"
 
 const route = useRoute()
 const router = useRouter()
@@ -23,159 +20,70 @@ const routeId = computed(() => String(route.params.routeId || ""))
 const chapterId = computed(() => String(route.params.chapterId || ""))
 const ready = shallowRef(false)
 const loading = shallowRef(false)
-const generatingAudio = shallowRef(false)
 const finishing = shallowRef(false)
 const detail = shallowRef<NarrationDetailResponse | null>(null)
 const loadError = shallowRef("")
-
-let audioPollTimer: ReturnType<typeof setTimeout> | null = null
 
 const chapter = computed(() => missionStore.currentChapter)
 const interactionType = computed(() =>
   Number(chapter.value?.interactionType ?? chapter.value?.puzzle?.interactionType ?? 0),
 )
 
-const narrationText = computed(() => String(detail.value?.narrationText || "").trim())
-const audioUrl = computed(() => String(detail.value?.audioUrl || "").trim())
-const audioStatus = computed(() => {
-  const status = detail.value?.audioStatus
-  return typeof status === "number" && Number.isFinite(status) ? status : NARRATION_AUDIO_STATUS.NotGenerated
-})
-
-const audioBusy = computed(() => {
-  if (generatingAudio.value) {
-    return true
-  }
-
-  return (
-    audioStatus.value === NARRATION_AUDIO_STATUS.Queued
-    || audioStatus.value === NARRATION_AUDIO_STATUS.Generating
-  )
-})
-
-const guideLabel = computed(() => {
-  const name = String(detail.value?.guideName || "").trim()
-  if (name) {
-    return name
-  }
-
-  const id = String(detail.value?.guideId || "").trim()
-  return id ? `讲解 ${id}` : ""
-})
-
-function clearAudioPoll() {
-  if (audioPollTimer) {
-    clearTimeout(audioPollTimer)
-    audioPollTimer = null
-  }
-}
-
-function isAudioStillGenerating(item: NarrationDetailResponse | null) {
-  if (!item) {
-    return false
-  }
-
-  // 重新生成时旧 audioUrl 可能仍在，以 status 为准
-  const status = Number(item.audioStatus ?? 0)
-  return status === NARRATION_AUDIO_STATUS.Queued || status === NARRATION_AUDIO_STATUS.Generating
-}
-
-async function loadDetail(silent = false) {
+async function loadDetail() {
   const stageId = chapterId.value
-  if (!stageId) {
-    return null
-  }
-
-  if (!silent) {
-    loading.value = true
-    loadError.value = ""
-  }
-
+  if (!stageId) return null
+  loading.value = true
+  loadError.value = ""
   try {
     const next = await fetchNarrationDetail(stageId)
     detail.value = next
-
-    if (!isAudioStillGenerating(next)) {
-      generatingAudio.value = false
-      clearAudioPoll()
-    }
-
     return next
   } catch (error) {
-    if (!silent) {
-      loadError.value = error instanceof Error ? error.message : "解说加载失败"
-      detail.value = null
-    }
-
-    generatingAudio.value = false
-    clearAudioPoll()
+    loadError.value = error instanceof Error ? error.message : "解说加载失败"
+    detail.value = null
     return null
   } finally {
-    if (!silent) {
-      loading.value = false
-    }
+    loading.value = false
   }
 }
 
-function pollAudio(attempt = 0) {
-  clearAudioPoll()
-  if (attempt >= 20) {
-    generatingAudio.value = false
-    return
+const playStage = computed<GameplayPreviewStage | null>(() => {
+  const current = chapter.value
+  if (!current) return null
+  const guideName = String(detail.value?.guideName || "").trim()
+  const guideId = String(detail.value?.guideId || "").trim()
+  return {
+    stageId: current.id,
+    interactionType: 11,
+    title: current.artifact?.title || current.title,
+    exhibitName: current.artifact?.title || current.title,
+    score: missionStore.activeSession?.totalScore ?? 0,
+    config: {
+      guide_id: guideId,
+      guide_name: guideName || (guideId ? `讲解 ${guideId}` : ""),
+      narration_text: String(detail.value?.narrationText || "").trim(),
+      audio_url: String(detail.value?.audioUrl || "").trim(),
+    },
+    narration: detail.value
+      ? {
+          narrationText: detail.value.narrationText,
+          audioUrl: detail.value.audioUrl,
+          guideId: detail.value.guideId,
+          guideName: detail.value.guideName,
+          durationMs: detail.value.durationMs,
+          audioStatus: typeof detail.value.audioStatus === "number"
+            ? detail.value.audioStatus
+            : NARRATION_AUDIO_STATUS.NotGenerated,
+        }
+      : null,
+    narrationStatus: loading.value ? "loading" : loadError.value ? "error" : "ready",
+    narrationErrorMessage: loadError.value,
   }
+})
 
-  audioPollTimer = setTimeout(async () => {
-    audioPollTimer = null
-    const next = await loadDetail(true)
-    if (isAudioStillGenerating(next)) {
-      pollAudio(attempt + 1)
-      return
-    }
-
-    generatingAudio.value = false
-    if (String(next?.audioUrl || "").trim()) {
-      toastStore.info("语音已就绪", "可点击播放试听。")
-    }
-  }, 2000)
-}
-
-async function handleGenerateAudio() {
-  if (!chapterId.value || audioBusy.value || !narrationText.value || finishing.value) {
-    return
-  }
-
-  generatingAudio.value = true
-  try {
-    await generateNarrationAudio(chapterId.value)
-    const next = await loadDetail(true)
-    if (isAudioStillGenerating(next)) {
-      pollAudio()
-      return
-    }
-    // 已就绪或仍有旧链但状态已结束：再拉一次确保 URL 更新
-    generatingAudio.value = false
-    if (String(next?.audioUrl || "").trim()) {
-      toastStore.info("语音已更新", "可点击播放试听。")
-    }
-  } catch (error) {
-    generatingAudio.value = false
-    toastStore.warning("语音生成失败", error instanceof Error ? error.message : "请稍后重试")
-  }
-}
-
-/**
- * 完成本站解说。
- * 有无音频均可：跳过收听 / 跳过生成，直接提交进度。
- */
 async function completeNarration(options: { skipped?: boolean } = {}) {
-  if (finishing.value || !missionStore.activeSession || !chapter.value) {
-    return
-  }
-
+  if (finishing.value || !missionStore.activeSession || !chapter.value) return
   finishing.value = true
-  clearAudioPoll()
-  generatingAudio.value = false
-
   try {
     const result = await missionStore.completeNarrationStage({
       skipped: Boolean(options.skipped),
@@ -184,21 +92,13 @@ async function completeNarration(options: { skipped?: boolean } = {}) {
       toastStore.warning("提交失败", result.message || "请稍后重试")
       return
     }
-
-    if (options.skipped) {
-      toastStore.info("已跳过解说", "本站已记为完成。")
-    }
-
+    if (options.skipped) toastStore.info("已跳过解说", "本站已记为完成。")
     await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/result`)
   } catch (error) {
     toastStore.warning("提交失败", error instanceof Error ? error.message : "请稍后重试")
   } finally {
     finishing.value = false
   }
-}
-
-async function skipNarration() {
-  await completeNarration({ skipped: true })
 }
 
 async function bootstrap() {
@@ -230,49 +130,27 @@ async function bootstrap() {
 onMounted(() => {
   void bootstrap()
 })
-
-onBeforeUnmount(() => {
-  clearAudioPoll()
-})
 </script>
 
 <template>
   <div class="space-y-4">
-    <div
-      v-if="ready && chapter"
-      class="space-y-4 rounded-xl border border-border/40 bg-[#0c0d10] px-4 py-4">
-      <p class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-        第 {{ chapter.stageNo }} 站 · 解说导览
-      </p>
-
-      <NarrationRenderer
-        mode="play"
-        :title="chapter.artifact?.title || chapter.title"
-        :exhibit-name="chapter.artifact?.title || chapter.title"
-        :guide-name="guideLabel"
-        :narration-text="narrationText"
-        :audio-url="audioUrl"
-        :audio-status="audioStatus"
-        :duration-ms="detail?.durationMs"
-        :status="loading ? 'loading' : loadError ? 'error' : 'ready'"
-        :error-message="loadError"
-        :generating-audio="generatingAudio"
-        :completing="finishing"
-        :show-play-actions="true"
-        @generate-audio="handleGenerateAudio"
-        @complete="completeNarration()"
-        @skip="skipNarration">
-        <template #footer>
-          <ClientButton
-            variant="outline"
-            class="w-full"
-            :disabled="finishing"
-            @click="router.push(`/missions/${routeId}/map`)">
-            返回路线
-          </ClientButton>
-        </template>
-      </NarrationRenderer>
-    </div>
+    <StagePlaySurface
+      v-if="ready && chapter && playStage"
+      :stage="playStage"
+      :stage-no="chapter.stageNo"
+      :can-submit="true"
+      @complete-narration="completeNarration()"
+      @skip-narration="completeNarration({ skipped: true })">
+      <template #actions>
+        <ClientButton
+          variant="outline"
+          class="w-full"
+          :disabled="finishing"
+          @click="router.push(`/missions/${routeId}/map`)">
+          返回路线
+        </ClientButton>
+      </template>
+    </StagePlaySurface>
 
     <ClientCard v-else-if="!ready || missionStore.gameplayPending || missionStore.detailPending">
       <div class="space-y-4 p-5">

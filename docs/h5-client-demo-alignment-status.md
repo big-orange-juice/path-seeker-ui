@@ -308,3 +308,9 @@ Cinema = 路由过场 + 关键接口 loading（ref-count）。
 | 2026-07-14 | P1：Auth 印章门、展厅/详情视觉、FAB+问、隐式 Join 收紧、RecordActivity、题型主路径 |
 | 2026-07-14 | 关联 B 端：Chat 接入 `ui.route.build.progress`（`interactionType`）、`ui.route.list.updated.routeName`；进度仅侧栏累计；tool tag 按工具名合并 ×N；文档链到 `32-chat-send-sse-api.md` |
 | 2026-07-15 | H5 同步 10/11：`stageKind` 分流；11 narration 页 + 音频生成；非 11 扫一扫后自动播片；10 播片后 Submit；地图展示玩法标签与 sortOrder |
+
+---
+
+## 2026-07-22 四型玩法修订
+
+本文中所有 `1~9` 通用题型、扩展题型 renderer 与 studio 编辑态描述均已失效。当前正式范围仅为 `1` 观察选择、`6` 纹样拼图、`10` 找一找和 `11` 解说导览：`1/6` 不经过扫码或播片，`10` 独占扫码到播片，`11` 独立进入解说页。后台编辑与手机模拟器已分离；模拟器只复用 play 渲染，不提供保存、提交或下一节点能力。

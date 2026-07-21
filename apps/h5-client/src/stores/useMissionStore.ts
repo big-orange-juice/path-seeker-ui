@@ -1318,7 +1318,7 @@ export const useMissionStore = defineStore(
         return completeFindScanStage({ skipped: true })
       }
 
-      // 1~9 闯关：同样强制跳过
+      // 仅 1/6 题面走通用跳过提交；10/11 已在上方分流处理。
       gameplayPending.value = true
       gameplayError.value = ""
       const cinema = useCinemaStore()

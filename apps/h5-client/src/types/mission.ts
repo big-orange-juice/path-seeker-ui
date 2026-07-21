@@ -1,17 +1,10 @@
 import type {
   ChoiceOption,
-  ClueFindPayload,
-  CodeBreakPayload,
   HintLevel,
-  MatchPair,
-  MatchPayload,
   ObserveChoicePayload,
   PuzzleAnswerDraft,
   PuzzlePayloadMap,
   PuzzleTemplateType,
-  ReasoningAnswerValue,
-  SelectPayload,
-  SortPayload,
 } from "@path-seeker/game-renderer"
 import type {
   AgeBand,
@@ -100,17 +93,10 @@ export interface ArtifactClue {
 
 export type {
   ChoiceOption,
-  ClueFindPayload,
-  CodeBreakPayload,
   HintLevel,
-  MatchPair,
-  MatchPayload,
   ObserveChoicePayload,
   PuzzlePayloadMap,
   PuzzleTemplateType,
-  ReasoningAnswerValue,
-  SelectPayload,
-  SortPayload,
 }
 
 export interface PuzzleReward {
@@ -139,17 +125,10 @@ export interface BaseMissionPuzzle<TTemplate extends PuzzleTemplateType> {
 
 export type MissionPuzzle =
   | BaseMissionPuzzle<"observe_choice">
-  | BaseMissionPuzzle<"select">
-  | BaseMissionPuzzle<"clue_find">
-  | BaseMissionPuzzle<"sort">
-  | BaseMissionPuzzle<"match">
   | BaseMissionPuzzle<"image_puzzle">
-  | BaseMissionPuzzle<"story_branch">
-  | BaseMissionPuzzle<"multi_step_reasoning">
-  | BaseMissionPuzzle<"code_break">
 
 /** 节点运行时分类：决定 H5 进入哪条页面链路 */
-export type MissionStageKind = "puzzle" | "find_scan" | "narration"
+export type MissionStageKind = "observe_choice" | "image_puzzle" | "find_scan" | "narration"
 
 export interface MissionChapter {
   id: string
@@ -166,7 +145,7 @@ export interface MissionChapter {
   refExhibitId?: string
   /** 短视频可播放 URL；无则播片页用默认片 + 跳过 */
   videoUrl?: string
-  /** 运行时交互类型：1~9 练习 / 10 找一找 / 11 解说 */
+  /** 运行时仅接受 1/6 题面、10 找一找与 11 解说；非法类型在适配层过滤。 */
   interactionType: number
   /** 由 interactionType 推导的页面分流 */
   stageKind: MissionStageKind

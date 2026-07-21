@@ -104,7 +104,7 @@ const router = createRouter({
           },
         },
         {
-          // 1~10 本站统一页：找一找 → 短片 →（1~9）闯关
+          // brief 仅承载 1/6 题面与 10 的扫码播片；11 由独立解说页处理。
           path: "missions/:routeId/chapters/:chapterId/brief",
           component: ChapterBriefPage,
           meta: {

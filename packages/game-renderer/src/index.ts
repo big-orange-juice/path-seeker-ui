@@ -7,6 +7,6 @@
 export * from "./contracts"
 export * from "./adaptStage"
 export { default as PuzzleRendererHost } from "./components/PuzzleRendererHost.vue"
-export { default as GameplayPreviewHost } from "./components/GameplayPreviewHost.vue"
-export { default as StudioField } from "./components/StudioField.vue"
+export { default as StagePlaySurface } from "./components/StagePlaySurface.vue"
+export { default as FindScanPlayChain } from "./components/FindScanPlayChain.vue"
 export * from "./components/renderers"

@@ -176,7 +176,7 @@ export function buildRestoredMissionSession(
 /**
  * 进入某一站时的路径决策：
  * - 11 解说：独立 narration 页
- * - 1~10：统一进 brief 本站页，页内按闸门切换 找一找 → 短片 →（1~9）闯关
+ * - 1/6：进入 brief 后直接题面；10：在 brief 内完成找一找与短片
  * - 10 播片完成后若已 videoWatched 但未 solved：回 map 防循环
  */
 export function resolveChapterEnterPath(

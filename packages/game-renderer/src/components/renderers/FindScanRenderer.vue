@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from "vue"
-import StudioField from "../StudioField.vue"
 
 export type FindScanStatus = "idle" | "scanning" | "success" | "failed"
 
@@ -20,8 +19,6 @@ interface Props {
   status?: FindScanStatus
   /** 仅展示扫描框与文案，隐藏操作按钮 */
   previewMode?: boolean
-  /** B 端预览微调：可编辑标题/位置/线索 */
-  studioMode?: boolean
   /** 是否展示「跳过识别」 */
   allowSkip?: boolean
   /** 禁用全部操作 */
@@ -35,7 +32,6 @@ const props = withDefaults(defineProps<Props>(), {
   previewUrl: null,
   status: undefined,
   previewMode: false,
-  studioMode: false,
   allowSkip: true,
   disabled: false,
 })
@@ -45,47 +41,16 @@ const emit = defineEmits<{
   "file-selected": [file: File]
   "update:status": [status: FindScanStatus]
   "update:previewUrl": [url: string | null]
-  "update:content": [payload: { title?: string; location?: string; clueText?: string }]
 }>()
 
 const fileInputRef = useTemplateRef<HTMLInputElement>("fileInput")
 const internalStatus = ref<FindScanStatus>("idle")
 const internalPreviewUrl = ref<string | null>(null)
-const draftTitle = ref("")
-const draftLocation = ref("")
-const draftClue = ref("")
 let scanTimer: ReturnType<typeof setTimeout> | null = null
 
-watch(
-  () => [props.title, props.location, props.clueText] as const,
-  ([title, location, clue]) => {
-    draftTitle.value = String(title || "").trim()
-    draftLocation.value = String(location || "").trim()
-    draftClue.value = String(clue || "").trim()
-  },
-  { immediate: true },
-)
-
-const emitContent = () => {
-  if (!props.studioMode) {
-    return
-  }
-  emit("update:content", {
-    title: draftTitle.value.trim(),
-    location: draftLocation.value.trim(),
-    clueText: draftClue.value.trim(),
-  })
-}
-
-const displayTitle = computed(() =>
-  props.studioMode ? draftTitle.value : String(props.title || "").trim(),
-)
-const displayLocation = computed(() =>
-  props.studioMode ? draftLocation.value : String(props.location || "").trim(),
-)
-const displayClue = computed(() =>
-  props.studioMode ? draftClue.value : String(props.clueText || "").trim(),
-)
+const displayTitle = computed(() => String(props.title || "").trim())
+const displayLocation = computed(() => String(props.location || "").trim())
+const displayClue = computed(() => String(props.clueText || "").trim())
 
 const resolvedStatus = computed(() => props.status ?? internalStatus.value)
 const resolvedPreviewUrl = computed(() => props.previewUrl ?? internalPreviewUrl.value)
@@ -205,27 +170,8 @@ watch(
 </script>
 
 <template>
-  <div class="find-scan" :class="{ 'is-preview': previewMode, 'is-studio': studioMode }">
-    <div v-if="studioMode" class="scan-studio">
-      <StudioField
-        v-model="draftTitle"
-        label="目标展品"
-        placeholder="要识别的展品名称"
-        @change="emitContent" />
-      <StudioField
-        v-model="draftLocation"
-        label="位置说明"
-        placeholder="展厅 / 位置等副文案"
-        @change="emitContent" />
-      <StudioField
-        v-model="draftClue"
-        label="线索说明"
-        type="textarea"
-        :rows="2"
-        placeholder="寻找线索或规则说明"
-        @change="emitContent" />
-    </div>
-    <p v-else class="scan-caption">
+  <div class="find-scan" :class="{ 'is-preview': previewMode }">
+    <p class="scan-caption">
       <strong>{{ displayTitle || "目标展品" }}</strong>
       <span v-if="displayLocation">{{ displayLocation }}</span>
       <span v-else-if="displayClue" class="scan-clue">{{ displayClue }}</span>
@@ -270,7 +216,7 @@ watch(
       </div>
     </div>
 
-    <p v-if="!studioMode && displayClue && displayLocation" class="scan-clue-block">
+    <p v-if="displayClue && displayLocation" class="scan-clue-block">
       {{ displayClue }}
     </p>
 
@@ -318,12 +264,6 @@ watch(
 
 .find-scan.is-preview {
   gap: 0.65rem;
-}
-
-.scan-studio {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
 }
 
 .scan-caption {

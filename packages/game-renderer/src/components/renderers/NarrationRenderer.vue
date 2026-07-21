@@ -1,24 +1,11 @@
 <script setup lang="ts">
-/**
- * 解说导览渲染器（interactionType=11）。
- *
- * 规则：
- * - 题面/播放/生成 UI 以本组件为准
- * - play：C 端收听；studio：B 端预览与微调
- * - 双端 adapter 只注入数据、处理 generate-audio / 提交等副作用
- * - 视觉偏 H5 扁平流，避免多层卡片嵌套
- */
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue"
+import { computed, onBeforeUnmount, ref, watch } from "vue"
 import {
   NARRATION_AUDIO_STATUS,
   type GameplayPreviewNarrationStatus,
-  type NarrationRendererDraft,
-  type RendererSurfaceMode,
 } from "../../contracts"
-import StudioField from "../StudioField.vue"
 
 interface Props {
-  mode?: RendererSurfaceMode
   title?: string | null
   exhibitName?: string | null
   guideName?: string | null
@@ -32,14 +19,11 @@ interface Props {
   durationMs?: number | null
   status?: GameplayPreviewNarrationStatus
   errorMessage?: string | null
-  generatingAudio?: boolean
-  /** play 模式是否展示完成/跳过（H5 可自带 footer slot 时关掉） */
   showPlayActions?: boolean
   completing?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  mode: "play",
   title: "",
   exhibitName: "",
   guideName: "",
@@ -53,148 +37,19 @@ const props = withDefaults(defineProps<Props>(), {
   durationMs: null,
   status: "ready",
   errorMessage: "",
-  generatingAudio: false,
   showPlayActions: true,
   completing: false,
 })
 
 const emit = defineEmits<{
-  "generate-audio": []
   complete: []
   skip: []
-  "update:draft": [draft: NarrationRendererDraft]
-  /** studio：打开导游列表选择 */
-  "pick-guide": []
 }>()
 
-const isStudio = computed(() => props.mode === "studio")
-
-const draftTitle = ref("")
-const draftText = ref("")
-const draftScene = ref("")
-const draftDuration = ref(90)
-
-/** studio：场景上下文弹层编辑 */
-type MetaEditField = "scene" | null
-const metaEditField = ref<MetaEditField>(null)
-const metaEditBuffer = ref("")
-const metaEditTextareaRef = ref<HTMLTextAreaElement | null>(null)
-
-const metaEditTitle = computed(() =>
-  metaEditField.value === "scene" ? "场景上下文" : "",
+const displayTitle = computed(() =>
+  String(props.title || props.exhibitName || "当前文物").trim() || "当前文物",
 )
-
-const metaEditPlaceholder = computed(() =>
-  metaEditField.value === "scene"
-    ? "例如：上海博物馆东馆 · 青铜馆展厅；观众站在展柜前，背景有人流。"
-    : "",
-)
-
-const openMetaEdit = (field: "scene") => {
-  if (!isStudio.value) {
-    return
-  }
-  metaEditField.value = field
-  metaEditBuffer.value = draftScene.value
-  void nextTick(() => {
-    const el = metaEditTextareaRef.value
-    if (!el) {
-      return
-    }
-    el.focus()
-    const len = el.value.length
-    el.setSelectionRange(len, len)
-  })
-}
-
-const closeMetaEdit = () => {
-  metaEditField.value = null
-  metaEditBuffer.value = ""
-}
-
-const confirmMetaEdit = () => {
-  if (metaEditField.value === "scene") {
-    draftScene.value = metaEditBuffer.value.trim()
-  }
-  closeMetaEdit()
-  emitDraft()
-}
-
-const truncateMeta = (value: string, max = 28) => {
-  const text = value.trim()
-  if (!text) {
-    return ""
-  }
-  return text.length > max ? `${text.slice(0, max)}…` : text
-}
-
-const openGuidePicker = () => {
-  if (!isStudio.value) {
-    return
-  }
-  emit("pick-guide")
-}
-
-const syncDraftFromProps = () => {
-  draftTitle.value = String(props.title || props.exhibitName || "").trim()
-  draftText.value = String(props.narrationText || "").trim()
-  draftScene.value = String(props.sceneContext || "").trim()
-  const sec = Number(props.targetDurationSeconds)
-  draftDuration.value = Number.isFinite(sec) && sec > 0 ? Math.round(sec) : 90
-}
-
-watch(
-  () => [
-    props.title,
-    props.exhibitName,
-    props.narrationText,
-    props.sceneContext,
-    props.guideId,
-    props.guideName,
-    props.targetDurationSeconds,
-  ] as const,
-  () => {
-    // 弹层编辑中不要被 props 回写冲掉缓冲区外的草稿
-    if (metaEditField.value) {
-      return
-    }
-    syncDraftFromProps()
-  },
-  { immediate: true },
-)
-
-const emitDraft = () => {
-  if (!isStudio.value) {
-    return
-  }
-
-  emit("update:draft", {
-    title: draftTitle.value.trim(),
-    narrationText: draftText.value,
-    sceneContext: draftScene.value.trim(),
-    guideId: String(props.guideId || "").trim() || undefined,
-    guideName: String(props.guideName || "").trim() || undefined,
-    targetDurationSeconds: Math.max(1, Math.round(Number(draftDuration.value) || 90)),
-  })
-}
-
-const displayTitle = computed(() => {
-  if (isStudio.value) {
-    return draftTitle.value || "未命名节点"
-  }
-
-  // 与编辑一致：节点 title 优先，其次 exhibitName
-  return String(props.title || props.exhibitName || "当前文物").trim() || "当前文物"
-})
-
-const displayText = computed(() => {
-  if (isStudio.value) {
-    return draftText.value
-  }
-
-  return String(props.narrationText || "").trim()
-})
-
+const displayText = computed(() => String(props.narrationText || "").trim())
 const guideLabel = computed(() => {
   const name = String(props.guideName || "").trim()
   if (name) {
@@ -204,74 +59,23 @@ const guideLabel = computed(() => {
   const id = String(props.guideId || "").trim()
   return id ? `讲解 ${id}` : ""
 })
-
 const targetDurationSec = computed(() => {
-  if (isStudio.value) {
-    return Math.max(1, Math.round(Number(draftDuration.value) || 90))
-  }
-
   const sec = Number(props.targetDurationSeconds)
-  if (Number.isFinite(sec) && sec > 0) {
-    return Math.round(sec)
-  }
-
-  return 90
+  return Number.isFinite(sec) && sec > 0 ? Math.round(sec) : 90
 })
-
 const resolvedAudioStatus = computed(() => {
   const status = props.audioStatus
   return typeof status === "number" && Number.isFinite(status)
     ? status
     : NARRATION_AUDIO_STATUS.NotGenerated
 })
-
 const audioUrl = computed(() => String(props.audioUrl || "").trim())
 const hasAudio = computed(() => Boolean(audioUrl.value))
+const audioBusy = computed(() =>
+  resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Queued
+  || resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Generating,
+)
 
-const audioBusy = computed(() => {
-  if (props.generatingAudio) {
-    return true
-  }
-
-  return (
-    resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Queued
-    || resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Generating
-  )
-})
-
-const generateLabel = computed(() => {
-  if (props.generatingAudio || resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Queued) {
-    return "排队中…"
-  }
-
-  if (resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Generating) {
-    return "生成中…"
-  }
-
-  if (resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Failed) {
-    return "重试生成"
-  }
-
-  if (hasAudio.value || resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Stale) {
-    return "重新生成"
-  }
-
-  return "生成解说"
-})
-
-const canGenerate = computed(() => {
-  if (audioBusy.value || props.completing) {
-    return false
-  }
-
-  if (props.status === "loading") {
-    return false
-  }
-
-  return Boolean(displayText.value.trim())
-})
-
-// —— 自定义播放器 ——
 const audioRef = ref<HTMLAudioElement | null>(null)
 const isPlaying = ref(false)
 const currentTime = ref(0)
@@ -283,30 +87,21 @@ const formatTime = (sec: number) => {
   }
 
   const total = Math.floor(sec)
-  const m = Math.floor(total / 60)
-  const s = total % 60
-  return `${m}:${String(s).padStart(2, "0")}`
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`
 }
 
-const progress = computed(() => {
-  if (!duration.value) {
-    return 0
-  }
-
-  return Math.min(100, Math.max(0, (currentTime.value / duration.value) * 100))
-})
-
+const progress = computed(() =>
+  duration.value ? Math.min(100, Math.max(0, (currentTime.value / duration.value) * 100)) : 0,
+)
 const durationLabel = computed(() => {
   if (duration.value > 0) {
     return formatTime(duration.value)
   }
 
   const ms = props.durationMs
-  if (typeof ms === "number" && Number.isFinite(ms) && ms > 0) {
-    return formatTime(ms / 1000)
-  }
-
-  return formatTime(targetDurationSec.value)
+  return typeof ms === "number" && Number.isFinite(ms) && ms > 0
+    ? formatTime(ms / 1000)
+    : formatTime(targetDurationSec.value)
 })
 
 const stopPlayback = () => {
@@ -326,8 +121,7 @@ const togglePlay = async () => {
   }
 
   if (isPlaying.value) {
-    el.pause()
-    isPlaying.value = false
+    stopPlayback()
     return
   }
 
@@ -340,28 +134,16 @@ const togglePlay = async () => {
 }
 
 const onTimeUpdate = () => {
-  const el = audioRef.value
-  if (!el) {
-    return
-  }
-
-  currentTime.value = el.currentTime || 0
+  currentTime.value = audioRef.value?.currentTime || 0
 }
-
 const onLoadedMeta = () => {
-  const el = audioRef.value
-  if (!el) {
-    return
-  }
-
-  duration.value = Number.isFinite(el.duration) ? el.duration : 0
+  const next = audioRef.value?.duration
+  duration.value = typeof next === "number" && Number.isFinite(next) ? next : 0
 }
-
 const onEnded = () => {
   isPlaying.value = false
   currentTime.value = 0
 }
-
 const seekToRatio = (ratio: number) => {
   const el = audioRef.value
   if (!el || !duration.value) {
@@ -372,19 +154,15 @@ const seekToRatio = (ratio: number) => {
   el.currentTime = next
   currentTime.value = next
 }
-
 const onTrackPointer = (event: PointerEvent) => {
   if (!hasAudio.value || !duration.value) {
     return
   }
 
-  const track = event.currentTarget as HTMLElement
-  const rect = track.getBoundingClientRect()
-  if (rect.width <= 0) {
-    return
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  if (rect.width > 0) {
+    seekToRatio((event.clientX - rect.left) / rect.width)
   }
-
-  seekToRatio((event.clientX - rect.left) / rect.width)
 }
 
 watch(audioUrl, () => {
@@ -393,75 +171,30 @@ watch(audioUrl, () => {
   duration.value = 0
 })
 
-onBeforeUnmount(() => {
-  stopPlayback()
-})
-
-const requestGenerate = () => {
-  if (!canGenerate.value) {
-    return
-  }
-
-  stopPlayback()
-  emit("generate-audio")
-}
+onBeforeUnmount(stopPlayback)
 
 const playerLabel = computed(() => {
-  if (audioBusy.value) {
-    return "语音生成中"
-  }
-
-  if (!hasAudio.value) {
-    return "语音待生成"
-  }
-
-  if (isPlaying.value) {
-    return "正在收听"
-  }
-
-  return "语音导览"
+  if (audioBusy.value) return "语音生成中"
+  if (!hasAudio.value) return "语音暂未就绪"
+  return isPlaying.value ? "正在收听" : "语音导览"
 })
-
 const metaChips = computed(() => {
-  const chips: string[] = []
-  if (guideLabel.value) {
-    chips.push(guideLabel.value)
-  }
-
-  const style = String(props.style || "").trim()
-  if (style) {
-    chips.push(style)
-  }
-
-  const scene = isStudio.value ? draftScene.value.trim() : String(props.sceneContext || "").trim()
-  if (scene) {
-    chips.push(scene)
-  }
-
+  const chips = [guideLabel.value, String(props.style || "").trim(), String(props.sceneContext || "").trim()]
+    .filter(Boolean)
   chips.push(`${targetDurationSec.value}s`)
   return chips
 })
 </script>
-
 <template>
-  <div class="nr" :class="isStudio ? 'is-studio' : 'is-play'">
-    <!-- 上半：标题 + 播放 + 元信息（放大、扁平） -->
+  <div class="nr is-play">
     <section class="nr-top">
       <header class="nr-head">
-        <StudioField
-          v-if="isStudio"
-          v-model="draftTitle"
-          label="节点标题"
-          placeholder="解说节点名称"
-          @change="emitDraft" />
-        <template v-else>
-          <h3 class="nr-title">
-            {{ displayTitle }}
-          </h3>
-          <p v-if="guideLabel" class="nr-sub">
-            {{ guideLabel }}
-          </p>
-        </template>
+        <h3 class="nr-title">
+          {{ displayTitle }}
+        </h3>
+        <p v-if="guideLabel" class="nr-sub">
+          {{ guideLabel }}
+        </p>
       </header>
 
       <div
@@ -505,15 +238,7 @@ const metaChips = computed(() => {
         <div class="nr-player-main">
           <div class="nr-player-row">
             <span class="nr-player-label">{{ playerLabel }}</span>
-            <button
-              type="button"
-              class="nr-gen"
-              :disabled="!canGenerate"
-              @click="requestGenerate">
-              {{ generateLabel }}
-            </button>
           </div>
-
           <button
             type="button"
             class="nr-track"
@@ -521,16 +246,9 @@ const metaChips = computed(() => {
             :aria-label="`进度 ${formatTime(currentTime)} / ${durationLabel}`"
             @pointerdown="onTrackPointer">
             <span class="nr-track__rail" aria-hidden="true" />
-            <span
-              class="nr-track__fill"
-              aria-hidden="true"
-              :style="{ width: `${progress}%` }" />
-            <span
-              class="nr-track__knob"
-              aria-hidden="true"
-              :style="{ left: `${progress}%` }" />
+            <span class="nr-track__fill" aria-hidden="true" :style="{ width: `${progress}%` }" />
+            <span class="nr-track__knob" aria-hidden="true" :style="{ left: `${progress}%` }" />
           </button>
-
           <div class="nr-time">
             <span>{{ formatTime(currentTime) }}</span>
             <span>{{ durationLabel }}</span>
@@ -538,160 +256,45 @@ const metaChips = computed(() => {
         </div>
       </div>
 
-      <p
-        v-if="!hasAudio && !audioBusy && !displayText"
-        class="nr-player-hint">
-        暂无解说词，生成语音需先有文本
+      <p v-if="!hasAudio && !audioBusy" class="nr-player-hint">
+        {{ displayText ? "语音正在准备中" : "暂无解说词" }}
       </p>
-      <p
-        v-else-if="resolvedAudioStatus === NARRATION_AUDIO_STATUS.Stale"
-        class="nr-player-hint">
-        文本已更新，建议重新生成语音
+      <p v-else-if="resolvedAudioStatus === NARRATION_AUDIO_STATUS.Stale" class="nr-player-hint">
+        解说词已更新，语音正在更新中
       </p>
-
-      <div v-if="isStudio" class="nr-studio-meta">
-        <!-- 导游选择：点击由宿主打开导游列表 -->
-        <div class="nr-meta-field">
-          <span class="nr-meta-field__label">导游</span>
-          <button
-            type="button"
-            class="nr-meta-field__control"
-            title="点击选择导游"
-            @click="openGuidePicker">
-            <span
-              class="nr-meta-field__value"
-              :class="{ 'is-empty': !guideLabel }">
-              {{ truncateMeta(guideLabel) || "点击选择…" }}
-            </span>
-          </button>
-        </div>
-        <div class="nr-meta-field">
-          <span class="nr-meta-field__label">场景上下文</span>
-          <button
-            type="button"
-            class="nr-meta-field__control"
-            title="点击编辑场景上下文"
-            @click="openMetaEdit('scene')">
-            <span
-              class="nr-meta-field__value"
-              :class="{ 'is-empty': !draftScene.trim() }">
-              {{ truncateMeta(draftScene) || "点击编辑…" }}
-            </span>
-          </button>
-        </div>
-        <StudioField
-          v-model="draftDuration"
-          class="nr-field--sm"
-          label="目标时长(秒)"
-          type="number"
-          :min="1"
-          :max="600"
-          @change="emitDraft" />
-      </div>
-      <div v-else-if="metaChips.length" class="nr-chips">
+      <div v-if="metaChips.length" class="nr-chips">
         <span v-for="chip in metaChips" :key="chip">{{ chip }}</span>
       </div>
     </section>
 
-    <!-- 下半：解说词（始终可见，可滚动） -->
     <section class="nr-script">
-      <div v-if="props.status === 'loading'" class="nr-script-state">
-        正在加载解说词…
-      </div>
+      <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
       <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
         {{ props.errorMessage || "解说词加载失败" }}
       </div>
-      <StudioField
-        v-else-if="isStudio"
-        v-model="draftText"
-        class="nr-script-field"
-        label="解说词"
-        type="textarea"
-        :rows="8"
-        placeholder="在此微调解说词正文…"
-        @change="emitDraft" />
       <template v-else>
-        <div class="nr-script-label">
-          解说词
-        </div>
-        <div v-if="displayText" class="nr-script-body">
-          {{ displayText }}
-        </div>
-        <div v-else class="nr-script-state">
-          暂无解说词
-        </div>
+        <div class="nr-script-label">解说词</div>
+        <div v-if="displayText" class="nr-script-body">{{ displayText }}</div>
+        <div v-else class="nr-script-state">暂无解说词</div>
       </template>
     </section>
 
-    <footer v-if="!isStudio && showPlayActions" class="nr-actions">
+    <footer v-if="showPlayActions" class="nr-actions">
       <button
         type="button"
         class="nr-btn nr-btn--primary"
-        :disabled="props.completing || !hasAudio"
+        :disabled="props.completing"
         @click="emit('complete')">
         {{ props.completing ? "提交中…" : "听完了，继续" }}
       </button>
-      <button
-        type="button"
-        class="nr-btn"
-        :disabled="props.completing"
-        @click="emit('skip')">
+      <button type="button" class="nr-btn" :disabled="props.completing" @click="emit('skip')">
         {{ props.completing ? "提交中…" : "跳过解说" }}
       </button>
     </footer>
 
     <slot name="footer" />
-
-    <!-- studio：场景上下文弹层编辑；挂 body 以盖住后台 Dialog -->
-    <Teleport to="body">
-      <div
-        v-if="isStudio && metaEditField"
-        class="nr-meta-modal"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="metaEditTitle"
-        @keydown.esc.stop.prevent="closeMetaEdit">
-        <button
-          type="button"
-          class="nr-meta-modal__mask"
-          aria-label="关闭"
-          @click="closeMetaEdit" />
-        <div class="nr-meta-modal__panel" @click.stop>
-          <header class="nr-meta-modal__head">
-            <h4 class="nr-meta-modal__title">{{ metaEditTitle }}</h4>
-            <button
-              type="button"
-              class="nr-meta-modal__x"
-              title="关闭"
-              @click="closeMetaEdit">
-              ×
-            </button>
-          </header>
-          <textarea
-            ref="metaEditTextareaRef"
-            v-model="metaEditBuffer"
-            class="nr-meta-modal__textarea"
-            rows="8"
-            :placeholder="metaEditPlaceholder"
-            @keydown.enter.ctrl.prevent="confirmMetaEdit"
-            @keydown.enter.meta.prevent="confirmMetaEdit" />
-          <footer class="nr-meta-modal__foot">
-            <button type="button" class="nr-meta-modal__btn" @click="closeMetaEdit">
-              取消
-            </button>
-            <button
-              type="button"
-              class="nr-meta-modal__btn nr-meta-modal__btn--primary"
-              @click="confirmMetaEdit">
-              确定
-            </button>
-          </footer>
-        </div>
-      </div>
-    </Teleport>
   </div>
 </template>
-
 <style scoped>
 .nr {
   display: flex;
@@ -1001,7 +604,7 @@ const metaChips = computed(() => {
   min-width: 0;
 }
 
-/* 风格 / 场景：label + 可点击 value（形态对齐 StudioField input） */
+/* 风格与场景采用统一的可点击信息行，避免播放器承载编辑控件。 */
 .nr-meta-field {
   display: flex;
   min-width: 0;

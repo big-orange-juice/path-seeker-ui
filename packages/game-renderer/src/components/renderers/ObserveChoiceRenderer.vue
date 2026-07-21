@@ -1,165 +1,46 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue"
+import { computed, nextTick, watch } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
 import type { ObserveChoicePuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
-import StudioField from "../StudioField.vue"
 
-interface Props {
+const props = withDefaults(defineProps<{
   puzzle: ObserveChoicePuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
-  /** B 端预览：可微调节选项文案 */
-  studioMode?: boolean
-}
+}>(), { readonlyMode: false })
 
-const props = withDefaults(defineProps<Props>(), {
-  readonlyMode: false,
-  studioMode: false,
-})
-
-const emit = defineEmits<{
-  "update:modelValue": [value: PuzzleAnswerDraft]
-  "update:content": [payload: { options: Array<{ id: string; label: string }> }]
-}>()
-
+const emit = defineEmits<{ "update:modelValue": [value: PuzzleAnswerDraft] }>()
 const { root, animateSelector } = useRendererMotion(() => {
-  gsap.from(".choice-card, .answer-field", {
-    autoAlpha: 0,
-    y: 10,
-    duration: 0.32,
-    ease: "power2.out",
-    stagger: 0.04,
-  })
+  gsap.from(".choice-card, .answer-field", { autoAlpha: 0, y: 10, duration: 0.32, ease: "power2.out", stagger: 0.04 })
 })
-
 const options = computed(() => props.puzzle.questionPayload?.options ?? [])
-/** 无选项时走自由文本（线性答题）；有选项时为观察选择 */
 const isFreeText = computed(() => options.value.length === 0)
-
-const textValue = computed(() =>
-  typeof props.modelValue?.value === "string" ? props.modelValue.value : "",
-)
-
-/** studio 本地可编辑标签 */
-const draftLabels = ref<Record<string, string>>({})
-
-watch(
-  options,
-  (list) => {
-    const next: Record<string, string> = {}
-    for (const option of list) {
-      next[option.id] = option.label
-    }
-    draftLabels.value = next
-  },
-  { immediate: true, deep: true },
-)
-
+const textValue = computed(() => typeof props.modelValue?.value === "string" ? props.modelValue.value : "")
 function selectOption(optionId: string) {
-  if (props.readonlyMode) {
-    return
-  }
-
-  emit("update:modelValue", {
-    templateType: "observe_choice",
-    value: optionId,
-  })
+  if (!props.readonlyMode) emit("update:modelValue", { templateType: "observe_choice", value: optionId })
 }
-
 function handleTextInput(event: Event) {
-  if (props.readonlyMode) {
-    return
-  }
-
-  const target = event.target as HTMLTextAreaElement | null
-  emit("update:modelValue", {
-    templateType: "observe_choice",
-    value: String(target?.value ?? ""),
-  })
+  if (!props.readonlyMode) emit("update:modelValue", { templateType: "observe_choice", value: String((event.target as HTMLTextAreaElement | null)?.value ?? "") })
 }
-
-function emitOptionDraft() {
-  if (!props.studioMode) {
-    return
-  }
-
-  emit("update:content", {
-    options: options.value.map((option) => ({
-      id: option.id,
-      label: String(draftLabels.value[option.id] ?? option.label ?? "").trim() || option.label,
-    })),
-  })
-}
-
-watch(
-  () => props.modelValue?.value,
-  async (value) => {
-    if (isFreeText.value || typeof value !== "string") {
-      return
-    }
-
-    await nextTick()
-    animateSelector(
-      ".choice-card.is-active",
-      { scale: 0.96, y: 4 },
-      { scale: 1, y: 0, duration: 0.28, ease: "back.out(1.6)" },
-    )
-  },
-)
+watch(() => props.modelValue?.value, async (value) => {
+  if (isFreeText.value || typeof value !== "string") return
+  await nextTick()
+  animateSelector(".choice-card.is-active", { scale: 0.96, y: 4 }, { scale: 1, y: 0, duration: 0.28, ease: "back.out(1.6)" })
+})
 </script>
 
 <template>
-  <div
-    ref="root"
-    class="choice-list"
-    :class="{ 'is-readonly': readonlyMode, 'is-studio': studioMode }">
-    <template v-if="isFreeText">
-      <label class="answer-field">
-        <span class="answer-label">你的答案</span>
-        <textarea
-          class="answer-textarea"
-          rows="3"
-          :value="textValue"
-          :readonly="readonlyMode"
-          :disabled="readonlyMode"
-          placeholder="在这里写下你的答案…"
-          autocomplete="off"
-          enterkeyhint="done"
-          @input="handleTextInput"
-        />
-      </label>
-    </template>
-
-    <template v-else>
-      <div
-        v-for="(option, index) in options"
-        :key="option.id"
-        class="choice-card"
-        :class="{ 'is-active': modelValue?.value === option.id }"
-      >
-        <button
-          v-if="!studioMode"
-          type="button"
-          class="choice-hit"
-          :disabled="readonlyMode"
-          @click="selectOption(option.id)"
-        >
-          <span class="choice-index">{{ index + 1 }}</span>
-          <span class="choice-title">{{ option.label }}</span>
-        </button>
-        <div v-else class="choice-studio">
-          <span class="choice-index">{{ index + 1 }}</span>
-          <StudioField
-            v-model="draftLabels[option.id]"
-            class="choice-studio-field"
-            :label="`选项 ${index + 1}`"
-            placeholder="选项文案"
-            @change="emitOptionDraft"
-          />
-        </div>
-      </div>
-    </template>
+  <div ref="root" class="choice-list" :class="{ 'is-readonly': readonlyMode }">
+    <label v-if="isFreeText" class="answer-field">
+      <span class="answer-label">你的答案</span>
+      <textarea class="answer-textarea" rows="3" :value="textValue" :readonly="readonlyMode" :disabled="readonlyMode" placeholder="在这里写下你的答案…" autocomplete="off" enterkeyhint="done" @input="handleTextInput" />
+    </label>
+    <div v-else v-for="(option, index) in options" :key="option.id" class="choice-card" :class="{ 'is-active': modelValue?.value === option.id }">
+      <button type="button" class="choice-hit" :disabled="readonlyMode" @click="selectOption(option.id)">
+        <span class="choice-index">{{ index + 1 }}</span><span class="choice-title">{{ option.label }}</span>
+      </button>
+    </div>
   </div>
 </template>
 

@@ -3,26 +3,22 @@ import { computed, nextTick, onUnmounted, shallowRef, watch } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
 import type { ImagePuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
-import StudioField from "../StudioField.vue"
 
 interface Props {
   puzzle: ImagePuzzleDefinition
   modelValue: PuzzleAnswerDraft | null
   readonlyMode?: boolean
-  studioMode?: boolean
 }
 
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
   "update:modelValue": [value: PuzzleAnswerDraft]
-  "update:content": [payload: { prompt?: string }]
 }>()
 
 const boardRef = shallowRef<HTMLElement | null>(null)
 const draggingFrom = shallowRef<number | null>(null)
 const hoverTo = shallowRef<number | null>(null)
-const draftHint = shallowRef("")
 let activePointerId: number | null = null
 let didInitShuffle = false
 
@@ -138,17 +134,6 @@ watch(
   { immediate: true },
 )
 
-watch(
-  () =>
-    props.puzzle.questionPayload.trayTitle
-    || props.puzzle.questionPayload.prompt
-    || props.puzzle.prompt
-    || "",
-  (text) => {
-    draftHint.value = String(text || "").trim()
-  },
-  { immediate: true },
-)
 
 const gridSize = computed(() => {
   const configured = Number(props.puzzle.questionPayload.gridSize || 0)
@@ -176,16 +161,12 @@ const isSolved = computed(() => {
 })
 
 const hintText = computed(() =>
-  draftHint.value
+  props.puzzle.questionPayload.trayTitle
+  || props.puzzle.questionPayload.prompt
+  || props.puzzle.prompt
   || "将碎片拖回正确位置，完成纹样复原。",
 )
 
-function emitHintDraft() {
-  if (!props.studioMode) {
-    return
-  }
-  emit("update:content", { prompt: draftHint.value.trim() })
-}
 
 /** 拼块背景：编号块用 piece 在正确序中的行列切图 */
 function tileFaceStyle(pieceId: string) {
@@ -319,12 +300,6 @@ function onPointerCancel(event: PointerEvent) {
   activePointerId = null
 }
 
-function reshuffle() {
-  if (props.readonlyMode) {
-    return
-  }
-  updateOrder(shuffleIds(correctIds.value))
-}
 
 onUnmounted(() => {
   draggingFrom.value = null
@@ -334,25 +309,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="root" class="image-puzzle-stage" :class="{ 'is-studio': studioMode }">
+  <div ref="root" class="image-puzzle-stage">
     <div class="puzzle-hint-row">
-      <StudioField
-        v-if="studioMode"
-        v-model="draftHint"
-        class="puzzle-hint-field"
-        label="操作提示"
-        placeholder="如：将碎片拖回正确位置，完成纹样复原"
-        @change="emitHintDraft" />
-      <p v-else class="puzzle-hint">
+      <p class="puzzle-hint">
         {{ hintText }}
       </p>
-      <button
-        v-if="studioMode"
-        type="button"
-        class="puzzle-reshuffle"
-        @click="reshuffle">
-        打乱
-      </button>
     </div>
 
     <div

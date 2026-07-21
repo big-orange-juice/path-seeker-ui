@@ -3,15 +3,13 @@ import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { Position, VueFlow, type Edge, type Node } from '@vue-flow/core';
 import {
-  GameplayPreviewHost,
   getInteractionTypeMeta,
   parseStageConfig,
   type GameplayPreviewNarration,
   type GameplayPreviewNarrationStatus,
   type GameplayPreviewStage,
-  type NarrationRendererDraft
 } from '@path-seeker/game-renderer';
-import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
+import { computed, onBeforeUnmount, shallowRef, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
@@ -20,15 +18,11 @@ import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
-import GuideSelectDialog from '@/components/guides/GuideSelectDialog.vue';
+import AdminStageSimulator from '@/components/routes/AdminStageSimulator.vue';
 import RouteEditChatPane from '@/components/routes/RouteEditChatPane.vue';
+import StageEditDialog from '@/components/routes/StageEditDialog.vue';
 import type { RouteWorkflowActions } from '@/constants/routeWorkflow';
-import { mapGuideResponse } from '@/composables/useGuideManagement';
-import type { GuideRecord, GuideResponse, GuideResponseListTotalPageResult } from '@/types/guide';
-import type {
-  NarrationDetailResponse,
-  UpdateNarrationStageResponse,
-} from '@/types/narration';
+import type { NarrationDetailResponse } from '@/types/narration';
 import type { RouteDetailResponse, RouteNodeResponse, RouteRecord } from '@/types/route';
 import RouteStatusBadge from '@/components/routes/RouteStatusBadge.vue';
 import '@vue-flow/core/dist/style.css';
@@ -55,7 +49,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'update:open': [value: boolean];
-  /** SSE 驱动的静默刷新，不遮挡 workflow */
   'refresh-silent': [];
   publish: [];
   unpublish: [];
@@ -64,701 +57,147 @@ const emit = defineEmits<{
 }>();
 
 const { request } = useApiClient();
-
 const selectedStageId = shallowRef('');
+const stageEditOpen = shallowRef(false);
 const chatPaneRef = shallowRef<{
   resetSession: () => void;
   abortActiveRun: () => void;
 } | null>(null);
 const narrationDetail = shallowRef<NarrationDetailResponse | null>(null);
-const narrationStatus = ref<GameplayPreviewNarrationStatus>('idle');
-const narrationErrorMessage = ref('');
-const narrationAudioGenerating = ref(false);
-/** studio 本地覆盖：避免保存前/刷新间隙 props 冲掉用户刚改的 config */
-const stageConfigOverrides = ref<Record<string, Record<string, unknown>>>({});
-const stageTitleOverrides = ref<Record<string, string>>({});
-const stageSaveErrorMessage = ref('');
-const guidePickerOpen = shallowRef(false);
-const guidePickerStageId = shallowRef('');
-const guidePickerPending = shallowRef(false);
-const guidePickerRows = shallowRef<GuideRecord[]>([]);
-
+const narrationStatus = shallowRef<GameplayPreviewNarrationStatus>('idle');
+const narrationErrorMessage = shallowRef('');
 let detailRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSilentRefresh = false;
 let narrationRequestSeq = 0;
-let narrationAudioPollTimer: ReturnType<typeof setTimeout> | null = null;
-let stageSaveTimer: ReturnType<typeof setTimeout> | null = null;
-let stageSaveSeq = 0;
-/** 待落库的解说草稿（按 stageId） */
-const pendingNarrationDrafts = new Map<string, NarrationRendererDraft>();
 
 const isOpen = computed({
   get: () => props.open,
-  set: (value: boolean) => emit('update:open', value)
+  set: (value: boolean) => emit('update:open', value),
 });
-
 const sortedNodes = computed(() =>
   [...(props.detail?.nodes ?? [])].sort((left, right) => {
     const leftOrder = left.sortOrder || left.stageNo || 0;
     const rightOrder = right.sortOrder || right.stageNo || 0;
     return leftOrder - rightOrder;
-  })
+  }),
 );
-
-const selectedNode = computed(
-  () =>
-    sortedNodes.value.find((node) => node.stageId === selectedStageId.value) ??
-    null
+const selectedNode = computed(() =>
+  sortedNodes.value.find((node) => node.stageId === selectedStageId.value) ?? null,
 );
+const previewNode = computed(() => selectedNode.value ?? sortedNodes.value[0] ?? null);
 
-/** 预览：有选中用选中，否则回退第一个节点方便查看 */
-const previewNode = computed(
-  () => selectedNode.value ?? sortedNodes.value[0] ?? null
-);
-
-/** 垂直串联：节点居中对齐，自上而下连接 */
 const FLOW_NODE_X = 0;
 const FLOW_NODE_GAP_Y = 130;
-
 const flowNodes = computed<Node[]>(() =>
-  sortedNodes.value.map((node, index) => {
-    const stageId = String(node.stageId || '').trim();
-    const title =
-      (stageId && stageTitleOverrides.value[stageId])
-      || node.title
-      || '未命名节点';
-    return {
-      id: node.stageId || `stage-${index + 1}`,
-      type: 'default',
-      position: {
-        x: FLOW_NODE_X,
-        y: index * FLOW_NODE_GAP_Y
-      },
-      sourcePosition: Position.Bottom,
-      targetPosition: Position.Top,
-      data: {
-        label: `${node.sortOrder || index + 1}. ${title}\n${getInteractionTypeName(node.interactionType)}`
-      },
-      class:
-        node.stageId && node.stageId === selectedStageId.value
-          ? 'is-selected-route-node'
-          : ''
-    };
-  })
+  sortedNodes.value.map((node, index) => ({
+    id: String(node.stageId || `stage-${index + 1}`),
+    type: 'default',
+    position: { x: FLOW_NODE_X, y: index * FLOW_NODE_GAP_Y },
+    sourcePosition: Position.Bottom,
+    targetPosition: Position.Top,
+    data: {
+      label: `${node.sortOrder || index + 1}. ${node.title || '未命名节点'}\n${getInteractionTypeName(node.interactionType)}`,
+    },
+    class: node.stageId === selectedStageId.value ? 'is-selected-route-node' : '',
+  })),
 );
-
 const flowEdges = computed<Edge[]>(() =>
   flowNodes.value.slice(1).map((node, index) => ({
     id: `${flowNodes.value[index]?.id}-${node.id}`,
     source: flowNodes.value[index]?.id ?? '',
     target: node.id,
     type: 'smoothstep',
-    animated: true
-  }))
+    animated: true,
+  })),
 );
 
-const mapNarrationPreview = (
-  detail: NarrationDetailResponse | null
-): GameplayPreviewNarration | null => {
-  if (!detail) {
-    return null;
-  }
-
+const mapNarrationPreview = (detail: NarrationDetailResponse | null): GameplayPreviewNarration | null => {
+  if (!detail) return null;
   return {
-    narrationText:
-      detail.narrationText != null ? String(detail.narrationText) : null,
+    narrationText: detail.narrationText != null ? String(detail.narrationText) : null,
     audioUrl: detail.audioUrl != null ? String(detail.audioUrl) : null,
     guideId: detail.guideId != null ? String(detail.guideId) : null,
     guideName: detail.guideName != null ? String(detail.guideName) : null,
-    resolvedStyle:
-      detail.resolvedStyle != null ? String(detail.resolvedStyle) : null,
-    durationMs:
-      typeof detail.durationMs === 'number' ? detail.durationMs : null,
-    textStatus:
-      typeof detail.textStatus === 'number' ? detail.textStatus : null,
-    audioStatus:
-      typeof detail.audioStatus === 'number' ? detail.audioStatus : null,
-    textError: detail.textError != null ? String(detail.textError) : null
+    resolvedStyle: detail.resolvedStyle != null ? String(detail.resolvedStyle) : null,
+    durationMs: typeof detail.durationMs === 'number' ? detail.durationMs : null,
+    textStatus: typeof detail.textStatus === 'number' ? detail.textStatus : null,
+    audioStatus: typeof detail.audioStatus === 'number' ? detail.audioStatus : null,
+    textError: detail.textError != null ? String(detail.textError) : null,
   };
 };
-
 const previewStage = computed<GameplayPreviewStage | null>(() => {
   const node = previewNode.value;
-  if (!node) {
-    return null;
-  }
-
-  const stageId = String(node.stageId || '').trim();
-  const interactionType = node.interactionType || 0;
-  const isNarration = interactionType === 11;
-  const titleOverride = stageId ? stageTitleOverrides.value[stageId] : undefined;
-  const configOverride = stageId ? stageConfigOverrides.value[stageId] : undefined;
-
+  if (!node) return null;
+  const isNarration = node.interactionType === 11;
   return {
-    stageId,
-    interactionType,
-    title: titleOverride || node.title || '未命名节点',
+    stageId: String(node.stageId || ''),
+    interactionType: node.interactionType || 0,
+    title: node.title || '未命名节点',
     subtitle: node.subtitle,
     exhibitName: node.exhibitName,
     galleryName: node.galleryName,
     score: node.score,
-    config: {
-      ...parseNodeConfig(node),
-      ...(configOverride ?? {})
-    },
+    config: parseNodeConfig(node),
     narration: isNarration ? mapNarrationPreview(narrationDetail.value) : null,
     narrationStatus: isNarration ? narrationStatus.value : 'idle',
-    narrationErrorMessage: isNarration
-      ? stageSaveErrorMessage.value || narrationErrorMessage.value
-      : null
+    narrationErrorMessage: isNarration ? narrationErrorMessage.value : null,
   };
 });
 
 const resolveRequestErrorMessage = (error: unknown, fallback: string) => {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
+  if (error instanceof Error && error.message) return error.message;
   if (error && typeof error === 'object') {
     const record = error as Record<string, unknown>;
-    if (typeof record.statusMessage === 'string' && record.statusMessage) {
-      return record.statusMessage;
-    }
-    if (typeof record.message === 'string' && record.message) {
-      return record.message;
-    }
+    if (typeof record.statusMessage === 'string' && record.statusMessage) return record.statusMessage;
+    if (typeof record.message === 'string' && record.message) return record.message;
   }
-
   return fallback;
 };
-
-const clearNarrationAudioPoll = () => {
-  if (narrationAudioPollTimer) {
-    clearTimeout(narrationAudioPollTimer);
-    narrationAudioPollTimer = null;
-  }
-};
-
-const isAudioStillGenerating = (detail: NarrationDetailResponse | null) => {
-  if (!detail) {
-    return false;
-  }
-
-  const audioUrl = String(detail.audioUrl ?? '').trim();
-  if (audioUrl) {
-    return false;
-  }
-
-  const status = Number(detail.audioStatus ?? 0);
-  // 1=Queued 2=Generating
-  return status === 1 || status === 2;
-};
-
-const loadNarrationDetail = async (
-  stageId: string,
-  options?: { silent?: boolean }
-) => {
+const loadNarrationDetail = async (stageId: string) => {
   const requestId = ++narrationRequestSeq;
-  const silent = Boolean(options?.silent);
-
-  if (!silent) {
-    narrationStatus.value = 'loading';
-    narrationErrorMessage.value = '';
-    narrationDetail.value = null;
-  }
-
+  narrationStatus.value = 'loading';
+  narrationErrorMessage.value = '';
+  narrationDetail.value = null;
   try {
-    const detail = await request<NarrationDetailResponse | null>(
-      '/api/narration/detail',
-      {
-        method: 'GET',
-        query: {
-          stageId
-        }
-      }
-    );
-
-    if (requestId !== narrationRequestSeq) {
-      return null;
-    }
-
+    const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
+      method: 'GET',
+      query: { stageId },
+    });
+    if (requestId !== narrationRequestSeq) return;
     narrationDetail.value = detail;
     narrationStatus.value = 'ready';
-
     if (!detail?.narrationText && detail?.textError) {
       narrationErrorMessage.value = String(detail.textError);
     }
-
-    if (!isAudioStillGenerating(detail)) {
-      narrationAudioGenerating.value = false;
-      clearNarrationAudioPoll();
-    }
-
-    return detail;
   } catch (error) {
-    if (requestId !== narrationRequestSeq) {
-      return null;
-    }
-
-    if (!silent) {
-      narrationDetail.value = null;
-      narrationStatus.value = 'error';
-      narrationErrorMessage.value = resolveRequestErrorMessage(
-        error,
-        '解说词加载失败。'
-      );
-    }
-
-    narrationAudioGenerating.value = false;
-    clearNarrationAudioPoll();
-    return null;
+    if (requestId !== narrationRequestSeq) return;
+    narrationStatus.value = 'error';
+    narrationErrorMessage.value = resolveRequestErrorMessage(error, '解说词加载失败。');
   }
 };
-
-const pollNarrationAudio = (stageId: string, attempt = 0) => {
-  clearNarrationAudioPoll();
-
-  if (attempt >= 20) {
-    narrationAudioGenerating.value = false;
-    return;
-  }
-
-  narrationAudioPollTimer = setTimeout(async () => {
-    narrationAudioPollTimer = null;
-    const detail = await loadNarrationDetail(stageId, { silent: true });
-
-    if (isAudioStillGenerating(detail)) {
-      pollNarrationAudio(stageId, attempt + 1);
-      return;
-    }
-
-    narrationAudioGenerating.value = false;
-  }, 2000);
-};
-
-const handleGenerateNarrationAudio = async (stageId: string) => {
-  // 只读（审核/已上架等）不允许触发生成
-  if (!props.canEdit) {
-    return;
-  }
-
-  const id = String(stageId || '').trim();
-  if (!id || narrationAudioGenerating.value) {
-    return;
-  }
-
-  narrationAudioGenerating.value = true;
-  narrationErrorMessage.value = '';
-
-  try {
-    await request('/api/narration/generate-audio', {
-      method: 'POST',
-      body: {
-        stageId: id
-      }
-    });
-
-    await loadNarrationDetail(id, { silent: true });
-    pollNarrationAudio(id);
-  } catch (error) {
-    narrationAudioGenerating.value = false;
-    narrationErrorMessage.value = resolveRequestErrorMessage(
-      error,
-      '语音生成请求失败。'
-    );
-  }
-};
-
-const clearStageSaveTimer = () => {
-  if (stageSaveTimer) {
-    clearTimeout(stageSaveTimer);
-    stageSaveTimer = null;
-  }
-};
-
-const applyNarrationDraftLocally = (
-  stageId: string,
-  draft: NarrationRendererDraft
-) => {
-  const prev = stageConfigOverrides.value[stageId] ?? {};
-  const next: Record<string, unknown> = { ...prev };
-
-  if (typeof draft.style === 'string') {
-    next.user_style_input = draft.style.trim();
-  }
-  if (typeof draft.sceneContext === 'string') {
-    next.scene_context = draft.sceneContext.trim();
-  }
-  if (typeof draft.targetDurationSeconds === 'number') {
-    const sec = Math.max(1, Math.round(draft.targetDurationSeconds) || 90);
-    next.target_duration_seconds = sec;
-  }
-  if (typeof draft.guideId === 'string') {
-    const guideId = draft.guideId.trim();
-    next.guide_id = guideId || null;
-  }
-  if (typeof draft.guideName === 'string') {
-    next.guide_name = draft.guideName.trim();
-  }
-
-  stageConfigOverrides.value = {
-    ...stageConfigOverrides.value,
-    [stageId]: next
-  };
-
-  if (typeof draft.title === 'string' && draft.title.trim()) {
-    stageTitleOverrides.value = {
-      ...stageTitleOverrides.value,
-      [stageId]: draft.title.trim()
-    };
-  }
-};
-
-const resolveGuideIdForStage = (
-  stageId: string,
-  node: RouteNodeResponse,
-  draft: NarrationRendererDraft
-) => {
-  if (typeof draft.guideId === 'string' && draft.guideId.trim()) {
-    return draft.guideId.trim();
-  }
-  const override = stageConfigOverrides.value[stageId];
-  if (override && Object.prototype.hasOwnProperty.call(override, 'guide_id')) {
-    const value = override.guide_id;
-    if (value == null || value === '') {
-      return null;
-    }
-    return String(value).trim() || null;
-  }
-  const fromDetail = String(narrationDetail.value?.guideId ?? '').trim();
-  if (fromDetail) {
-    return fromDetail;
-  }
-  const config = parseNodeConfig(node);
-  if (config.guide_id != null && config.guide_id !== '') {
-    return String(config.guide_id).trim() || null;
-  }
-  return null;
-};
-
-const persistNarrationDraft = async (
-  stageId: string,
-  draft: NarrationRendererDraft
-) => {
-  if (!props.canEdit) {
-    return;
-  }
-
-  const node =
-    sortedNodes.value.find((item) => String(item.stageId || '') === stageId) ??
-    null;
-
-  if (!node) {
-    return;
-  }
-
-  const requestId = ++stageSaveSeq;
-  stageSaveErrorMessage.value = '';
-
-  try {
-    const mergedConfig = {
-      ...parseNodeConfig(node),
-      ...(stageConfigOverrides.value[stageId] ?? {})
-    };
-
-    const prevGuideId = String(
-      narrationDetail.value?.guideId
-      ?? mergedConfig.guide_id
-      ?? ''
-    ).trim();
-    const nextGuideId = resolveGuideIdForStage(stageId, node, draft);
-    const guideChanged =
-      String(nextGuideId ?? '').trim() !== prevGuideId;
-
-    const nextTitle =
-      stageTitleOverrides.value[stageId] ||
-      (typeof draft.title === 'string' ? draft.title.trim() : '') ||
-      node.title ||
-      null;
-
-    const sceneContext =
-      typeof draft.sceneContext === 'string'
-        ? draft.sceneContext.trim()
-        : String(mergedConfig.scene_context ?? '').trim() || null;
-
-    const userStyleInput =
-      typeof draft.style === 'string'
-        ? draft.style.trim()
-        : String(mergedConfig.user_style_input ?? '').trim() || null;
-
-    let targetDurationSeconds: number | null = null;
-    if (typeof draft.targetDurationSeconds === 'number') {
-      targetDurationSeconds = Math.min(
-        600,
-        Math.max(10, Math.round(draft.targetDurationSeconds) || 90)
-      );
-    } else {
-      const fromConfig = Number(mergedConfig.target_duration_seconds);
-      if (Number.isFinite(fromConfig) && fromConfig > 0) {
-        targetDurationSeconds = Math.min(600, Math.max(10, Math.round(fromConfig)));
-      }
-    }
-
-    // 导览节点：走 Narration/update-stage
-    const stageResult = await request<UpdateNarrationStageResponse | null>(
-      '/api/narration/update-stage',
-      {
-        method: 'POST',
-        body: {
-          stageId,
-          title: nextTitle,
-          subtitle: node.subtitle,
-          exhibitId: node.refExhibitId != null ? String(node.refExhibitId) : null,
-          guideId: nextGuideId,
-          userStyleInput,
-          sceneContext,
-          targetDurationSeconds,
-        }
-      }
-    );
-
-    // 仅正文真正变更时写解说 API；返回体直接回填，避免再 GET detail
-    const nextText = String(draft.narrationText ?? '').trim();
-    const currentText = String(narrationDetail.value?.narrationText ?? '').trim();
-    const textChanged = Boolean(nextText && nextText !== currentText);
-    if (textChanged) {
-      const version =
-        typeof narrationDetail.value?.version === 'number'
-          ? narrationDetail.value.version
-          : undefined;
-      const updated = await request<NarrationDetailResponse | null>(
-        '/api/narration/update-text',
-        {
-          method: 'POST',
-          body: {
-            stageId,
-            narrationText: nextText,
-            ...(version != null ? { version } : {})
-          }
-        }
-      );
-
-      if (requestId === stageSaveSeq && updated) {
-        narrationDetail.value = updated;
-        narrationStatus.value = 'ready';
-      }
-    } else if (
-      requestId === stageSaveSeq
-      && (guideChanged || Boolean(stageResult?.narrationReset))
-    ) {
-      // 换导游 / 产物被重置时才重拉解说；普通场景/时长修改用本地 override，避免连环 detail
-      await loadNarrationDetail(stageId, { silent: true });
-    }
-
-    // 画布标题已走 stageTitleOverrides，模拟器字段走本地 override；
-    // 不再每次编辑都静默拉 route detail，避免 detail → 再触发 narration/detail 连环请求
-  } catch (error) {
-    if (requestId !== stageSaveSeq) {
-      return;
-    }
-    stageSaveErrorMessage.value = resolveRequestErrorMessage(
-      error,
-      '节点编辑保存失败。'
-    );
-  }
-};
-
-const loadGuidePickerRows = async () => {
-  guidePickerPending.value = true;
-  try {
-    const result = await request<GuideResponseListTotalPageResult>(
-      '/api/guide/query',
-      {
-        query: {
-          status: 1,
-          pageIndex: 1,
-          pageSize: 100,
-        },
-      }
-    );
-    guidePickerRows.value = (result?.list ?? [])
-      .map((item: GuideResponse) => mapGuideResponse(item))
-      .filter((item) => Boolean(item.id) && !item.isGenerating);
-  } catch (error) {
-    guidePickerRows.value = [];
-    stageSaveErrorMessage.value = resolveRequestErrorMessage(
-      error,
-      '导游列表加载失败。'
-    );
-  } finally {
-    guidePickerPending.value = false;
-  }
-};
-
-const handlePickGuide = (stageId: string) => {
-  if (!props.canEdit) {
-    return;
-  }
-  const id = String(stageId || '').trim();
-  if (!id) {
-    return;
-  }
-  guidePickerStageId.value = id;
-  guidePickerOpen.value = true;
-  void loadGuidePickerRows();
-};
-
-const handleGuideSelected = (guide: GuideRecord) => {
-  const stageId = String(guidePickerStageId.value || '').trim();
-  if (!stageId || !props.canEdit) {
-    return;
-  }
-
-  const draft: NarrationRendererDraft = {
-    guideId: guide.id,
-    guideName: guide.name || '',
-  };
-  applyNarrationDraftLocally(stageId, draft);
-  pendingNarrationDrafts.set(stageId, {
-    ...(pendingNarrationDrafts.get(stageId) ?? {}),
-    ...draft,
-  });
-
-  // 乐观更新 detail 中的导游展示（config override 同步生效）
-  if (narrationDetail.value) {
-    const detailStageId = String(narrationDetail.value.stageId || '').trim();
-    if (!detailStageId || detailStageId === stageId) {
-      narrationDetail.value = {
-        ...narrationDetail.value,
-        guideId: guide.id,
-        guideName: guide.name || null,
-      };
-    }
-  }
-
-  clearStageSaveTimer();
-  stageSaveTimer = setTimeout(() => {
-    stageSaveTimer = null;
-    flushPendingNarrationDraft();
-  }, 200);
-};
-
-const currentGuideIdForPicker = computed(() => {
-  const stageId = String(guidePickerStageId.value || '').trim();
-  if (!stageId) {
-    return null;
-  }
-  const override = stageConfigOverrides.value[stageId];
-  if (override?.guide_id != null && override.guide_id !== '') {
-    return String(override.guide_id);
-  }
-  return narrationDetail.value?.guideId
-    ? String(narrationDetail.value.guideId)
-    : null;
-});
-
-const flushPendingNarrationDraft = () => {
-  clearStageSaveTimer();
-  const entries = [...pendingNarrationDrafts.entries()];
-  pendingNarrationDrafts.clear();
-
-  for (const [stageId, draft] of entries) {
-    void persistNarrationDraft(stageId, draft);
-  }
-};
-
-const handleNarrationDraft = (payload: {
-  stageId: string;
-  draft: NarrationRendererDraft;
-}) => {
-  const stageId = String(payload.stageId || '').trim();
-  if (!stageId || !props.canEdit) {
-    return;
-  }
-
-  const draft = payload.draft ?? {};
-  applyNarrationDraftLocally(stageId, draft);
-  pendingNarrationDrafts.set(stageId, {
-    ...(pendingNarrationDrafts.get(stageId) ?? {}),
-    ...draft
-  });
-
-  clearStageSaveTimer();
-  // 风格/场景弹层点确定、时长 blur 等都会触发；短防抖合并连点
-  stageSaveTimer = setTimeout(() => {
-    stageSaveTimer = null;
-    flushPendingNarrationDraft();
-  }, 350);
-};
-
-/**
- * 用原始字符串作 watch 源，避免每次 props.detail 换引用都误触发。
- * detailStamp 取当前导览节点 title/config，便于对话侧静默刷新后只拉一次解说。
- */
 const narrationWatchKey = computed(() => {
-  if (!props.open) {
-    return '';
-  }
-  const node = previewNode.value;
-  if (!node || Number(node.interactionType || 0) !== 11) {
-    return '';
-  }
-  const stageId = String(node.stageId || '').trim();
-  if (!stageId) {
-    return '';
-  }
-  return [
-    stageId,
-    String(node.title || ''),
-    String(node.subtitle || ''),
-    String(node.config || ''),
-  ].join('\u0001');
+  if (!props.open || previewNode.value?.interactionType !== 11) return '';
+  return String(previewNode.value.stageId || '').trim();
 });
-
-watch(
-  narrationWatchKey,
-  (key) => {
-    if (!key) {
-      narrationRequestSeq += 1;
-      clearNarrationAudioPoll();
-      narrationDetail.value = null;
-      narrationStatus.value = 'idle';
-      narrationErrorMessage.value = '';
-      narrationAudioGenerating.value = false;
-      return;
-    }
-
-    const stageId = key.split('\u0001')[0] || '';
-    if (!stageId) {
-      return;
-    }
-    void loadNarrationDetail(stageId);
-  },
-  { immediate: true }
-);
+watch(narrationWatchKey, (stageId) => {
+  narrationRequestSeq += 1;
+  narrationDetail.value = null;
+  narrationStatus.value = 'idle';
+  narrationErrorMessage.value = '';
+  if (stageId) void loadNarrationDetail(stageId);
+}, { immediate: true });
 
 const routeId = computed(() => String(props.detail?.route?.id ?? '').trim());
 const routeTitle = computed(() => props.detail?.route?.title || '路线详情');
 const routeMeta = computed(() => {
   const route = props.detail?.route;
-  if (!route) {
-    return '暂无路线基础信息';
-  }
-
-  return `${route.puzzleCount || sortedNodes.value.length || 0} 个节点 · ${route.totalScore || 0} 分`;
+  return route ? `${route.puzzleCount || sortedNodes.value.length || 0} 个节点 · ${route.totalScore || 0} 分` : '暂无路线基础信息';
 });
-
 const stageAttachmentLabel = computed(() => {
   const node = selectedNode.value;
-  if (!node) {
-    return '';
-  }
-
-  const order =
-    node.sortOrder ||
-    sortedNodes.value.findIndex((item) => item.stageId === node.stageId) + 1;
-  const title = node.title || '未命名节点';
-  return `${order}. ${title}`;
+  if (!node) return '';
+  const order = node.sortOrder || sortedNodes.value.findIndex((item) => item.stageId === node.stageId) + 1;
+  return `${order}. ${node.title || '未命名节点'}`;
 });
 
 const clearDetailRefreshTimer = () => {
@@ -767,136 +206,81 @@ const clearDetailRefreshTimer = () => {
     detailRefreshTimer = null;
   }
 };
-
 const scheduleSilentDetailRefresh = () => {
   pendingSilentRefresh = true;
   clearDetailRefreshTimer();
   detailRefreshTimer = setTimeout(() => {
     detailRefreshTimer = null;
-    if (!pendingSilentRefresh) {
-      return;
-    }
-
+    if (!pendingSilentRefresh) return;
     pendingSilentRefresh = false;
     emit('refresh-silent');
   }, 2000);
 };
-
 const flushSilentDetailRefresh = () => {
   clearDetailRefreshTimer();
   pendingSilentRefresh = false;
   emit('refresh-silent');
 };
-
 const handleRequestDetailRefresh = (eventRouteId: string) => {
-  const currentId = routeId.value;
   const nextId = String(eventRouteId || '').trim();
-
-  if (!currentId || (nextId && nextId !== currentId)) {
-    return;
-  }
-
-  scheduleSilentDetailRefresh();
+  if (routeId.value && (!nextId || nextId === routeId.value)) scheduleSilentDetailRefresh();
 };
-
 const handleFlushDetailRefresh = (eventRouteId: string) => {
-  const currentId = routeId.value;
   const nextId = String(eventRouteId || '').trim();
-
-  if (!currentId || (nextId && nextId !== currentId)) {
-    return;
-  }
-
-  flushSilentDetailRefresh();
+  if (routeId.value && (!nextId || nextId === routeId.value)) flushSilentDetailRefresh();
 };
 
-watch(
-  sortedNodes,
-  (nodes) => {
-    if (!selectedStageId.value) {
-      return;
-    }
-
-    if (!nodes.some((node) => node.stageId === selectedStageId.value)) {
-      selectedStageId.value = '';
-    }
-  },
-  { immediate: true }
-);
-
-const destroyLocalDialogState = () => {
+watch(sortedNodes, (nodes) => {
+  if (selectedStageId.value && !nodes.some((node) => node.stageId === selectedStageId.value)) selectedStageId.value = '';
+}, { immediate: true });
+watch(() => props.open, (open) => {
+  if (open) return;
   clearDetailRefreshTimer();
-  clearNarrationAudioPoll();
-  clearStageSaveTimer();
-  pendingSilentRefresh = false;
-  pendingNarrationDrafts.clear();
-  stageSaveSeq += 1;
+  narrationRequestSeq += 1;
   selectedStageId.value = '';
   narrationDetail.value = null;
   narrationStatus.value = 'idle';
   narrationErrorMessage.value = '';
-  narrationAudioGenerating.value = false;
-  narrationRequestSeq += 1;
-  stageConfigOverrides.value = {};
-  stageTitleOverrides.value = {};
-  stageSaveErrorMessage.value = '';
-  guidePickerOpen.value = false;
-  guidePickerStageId.value = '';
-  guidePickerRows.value = [];
   chatPaneRef.value?.abortActiveRun();
   chatPaneRef.value?.resetSession();
-};
-
-watch(
-  () => props.open,
-  (open) => {
-    if (open) {
-      return;
-    }
-    // 关闭时销毁本轮详情侧状态（节点选中、解说、聊天会话）
-    destroyLocalDialogState();
-  }
-);
-
-watch(routeId, (next, prev) => {
-  if (prev && next && prev !== next) {
+});
+watch(routeId, (next, previous) => {
+  if (previous && next && previous !== next) {
     selectedStageId.value = '';
     chatPaneRef.value?.resetSession();
   }
 });
-
 onBeforeUnmount(() => {
   clearDetailRefreshTimer();
-  clearNarrationAudioPoll();
-  clearStageSaveTimer();
   chatPaneRef.value?.abortActiveRun();
 });
 
 function parseNodeConfig(node: RouteNodeResponse): Record<string, unknown> {
   return parseStageConfig(node.config) as Record<string, unknown>;
 }
-
 function selectFlowNode(event: { node: Node }) {
-  // 仅用户点击 workflow 节点时挂上 stage 附件
   selectedStageId.value = String(event.node.id || '').trim();
 }
-
+function openStageEditorFromNode(event: { node: Node }) {
+  selectedStageId.value = String(event.node.id || '').trim();
+  if (props.canEdit && selectedStageId.value) stageEditOpen.value = true;
+}
 function clearStageAttachment() {
   selectedStageId.value = '';
 }
-
-function getInteractionTypeName(interactionType: number) {
-  return (
-    getInteractionTypeMeta(interactionType)?.label ||
-    `未知玩法 ${interactionType}`
-  );
+function openStageEditor() {
+  if (props.canEdit && selectedNode.value) stageEditOpen.value = true;
 }
-
+function handleStageSaved() {
+  flushSilentDetailRefresh();
+}
+function getInteractionTypeName(interactionType: number) {
+  return getInteractionTypeMeta(interactionType)?.label || `未知玩法 ${interactionType}`;
+}
 function closeDialog() {
   isOpen.value = false;
 }
 </script>
-
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent
@@ -948,6 +332,15 @@ function closeDialog() {
         <section class="flex min-h-0 min-w-0 flex-col">
           <div
             class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background/70">
+            <Button
+              v-if="props.canEdit"
+              type="button"
+              size="sm"
+              class="absolute right-3 top-3 z-10 h-8 px-3 text-xs"
+              :disabled="!selectedNode"
+              @click="openStageEditor">
+              编辑节点
+            </Button>
             <VueFlow
               :nodes="flowNodes"
               :edges="flowEdges"
@@ -956,7 +349,8 @@ function closeDialog() {
               :min-zoom="0.35"
               :max-zoom="1.6"
               class="route-flow h-full"
-              @node-click="selectFlowNode">
+              @node-click="selectFlowNode"
+              @node-double-click="openStageEditorFromNode">
               <Background />
               <Controls />
             </VueFlow>
@@ -970,37 +364,8 @@ function closeDialog() {
 
         <!-- 中：手机模拟器外框（画面铺满，灵动岛叠在上方） -->
         <aside class="flex min-h-0 min-w-0 flex-col overflow-hidden">
-          <div class="route-device__chrome min-h-0 flex-1">
-            <div class="route-device__screen">
-              <!-- 状态栏 / 灵动岛：绝对定位叠在画面顶，不占布局高度 -->
-              <div class="route-device__status" aria-hidden="true">
-                <span class="route-device__time">9:41</span>
-                <span class="route-device__island" />
-                <span class="route-device__signal">
-                  <i /><i /><i />
-                </span>
-              </div>
-
-              <div class="route-device__viewport">
-                <GameplayPreviewHost
-                  v-if="previewStage"
-                  class="h-full min-h-0"
-                  :stage="previewStage"
-                  :surface-mode="props.canEdit ? 'studio' : 'play'"
-                  :narration-audio-generating="narrationAudioGenerating"
-                  @generate-audio="handleGenerateNarrationAudio"
-                  @narration-draft="handleNarrationDraft"
-                  @pick-guide="handlePickGuide" />
-                <div
-                  v-else
-                  class="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-sm text-white/45">
-                  点击左侧节点预览
-                </div>
-              </div>
-            </div>
-
-            <div class="route-device__home" aria-hidden="true" />
-          </div>
+          <AdminStageSimulator
+            :stage="previewStage" />
         </aside>
 
         <!-- 右：对话 ~1 -->
@@ -1072,12 +437,12 @@ function closeDialog() {
     </DialogContent>
   </Dialog>
 
-  <GuideSelectDialog
-    v-model:open="guidePickerOpen"
-    :guides="guidePickerRows"
-    :pending="guidePickerPending"
-    :selected-id="currentGuideIdForPicker"
-    @select="handleGuideSelected" />
+  <StageEditDialog
+    v-model:open="stageEditOpen"
+    :route-id="routeId"
+    :node="selectedNode"
+    :can-edit="props.canEdit"
+    @saved="handleStageSaved" />
 </template>
 
 <style scoped>

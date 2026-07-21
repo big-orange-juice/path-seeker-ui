@@ -78,8 +78,8 @@ export function isPrimaryPuzzleTemplate(type: PuzzleTemplateType) {
   return resolveIsPrimaryPuzzleTemplate(type)
 }
 
-/** 按 interactionType 分流 H5 页面链路 */
-export function resolveStageKind(interactionType?: number | null): MissionStageKind {
+/** 按 interactionType 分流 H5 页面链路；非法类型返回 null，不静默映射。 */
+export function resolveStageKind(interactionType?: number | null): MissionStageKind | null {
   return resolveSharedStageKind(interactionType)
 }
 
@@ -192,21 +192,34 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
     index,
   })
 
+  // 扫描与导览节点不渲染 PuzzleRendererHost；这个最小题目仅维持既有
+  // session/reward 结构。历史类型会在构建章节前被过滤，不会进入此分支。
+  const resolvedShared = shared ?? {
+    id: stageId,
+    interactionType: Number(stage.interactionType ?? stage.puzzleType ?? 0),
+    templateType: "observe_choice" as const,
+    title: stageTitle || "未命名节点",
+    introText: "",
+    prompt: "",
+    hintPayload: {},
+    questionPayload: { prompt: "", options: [], correctOptionId: "" },
+  }
+
   const hintPayload: Record<HintLevel, string> = {
-    observe: shared.hintPayload?.observe || "",
-    relation: shared.hintPayload?.relation || "",
-    direct: shared.hintPayload?.direct || "",
+    observe: resolvedShared.hintPayload?.observe || "",
+    relation: resolvedShared.hintPayload?.relation || "",
+    direct: resolvedShared.hintPayload?.direct || "",
   }
 
   return {
-    ...shared,
-    introText: shared.introText || "",
-    prompt: shared.prompt || "",
-    puzzleTypeId: PUZZLE_TYPE_MAP[shared.templateType],
+    ...resolvedShared,
+    introText: resolvedShared.introText || "",
+    prompt: resolvedShared.prompt || "",
+    puzzleTypeId: PUZZLE_TYPE_MAP[resolvedShared.templateType],
     difficultyLevel,
     schemaMeta,
     hintPayload,
-    reward: makeReward(stageId, stageTitle || shared.title),
+    reward: makeReward(stageId, stageTitle || resolvedShared.title),
     successCopy: "节点已完成。",
     failureCopy: "本次未通过。",
   } as MissionPuzzle
@@ -232,7 +245,7 @@ function buildArtifact(stage: StageLike, index: number): ArtifactClue {
   }
 }
 
-function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefined, index: number): MissionChapter {
+function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefined, index: number): MissionChapter | null {
   const config = getStageConfig(stage)
   const title = normalizeText(stage.title)
   const targetLocation = normalizeText(stage.galleryName ?? stage.exhibitName) || undefined
@@ -240,7 +253,11 @@ function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefi
   const videoFromConfig = normalizeText(
     pickValue(config, "video_url", "videoUrl", "intro_video_url", "introVideoUrl", "media_url", "mediaUrl"),
   ) || undefined
-  const interactionType = Number(stage.interactionType || stage.puzzleType || 1)
+  const interactionType = Number(stage.interactionType ?? stage.puzzleType ?? 0)
+  const stageKind = resolveStageKind(interactionType)
+  if (!stageKind) {
+    return null
+  }
   const sortOrder = Number(stage.sortOrder ?? stage.stageNo ?? index + 1)
   const puzzle = buildPuzzle(stage, route, index)
 
@@ -256,7 +273,7 @@ function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefi
     refExhibitId,
     videoUrl: videoFromConfig,
     interactionType,
-    stageKind: resolveStageKind(interactionType),
+    stageKind,
     artifact: buildArtifact(stage, index),
     puzzle: {
       ...puzzle,
@@ -488,8 +505,10 @@ export function adaptRouteDetailToMission(detail: RouteDetailResponse, stages?: 
 
   const baseCard = adaptRouteCard(route, detail)
   // Stages 为主，Detail.nodes 补位置/展品等；无 Stages 时退回 nodes
-  const stageList = mergeStagesWithDetailNodes(stages, detail.nodes || [])
-  const chapters = stageList.map((stage, index) => buildChapter(stage, route, index))
+  const stageList = mergeStagesWithDetailNodes(stages, detail.nodes || []).filter((stage) => resolveSharedStageKind(Number(stage.interactionType ?? stage.puzzleType ?? 0)) !== null)
+  const chapters = stageList
+    .map((stage, index) => buildChapter(stage, route, index))
+    .filter((chapter): chapter is MissionChapter => chapter !== null)
 
   const mission: MissionDetail = {
     ...baseCard,
@@ -664,11 +683,6 @@ export function formatDurationSec(durationSec?: number | null) {
 
 
 export function encodeStageSubmitPayload(puzzle: MissionPuzzle, value: unknown) {
-  if (puzzle.templateType === "code_break" && typeof value === "string") {
-    return JSON.stringify({
-      answer: value,
-    })
-  }
 
   return JSON.stringify({
     templateType: puzzle.templateType,
