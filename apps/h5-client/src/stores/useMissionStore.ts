@@ -8,9 +8,7 @@ import { useCinemaStore } from "@/stores/useCinemaStore"
 import {
   adaptRouteDetailToMission,
   adaptRouteResult,
-  collectChapterExhibitIds,
   encodeStageSubmitPayload,
-  enrichMissionWithExhibits,
   isRouteProgressCompleted,
   resolveCurrentChapterIndex,
   resolveSolvedChapterIds,
@@ -38,7 +36,6 @@ import {
 } from "@/adapters/missionSessionAdapter"
 import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, SCALE_TYPE_FILTER_OPTIONS } from "@/constants/missionSchema"
 import {
-  fetchExhibit,
   fetchGameplayStages,
   fetchMyRouteProgress,
   fetchRouteDetail,
@@ -50,7 +47,6 @@ import {
   ROUTE_ACTIVITY_TYPE,
   submitGameplayStage,
   unlockStageHint,
-  type ExhibitResponse,
   type MyRouteProgressResponse,
   type StagePlayResponse,
 } from "@/services/gameplay"
@@ -74,8 +70,6 @@ const DEFAULT_MUSEUM_ID = String(import.meta.env.VITE_MUSEUM_ID || "345536575083
 const HINT_LEVELS: HintLevel[] = ["observe", "relation", "direct"]
 /** 展厅列表缓存时长：回 tab / 返回不强制重拉 */
 const ROUTE_LIST_TTL_MS = 60_000
-/** 展品补全并发上限，避免一进站打爆 Get */
-const EXHIBIT_FETCH_CONCURRENCY = 3
 
 function defaultFilters(): MissionFilters {
   return {
@@ -84,32 +78,6 @@ function defaultFilters(): MissionFilters {
     scaleType: "all",
     keyword: "",
   }
-}
-
-/** 有限并发执行异步任务，保持结果顺序 */
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  concurrency: number,
-  mapper: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  if (!items.length) {
-    return []
-  }
-
-  const limit = Math.max(1, Math.min(concurrency, items.length))
-  const results = new Array<R>(items.length)
-  let cursor = 0
-
-  async function worker() {
-    while (cursor < items.length) {
-      const index = cursor
-      cursor += 1
-      results[index] = await mapper(items[index], index)
-    }
-  }
-
-  await Promise.all(Array.from({ length: limit }, () => worker()))
-  return results
 }
 
 export const useMissionStore = defineStore(
@@ -131,8 +99,6 @@ export const useMissionStore = defineStore(
     const activeSession = shallowRef<MissionSession | null>(null)
     const archiveEntries = shallowRef<MissionArchiveEntry[]>([])
     const filters = reactive<MissionFilters>(defaultFilters())
-    /** 展品缓存，避免同一路线重复拉 Exhibit/Get */
-    const exhibitCache = shallowRef<Record<string, ExhibitResponse | null>>({})
     /** Stages 缓存：start / restore 复用，减少重复拉 */
     const stagesCache = shallowRef<Record<string, StagePlayResponse[]>>({})
     /** 列表最近一次成功拉取时间（用于 TTL） */
@@ -253,49 +219,6 @@ export const useMissionStore = defineStore(
 
     function getCachedStages(routeId: string) {
       return stagesCache.value[routeId] || null
-    }
-
-    /**
-     * 可选：用 Exhibit/Get 补位置与短视频。
-     * 失败不阻断主链路；仅回填可展示字段。
-     * 有限并发，避免一次打开路线打出大量 Get。
-     */
-    async function enrichMissionExhibits(mission: MissionDetail) {
-      const exhibitIds = collectChapterExhibitIds(mission)
-      if (!exhibitIds.length) {
-        return mission
-      }
-
-      const missingIds = exhibitIds.filter((id) => !(id in exhibitCache.value))
-      if (missingIds.length) {
-        const fetched = await mapWithConcurrency(
-          missingIds,
-          EXHIBIT_FETCH_CONCURRENCY,
-          async (id) => {
-            try {
-              const exhibit = await fetchExhibit(id)
-              return { id, exhibit }
-            } catch {
-              return { id, exhibit: null as ExhibitResponse | null }
-            }
-          },
-        )
-
-        const nextCache = { ...exhibitCache.value }
-        fetched.forEach(({ id, exhibit }) => {
-          nextCache[id] = exhibit
-        })
-        exhibitCache.value = nextCache
-      }
-
-      const exhibitMap: Record<string, ExhibitResponse | null | undefined> = {}
-      exhibitIds.forEach((id) => {
-        exhibitMap[id] = exhibitCache.value[id]
-      })
-
-      const enriched = enrichMissionWithExhibits(mission, exhibitMap)
-      putMission(enriched)
-      return enriched
     }
 
     function getMissionDraft(puzzleId: string) {
@@ -452,7 +375,7 @@ export const useMissionStore = defineStore(
           }
 
           putMission(mission)
-          mission = await enrichMissionExhibits(mission)
+          // 渲染只依赖 Route Detail / Stages，不再批量拉 Exhibit/Get
           return mission
         } catch (error) {
           detailError.value = resolveRequestErrorMessage(error, "任务详情加载失败")
@@ -547,7 +470,6 @@ export const useMissionStore = defineStore(
           }
 
           putMission(mission)
-          mission = await enrichMissionExhibits(mission)
 
           const solvedChapterIds = resolveSolvedChapterIds({ progress, stages })
           remoteHintTextMap.value = sanitizeMissionHintTextMap(
@@ -662,7 +584,6 @@ export const useMissionStore = defineStore(
         }
 
         putMission(mission)
-        mission = await enrichMissionExhibits(mission)
 
         const { joinResult, stages, progress, resolvedTeamId } = bundle
         const solvedChapterIds = resolveSolvedChapterIds({ progress, stages })

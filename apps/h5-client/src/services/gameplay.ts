@@ -483,11 +483,15 @@ export function unlockStageHint(payload: {
   })
 }
 
-/** 用 refExhibitId 补位置/短视频；id 按 string 透传 */
+/** 用 refExhibitId 补位置/短视频；id 按 string 透传（拒绝 0 / 空） */
 export function fetchExhibit(exhibitId: string) {
+  const id = String(exhibitId ?? "").trim()
+  if (!id || id === "0") {
+    return Promise.reject(new Error("invalid exhibit id"))
+  }
   return request<ExhibitResponse>("/Exhibit/Get", {
     query: {
-      id: exhibitId,
+      id,
     },
   })
 }

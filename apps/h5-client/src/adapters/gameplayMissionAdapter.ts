@@ -18,7 +18,6 @@ import {
 } from "@path-seeker/ts-shared"
 import { PUZZLE_TYPE_MAP } from "@/constants/missionSchema"
 import type {
-  ExhibitResponse,
   MyRouteProgressResponse,
   RouteCardResponse,
   RouteDetailResponse,
@@ -55,9 +54,6 @@ export const ROUTE_PROGRESS_STATUS = {
   abandoned: 3,
   failed: 4,
 } as const
-
-/** 展品媒体：3 = 短视频 */
-const EXHIBIT_MEDIA_SHORT_VIDEO = 3
 
 const AGE_GROUP_VALUE_MAP: Record<number, AgeBand> = {
   2: "6-10",
@@ -245,11 +241,23 @@ function buildArtifact(stage: StageLike, index: number): ArtifactClue {
   }
 }
 
+/**
+ * 展品主键：后端无绑定时常给 0 / "0" / null。
+ * 必须过滤，否则 enrich 会打出 /Exhibit/Get?id=0。
+ */
+export function normalizeExhibitId(value: unknown): string | undefined {
+  const id = normalizeText(value)
+  if (!id || id === "0") {
+    return undefined
+  }
+  return id
+}
+
 function buildChapter(stage: StageLike, route: RouteCardResponse | null | undefined, index: number): MissionChapter | null {
   const config = getStageConfig(stage)
   const title = normalizeText(stage.title)
   const targetLocation = normalizeText(stage.galleryName ?? stage.exhibitName) || undefined
-  const refExhibitId = normalizeText(stage.refExhibitId) || undefined
+  const refExhibitId = normalizeExhibitId(stage.refExhibitId)
   const videoFromConfig = normalizeText(
     pickValue(config, "video_url", "videoUrl", "intro_video_url", "introVideoUrl", "media_url", "mediaUrl"),
   ) || undefined
@@ -332,7 +340,7 @@ export function mergeStagesWithDetailNodes(
       subtitle: normalizeText(stage.subtitle) || node.subtitle,
       config: stage.config || node.config,
       nextRule: stage.nextRule || node.nextRule,
-      refExhibitId: normalizeText(stage.refExhibitId) || node.refExhibitId,
+      refExhibitId: normalizeExhibitId(stage.refExhibitId) || normalizeExhibitId(node.refExhibitId) || null,
       refPuzzleId: normalizeText(stage.refPuzzleId) || node.refPuzzleId,
       puzzleId: normalizeText(stage.puzzleId) || node.puzzleId,
       exhibitName: normalizeText(stage.exhibitName) || node.exhibitName,
@@ -357,71 +365,6 @@ export function isPlayableMediaUrl(value?: string | null) {
     return false
   }
   return /^https?:\/\//i.test(text) || text.startsWith("/") || text.startsWith("blob:") || text.startsWith("data:")
-}
-
-function pickExhibitShortVideoUrl(exhibit: ExhibitResponse) {
-  const mediaList = [...(exhibit.mediaList || [])]
-    .filter((item) => Number(item.mediaType) === EXHIBIT_MEDIA_SHORT_VIDEO && Number(item.status ?? 1) === 1)
-    .sort((left, right) => Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0))
-
-  for (const item of mediaList) {
-    if (isPlayableMediaUrl(item.mediaUrl)) {
-      return normalizeText(item.mediaUrl)
-    }
-  }
-
-  return ""
-}
-
-/** 用 Exhibit/Get 回填位置与可播短视频（有则补，无则保持） */
-export function applyExhibitToChapter(chapter: MissionChapter, exhibit: ExhibitResponse): MissionChapter {
-  const exhibitName = normalizeText(exhibit.name)
-  const showcase = normalizeText(exhibit.showcaseNo)
-  const locationParts = [exhibitName, showcase ? `展柜 ${showcase}` : ""].filter(Boolean)
-  const location = locationParts.join(" · ") || undefined
-  const shortVideo = pickExhibitShortVideoUrl(exhibit) || undefined
-
-  return {
-    ...chapter,
-    targetLocation: chapter.targetLocation || location,
-    videoUrl: chapter.videoUrl || shortVideo,
-    artifact: {
-      ...chapter.artifact,
-      title: chapter.artifact.title || exhibitName || chapter.title,
-      location: chapter.artifact.location || location,
-      storyFragment: chapter.artifact.storyFragment || normalizeText(exhibit.description) || undefined,
-    },
-  }
-}
-
-export function collectChapterExhibitIds(mission: MissionDetail) {
-  const ids = new Set<string>()
-  mission.chapters.forEach((chapter) => {
-    const id = normalizeText(chapter.refExhibitId)
-    if (id) {
-      ids.add(id)
-    }
-  })
-  return [...ids]
-}
-
-export function enrichMissionWithExhibits(
-  mission: MissionDetail,
-  exhibitMap: Record<string, ExhibitResponse | null | undefined>,
-): MissionDetail {
-  const chapters = mission.chapters.map((chapter) => {
-    const exhibitId = normalizeText(chapter.refExhibitId)
-    if (!exhibitId) {
-      return chapter
-    }
-    const exhibit = exhibitMap[exhibitId]
-    return exhibit ? applyExhibitToChapter(chapter, exhibit) : chapter
-  })
-
-  return {
-    ...mission,
-    chapters,
-  }
 }
 
 function buildPrologue(detail: RouteDetailResponse): MissionDetail["prologue"] {

@@ -16,7 +16,10 @@ const hideChromeHeader = computed(() => {
 <template>
   <div class="client-shell">
     <div class="client-frame client-frame-with-fab">
-      <header v-if="!hideChromeHeader" class="mb-5 flex items-start justify-between gap-4">
+      <header
+        v-if="!hideChromeHeader"
+        class="relative z-20 mb-5 flex items-start justify-between gap-4"
+      >
         <div class="min-w-0 space-y-1.5">
           <p class="client-top-kicker">Path Seeker</p>
           <h1 class="client-page-title">{{ title }}</h1>

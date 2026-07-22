@@ -6,7 +6,6 @@ import ChapterBriefPage from "@/pages/ChapterBriefPage.vue"
 import ChapterMapPage from "@/pages/ChapterMapPage.vue"
 import ChapterResultPage from "@/pages/ChapterResultPage.vue"
 import FinalePage from "@/pages/FinalePage.vue"
-import ProloguePage from "@/pages/ProloguePage.vue"
 import NarrationChapterPage from "@/pages/NarrationChapterPage.vue"
 import ShellArchivePage from "@/pages/ShellArchivePage.vue"
 import ShellAskPage from "@/pages/ShellAskPage.vue"
@@ -14,7 +13,8 @@ import ShellHallPage from "@/pages/ShellHallPage.vue"
 import ShellPlayingPage from "@/pages/ShellPlayingPage.vue"
 
 const router = createRouter({
-  history: createWebHistory(),
+  // 与 vite.config base 对齐，否则访问 /path-seeker/client/ 会报 No match found
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: "/",
@@ -88,12 +88,9 @@ const router = createRouter({
           redirect: (to) => `/missions/${String(to.params.routeId || "")}/map`,
         },
         {
+          // 旧介绍页：统一并入 map 选站，避免「预览 → 介绍 → 再选站」重复
           path: "missions/:routeId/prologue",
-          component: ProloguePage,
-          meta: {
-            title: "介绍",
-            showTabBar: false,
-          },
+          redirect: (to) => `/missions/${String(to.params.routeId || "")}/map`,
         },
         {
           path: "missions/:routeId/map",

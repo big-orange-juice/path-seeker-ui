@@ -225,18 +225,18 @@ export function resolveMissionResumePath(input: {
     return `/missions/${session.routeId}/chapters/${session.latestChapterResult.chapterId}/result`
   }
 
+  // 刚开局 / 无章节进度：统一回 map 选站，不再中转 prologue
   const hasProgressArtifacts =
     Object.keys(session.draftHistory).length > 0
     || Object.keys(session.hintHistory).length > 0
     || Object.values(session.chapterProgress || {}).some((item) => item.recognized || item.videoWatched)
 
   if (
-    mission.prologue.length > 0
-    && session.solvedChapterIds.length === 0
+    session.solvedChapterIds.length === 0
     && session.currentChapterIndex === 0
     && !hasProgressArtifacts
   ) {
-    return `/missions/${session.routeId}/prologue`
+    return `/missions/${session.routeId}/map`
   }
 
   const chapter = chapterId

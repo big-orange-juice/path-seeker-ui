@@ -73,8 +73,28 @@ export function isPuzzleInteraction(interactionType?: number | null) {
   return kind === "observe_choice" || kind === "image_puzzle"
 }
 
+/** 去掉 HTML 标签与常见实体，避免展品富文本泄漏到纯文案 UI */
+export function stripHtml(value: unknown) {
+  const raw = typeof value === "string" ? value : ""
+  if (!raw) {
+    return ""
+  }
+  return raw
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 export function normalizeText(value: unknown, fallback = "") {
-  const text = typeof value === "string" ? value.trim() : ""
+  const text = stripHtml(value)
   return text || fallback
 }
 
