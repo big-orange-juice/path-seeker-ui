@@ -17,7 +17,6 @@ import { isPlayableMediaUrl } from "@/adapters/gameplayMissionAdapter"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
 import { useCinemaStore } from "@/stores/useCinemaStore"
 import type { MissionAnswerDraft } from "@/types/mission"
-import defaultMovieUrl from "@/assets/styles/movie.mp4"
 
 const route = useRoute()
 const router = useRouter()
@@ -80,7 +79,8 @@ const playStage = computed<GameplayPreviewStage | null>(() => {
     prompt: puzzle?.prompt || "",
     clue_text: current.objective || puzzle?.introText || "",
     location: current.targetLocation || artifact.value?.location || "",
-    video_url: isPlayableMediaUrl(current.videoUrl) ? String(current.videoUrl).trim() : defaultMovieUrl,
+    // 与 PC 模拟器一致：仅使用节点/展品真实视频，无则留空（FindScan 展示「暂无短片」）
+    video_url: isPlayableMediaUrl(current.videoUrl) ? String(current.videoUrl).trim() : "",
   }
 
   if (puzzle?.templateType === "observe_choice") {

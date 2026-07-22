@@ -1,22 +1,34 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue"
+/**
+ * 解说导览渲染：音频播放 + 封面轮播 / 解说词互切（类似专辑封面与歌词）。
+ * 配图来自 detail.images；不再展示 config 的 user_style_input / scene_context。
+ */
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue"
+import { gsap } from "gsap"
 import {
   NARRATION_AUDIO_STATUS,
   type GameplayPreviewNarrationStatus,
+  type NarrationImageItem,
 } from "../../contracts"
+import ImageCarousel from "../ImageCarousel.vue"
+
+type MediaView = "cover" | "lyrics"
 
 interface Props {
   title?: string | null
   exhibitName?: string | null
   guideName?: string | null
   guideId?: string | null
+  /** @deprecated 渲染侧不再展示风格文案 */
   style?: string | null
+  /** @deprecated 渲染侧不再展示场景说明 */
   sceneContext?: string | null
   targetDurationSeconds?: number | null
   narrationText?: string | null
   audioUrl?: string | null
   audioStatus?: number | null
   durationMs?: number | null
+  images?: NarrationImageItem[] | null
   status?: GameplayPreviewNarrationStatus
   errorMessage?: string | null
   showPlayActions?: boolean
@@ -35,6 +47,7 @@ const props = withDefaults(defineProps<Props>(), {
   audioUrl: "",
   audioStatus: NARRATION_AUDIO_STATUS.NotGenerated,
   durationMs: null,
+  images: () => [],
   status: "ready",
   errorMessage: "",
   showPlayActions: true,
@@ -52,10 +65,7 @@ const displayTitle = computed(() =>
 const displayText = computed(() => String(props.narrationText || "").trim())
 const guideLabel = computed(() => {
   const name = String(props.guideName || "").trim()
-  if (name) {
-    return name
-  }
-
+  if (name) return name
   const id = String(props.guideId || "").trim()
   return id ? `讲解 ${id}` : ""
 })
@@ -76,16 +86,56 @@ const audioBusy = computed(() =>
   || resolvedAudioStatus.value === NARRATION_AUDIO_STATUS.Generating,
 )
 
+const imageUrls = computed(() =>
+  [...(props.images || [])]
+    .sort((left, right) => Number(left?.sortOrder ?? 0) - Number(right?.sortOrder ?? 0))
+    .map((item) => String(item?.imageUrl || "").trim())
+    .filter(Boolean),
+)
+const hasImages = computed(() => imageUrls.value.length > 0)
+
+const mediaView = ref<MediaView>("cover")
+const mediaRoot = ref<HTMLElement | null>(null)
+let mediaCtx: gsap.Context | null = null
+
+const setMediaView = async (next: MediaView) => {
+  if (mediaView.value === next) return
+  // 无配图时不允许切到封面
+  if (next === "cover" && !hasImages.value) return
+
+  mediaView.value = next
+  await nextTick()
+  const root = mediaRoot.value
+  if (!root) return
+
+  mediaCtx?.revert()
+  mediaCtx = gsap.context(() => {
+    const panel = root.querySelector<HTMLElement>("[data-media-panel].is-active")
+    if (!panel) return
+    gsap.fromTo(
+      panel,
+      { autoAlpha: 0, y: 10, scale: 0.985 },
+      { autoAlpha: 1, y: 0, scale: 1, duration: 0.32, ease: "power2.out" },
+    )
+  }, root)
+}
+
+watch(
+  hasImages,
+  (ok) => {
+    // 无配图时默认解说词；有配图时默认封面
+    mediaView.value = ok ? "cover" : "lyrics"
+  },
+  { immediate: true },
+)
+
 const audioRef = ref<HTMLAudioElement | null>(null)
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
 
 const formatTime = (sec: number) => {
-  if (!Number.isFinite(sec) || sec < 0) {
-    return "0:00"
-  }
-
+  if (!Number.isFinite(sec) || sec < 0) return "0:00"
   const total = Math.floor(sec)
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`
 }
@@ -94,10 +144,7 @@ const progress = computed(() =>
   duration.value ? Math.min(100, Math.max(0, (currentTime.value / duration.value) * 100)) : 0,
 )
 const durationLabel = computed(() => {
-  if (duration.value > 0) {
-    return formatTime(duration.value)
-  }
-
+  if (duration.value > 0) return formatTime(duration.value)
   const ms = props.durationMs
   return typeof ms === "number" && Number.isFinite(ms) && ms > 0
     ? formatTime(ms / 1000)
@@ -106,25 +153,18 @@ const durationLabel = computed(() => {
 
 const stopPlayback = () => {
   const el = audioRef.value
-  if (!el) {
-    return
-  }
-
+  if (!el) return
   el.pause()
   isPlaying.value = false
 }
 
 const togglePlay = async () => {
   const el = audioRef.value
-  if (!el || !hasAudio.value || audioBusy.value) {
-    return
-  }
-
+  if (!el || !hasAudio.value || audioBusy.value) return
   if (isPlaying.value) {
     stopPlayback()
     return
   }
-
   try {
     await el.play()
     isPlaying.value = true
@@ -146,23 +186,15 @@ const onEnded = () => {
 }
 const seekToRatio = (ratio: number) => {
   const el = audioRef.value
-  if (!el || !duration.value) {
-    return
-  }
-
+  if (!el || !duration.value) return
   const next = Math.min(1, Math.max(0, ratio)) * duration.value
   el.currentTime = next
   currentTime.value = next
 }
 const onTrackPointer = (event: PointerEvent) => {
-  if (!hasAudio.value || !duration.value) {
-    return
-  }
-
+  if (!hasAudio.value || !duration.value) return
   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-  if (rect.width > 0) {
-    seekToRatio((event.clientX - rect.left) / rect.width)
-  }
+  if (rect.width > 0) seekToRatio((event.clientX - rect.left) / rect.width)
 }
 
 watch(audioUrl, () => {
@@ -171,20 +203,19 @@ watch(audioUrl, () => {
   duration.value = 0
 })
 
-onBeforeUnmount(stopPlayback)
+onBeforeUnmount(() => {
+  stopPlayback()
+  mediaCtx?.revert()
+  mediaCtx = null
+})
 
 const playerLabel = computed(() => {
   if (audioBusy.value) return "语音生成中"
   if (!hasAudio.value) return "语音暂未就绪"
   return isPlaying.value ? "正在收听" : "语音导览"
 })
-const metaChips = computed(() => {
-  const chips = [guideLabel.value, String(props.style || "").trim(), String(props.sceneContext || "").trim()]
-    .filter(Boolean)
-  chips.push(`${targetDurationSec.value}s`)
-  return chips
-})
 </script>
+
 <template>
   <div class="nr is-play">
     <section class="nr-top">
@@ -262,21 +293,57 @@ const metaChips = computed(() => {
       <p v-else-if="resolvedAudioStatus === NARRATION_AUDIO_STATUS.Stale" class="nr-player-hint">
         解说词已更新，语音正在更新中
       </p>
-      <div v-if="metaChips.length" class="nr-chips">
-        <span v-for="chip in metaChips" :key="chip">{{ chip }}</span>
-      </div>
     </section>
 
-    <section class="nr-script">
-      <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
-      <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
-        {{ props.errorMessage || "解说词加载失败" }}
+    <!-- 封面 / 解说词：类似播放器专辑封面与歌词切换 -->
+    <section class="nr-media">
+      <div class="nr-media-toggle" role="tablist" aria-label="展示切换">
+        <button
+          type="button"
+          role="tab"
+          class="nr-media-tab"
+          :class="{ 'is-active': mediaView === 'cover' }"
+          :aria-selected="mediaView === 'cover'"
+          :disabled="!hasImages"
+          @click="setMediaView('cover')">
+          封面
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="nr-media-tab"
+          :class="{ 'is-active': mediaView === 'lyrics' }"
+          :aria-selected="mediaView === 'lyrics'"
+          @click="setMediaView('lyrics')">
+          解说词
+        </button>
       </div>
-      <template v-else>
-        <div class="nr-script-label">解说词</div>
-        <div v-if="displayText" class="nr-script-body">{{ displayText }}</div>
-        <div v-else class="nr-script-state">暂无解说词</div>
-      </template>
+
+      <div ref="mediaRoot" class="nr-media-stage">
+        <div
+          v-show="mediaView === 'cover'"
+          data-media-panel
+          class="nr-media-panel"
+          :class="{ 'is-active': mediaView === 'cover' }">
+          <ImageCarousel :images="imageUrls" :autoplay="mediaView === 'cover'" />
+        </div>
+
+        <div
+          v-show="mediaView === 'lyrics'"
+          data-media-panel
+          class="nr-media-panel nr-media-panel--lyrics"
+          :class="{ 'is-active': mediaView === 'lyrics' }">
+          <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
+          <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
+            {{ props.errorMessage || "解说词加载失败" }}
+          </div>
+          <template v-else>
+            <div class="nr-script-label">解说词</div>
+            <div v-if="displayText" class="nr-script-body">{{ displayText }}</div>
+            <div v-else class="nr-script-state">暂无解说词</div>
+          </template>
+        </div>
+      </div>
     </section>
 
     <footer v-if="showPlayActions" class="nr-actions">
@@ -295,6 +362,7 @@ const metaChips = computed(() => {
     <slot name="footer" />
   </div>
 </template>
+
 <style scoped>
 .nr {
   display: flex;
@@ -302,17 +370,16 @@ const metaChips = computed(() => {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   color: #fff8ea;
 }
 
-/* —— 上半区：更大、更扁平 —— */
 .nr-top {
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
-  gap: 12px;
-  padding-bottom: 12px;
+  gap: 10px;
+  padding-bottom: 10px;
   border-bottom: 1px solid rgb(255 255 255 / 8%);
 }
 
@@ -336,7 +403,6 @@ const metaChips = computed(() => {
   font-size: 12px;
 }
 
-/* —— 播放器：导览听筒，非传统 audio 条 —— */
 .nr-player {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
@@ -404,9 +470,6 @@ const metaChips = computed(() => {
 
 .nr-orb:hover:not(:disabled) .nr-orb__core {
   transform: scale(1.04);
-  box-shadow:
-    0 8px 18px rgb(209 178 111 / 28%),
-    inset 0 1px 0 rgb(255 255 255 / 4%);
 }
 
 .nr-orb:disabled {
@@ -516,33 +579,6 @@ const metaChips = computed(() => {
   letter-spacing: 0.02em;
 }
 
-.nr-gen {
-  height: 28px;
-  flex-shrink: 0;
-  border: 1px solid rgb(209 178 111 / 28%);
-  border-radius: 999px;
-  background: rgb(209 178 111 / 10%);
-  padding: 0 11px;
-  color: #f0dfb0;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease;
-}
-
-.nr-gen:hover:not(:disabled) {
-  border-color: rgb(209 178 111 / 48%);
-  background: rgb(209 178 111 / 16%);
-}
-
-.nr-gen:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
 .nr-player-hint {
   margin: 0;
   color: rgb(247 239 221 / 48%);
@@ -577,225 +613,75 @@ const metaChips = computed(() => {
   }
 }
 
-.nr-chips {
+/* —— 封面 / 解说词切换 —— */
+.nr-media {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.nr-chips span {
-  color: rgb(247 239 221 / 58%);
-  font-size: 11px;
-}
-
-.nr-chips span:not(:last-child)::after {
-  content: "·";
-  margin-left: 6px;
-  opacity: 0.5;
-}
-
-.nr-studio-meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr 88px;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
   gap: 10px;
 }
 
-.nr-field--sm {
-  min-width: 0;
-}
-
-/* 风格与场景采用统一的可点击信息行，避免播放器承载编辑控件。 */
-.nr-meta-field {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.nr-meta-field__label {
-  color: rgb(209 178 111 / 78%);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-
-.nr-meta-field__control {
-  display: block;
-  width: 100%;
-  min-width: 0;
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: 7px;
-  background: rgb(0 0 0 / 20%);
-  padding: 6px 8px;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease;
-}
-
-.nr-meta-field__control:hover {
-  border-color: rgb(209 178 111 / 42%);
-  background: rgb(209 178 111 / 8%);
-}
-
-.nr-meta-field__control:focus-visible {
-  border-color: rgb(209 178 111 / 42%);
-  outline: none;
-}
-
-.nr-meta-field__value {
-  display: block;
-  overflow: hidden;
-  color: #fff8ea;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.nr-meta-field__value.is-empty {
-  color: rgb(247 239 221 / 32%);
-}
-
-.nr-meta-modal {
-  position: fixed;
-  inset: 0;
-  /* 高于 web-admin Dialog 的 z-50 */
-  z-index: 80;
+.nr-media-toggle {
   display: grid;
-  place-items: center;
-  padding: 16px;
-}
-
-.nr-meta-modal__mask {
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background: rgb(0 0 0 / 55%);
-  cursor: pointer;
-}
-
-.nr-meta-modal__panel {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  width: min(100%, 420px);
-  max-height: min(80vh, 520px);
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgb(209 178 111 / 22%);
-  border-radius: 12px;
-  background: linear-gradient(180deg, #1a1814 0%, #12110e 100%);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 45%);
-}
-
-.nr-meta-modal__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px 8px;
-  border-bottom: 1px solid rgb(255 255 255 / 8%);
-}
-
-.nr-meta-modal__title {
-  margin: 0;
-  color: #f0dfb0;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.nr-meta-modal__x {
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: rgb(247 239 221 / 65%);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.nr-meta-modal__x:hover {
-  background: rgb(255 255 255 / 6%);
-  color: #fff8ea;
-}
-
-.nr-meta-modal__textarea {
-  flex: 1 1 auto;
-  min-height: 180px;
-  margin: 12px 14px 0;
-  border: 1px solid rgb(255 255 255 / 10%);
-  border-radius: 8px;
-  background: rgb(0 0 0 / 28%);
-  padding: 10px 12px;
-  color: #fff8ea;
-  font: inherit;
-  font-size: 13px;
-  line-height: 1.55;
-  resize: vertical;
-  outline: none;
-}
-
-.nr-meta-modal__textarea:focus {
-  border-color: rgb(209 178 111 / 42%);
-}
-
-.nr-meta-modal__textarea::placeholder {
-  color: rgb(247 239 221 / 32%);
-}
-
-.nr-meta-modal__foot {
-  display: flex;
   flex-shrink: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 12px 14px 14px;
-  border-top: 1px solid rgb(255 255 255 / 6%);
-  margin-top: 12px;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 5%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
 }
 
-.nr-meta-modal__btn {
+.nr-media-tab {
   min-height: 32px;
-  border: 1px solid rgb(255 255 255 / 12%);
+  border: 0;
   border-radius: 8px;
   background: transparent;
-  padding: 0 12px;
-  color: #fff8ea;
+  color: rgb(247 239 221 / 55%);
   font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0.04em;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
-.nr-meta-modal__btn--primary {
-  border: 0;
-  background: linear-gradient(145deg, #e0c384, #c4a35a);
-  color: #1a160f;
+.nr-media-tab.is-active {
+  background: rgb(209 178 111 / 16%);
+  color: #f0dfb0;
+  box-shadow: inset 0 0 0 1px rgb(209 178 111 / 28%);
 }
 
-.nr-meta-modal__btn:hover {
-  border-color: rgb(209 178 111 / 35%);
+.nr-media-tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
-.nr-meta-modal__btn--primary:hover {
-  filter: brightness(1.04);
-}
-
-/* —— 解说词：保证可见，占剩余高度 —— */
-.nr-script {
+.nr-media-stage {
+  position: relative;
   display: flex;
-  min-height: 180px;
+  min-height: 200px;
   flex: 1 1 auto;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.nr-media-panel {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.nr-media-panel--lyrics {
   gap: 8px;
   overflow: hidden;
+  border-radius: 12px;
+  background: rgb(0 0 0 / 18%);
+  padding: 12px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
 }
 
 .nr-script-label {
@@ -807,27 +693,13 @@ const metaChips = computed(() => {
 }
 
 .nr-script-body {
-  min-height: 140px;
+  min-height: 0;
   flex: 1 1 auto;
   overflow-y: auto;
   color: rgb(247 239 221 / 88%);
   font-size: 14px;
   line-height: 1.7;
   white-space: pre-wrap;
-}
-
-.nr-script-field {
-  display: flex;
-  min-height: 160px;
-  flex: 1 1 auto;
-  flex-direction: column;
-}
-
-.nr-script-field :deep(textarea.sf__control) {
-  min-height: 160px;
-  flex: 1 1 auto;
-  font-size: 14px;
-  line-height: 1.7;
 }
 
 .nr-script-state {
@@ -867,16 +739,5 @@ const metaChips = computed(() => {
 .nr-btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-
-@media (max-width: 420px) {
-  .nr-studio-meta {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .nr-field--sm {
-    width: auto;
-    grid-column: 1 / -1;
-  }
 }
 </style>

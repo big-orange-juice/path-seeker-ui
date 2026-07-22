@@ -43,6 +43,7 @@ export default defineConfig({
       allow: [rootDir, fileURLToPath(new URL('../..', import.meta.url))]
     },
     // MiniMax T2A 浏览器直连会 CORS；开发期同源代理
+    // 业务接口由 VITE_API_BASE_URL 直连后端，不在此转发
     proxy: {
       '/minimax-tts': {
         target: 'https://api.minimaxi.com',
@@ -53,7 +54,6 @@ export default defineConfig({
     }
   },
   preview: {
-    // 预览构建产物时同样挂上代理，便于本地验语音
     proxy: {
       '/minimax-tts': {
         target: 'https://api.minimaxi.com',

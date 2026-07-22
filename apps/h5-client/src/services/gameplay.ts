@@ -502,6 +502,17 @@ export const NARRATION_AUDIO_STATUS = {
   Stale: 5,
 } as const
 
+/** 解说配图；id / attachmentId 按 string 透传 */
+export interface RouteStageNarrationImageResponse {
+  id?: string | null
+  stageId?: string | null
+  attachmentId?: string | null
+  imageUrl?: string | null
+  sortOrder?: number
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
 export interface NarrationDetailResponse {
   stageId?: string | null
   guideId?: string | null
@@ -518,6 +529,8 @@ export interface NarrationDetailResponse {
   audioStatus?: number
   durationMs?: number | null
   version?: number
+  /** 配图列表；渲染用，不来自 node.config */
+  images?: RouteStageNarrationImageResponse[] | null
 }
 
 /**

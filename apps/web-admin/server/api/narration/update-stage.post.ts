@@ -7,7 +7,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
 
 /**
  * 编辑 AI 解说节点并同步解说产物元数据。
- * 对齐 POST /Narration/update-stage
+ * 对齐 POST /Narration/update-stage（含 attachmentIds 配图全量同步）。
  */
 export default defineEventHandler(async (event): Promise<UpdateNarrationStageResponse | null> => {
   const body = await readBody<UpdateNarrationStageRequest>(event)
@@ -53,6 +53,18 @@ export default defineEventHandler(async (event): Promise<UpdateNarrationStageRes
   }
   if (body?.expectedUpdatedAt) {
     payload.expectedUpdatedAt = String(body.expectedUpdatedAt)
+  }
+  // 配图附件 ID 全量同步；元素一律 string，避免雪花精度丢失
+  if (body?.attachmentIds !== undefined) {
+    if (body.attachmentIds == null) {
+      payload.attachmentIds = null
+    } else if (Array.isArray(body.attachmentIds)) {
+      payload.attachmentIds = body.attachmentIds
+        .map((id) => String(id ?? '').trim())
+        .filter(Boolean)
+    } else {
+      payload.attachmentIds = []
+    }
   }
 
   const response = await backendFetch<ApiResponse<UpdateNarrationStageResponse>>(

@@ -113,6 +113,14 @@ const flowEdges = computed<Edge[]>(() =>
 
 const mapNarrationPreview = (detail: NarrationDetailResponse | null): GameplayPreviewNarration | null => {
   if (!detail) return null;
+  const images = [...(detail.images ?? [])]
+    .map((item) => ({
+      id: item.id != null ? String(item.id) : null,
+      imageUrl: item.imageUrl != null ? String(item.imageUrl) : null,
+      sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : 0,
+    }))
+    .filter((item) => Boolean(item.imageUrl))
+    .sort((left, right) => Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0));
   return {
     narrationText: detail.narrationText != null ? String(detail.narrationText) : null,
     audioUrl: detail.audioUrl != null ? String(detail.audioUrl) : null,
@@ -123,6 +131,7 @@ const mapNarrationPreview = (detail: NarrationDetailResponse | null): GameplayPr
     textStatus: typeof detail.textStatus === 'number' ? detail.textStatus : null,
     audioStatus: typeof detail.audioStatus === 'number' ? detail.audioStatus : null,
     textError: detail.textError != null ? String(detail.textError) : null,
+    images,
   };
 };
 const previewStage = computed<GameplayPreviewStage | null>(() => {
@@ -273,6 +282,13 @@ function openStageEditor() {
 }
 function handleStageSaved() {
   flushSilentDetailRefresh();
+}
+/** 配图增删后立刻重拉解说 detail，模拟器封面同步 */
+function handleNarrationPreviewRefresh() {
+  const id = String(previewNode.value?.stageId || '').trim();
+  if (id && previewNode.value?.interactionType === 11) {
+    void loadNarrationDetail(id);
+  }
 }
 function getInteractionTypeName(interactionType: number) {
   return getInteractionTypeMeta(interactionType)?.label || `未知玩法 ${interactionType}`;
@@ -442,7 +458,8 @@ function closeDialog() {
     :route-id="routeId"
     :node="selectedNode"
     :can-edit="props.canEdit"
-    @saved="handleStageSaved" />
+    @saved="handleStageSaved"
+    @preview-refresh="handleNarrationPreviewRefresh" />
 </template>
 
 <style scoped>

@@ -3,7 +3,7 @@ module.exports = {
     {
       name: 'path-seeker-admin',
       cwd: __dirname,
-      script: './apps/web-admin/.output/server/index.mjs',
+      script: '.output/server/index.mjs',
       interpreter: 'node',
       exec_mode: 'fork',
       instances: 1,

@@ -115,6 +115,16 @@ export const NARRATION_AUDIO_STATUS = {
 export type NarrationAudioStatusCode =
   (typeof NARRATION_AUDIO_STATUS)[keyof typeof NARRATION_AUDIO_STATUS]
 
+/**
+ * 解说配图（来自 Narration detail.images，不在 node.config 内）。
+ * id 为雪花主键，一律 string。
+ */
+export interface NarrationImageItem {
+  id?: string | null
+  imageUrl?: string | null
+  sortOrder?: number | null
+}
+
 export interface GameplayPreviewNarration {
   narrationText?: string | null
   audioUrl?: string | null
@@ -125,6 +135,8 @@ export interface GameplayPreviewNarration {
   textStatus?: number | null
   audioStatus?: number | null
   textError?: string | null
+  /** 配图列表；渲染侧优先展示，不读 config.user_style_input / scene_context */
+  images?: NarrationImageItem[] | null
 }
 
 export type GameplayPreviewNarrationStatus = "idle" | "loading" | "ready" | "error"
@@ -143,6 +155,10 @@ export interface GameplayPreviewStage {
   narrationErrorMessage?: string | null
 }
 
+/**
+ * 解说节点 config 仍可含风格/场景（生成用）；
+ * 渲染侧不再展示 user_style_input / scene_context，配图走 detail.images。
+ */
 export interface NarrationStageConfig {
   guide_id?: number | string | null
   user_style_input?: string | null

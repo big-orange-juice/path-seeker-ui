@@ -153,10 +153,7 @@ const narrationGuideId = computed(
 const narrationGuideName = computed(
   () => readString("guide_name") || String(narration.value?.guideName ?? "").trim(),
 )
-const narrationScene = computed(() => readString("scene_context"))
-const narrationStyle = computed(
-  () => readString("user_style_input") || String(narration.value?.resolvedStyle ?? "").trim(),
-)
+// 渲染不再读取 config.user_style_input / scene_context；配图走 detail.images
 const narrationDurationSeconds = computed(() => {
   const configured = readNumber("target_duration_seconds")
   if (configured > 0) return configured
@@ -169,6 +166,7 @@ const narrationText = computed(
 const narrationAudioUrl = computed(
   () => readString("audio_url") || String(narration.value?.audioUrl ?? "").trim(),
 )
+const narrationImages = computed(() => narration.value?.images ?? [])
 
 const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   draft.value = value
@@ -229,7 +227,7 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
       </template>
     </FindScanPlayChain>
 
-    <!-- 11：解说，对齐 H5 narration 页 -->
+    <!-- 11：解说，对齐 H5 narration 页；配图来自 detail.images -->
     <section v-else-if="stageKind === 'narration'" class="narration-shell">
       <p class="play-kicker">{{ stageKicker }}</p>
       <NarrationRenderer
@@ -237,13 +235,12 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
         :exhibit-name="props.stage.exhibitName"
         :guide-name="narrationGuideName"
         :guide-id="narrationGuideId"
-        :style="narrationStyle"
-        :scene-context="narrationScene"
         :target-duration-seconds="narrationDurationSeconds"
         :narration-text="narrationText"
         :audio-url="narrationAudioUrl"
         :audio-status="narration?.audioStatus ?? 0"
         :duration-ms="narration?.durationMs ?? null"
+        :images="narrationImages"
         :status="props.stage.narrationStatus ?? 'idle'"
         :error-message="props.stage.narrationErrorMessage ?? ''"
         :show-play-actions="canSubmit"

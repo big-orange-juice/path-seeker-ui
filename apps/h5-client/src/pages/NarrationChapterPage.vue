@@ -52,6 +52,15 @@ const playStage = computed<GameplayPreviewStage | null>(() => {
   if (!current) return null
   const guideName = String(detail.value?.guideName || "").trim()
   const guideId = String(detail.value?.guideId || "").trim()
+  // 配图只来自 c_detail.images，不读 node.config 的 user_style_input / scene_context
+  const images = [...(detail.value?.images || [])]
+    .map((item) => ({
+      id: item.id != null ? String(item.id) : null,
+      imageUrl: item.imageUrl != null ? String(item.imageUrl) : null,
+      sortOrder: typeof item.sortOrder === "number" ? item.sortOrder : 0,
+    }))
+    .filter((item) => Boolean(item.imageUrl))
+    .sort((left, right) => Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0))
   return {
     stageId: current.id,
     interactionType: 11,
@@ -74,6 +83,7 @@ const playStage = computed<GameplayPreviewStage | null>(() => {
           audioStatus: typeof detail.value.audioStatus === "number"
             ? detail.value.audioStatus
             : NARRATION_AUDIO_STATUS.NotGenerated,
+          images,
         }
       : null,
     narrationStatus: loading.value ? "loading" : loadError.value ? "error" : "ready",

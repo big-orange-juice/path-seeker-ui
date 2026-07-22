@@ -83,9 +83,26 @@ const resolveCookieAuthorization = (event: H3Event) => {
 
 /** base 已含 /api（NUXT_BACKEND_BASE_URL），path 勿再带 /api 前缀，如 `/Route/PageList` */
 const buildBackendUrl = (baseUrl: string, path: string, query?: BackendRequestOptions['query']) => {
-  const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
-  const url = new URL(normalizedPath, normalizedBaseUrl);
+  const normalizedBaseUrl = String(baseUrl || '').trim();
+  if (!normalizedBaseUrl) {
+    throw createError({
+      statusCode: 500,
+      message: '服务端未配置 backendBaseUrl。',
+    });
+  }
+
+  const withSlash = normalizedBaseUrl.endsWith('/') ? normalizedBaseUrl : `${normalizedBaseUrl}/`;
+  const normalizedPath = String(path || '').trim().replace(/^\//, '');
+  let url: URL;
+  try {
+    url = new URL(normalizedPath, withSlash);
+  } catch {
+    throw createError({
+      statusCode: 500,
+      message: '后端地址配置无效，请检查 NUXT_BACKEND_BASE_URL。',
+      data: { baseUrl: normalizedBaseUrl, path },
+    });
+  }
 
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value === null || value === undefined || value === '') {
@@ -96,6 +113,53 @@ const buildBackendUrl = (baseUrl: string, path: string, query?: BackendRequestOp
   }
 
   return url;
+};
+
+/** 仅保留 string 头，避免 undici 对 undefined 做 replace 时报错 */
+const sanitizeHeaders = (headers: Record<string, unknown>) => {
+  const next: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (value === null || value === undefined) continue;
+    next[key] = typeof value === 'string' ? value : String(value);
+  }
+  return next;
+};
+
+/** 将 fetch 网络层失败转为可读错误（本地 dev 连不上线上域名时常见） */
+const toNetworkCreateError = (error: unknown, targetUrl: string) => {
+  const record = error && typeof error === 'object' ? (error as Record<string, unknown>) : null;
+  const cause = record?.cause && typeof record.cause === 'object'
+    ? (record.cause as Record<string, unknown>)
+    : null;
+  const causeCode = typeof cause?.code === 'string' ? cause.code : '';
+  const message = error instanceof Error ? error.message : String(error ?? '');
+
+  const isNetwork =
+    causeCode === 'ECONNRESET'
+    || causeCode === 'ECONNREFUSED'
+    || causeCode === 'ENOTFOUND'
+    || causeCode === 'ETIMEDOUT'
+    || causeCode === 'UND_ERR_CONNECT_TIMEOUT'
+    || /fetch failed|network|ECONNRESET|certificate|SSL|TLS/i.test(message);
+
+  if (isNetwork) {
+    return createError({
+      statusCode: 502,
+      message:
+        '无法连接后端服务。本地开发请确认 NUXT_BACKEND_BASE_URL 可从本机访问（域名未拦截、证书有效、服务已启动）。',
+      data: {
+        targetUrl,
+        causeCode: causeCode || null,
+        causeMessage: typeof cause?.message === 'string' ? cause.message : message,
+      },
+    });
+  }
+
+  return createError({
+    statusCode: 502,
+    message: message || '后端请求失败。',
+    data: { targetUrl },
+  });
 };
 
 const parseBackendResponse = (rawText: string) => {
@@ -296,12 +360,13 @@ export const backendFetch = async <T>(
   options: BackendRequestOptions = {}
 ): Promise<T> => {
   const config = useRuntimeConfig(event);
-  const backendBaseUrl = config.backendBaseUrl;
+  // runtimeConfig 偶发非 string，统一归一，避免 URL/headers 链路读到 undefined
+  const backendBaseUrl = String(config.backendBaseUrl ?? '').trim();
 
   if (!backendBaseUrl) {
     throw createError({
       statusCode: 500,
-      message: '服务端未配置 backendBaseUrl。',
+      message: '服务端未配置 backendBaseUrl（请设置 NUXT_BACKEND_BASE_URL）。',
       data: { path },
     });
   }
@@ -309,13 +374,14 @@ export const backendFetch = async <T>(
   const { query, headers: optionHeaders, body: rawBody, ...requestOptions } = options;
   const normalizedBody = normalizeRequestBody(rawBody);
   const url = buildBackendUrl(backendBaseUrl, path, query);
+  const targetUrl = url.href;
   const method = String(requestOptions.method || 'GET').toUpperCase();
-  const headers: Record<string, string> = {
+  const headers = sanitizeHeaders({
     accept: 'application/json',
-    ...((event.context.backendHeaders as Record<string, string> | undefined) ?? {}),
-    ...((optionHeaders as Record<string, string> | undefined) ?? {}),
-    ...((normalizedBody.headers as Record<string, string> | undefined) ?? {}),
-  };
+    ...((event.context.backendHeaders as Record<string, unknown> | undefined) ?? {}),
+    ...((optionHeaders as Record<string, unknown> | undefined) ?? {}),
+    ...((normalizedBody.headers as Record<string, unknown> | undefined) ?? {}),
+  });
   const authorization = resolveRequestAuthorization(event, headers);
 
   if (authorization) {
@@ -323,27 +389,39 @@ export const backendFetch = async <T>(
   }
 
   logBackendRequest({
-    targetUrl: url.toString(),
+    targetUrl,
     method,
     headers,
     params: serializeParams(query, rawBody),
   });
 
-  const response = await fetch(url, {
-    ...requestOptions,
-    method,
-    body: normalizedBody.body,
-    headers,
-  });
+  let response: Response;
+  try {
+    // 传 string href，避免部分 Node/undici 对 URL 对象处理异常
+    response = await fetch(targetUrl, {
+      ...requestOptions,
+      method,
+      body: normalizedBody.body,
+      headers,
+    });
+  } catch (error) {
+    console.error('[backend-request-failed]', {
+      targetUrl,
+      method,
+      error: error instanceof Error ? error.message : error,
+      cause: error && typeof error === 'object' ? (error as { cause?: unknown }).cause : undefined,
+    });
+    throw toNetworkCreateError(error, targetUrl);
+  }
 
   const rawText = await response.text();
   const backendResponse = parseBackendResponse(rawText);
 
   logBackendResponse({
-    targetUrl: url.toString(),
+    targetUrl,
     method,
     status: response.status,
-    statusText: response.statusText,
+    statusText: response.statusText || '',
     ok: response.ok,
     headers: response.headers,
     body: backendResponse,
@@ -375,7 +453,7 @@ export const backendFetch = async <T>(
         message: backendMessage || message,
         traceId: backendTraceId,
         backendStatus: response.status,
-        backendStatusText: response.statusText,
+        backendStatusText: response.statusText || '',
         backendResponse,
       },
     });
@@ -389,7 +467,14 @@ export const unwrapApiResponse = <T>(response: {
   message: string | null;
   traceId: string | null;
   data?: T | null;
-}) => {
+} | null | undefined) => {
+  if (!response || typeof response !== 'object') {
+    throw createError({
+      statusCode: 502,
+      message: '后端返回为空或格式不正确。',
+    });
+  }
+
   if (response.code !== 0) {
     throw createBackendBusinessError(response);
   }

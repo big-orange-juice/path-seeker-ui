@@ -5,6 +5,11 @@
     "description": "Cultural Tourism Puzzle Navigation Platform — 基于上海博物馆东馆导览图",
     "version": "v1"
   },
+  "servers": [
+    {
+      "url": "/path-seeker"
+    }
+  ],
   "paths": {
     "/api/Admin/Login": {
       "post": {
@@ -5970,6 +5975,227 @@
         }
       }
     },
+    "/api/Poster/PageList": {
+      "post": {
+        "tags": ["Poster"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutePosterPageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutePosterPageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutePosterPageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListTotalPageResultApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListTotalPageResultApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListTotalPageResultApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Poster/Get": {
+      "get": {
+        "tags": ["Poster"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Poster/Create": {
+      "post": {
+        "tags": ["Poster"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoutePosterRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoutePosterRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoutePosterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Poster/Update": {
+      "post": {
+        "tags": ["Poster"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoutePosterRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoutePosterRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoutePosterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Poster/Delete": {
+      "post": {
+        "tags": ["Poster"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Puzzle/Gameplays": {
       "get": {
         "tags": ["Puzzle"],
@@ -6575,6 +6801,91 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Route/CreatePoster": {
+      "post": {
+        "tags": ["Route"],
+        "summary": "为路线创建海报。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoutePosterRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoutePosterRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRoutePosterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Route/Posters": {
+      "get": {
+        "tags": ["Route"],
+        "summary": "根据路线 ID 获取海报列表。",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListApiResponse"
                 }
               }
             }
@@ -11325,6 +11636,40 @@
         },
         "additionalProperties": false,
         "description": "创建路线容器请求（新链路手动后台入口，不绑定具体玩法）"
+      },
+      "CreateRoutePosterRequest": {
+        "required": ["attachmentId", "routeId"],
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "attachmentId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "status": {
+            "maximum": 2,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
       },
       "CreateRouteStageNarrationImageRequest": {
         "required": ["attachmentId", "stageId"],
@@ -16162,6 +16507,178 @@
         "additionalProperties": false,
         "description": "路线分页查询请求"
       },
+      "RoutePosterPageRequest": {
+        "type": "object",
+        "properties": {
+          "pageIndex": {
+            "type": "integer",
+            "description": "页码，从 1 开始",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "每页条数，默认 10",
+            "format": "int32"
+          },
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "keyword": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RoutePosterResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "attachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RoutePosterResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RoutePosterResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RoutePosterResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutePosterResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RoutePosterResponseListTotalPageResult": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutePosterResponse"
+            },
+            "nullable": true
+          },
+          "pageIndex": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RoutePosterResponseListTotalPageResultApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RoutePosterResponseListTotalPageResult"
+          }
+        },
+        "additionalProperties": false
+      },
       "RouteResultResponse": {
         "type": "object",
         "properties": {
@@ -18810,6 +19327,14 @@
             "format": "int32",
             "nullable": true
           },
+          "attachmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "节点图片附件 ID 列表。未传时不修改图片；传空数组时清空图片；\n传入 ID 列表时先删除原有图片，再按照列表顺序重新插入。",
+            "nullable": true
+          },
           "expectedUpdatedAt": {
             "type": "string",
             "format": "date-time",
@@ -18960,6 +19485,39 @@
         },
         "additionalProperties": false,
         "description": "更新角色请求"
+      },
+      "UpdateRoutePosterRequest": {
+        "required": ["attachmentId", "id"],
+        "type": "object",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "attachmentId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "status": {
+            "maximum": 2,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
       },
       "UpdateRouteRequest": {
         "required": ["id", "routeCode", "title"],
@@ -19655,6 +20213,10 @@
     {
       "name": "NarrationImage",
       "description": "玩法 11 解说节点图片管理。"
+    },
+    {
+      "name": "Poster",
+      "description": "路线海报管理。"
     },
     {
       "name": "Puzzle",
