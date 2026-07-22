@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const response = await backendFetch<ApiResponse>(event, '/api/Gameplay/StageUpdate', {
+  const response = await backendFetch<ApiResponse>(event, '/Gameplay/StageUpdate', {
     method: 'POST',
     body: {
       ...body,

@@ -5,11 +5,9 @@ import {
 } from "@path-seeker/ts-shared"
 import { getAccessToken } from "@/services/authSession"
 
+// 约定：VITE_API_BASE_URL 已包含 /api 前缀（如 .../path-seeker/api），业务 path 勿再写 /api。
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
 const API_PREFIX = ""
-
-// 约定：
-// H5 仅通过 VITE_API_BASE_URL 指定后端服务地址。
 
 type RequestMethod = "GET" | "POST" | "PUT" | "DELETE" | "OPTIONS" | "HEAD"
 type RequestPayload = string | object | unknown[] | ArrayBuffer | undefined

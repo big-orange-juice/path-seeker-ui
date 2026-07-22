@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const response = await backendFetch<ApiResponse<string>>(event, '/api/Narration/generate-audio', {
+  const response = await backendFetch<ApiResponse<string>>(event, '/Narration/generate-audio', {
     method: 'POST',
     body: {
       stageId,

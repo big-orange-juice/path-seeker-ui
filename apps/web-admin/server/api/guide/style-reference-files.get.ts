@@ -2,7 +2,7 @@ import type { ApiResponse } from '~~/app/types/api'
 import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
 
 /**
- * 对齐 GET /api/Guide/style-reference-files?id=
+ * 对齐 GET /Guide/style-reference-files?id=
  * 返回风格参考文件地址列表（string[]）。
  */
 export default defineEventHandler(async (event): Promise<string[]> => {
@@ -18,7 +18,7 @@ export default defineEventHandler(async (event): Promise<string[]> => {
 
   const response = await backendFetch<ApiResponse<string[]>>(
     event,
-    '/api/Guide/style-reference-files',
+    '/Guide/style-reference-files',
     {
       query: { id },
     },

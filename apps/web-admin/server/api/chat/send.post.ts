@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
   const authorization = resolveAuthorization(event);
   const lastEventId = getHeader(event, 'last-event-id') || getHeader(event, 'Last-Event-ID');
   const normalizedBaseUrl = backendBaseUrl.endsWith('/') ? backendBaseUrl : `${backendBaseUrl}/`;
-  const targetUrl = new URL('api/Chat/send', normalizedBaseUrl);
+  const targetUrl = new URL('Chat/send', normalizedBaseUrl);
 
   const headers: Record<string, string> = {
     accept: 'text/event-stream',

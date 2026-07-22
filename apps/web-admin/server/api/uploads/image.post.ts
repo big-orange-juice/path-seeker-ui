@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const nextFormData = new FormData();
   nextFormData.append('file', file, (file as File).name || 'image');
 
-  const response = await backendFetch<ApiResponse<UploadAttachment>>(event, '/api/Upload/UploadImage', {
+  const response = await backendFetch<ApiResponse<UploadAttachment>>(event, '/Upload/UploadImage', {
     method: 'POST',
     body: nextFormData,
   });

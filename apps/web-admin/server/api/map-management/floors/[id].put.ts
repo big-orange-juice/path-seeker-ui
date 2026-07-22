@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<UpdateFloorPayload>(event);
-  const response = await backendFetch<ApiResponse>(event, '/api/Museum/UpdateFloor', {
+  const response = await backendFetch<ApiResponse>(event, '/Museum/UpdateFloor', {
     method: 'POST',
     body,
   });

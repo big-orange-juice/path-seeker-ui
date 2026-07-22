@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const response = await backendFetch<ApiResponse<ChatMessageResponse[]>>(event, '/api/Chat/history', {
+  const response = await backendFetch<ApiResponse<ChatMessageResponse[]>>(event, '/Chat/history', {
     method: 'GET',
     query: {
       sessionId,

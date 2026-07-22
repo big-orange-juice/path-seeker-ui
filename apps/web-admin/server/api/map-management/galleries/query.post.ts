@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<GalleryPageRequest>(event);
-  const response = await backendFetch<ApiResponse<GalleryResponseListTotalPageResult<GalleryResponse>>>(event, '/api/Gallery/PageList', {
+  const response = await backendFetch<ApiResponse<GalleryResponseListTotalPageResult<GalleryResponse>>>(event, '/Gallery/PageList', {
     method: 'POST',
     body,
   });

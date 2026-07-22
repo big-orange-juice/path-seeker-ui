@@ -5,14 +5,14 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
 /**
  * 创建导游并上传生成材料。
  * multipart：`material`（mp3/mp4 音色）/ `txtmaterial`（txt 语义资料）。
- * 对齐 POST /api/Guide/create-with-material。
+ * 对齐 POST /Guide/create-with-material。
  */
 export default defineEventHandler(async (event): Promise<GuideGenerationCreateResponse | null> => {
   const formData = await readFormData(event)
 
   const response = await backendFetch<ApiResponse<GuideGenerationCreateResponse>>(
     event,
-    '/api/Guide/create-with-material',
+    '/Guide/create-with-material',
     {
       method: 'POST',
       body: formData,

@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
 
 /**
  * 查询公开音色与当前用户私有音色。
- * 对齐 GET /api/TtsVoice/list
+ * 对齐 GET /TtsVoice/list
  */
 export default defineEventHandler(async (event): Promise<TtsVoiceResponse[]> => {
   const query = getQuery(event)
@@ -13,7 +13,7 @@ export default defineEventHandler(async (event): Promise<TtsVoiceResponse[]> => 
 
   const response = await backendFetch<ApiResponse<TtsVoiceResponse[]>>(
     event,
-    '/api/TtsVoice/list',
+    '/TtsVoice/list',
     {
       query: {
         Keyword: keyword || undefined,

@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<SaveGuideRequest>(event)
-  const response = await backendFetch<ApiResponse<string>>(event, '/api/Guide/create', {
+  const response = await backendFetch<ApiResponse<string>>(event, '/Guide/create', {
     method: 'POST',
     body,
   })

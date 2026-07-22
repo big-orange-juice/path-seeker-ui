@@ -39,7 +39,7 @@ export default defineEventHandler(async (event): Promise<NarrationDetailResponse
 
   const response = await backendFetch<ApiResponse<NarrationDetailResponse>>(
     event,
-    '/api/Narration/update-text',
+    '/Narration/update-text',
     {
       method: 'POST',
       body: payload,

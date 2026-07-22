@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<CreateMuseumPayload>(event);
-  const response = await backendFetch<ApiResponse<string>>(event, '/api/Museum/Create', {
+  const response = await backendFetch<ApiResponse<string>>(event, '/Museum/Create', {
     method: 'POST',
     body,
   });

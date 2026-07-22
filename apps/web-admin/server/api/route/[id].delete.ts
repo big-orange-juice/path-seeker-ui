@@ -3,7 +3,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const id = String(getRouterParam(event, 'id') || '').trim();
-  const response = await backendFetch<ApiResponse>(event, '/api/Route/Delete', {
+  const response = await backendFetch<ApiResponse>(event, '/Route/Delete', {
     method: 'POST',
     body: { id },
   });

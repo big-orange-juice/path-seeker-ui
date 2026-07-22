@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<MuseumPageRequest>(event);
   const response = await backendFetch<ApiResponse<MuseumResponseListTotalPageResult<MuseumResponse>>>(
     event,
-    '/api/Museum/PageList',
+    '/Museum/PageList',
     {
       method: 'POST',
       body,

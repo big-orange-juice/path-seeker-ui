@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<CreateChatSessionRequest>(event);
-  const response = await backendFetch<ApiResponse<string>>(event, '/api/Chat/sessions', {
+  const response = await backendFetch<ApiResponse<string>>(event, '/Chat/sessions', {
     method: 'POST',
     body: {
       title: body?.title ?? null,

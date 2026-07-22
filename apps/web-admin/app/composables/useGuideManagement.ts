@@ -35,7 +35,8 @@ const appendFormField = (
 }
 
 /**
- * 后端常返回 `/api/Guide/voice-preview?guideId=`（需鉴权的相对路径）。
+ * 后端常返回 `/Guide/voice-preview?guideId=`（base 已含 /api 时的相对路径），
+ * 或完整 URL 中含 `/api/Guide/voice-preview`。
  * 转为 Nuxt 同源代理地址，供 `<audio>` 携带登录 cookie 播放。
  */
 /** 从文件 URL 提取展示用文件名（用于风格参考 Tabs） */
@@ -90,13 +91,16 @@ export const resolveGuideVoiceSamplePlayUrl = (
     return null
   }
 
-  // 已是本站代理地址
+  // 已是本站代理地址（Nuxt BFF，与后端 base 无关）
   if (raw.startsWith('/api/guide/voice-preview')) {
     return raw
   }
 
-  // 公网直链可直接播
-  if (/^https?:\/\//i.test(raw) && !/\/api\/Guide\/voice-preview/i.test(raw)) {
+  // 公网直链可直接播；排除后端试听地址（base 含 /api 后相对路径为 /Guide/...）
+  if (
+    /^https?:\/\//i.test(raw)
+    && !/\/(?:api\/)?Guide\/voice-preview/i.test(raw)
+  ) {
     return raw
   }
 

@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const response = await backendFetch<ApiResponse>(event, '/api/Guide/delete', {
+  const response = await backendFetch<ApiResponse>(event, '/Guide/delete', {
     method: 'POST',
     body: {
       id,

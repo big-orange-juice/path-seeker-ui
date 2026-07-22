@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<CreateExhibitPayload>(event);
-  const response = await backendFetch<ApiResponse<string>>(event, '/api/Exhibit/Create', {
+  const response = await backendFetch<ApiResponse<string>>(event, '/Exhibit/Create', {
     method: 'POST',
     body,
   });

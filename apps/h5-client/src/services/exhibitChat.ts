@@ -64,9 +64,9 @@ function mapMessage(item: Record<string, unknown> | null | undefined): ExhibitCh
   }
 }
 
-/** POST /api/ExhibitChat/sessions */
+/** POST /ExhibitChat/sessions */
 export async function createExhibitChatSession(payload: CreateExhibitChatSessionRequest = {}) {
-  const data = await request<unknown>("/api/ExhibitChat/sessions", {
+  const data = await request<unknown>("/ExhibitChat/sessions", {
     method: "POST",
     data: {
       title: payload.title?.slice(0, 256) || null,
@@ -96,9 +96,9 @@ export async function createExhibitChatSession(payload: CreateExhibitChatSession
   return session
 }
 
-/** GET /api/ExhibitChat/sessions */
+/** GET /ExhibitChat/sessions */
 export async function listExhibitChatSessions() {
-  const data = await request<unknown[] | null>("/api/ExhibitChat/sessions", {
+  const data = await request<unknown[] | null>("/ExhibitChat/sessions", {
     method: "GET",
   })
   const list = Array.isArray(data) ? data : []
@@ -107,9 +107,9 @@ export async function listExhibitChatSessions() {
     .filter((item): item is ExhibitChatSession => Boolean(item))
 }
 
-/** GET /api/ExhibitChat/history?sessionId= */
+/** GET /ExhibitChat/history?sessionId= */
 export async function fetchExhibitChatHistory(sessionId: string) {
-  const data = await request<unknown[] | null>("/api/ExhibitChat/history", {
+  const data = await request<unknown[] | null>("/ExhibitChat/history", {
     method: "GET",
     query: { sessionId },
   })
@@ -119,16 +119,16 @@ export async function fetchExhibitChatHistory(sessionId: string) {
     .filter((item): item is ExhibitChatMessage => Boolean(item))
 }
 
-/** POST /api/ExhibitChat/archive */
+/** POST /ExhibitChat/archive */
 export async function archiveExhibitChatSession(sessionId: string) {
-  await request("/api/ExhibitChat/archive", {
+  await request("/ExhibitChat/archive", {
     method: "POST",
     data: { id: sessionId },
   })
 }
 
 export function buildExhibitChatSendUrl() {
-  return `${API_BASE_URL}/api/ExhibitChat/send`
+  return `${API_BASE_URL}/ExhibitChat/send`
 }
 
 export function buildExhibitChatSendHeaders(lastEventId?: string) {

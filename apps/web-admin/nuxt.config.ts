@@ -3,7 +3,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-06-26',
   devtools: { enabled: true },
   app: {
-    baseURL: '/path-seeker/'
+    baseURL: '/path-seeker/admin/'
   },
   runtimeConfig: {
     backendBaseUrl: process.env.NUXT_BACKEND_BASE_URL || '',
@@ -20,7 +20,7 @@ export default defineNuxtConfig({
     '@formkit/auto-animate/nuxt',
     '@nuxt/image',
     '@nuxt/eslint',
-    '@comark/nuxt',
+    '@comark/nuxt'
   ],
   pinia: {
     storesDirs: ['./app/stores/**']

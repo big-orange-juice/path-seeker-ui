@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<RouteMutationPayload>(event);
-  const response = await backendFetch<ApiResponse>(event, '/api/Route/Publish', {
+  const response = await backendFetch<ApiResponse>(event, '/Route/Publish', {
     method: 'POST',
     body,
   });

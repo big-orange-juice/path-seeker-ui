@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<RouteIdPayload>(event);
-  const response = await backendFetch<ApiResponse>(event, '/api/Route/SubmitAudit', {
+  const response = await backendFetch<ApiResponse>(event, '/Route/SubmitAudit', {
     method: 'POST',
     body,
   });

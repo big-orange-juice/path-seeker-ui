@@ -14,7 +14,7 @@ export default defineEventHandler(async (event): Promise<NarrationDetailResponse
   }
 
   // stageId 雪花 ID 按字符串透传，避免 JS 精度丢失
-  const response = await backendFetch<ApiResponse<NarrationDetailResponse>>(event, '/api/Narration/detail', {
+  const response = await backendFetch<ApiResponse<NarrationDetailResponse>>(event, '/Narration/detail', {
     method: 'GET',
     query: {
       stageId,

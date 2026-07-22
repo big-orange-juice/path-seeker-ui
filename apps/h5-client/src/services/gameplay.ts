@@ -171,7 +171,7 @@ export interface RouteStageProgressItemResponse {
   lastActivityAt?: string | null
 }
 
-/** GET /api/Gameplay/MyRouteProgress */
+/** GET /Gameplay/MyRouteProgress */
 export interface MyRouteProgressResponse {
   routeId?: string | null
   teamId?: string | null
@@ -238,7 +238,7 @@ export interface ShareCardResponse {
   shareCode?: string | null
 }
 
-/** GET /api/Gameplay/RouteResult */
+/** GET /Gameplay/RouteResult */
 export interface RouteResultResponse {
   routeId?: string | null
   teamId?: string | null
@@ -317,7 +317,7 @@ export interface ExhibitExtraResponse {
   sortOrder?: number
 }
 
-/** GET /api/Exhibit/Get — 主键按 string 透传（雪花 ID） */
+/** GET /Exhibit/Get — 主键按 string 透传（雪花 ID） */
 export interface ExhibitResponse {
   id?: string | null
   museumId?: string | null
@@ -360,7 +360,7 @@ export const ROUTE_ACTIVITY_TYPE = {
 
 /** C 端任务大厅：已发布路线分页列表 */
 export function fetchPublishedRoutes(payload: PublishedRouteQueryRequest) {
-  return request<RoutePageResult>("/api/Route/Published", {
+  return request<RoutePageResult>("/Route/Published", {
     method: "POST",
     data: payload,
   })
@@ -372,7 +372,7 @@ export function fetchRoutePageList(payload: PublishedRouteQueryRequest) {
 }
 
 export function fetchRouteDetail(routeId: string) {
-  return request<RouteDetailResponse>("/api/Route/Detail", {
+  return request<RouteDetailResponse>("/Route/Detail", {
     query: {
       id: routeId,
     },
@@ -380,7 +380,7 @@ export function fetchRouteDetail(routeId: string) {
 }
 
 export function joinGameplayRoute(routeId: string, teamId?: string | null) {
-  return request<JoinRouteResponse>("/api/Gameplay/JoinRoute", {
+  return request<JoinRouteResponse>("/Gameplay/JoinRoute", {
     method: "POST",
     data: {
       routeId,
@@ -391,7 +391,7 @@ export function joinGameplayRoute(routeId: string, teamId?: string | null) {
 }
 
 export function fetchGameplayStages(routeId: string, teamId?: string | null) {
-  return request<StagePlayResponse[]>("/api/Gameplay/Stages", {
+  return request<StagePlayResponse[]>("/Gameplay/Stages", {
     query: {
       routeId,
       teamId: teamId || undefined,
@@ -401,7 +401,7 @@ export function fetchGameplayStages(routeId: string, teamId?: string | null) {
 
 /** 恢复权威源：服务端进度（含各站 solved / 当前站 / 分数） */
 export function fetchMyRouteProgress(routeId: string, teamId?: string | null) {
-  return request<MyRouteProgressResponse>("/api/Gameplay/MyRouteProgress", {
+  return request<MyRouteProgressResponse>("/Gameplay/MyRouteProgress", {
     query: {
       RouteId: routeId,
       TeamId: teamId || undefined,
@@ -411,7 +411,7 @@ export function fetchMyRouteProgress(routeId: string, teamId?: string | null) {
 
 /** 终局结算：徽章 / 称号 / 分享卡 */
 export function fetchRouteResult(routeId: string, teamId?: string | null) {
-  return request<RouteResultResponse>("/api/Gameplay/RouteResult", {
+  return request<RouteResultResponse>("/Gameplay/RouteResult", {
     query: {
       RouteId: routeId,
       TeamId: teamId || undefined,
@@ -421,7 +421,7 @@ export function fetchRouteResult(routeId: string, teamId?: string | null) {
 
 /** 弱行为上报（进入/离开节点等，失败可忽略） */
 export function recordRouteActivity(payload: RecordRouteActivityRequest) {
-  return request<void>("/api/Gameplay/RecordActivity", {
+  return request<void>("/Gameplay/RecordActivity", {
     method: "POST",
     data: {
       routeId: payload.routeId,
@@ -442,7 +442,7 @@ export function submitGameplayStage(payload: {
   payload?: string | null
   durationSec?: number | null
 }) {
-  return request<StageSubmitResponse>("/api/Gameplay/Submit", {
+  return request<StageSubmitResponse>("/Gameplay/Submit", {
     method: "POST",
     data: {
       routeId: payload.routeId,
@@ -455,7 +455,7 @@ export function submitGameplayStage(payload: {
 }
 
 export function fetchStageHints(routeId: string, stageId: string, teamId?: string | null) {
-  return request<StageHintResponse[]>("/api/Gameplay/Hints", {
+  return request<StageHintResponse[]>("/Gameplay/Hints", {
     query: {
       RouteId: routeId,
       StageId: stageId,
@@ -471,7 +471,7 @@ export function unlockStageHint(payload: {
   clueId: string
   hintId?: string | null
 }) {
-  return request<UnlockHintResponse>("/api/Gameplay/UnlockHint", {
+  return request<UnlockHintResponse>("/Gameplay/UnlockHint", {
     method: "POST",
     data: {
       routeId: payload.routeId,
@@ -485,7 +485,7 @@ export function unlockStageHint(payload: {
 
 /** 用 refExhibitId 补位置/短视频；id 按 string 透传 */
 export function fetchExhibit(exhibitId: string) {
-  return request<ExhibitResponse>("/api/Exhibit/Get", {
+  return request<ExhibitResponse>("/Exhibit/Get", {
     query: {
       id: exhibitId,
     },
@@ -521,7 +521,7 @@ export interface NarrationDetailResponse {
 }
 
 /**
- * GET /api/Narration/c_detail — C 端导览节点详情
+ * GET /Narration/c_detail — C 端导览节点详情
  * 仅 interactionType=11 解说导览使用；stageId 按 string 透传（雪花 ID）
  * B 端管理仍走 /api/Narration/detail
  */
@@ -531,7 +531,7 @@ export function fetchNarrationDetail(stageId: string) {
     return Promise.reject(new Error("缺少 stageId"))
   }
 
-  return request<NarrationDetailResponse>("/api/Narration/c_detail", {
+  return request<NarrationDetailResponse>("/Narration/c_detail", {
     query: {
       stageId: id,
     },
@@ -539,7 +539,7 @@ export function fetchNarrationDetail(stageId: string) {
 }
 
 /**
- * POST /api/Narration/generate-audio
+ * POST /Narration/generate-audio
  * body: { stageId: string } — 雪花 ID 按 string 透传
  */
 export function generateNarrationAudio(stageId: string) {
@@ -548,7 +548,7 @@ export function generateNarrationAudio(stageId: string) {
     return Promise.reject(new Error("缺少 stageId"))
   }
 
-  return request<string>("/api/Narration/generate-audio", {
+  return request<string>("/Narration/generate-audio", {
     method: "POST",
     data: {
       stageId: id,

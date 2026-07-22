@@ -38,7 +38,7 @@ const resolveAuthorization = (event: H3Event) => {
 
 /**
  * 代理导游音色试听音频。
- * 对齐 GET /api/Guide/voice-preview?guideId=
+ * 对齐 GET /Guide/voice-preview?guideId=
  * 返回上游音频二进制流，供 <audio> 同源播放（带登录 cookie）。
  */
 export default defineEventHandler(async (event) => {
@@ -64,7 +64,7 @@ export default defineEventHandler(async (event) => {
 
   const authorization = resolveAuthorization(event)
   const normalizedBaseUrl = backendBaseUrl.endsWith('/') ? backendBaseUrl : `${backendBaseUrl}/`
-  const targetUrl = new URL('api/Guide/voice-preview', normalizedBaseUrl)
+  const targetUrl = new URL('Guide/voice-preview', normalizedBaseUrl)
   targetUrl.searchParams.set('guideId', guideId)
 
   const headers: Record<string, string> = {

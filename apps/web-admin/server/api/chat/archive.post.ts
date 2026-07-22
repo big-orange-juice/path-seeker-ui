@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     });
   }
 
-  const response = await backendFetch<ApiResponse>(event, '/api/Chat/archive', {
+  const response = await backendFetch<ApiResponse>(event, '/Chat/archive', {
     method: 'POST',
     body: { id },
   });

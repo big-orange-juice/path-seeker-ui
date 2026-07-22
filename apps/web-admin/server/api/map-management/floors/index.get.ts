@@ -6,7 +6,7 @@ export default defineEventHandler(async (event): Promise<FloorResponse[] | Floor
   const query = getQuery(event);
   const museumId = String(query.museumId || '').trim();
 
-  const response: ApiResponse<FloorResponse[] | FloorResponseListTotalPageResult<FloorResponse>> = await backendFetch(event, '/api/Museum/Floors', {
+  const response: ApiResponse<FloorResponse[] | FloorResponseListTotalPageResult<FloorResponse>> = await backendFetch(event, '/Museum/Floors', {
     query: { museumId },
   });
 

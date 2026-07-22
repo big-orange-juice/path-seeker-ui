@@ -7,7 +7,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
 
 /**
  * 编辑 AI 解说节点并同步解说产物元数据。
- * 对齐 POST /api/Narration/update-stage
+ * 对齐 POST /Narration/update-stage
  */
 export default defineEventHandler(async (event): Promise<UpdateNarrationStageResponse | null> => {
   const body = await readBody<UpdateNarrationStageRequest>(event)
@@ -57,7 +57,7 @@ export default defineEventHandler(async (event): Promise<UpdateNarrationStageRes
 
   const response = await backendFetch<ApiResponse<UpdateNarrationStageResponse>>(
     event,
-    '/api/Narration/update-stage',
+    '/Narration/update-stage',
     {
       method: 'POST',
       body: payload,

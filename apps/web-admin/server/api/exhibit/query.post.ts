@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<ExhibitPageRequest>(event);
   const response = await backendFetch<ApiResponse<ExhibitResponseListTotalPageResult<ExhibitResponse>>>(
     event,
-    '/api/Exhibit/PageList',
+    '/Exhibit/PageList',
     {
       method: 'POST',
       body,

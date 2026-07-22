@@ -13,7 +13,7 @@ export default defineEventHandler(async (event): Promise<GuideResponse | null> =
     })
   }
 
-  const response = await backendFetch<ApiResponse<GuideResponse>>(event, '/api/Guide/detail', {
+  const response = await backendFetch<ApiResponse<GuideResponse>>(event, '/Guide/detail', {
     query: { id },
   })
 

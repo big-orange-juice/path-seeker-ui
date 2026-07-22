@@ -4,7 +4,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<BuildRouteFromThemePayload>(event);
-  const response = await backendFetch<ApiResponse<string>>(event, '/api/Agent/BuildRouteFromTheme', {
+  const response = await backendFetch<ApiResponse<string>>(event, '/Agent/BuildRouteFromTheme', {
     method: 'POST',
     body,
   });

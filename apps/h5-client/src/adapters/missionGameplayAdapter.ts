@@ -105,7 +105,7 @@ export function buildRouteTaglines(input: { allowTeam?: number | null }) {
   return taglines
 }
 
-/** 构建 C 端已发布路线查询体（POST /api/Route/Published） */
+/** 构建 C 端已发布路线查询体（POST /Route/Published） */
 export function buildRoutePageQuery(input: {
   museumId?: string | null
   ageBand: AgeBand | "all"

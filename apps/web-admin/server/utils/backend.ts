@@ -81,6 +81,7 @@ const resolveCookieAuthorization = (event: H3Event) => {
   return normalizeAuthorization(directToken || persistedToken);
 };
 
+/** base 已含 /api（NUXT_BACKEND_BASE_URL），path 勿再带 /api 前缀，如 `/Route/PageList` */
 const buildBackendUrl = (baseUrl: string, path: string, query?: BackendRequestOptions['query']) => {
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   const normalizedPath = path.startsWith('/') ? path.slice(1) : path;

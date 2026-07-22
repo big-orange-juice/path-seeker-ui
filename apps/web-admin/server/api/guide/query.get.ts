@@ -12,7 +12,7 @@ export default defineEventHandler(async (event): Promise<GuideResponseListTotalP
 
   const response = await backendFetch<ApiResponse<GuideResponseListTotalPageResult>>(
     event,
-    '/api/Guide/list',
+    '/Guide/list',
     {
       query: {
         Keyword: keyword || undefined,

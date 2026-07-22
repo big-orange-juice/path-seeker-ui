@@ -16,7 +16,7 @@ module.exports = {
         NITRO_PORT: 5000,
         HOST: '127.0.0.1',
         NITRO_HOST: '127.0.0.1',
-        NUXT_BACKEND_BASE_URL: 'http://43.142.248.191:8199/'
+        NUXT_BACKEND_BASE_URL: 'http://127.0.0.1:8199/api/'
       }
     }
   ]

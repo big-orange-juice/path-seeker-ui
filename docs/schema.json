@@ -5711,6 +5711,265 @@
         }
       }
     },
+    "/api/NarrationImage/list": {
+      "get": {
+        "tags": ["NarrationImage"],
+        "parameters": [
+          {
+            "name": "stageId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteStageNarrationImageResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteStageNarrationImageResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteStageNarrationImageResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/NarrationImage/detail": {
+      "get": {
+        "tags": ["NarrationImage"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteStageNarrationImageResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteStageNarrationImageResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteStageNarrationImageResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/NarrationImage/create": {
+      "post": {
+        "tags": ["NarrationImage"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRouteStageNarrationImageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRouteStageNarrationImageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRouteStageNarrationImageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/NarrationImage/generate": {
+      "post": {
+        "tags": ["NarrationImage"],
+        "summary": "提交图片生成任务；任务成功后生成附件会自动绑定到玩法 11 节点。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRouteStageNarrationImageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRouteStageNarrationImageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRouteStageNarrationImageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateRouteStageNarrationImageResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateRouteStageNarrationImageResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateRouteStageNarrationImageResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/NarrationImage/update": {
+      "post": {
+        "tags": ["NarrationImage"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRouteStageNarrationImageRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRouteStageNarrationImageRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRouteStageNarrationImageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/NarrationImage/delete": {
+      "post": {
+        "tags": ["NarrationImage"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Puzzle/Gameplays": {
       "get": {
         "tags": ["Puzzle"],
@@ -11067,6 +11326,29 @@
         "additionalProperties": false,
         "description": "创建路线容器请求（新链路手动后台入口，不绑定具体玩法）"
       },
+      "CreateRouteStageNarrationImageRequest": {
+        "required": ["attachmentId", "stageId"],
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "attachmentId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sortOrder": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "description": "不传时追加到节点图片列表末尾。",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateRouteStageRequest": {
         "required": ["routeId"],
         "type": "object",
@@ -12799,6 +13081,108 @@
           },
           "data": {
             "$ref": "#/components/schemas/GameplaySkillResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateRouteStageNarrationImageRequest": {
+        "required": ["idempotencyKey", "prompt", "stageId"],
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "modelName": {
+            "maxLength": 128,
+            "type": "string",
+            "nullable": true
+          },
+          "referenceImageUrls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "公开可访问的 HTTP/HTTPS OSS 图片地址。",
+            "nullable": true
+          },
+          "referenceAttachmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "公开 OSS 图片附件 ID；服务会解析为公开 HTTP/HTTPS 地址。",
+            "nullable": true
+          },
+          "priority": {
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "nullable": true
+          },
+          "idempotencyKey": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateRouteStageNarrationImageResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "referenceImageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "autoBind": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateRouteStageNarrationImageResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GenerateRouteStageNarrationImageResponse"
           }
         },
         "additionalProperties": false
@@ -14601,6 +14985,13 @@
           "version": {
             "type": "integer",
             "format": "int32"
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteStageNarrationImageResponse"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -16053,6 +16444,86 @@
           },
           "data": {
             "$ref": "#/components/schemas/RouteStageAdminResponseListTotalPageResult"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteStageNarrationImageResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "attachmentId": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteStageNarrationImageResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RouteStageNarrationImageResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteStageNarrationImageResponseListApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteStageNarrationImageResponse"
+            },
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -18584,6 +19055,27 @@
         "additionalProperties": false,
         "description": "更新路线请求"
       },
+      "UpdateRouteStageNarrationImageRequest": {
+        "required": ["attachmentId", "id"],
+        "type": "object",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "attachmentId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sortOrder": {
+            "maximum": 2147483647,
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateRouteStageRequest": {
         "required": ["id", "routeId"],
         "type": "object",
@@ -19159,6 +19651,10 @@
     {
       "name": "Narration",
       "description": "AI 解说词生成、人工编辑与 TTS 入队。"
+    },
+    {
+      "name": "NarrationImage",
+      "description": "玩法 11 解说节点图片管理。"
     },
     {
       "name": "Puzzle",

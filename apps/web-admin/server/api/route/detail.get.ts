@@ -6,7 +6,7 @@ export default defineEventHandler(async (event): Promise<RouteDetailResponse | n
   const query = getQuery(event);
   const id = String(query.id || '').trim();
 
-  const response: ApiResponse<RouteDetailResponse> = await backendFetch(event, '/api/Route/Detail', {
+  const response: ApiResponse<RouteDetailResponse> = await backendFetch(event, '/Route/Detail', {
     query: { id },
   });
 

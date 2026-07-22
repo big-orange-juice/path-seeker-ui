@@ -84,7 +84,7 @@ export function createAuthClientMeta() {
 }
 
 export function loginAppUser(payload: Omit<LoginRequest, "platform" | "device" | "langCode">) {
-  return request<LoginResponse>("/api/AppUser/Login", {
+  return request<LoginResponse>("/AppUser/Login", {
     method: "POST",
     data: {
       ...payload,
@@ -94,7 +94,7 @@ export function loginAppUser(payload: Omit<LoginRequest, "platform" | "device" |
 }
 
 export function registerAppUser(payload: Omit<RegisterRequest, "platform" | "device">) {
-  return request<LoginResponse>("/api/AppUser/Register", {
+  return request<LoginResponse>("/AppUser/Register", {
     method: "POST",
     data: {
       ...payload,
@@ -105,14 +105,14 @@ export function registerAppUser(payload: Omit<RegisterRequest, "platform" | "dev
 }
 
 export function guestLoginAppUser() {
-  return request<LoginResponse>("/api/AppUser/GuestLogin", {
+  return request<LoginResponse>("/AppUser/GuestLogin", {
     method: "POST",
     data: createAuthClientMeta(),
   })
 }
 
 export function refreshAppUserToken(refreshToken: string) {
-  return request<LoginResponse>("/api/AppUser/RefreshToken", {
+  return request<LoginResponse>("/AppUser/RefreshToken", {
     method: "POST",
     data: {
       refreshToken,
@@ -121,11 +121,11 @@ export function refreshAppUserToken(refreshToken: string) {
 }
 
 export function fetchAppUserProfile() {
-  return request<UserProfileResponse>("/api/AppUser/Profile")
+  return request<UserProfileResponse>("/AppUser/Profile")
 }
 
 export function updateAppUserProfile(payload: UpdateProfileRequest) {
-  return request<UserProfileResponse>("/api/AppUser/UpdateProfile", {
+  return request<UserProfileResponse>("/AppUser/UpdateProfile", {
     method: "POST",
     data: { ...payload },
   })

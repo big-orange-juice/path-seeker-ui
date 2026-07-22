@@ -6,7 +6,7 @@ export default defineEventHandler(async (event): Promise<FacilityResponse[]> => 
   const query = getQuery(event);
   const museumId = String(query.museumId || '').trim();
 
-  const response: ApiResponse<FacilityResponse[]> = await backendFetch(event, '/api/Museum/Facilities', {
+  const response: ApiResponse<FacilityResponse[]> = await backendFetch(event, '/Museum/Facilities', {
     query: { museumId },
   });
 
