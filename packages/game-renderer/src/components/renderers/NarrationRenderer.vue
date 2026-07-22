@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 解说导览渲染：音频播放 + 封面轮播 / 解说词互切（类似专辑封面与歌词）。
- * 配图来自 detail.images；不再展示 config 的 user_style_input / scene_context。
+ * 解说导览：博物馆音频播放器。
+ * 封面（看）与解说词（词）二选一；点「词」从播放器区上滑盖住播放器，仿 Apple Music 歌词。
  */
-import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { gsap } from "gsap"
 import {
   NARRATION_AUDIO_STATUS,
@@ -11,8 +11,6 @@ import {
   type NarrationImageItem,
 } from "../../contracts"
 import ImageCarousel from "../ImageCarousel.vue"
-
-type MediaView = "cover" | "lyrics"
 
 interface Props {
   title?: string | null
@@ -94,40 +92,80 @@ const imageUrls = computed(() =>
 )
 const hasImages = computed(() => imageUrls.value.length > 0)
 
-const mediaView = ref<MediaView>("cover")
-const mediaRoot = ref<HTMLElement | null>(null)
-let mediaCtx: gsap.Context | null = null
+/** true=词模式（盖住播放器）；false=封面+播放器 */
+const lyricsOpen = ref(false)
+const mediaRef = ref<HTMLElement | null>(null)
+const lyricsRef = ref<HTMLElement | null>(null)
+let lyricsTween: gsap.core.Tween | null = null
 
-const setMediaView = async (next: MediaView) => {
-  if (mediaView.value === next) return
-  // 无配图时不允许切到封面
-  if (next === "cover" && !hasImages.value) return
-
-  mediaView.value = next
+const applyLyricsOpen = async (open: boolean, animate: boolean) => {
+  lyricsOpen.value = open
   await nextTick()
-  const root = mediaRoot.value
-  if (!root) return
+  const panel = lyricsRef.value
+  if (!panel) return
 
-  mediaCtx?.revert()
-  mediaCtx = gsap.context(() => {
-    const panel = root.querySelector<HTMLElement>("[data-media-panel].is-active")
-    if (!panel) return
-    gsap.fromTo(
-      panel,
-      { autoAlpha: 0, y: 10, scale: 0.985 },
-      { autoAlpha: 1, y: 0, scale: 1, duration: 0.32, ease: "power2.out" },
-    )
-  }, root)
+  lyricsTween?.kill()
+  if (!animate) {
+    gsap.set(panel, {
+      yPercent: open ? 0 : 100,
+      autoAlpha: open ? 1 : 0,
+    })
+    return
+  }
+
+  if (open) {
+    gsap.set(panel, { yPercent: 100, autoAlpha: 1 })
+    lyricsTween = gsap.to(panel, {
+      yPercent: 0,
+      duration: 0.48,
+      ease: "power3.out",
+      overwrite: "auto",
+    })
+  } else {
+    lyricsTween = gsap.to(panel, {
+      yPercent: 100,
+      duration: 0.4,
+      ease: "power2.inOut",
+      overwrite: "auto",
+      onComplete: () => {
+        gsap.set(panel, { autoAlpha: 0 })
+      },
+    })
+  }
+}
+
+const openLyrics = () => {
+  if (!hasImages.value) return
+  void applyLyricsOpen(true, true)
+}
+
+const closeLyrics = () => {
+  if (!hasImages.value) return
+  void applyLyricsOpen(false, true)
+}
+
+const toggleLyrics = () => {
+  if (!hasImages.value) return
+  void applyLyricsOpen(!lyricsOpen.value, true)
 }
 
 watch(
   hasImages,
-  (ok) => {
-    // 无配图时默认解说词；有配图时默认封面
-    mediaView.value = ok ? "cover" : "lyrics"
+  async (ok) => {
+    await nextTick()
+    if (!ok) {
+      lyricsOpen.value = true
+      return
+    }
+    void applyLyricsOpen(false, false)
   },
   { immediate: true },
 )
+
+onMounted(async () => {
+  await nextTick()
+  if (hasImages.value) void applyLyricsOpen(false, false)
+})
 
 const audioRef = ref<HTMLAudioElement | null>(null)
 const isPlaying = ref(false)
@@ -191,10 +229,47 @@ const seekToRatio = (ratio: number) => {
   el.currentTime = next
   currentTime.value = next
 }
-const onTrackPointer = (event: PointerEvent) => {
+
+const seekBy = (deltaSec: number) => {
+  const el = audioRef.value
+  if (!el || !hasAudio.value) return
+  const base = duration.value || el.duration || 0
+  if (!base) return
+  const next = Math.min(base, Math.max(0, (el.currentTime || 0) + deltaSec))
+  el.currentTime = next
+  currentTime.value = next
+}
+
+const scrubbing = ref(false)
+let scrubEl: HTMLElement | null = null
+
+const ratioFromEvent = (event: PointerEvent, el: HTMLElement) => {
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0) return 0
+  return Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width))
+}
+
+const onTrackPointerDown = (event: PointerEvent) => {
   if (!hasAudio.value || !duration.value) return
-  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-  if (rect.width > 0) seekToRatio((event.clientX - rect.left) / rect.width)
+  scrubbing.value = true
+  scrubEl = event.currentTarget as HTMLElement
+  scrubEl.setPointerCapture?.(event.pointerId)
+  seekToRatio(ratioFromEvent(event, scrubEl))
+}
+
+const onTrackPointerMove = (event: PointerEvent) => {
+  if (!scrubbing.value || !scrubEl) return
+  seekToRatio(ratioFromEvent(event, scrubEl))
+}
+
+const onTrackPointerUp = (event: PointerEvent) => {
+  if (!scrubbing.value) return
+  if (scrubEl) {
+    seekToRatio(ratioFromEvent(event, scrubEl))
+    scrubEl.releasePointerCapture?.(event.pointerId)
+  }
+  scrubbing.value = false
+  scrubEl = null
 }
 
 watch(audioUrl, () => {
@@ -205,37 +280,69 @@ watch(audioUrl, () => {
 
 onBeforeUnmount(() => {
   stopPlayback()
-  mediaCtx?.revert()
-  mediaCtx = null
+  lyricsTween?.kill()
+  lyricsTween = null
 })
 
 const playerLabel = computed(() => {
   if (audioBusy.value) return "语音生成中"
   if (!hasAudio.value) return "语音暂未就绪"
-  return isPlaying.value ? "正在收听" : "语音导览"
+  return isPlaying.value ? "正在播放" : "已暂停"
+})
+
+const remainingLabel = computed(() => {
+  if (duration.value > 0) {
+    const left = Math.max(0, duration.value - currentTime.value)
+    return `-${formatTime(left)}`
+  }
+  return `-${durationLabel.value}`
 })
 </script>
 
 <template>
-  <div class="nr is-play">
-    <section class="nr-top">
-      <header class="nr-head">
-        <h3 class="nr-title">
-          {{ displayTitle }}
-        </h3>
-        <p v-if="guideLabel" class="nr-sub">
-          {{ guideLabel }}
-        </p>
-      </header>
+  <div class="nr" :class="{ 'is-playing': isPlaying, 'is-lyrics': lyricsOpen }">
+    <header class="nr-head">
+      <p class="nr-kicker">Audio Guide</p>
+      <h3 class="nr-title">{{ displayTitle }}</h3>
+      <p v-if="guideLabel" class="nr-sub">{{ guideLabel }}</p>
+    </header>
 
-      <div
+    <!-- 媒体区：封面 + 播放器叠在一起；词从底部上滑盖住二者 -->
+    <div ref="mediaRef" class="nr-media">
+      <!-- 封面 / 无图时的静态词 -->
+      <section class="nr-stage">
+        <div v-if="hasImages" class="nr-stage-cover">
+          <ImageCarousel
+            :images="imageUrls"
+            :autoplay="!lyricsOpen && !isPlaying"
+            :height="0"
+          />
+        </div>
+        <div v-else class="nr-lyrics-static">
+          <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
+          <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
+            {{ props.errorMessage || "解说词加载失败" }}
+          </div>
+          <template v-else>
+            <p class="nr-script-label">解说词</p>
+            <div v-if="displayText" class="nr-script-body">{{ displayText }}</div>
+            <div v-else class="nr-script-state">暂无解说词</div>
+          </template>
+        </div>
+      </section>
+
+      <!-- 播放器（词打开时被盖住） -->
+      <section
+        v-if="hasImages"
         class="nr-player"
         :class="{
           'is-playing': isPlaying,
           'is-ready': hasAudio && !audioBusy,
           'is-busy': audioBusy,
           'is-empty': !hasAudio && !audioBusy,
-        }">
+          'is-scrubbing': scrubbing,
+        }"
+      >
         <audio
           :key="audioUrl || 'empty'"
           ref="audioRef"
@@ -246,120 +353,242 @@ const playerLabel = computed(() => {
           @loadedmetadata="onLoadedMeta"
           @ended="onEnded"
           @pause="isPlaying = false"
-          @play="isPlaying = true" />
+          @play="isPlaying = true"
+        />
 
-        <button
-          type="button"
-          class="nr-orb"
-          :disabled="!hasAudio || audioBusy"
-          :title="isPlaying ? '暂停' : '播放'"
-          :style="{ '--progress': `${progress}%` }"
-          @click="togglePlay">
-          <span class="nr-orb__ring" aria-hidden="true" />
-          <span class="nr-orb__core">
-            <svg v-if="!isPlaying" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M9 7.2v9.6l7.8-4.8L9 7.2Z" fill="currentColor" />
-            </svg>
-            <svg v-else viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M8 7h2.8v10H8V7Zm5.2 0H16v10h-2.8V7Z" fill="currentColor" />
-            </svg>
-          </span>
-        </button>
-
-        <div class="nr-player-main">
-          <div class="nr-player-row">
-            <span class="nr-player-label">{{ playerLabel }}</span>
-          </div>
+        <div class="am-scrub">
           <button
             type="button"
-            class="nr-track"
+            class="am-track"
             :disabled="!hasAudio || !duration"
             :aria-label="`进度 ${formatTime(currentTime)} / ${durationLabel}`"
-            @pointerdown="onTrackPointer">
-            <span class="nr-track__rail" aria-hidden="true" />
-            <span class="nr-track__fill" aria-hidden="true" :style="{ width: `${progress}%` }" />
-            <span class="nr-track__knob" aria-hidden="true" :style="{ left: `${progress}%` }" />
+            @pointerdown="onTrackPointerDown"
+            @pointermove="onTrackPointerMove"
+            @pointerup="onTrackPointerUp"
+            @pointercancel="onTrackPointerUp"
+          >
+            <span class="am-track__rail" aria-hidden="true" />
+            <span class="am-track__fill" aria-hidden="true" :style="{ width: `${progress}%` }" />
+            <span class="am-track__knob" aria-hidden="true" :style="{ left: `${progress}%` }" />
           </button>
-          <div class="nr-time">
+          <div class="am-times">
             <span>{{ formatTime(currentTime) }}</span>
-            <span>{{ durationLabel }}</span>
+            <span>{{ remainingLabel }}</span>
           </div>
         </div>
-      </div>
 
-      <p v-if="!hasAudio && !audioBusy" class="nr-player-hint">
-        {{ displayText ? "语音正在准备中" : "暂无解说词" }}
-      </p>
-      <p v-else-if="resolvedAudioStatus === NARRATION_AUDIO_STATUS.Stale" class="nr-player-hint">
-        解说词已更新，语音正在更新中
-      </p>
-    </section>
+        <!-- 运输条：-15 · 播放 · +15 · 词 -->
+        <div class="am-transport">
+          <button
+            type="button"
+            class="am-skip"
+            :disabled="!hasAudio || audioBusy"
+            aria-label="后退 15 秒"
+            @click="seekBy(-15)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
+              />
+            </svg>
+            <span>15</span>
+          </button>
 
-    <!-- 封面 / 解说词：类似播放器专辑封面与歌词切换 -->
-    <section class="nr-media">
-      <div class="nr-media-toggle" role="tablist" aria-label="展示切换">
-        <button
-          type="button"
-          role="tab"
-          class="nr-media-tab"
-          :class="{ 'is-active': mediaView === 'cover' }"
-          :aria-selected="mediaView === 'cover'"
-          :disabled="!hasImages"
-          @click="setMediaView('cover')">
-          封面
-        </button>
-        <button
-          type="button"
-          role="tab"
-          class="nr-media-tab"
-          :class="{ 'is-active': mediaView === 'lyrics' }"
-          :aria-selected="mediaView === 'lyrics'"
-          @click="setMediaView('lyrics')">
-          解说词
-        </button>
-      </div>
+          <button
+            type="button"
+            class="am-play"
+            :disabled="!hasAudio || audioBusy"
+            :title="isPlaying ? '暂停' : '播放'"
+            :aria-label="isPlaying ? '暂停' : '播放'"
+            @click="togglePlay"
+          >
+            <svg v-if="!isPlaying" class="am-play__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M8.2 5.6v12.8l10.2-6.4L8.2 5.6Z" />
+            </svg>
+            <svg v-else class="am-play__icon is-pause" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M7 5.5h3.2v13H7v-13Zm6.8 0H17v13h-3.2v-13Z" />
+            </svg>
+          </button>
 
-      <div ref="mediaRoot" class="nr-media-stage">
-        <div
-          v-show="mediaView === 'cover'"
-          data-media-panel
-          class="nr-media-panel"
-          :class="{ 'is-active': mediaView === 'cover' }">
-          <ImageCarousel :images="imageUrls" :autoplay="mediaView === 'cover'" />
+          <div class="am-right">
+            <button
+              type="button"
+              class="am-skip is-fwd"
+              :disabled="!hasAudio || audioBusy"
+              aria-label="前进 15 秒"
+              @click="seekBy(15)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"
+                />
+              </svg>
+              <span>15</span>
+            </button>
+
+            <!-- Apple Music 式「词」开关 -->
+            <button
+              type="button"
+              class="am-lyrics-btn"
+              :class="{ 'is-on': lyricsOpen }"
+              :aria-pressed="lyricsOpen"
+              aria-label="解说词"
+              @click="toggleLyrics"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M4 4.8A1.8 1.8 0 0 1 5.8 3h12.4A1.8 1.8 0 0 1 20 4.8v9.4a1.8 1.8 0 0 1-1.8 1.8H9.2L5 19.8V16H5.8A1.8 1.8 0 0 1 4 14.2V4.8Zm2.2.7v8.7h1.1l.3.2 2.6 1.7V14.2h8V5.5H6.2Z"
+                />
+              </svg>
+              <span>词</span>
+            </button>
+          </div>
         </div>
 
-        <div
-          v-show="mediaView === 'lyrics'"
-          data-media-panel
-          class="nr-media-panel nr-media-panel--lyrics"
-          :class="{ 'is-active': mediaView === 'lyrics' }">
+        <p class="am-status">
+          <template v-if="audioBusy">语音生成中…</template>
+          <template v-else-if="!hasAudio">
+            {{ displayText ? "语音准备中" : "暂无语音" }}
+          </template>
+          <template v-else-if="resolvedAudioStatus === NARRATION_AUDIO_STATUS.Stale">
+            解说词已更新，语音更新中
+          </template>
+          <template v-else>{{ playerLabel }}</template>
+        </p>
+      </section>
+
+      <!-- 无图时仍挂 audio 供底部无播放器？无图也该有播放器 -->
+      <section
+        v-if="!hasImages"
+        class="nr-player"
+        :class="{
+          'is-playing': isPlaying,
+          'is-ready': hasAudio && !audioBusy,
+          'is-busy': audioBusy,
+          'is-empty': !hasAudio && !audioBusy,
+          'is-scrubbing': scrubbing,
+        }"
+      >
+        <audio
+          :key="audioUrl || 'empty-static'"
+          ref="audioRef"
+          class="nr-audio-hidden"
+          :src="audioUrl || undefined"
+          preload="metadata"
+          @timeupdate="onTimeUpdate"
+          @loadedmetadata="onLoadedMeta"
+          @ended="onEnded"
+          @pause="isPlaying = false"
+          @play="isPlaying = true"
+        />
+        <div class="am-scrub">
+          <button
+            type="button"
+            class="am-track"
+            :disabled="!hasAudio || !duration"
+            @pointerdown="onTrackPointerDown"
+            @pointermove="onTrackPointerMove"
+            @pointerup="onTrackPointerUp"
+            @pointercancel="onTrackPointerUp"
+          >
+            <span class="am-track__rail" aria-hidden="true" />
+            <span class="am-track__fill" aria-hidden="true" :style="{ width: `${progress}%` }" />
+            <span class="am-track__knob" aria-hidden="true" :style="{ left: `${progress}%` }" />
+          </button>
+          <div class="am-times">
+            <span>{{ formatTime(currentTime) }}</span>
+            <span>{{ remainingLabel }}</span>
+          </div>
+        </div>
+        <div class="am-transport is-solo">
+          <button
+            type="button"
+            class="am-skip"
+            :disabled="!hasAudio || audioBusy"
+            @click="seekBy(-15)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
+              />
+            </svg>
+            <span>15</span>
+          </button>
+          <button
+            type="button"
+            class="am-play"
+            :disabled="!hasAudio || audioBusy"
+            @click="togglePlay"
+          >
+            <svg v-if="!isPlaying" class="am-play__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M8.2 5.6v12.8l10.2-6.4L8.2 5.6Z" />
+            </svg>
+            <svg v-else class="am-play__icon is-pause" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="currentColor" d="M7 5.5h3.2v13H7v-13Zm6.8 0H17v13h-3.2v-13Z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="am-skip is-fwd"
+            :disabled="!hasAudio || audioBusy"
+            @click="seekBy(15)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"
+              />
+            </svg>
+            <span>15</span>
+          </button>
+        </div>
+        <p class="am-status">{{ playerLabel }}</p>
+      </section>
+
+      <!-- 词层：从播放器位置上滑，盖住封面+播放器 -->
+      <div
+        v-if="hasImages"
+        ref="lyricsRef"
+        class="nr-lyrics-sheet"
+        :aria-hidden="!lyricsOpen"
+      >
+        <div class="nr-lyrics-sheet__top">
+          <p class="nr-script-label">解说词</p>
+          <button type="button" class="nr-lyrics-close" @click="closeLyrics">
+            封面
+          </button>
+        </div>
+        <div class="nr-lyrics-sheet__body">
           <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
           <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
             {{ props.errorMessage || "解说词加载失败" }}
           </div>
-          <template v-else>
-            <div class="nr-script-label">解说词</div>
-            <div v-if="displayText" class="nr-script-body">{{ displayText }}</div>
-            <div v-else class="nr-script-state">暂无解说词</div>
-          </template>
+          <div v-else-if="displayText" class="nr-script-body">{{ displayText }}</div>
+          <div v-else class="nr-script-state">暂无解说词</div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <footer v-if="showPlayActions" class="nr-actions">
-      <button
-        type="button"
-        class="nr-btn nr-btn--primary"
-        :disabled="props.completing"
-        @click="emit('complete')">
-        {{ props.completing ? "提交中…" : "听完了，继续" }}
-      </button>
-      <button type="button" class="nr-btn" :disabled="props.completing" @click="emit('skip')">
-        {{ props.completing ? "提交中…" : "跳过解说" }}
-      </button>
-    </footer>
-
-    <slot name="footer" />
+    <div class="nr-foot">
+      <footer v-if="showPlayActions" class="nr-actions">
+        <button
+          type="button"
+          class="nr-btn nr-btn--primary"
+          :disabled="props.completing"
+          @click="emit('complete')"
+        >
+          {{ props.completing ? "提交中…" : "听完了，继续" }}
+        </button>
+        <button type="button" class="nr-btn" :disabled="props.completing" @click="emit('skip')">
+          {{ props.completing ? "提交中…" : "跳过解说" }}
+        </button>
+      </footer>
+      <slot name="footer" />
+    </div>
   </div>
 </template>
 
@@ -368,342 +597,153 @@ const playerLabel = computed(() => {
   display: flex;
   height: 100%;
   min-height: 0;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 12px;
+  gap: 0.65rem;
   color: #fff8ea;
-}
-
-.nr-top {
-  display: flex;
-  flex-shrink: 0;
-  flex-direction: column;
-  gap: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgb(255 255 255 / 8%);
 }
 
 .nr-head {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.15rem;
+  padding: 0 0.1rem;
+}
+
+.nr-kicker {
+  margin: 0;
+  color: rgb(209 178 111 / 72%);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
 }
 
 .nr-title {
   margin: 0;
-  font-size: 17px;
+  font-size: 1.28rem;
   font-weight: 650;
-  line-height: 1.35;
+  line-height: 1.25;
   letter-spacing: 0.01em;
 }
 
 .nr-sub {
-  margin: 0;
-  color: rgb(247 239 221 / 55%);
+  margin: 0.1rem 0 0;
+  color: rgb(247 239 221 / 52%);
   font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
-.nr-player {
-  display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-  padding: 2px 0 4px;
-}
-
-.nr-audio-hidden {
-  display: none;
-}
-
-.nr-orb {
-  --progress: 0%;
-  position: relative;
-  display: grid;
-  width: 56px;
-  height: 56px;
-  flex-shrink: 0;
-  place-items: center;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #1a160d;
-  cursor: pointer;
-}
-
-.nr-orb__ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 999px;
-  background:
-    conic-gradient(
-      from -90deg,
-      #e8d18a 0 var(--progress),
-      rgb(255 255 255 / 10%) var(--progress) 100%
-    );
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
-  transition: filter 0.2s ease;
-}
-
-.nr-orb__core {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border-radius: 999px;
-  background: linear-gradient(155deg, #f0dfb0 0%, #c9a75a 100%);
-  box-shadow:
-    0 6px 16px rgb(209 178 111 / 22%),
-    inset 0 1px 0 rgb(255 255 255 / 35%);
-  transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease;
-}
-
-.nr-orb__core svg {
-  width: 20px;
-  height: 20px;
-  margin-left: 1px;
-}
-
-.nr-orb:hover:not(:disabled) .nr-orb__core {
-  transform: scale(1.04);
-}
-
-.nr-orb:disabled {
-  cursor: not-allowed;
-  opacity: 0.42;
-}
-
-.nr-player.is-playing .nr-orb__ring {
-  filter: drop-shadow(0 0 6px rgb(232 209 138 / 35%));
-}
-
-.nr-player.is-playing .nr-orb__core {
-  animation: nr-orb-breathe 1.8s ease-in-out infinite;
-}
-
-.nr-player.is-busy .nr-orb__ring {
-  background: conic-gradient(from -90deg, #e8d18a, transparent 55%, #e8d18a);
-  animation: nr-orb-spin 1.1s linear infinite;
-}
-
-.nr-player-main {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.nr-player-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.nr-player-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgb(209 178 111 / 78%);
-}
-
-.nr-player.is-playing .nr-player-label {
-  color: #f0dfb0;
-}
-
-.nr-track {
-  position: relative;
-  display: block;
-  width: 100%;
-  height: 18px;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-}
-
-.nr-track:disabled {
-  cursor: default;
-  opacity: 0.55;
-}
-
-.nr-track__rail,
-.nr-track__fill {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  height: 3px;
-  border-radius: 999px;
-  transform: translateY(-50%);
-}
-
-.nr-track__rail {
-  width: 100%;
-  background: rgb(255 255 255 / 10%);
-}
-
-.nr-track__fill {
-  background: linear-gradient(90deg, #b8924a, #e8d18a);
-  box-shadow: 0 0 10px rgb(232 209 138 / 25%);
-}
-
-.nr-track__knob {
-  position: absolute;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #fff6e4;
-  box-shadow: 0 0 0 3px rgb(209 178 111 / 22%);
-  transform: translate(-50%, -50%);
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.nr-player.is-ready .nr-track:hover .nr-track__knob,
-.nr-player.is-playing .nr-track__knob {
-  opacity: 1;
-}
-
-.nr-time {
-  display: flex;
-  justify-content: space-between;
-  color: rgb(247 239 221 / 42%);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
-}
-
-.nr-player-hint {
-  margin: 0;
-  color: rgb(247 239 221 / 48%);
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-@keyframes nr-orb-breathe {
-  0%,
-  100% {
-    box-shadow:
-      0 6px 16px rgb(209 178 111 / 22%),
-      inset 0 1px 0 rgb(255 255 255 / 35%);
-  }
-  50% {
-    box-shadow:
-      0 8px 22px rgb(209 178 111 / 36%),
-      inset 0 1px 0 rgb(255 255 255 / 4%);
-  }
-}
-
-@keyframes nr-orb-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .nr-player.is-playing .nr-orb__core,
-  .nr-player.is-busy .nr-orb__ring {
-    animation: none;
-  }
-}
-
-/* —— 封面 / 解说词切换 —— */
+/* 媒体栈：封面 + 播放器；词层 absolute 盖住 */
 .nr-media {
+  position: relative;
   display: flex;
   min-height: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.nr-media-toggle {
-  display: grid;
-  flex-shrink: 0;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 10px;
-  background: rgb(255 255 255 / 5%);
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
-}
-
-.nr-media-tab {
-  min-height: 32px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: rgb(247 239 221 / 55%);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.nr-media-tab.is-active {
-  background: rgb(209 178 111 / 16%);
-  color: #f0dfb0;
-  box-shadow: inset 0 0 0 1px rgb(209 178 111 / 28%);
-}
-
-.nr-media-tab:disabled {
-  cursor: not-allowed;
-  opacity: 0.4;
-}
-
-.nr-media-stage {
-  position: relative;
-  display: flex;
-  min-height: 200px;
   flex: 1 1 auto;
   flex-direction: column;
   overflow: hidden;
 }
 
-.nr-media-panel {
+.nr-stage {
+  position: relative;
+  min-height: 12rem;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.nr-stage-cover {
+  position: absolute;
+  inset: 0;
+}
+
+.nr-lyrics-static {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.35rem 0.15rem;
+  overflow: hidden;
+}
+
+/* —— 词层：从底部（播放器位）上滑盖住 —— */
+.nr-lyrics-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(
+      180deg,
+      rgb(12 11 9 / 96%) 0%,
+      rgb(10 9 8 / 98%) 100%
+    );
+  opacity: 0;
+  transform: translateY(100%);
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.nr.is-lyrics .nr-lyrics-sheet {
+  pointer-events: auto;
+}
+
+.nr-lyrics-sheet__top {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 0.85rem 0.45rem;
+}
+
+.nr-lyrics-close {
+  border: 0;
+  border-radius: 999px;
+  background: rgb(209 178 111 / 14%);
+  padding: 0.4rem 0.85rem;
+  color: #e8c98a;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(209 178 111 / 28%);
+}
+
+.nr-lyrics-sheet__body {
   display: flex;
   min-height: 0;
   flex: 1;
   flex-direction: column;
-}
-
-.nr-media-panel--lyrics {
-  gap: 8px;
+  padding: 0.35rem 1rem 1.1rem;
   overflow: hidden;
-  border-radius: 12px;
-  background: rgb(0 0 0 / 18%);
-  padding: 12px;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 6%);
 }
 
 .nr-script-label {
-  flex-shrink: 0;
-  color: rgb(209 178 111 / 80%);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  margin: 0;
+  color: rgb(232 201 138 / 82%);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .nr-script-body {
   min-height: 0;
   flex: 1 1 auto;
   overflow-y: auto;
-  color: rgb(247 239 221 / 88%);
-  font-size: 14px;
-  line-height: 1.7;
+  color: rgb(247 239 221 / 92%);
+  font-size: 1.05rem;
+  line-height: 1.85;
   white-space: pre-wrap;
+  letter-spacing: 0.02em;
+  -webkit-overflow-scrolling: touch;
 }
 
 .nr-script-state {
-  min-height: 80px;
+  min-height: 4rem;
   color: rgb(247 239 221 / 52%);
   font-size: 13px;
   line-height: 1.5;
@@ -713,31 +753,324 @@ const playerLabel = computed(() => {
   color: #f0b4b4;
 }
 
-.nr-actions {
+/* —— 播放器 —— */
+.nr-player {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.45rem 0.15rem 0.2rem;
+  border-top: 1px solid rgb(255 248 230 / 6%);
+  background: linear-gradient(180deg, transparent, rgb(10 9 8 / 55%) 40%);
+}
+
+.nr-audio-hidden {
+  display: none;
+}
+
+.am-scrub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0 0.15rem;
+}
+
+.am-track {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.am-track:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.am-track__rail,
+.am-track__fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 3px;
+  border-radius: 999px;
+  transform: translateY(-50%);
+  transition: height 0.15s ease;
+}
+
+.am-track__rail {
+  width: 100%;
+  background: rgb(255 255 255 / 12%);
+}
+
+.am-track__fill {
+  background: linear-gradient(90deg, #b8924a, #e8d18a 70%, #f0dfb0);
+  box-shadow: 0 0 10px rgb(232 209 138 / 28%);
+}
+
+.am-track__knob {
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #f0dfb0;
+  box-shadow:
+    0 0 0 3px rgb(209 178 111 / 28%),
+    0 1px 4px rgb(0 0 0 / 35%);
+  transform: translate(-50%, -50%) scale(0.6);
+  opacity: 0;
+  transition:
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.16s ease;
+}
+
+.nr-player.is-ready .am-track:hover .am-track__knob,
+.nr-player.is-playing .am-track__knob,
+.nr-player.is-scrubbing .am-track__knob {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.nr-player.is-scrubbing .am-track__rail,
+.nr-player.is-scrubbing .am-track__fill {
+  height: 5px;
+}
+
+.nr-player.is-scrubbing .am-track__knob {
+  width: 14px;
+  height: 14px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 40%);
+}
+
+.am-times {
+  display: flex;
+  justify-content: space-between;
+  color: rgb(255 255 255 / 38%);
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  font-feature-settings: "tnum";
+}
+
+.am-transport {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.15rem 0.1rem;
+}
+
+.am-transport.is-solo {
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.am-play {
+  display: grid;
+  width: 4rem;
+  height: 4rem;
+  place-items: center;
+  justify-self: center;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(155deg, #f0dfb0 0%, #d1b26f 48%, #b8924a 100%);
+  color: #1a160d;
+  cursor: pointer;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 35%) inset,
+    0 10px 28px rgb(209 178 111 / 28%);
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.am-play:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.am-play:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+.am-play:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.am-play__icon {
+  width: 1.55rem;
+  height: 1.55rem;
+  margin-left: 0.12rem;
+}
+
+.am-play__icon.is-pause {
+  margin-left: 0;
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.am-skip {
+  position: relative;
+  display: grid;
+  width: 2.55rem;
+  height: 2.55rem;
+  place-items: center;
+  justify-self: end;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgb(232 201 138 / 88%);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.am-skip.is-fwd {
+  justify-self: start;
+}
+
+.am-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.15rem;
+  justify-self: start;
+}
+
+.am-skip svg {
+  width: 1.45rem;
+  height: 1.45rem;
+  opacity: 0.92;
+}
+
+.am-skip span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -46%);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.am-skip:hover:not(:disabled) {
+  color: #f0dfb0;
+}
+
+.am-skip:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.am-skip:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+/* Music 式「词」按钮 */
+.am-lyrics-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-height: 2.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.25rem 0.55rem;
+  color: rgb(232 201 138 / 78%);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.am-lyrics-btn svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.am-lyrics-btn.is-on,
+.am-lyrics-btn:hover {
+  background: rgb(209 178 111 / 16%);
+  color: #f0dfb0;
+  box-shadow: inset 0 0 0 1px rgb(209 178 111 / 32%);
+}
+
+.am-status {
+  margin: 0;
+  min-height: 1rem;
+  text-align: center;
+  color: rgb(255 255 255 / 36%);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.nr-player.is-busy .am-status {
+  color: rgb(232 201 138 / 72%);
+}
+
+.nr-foot {
   display: grid;
   flex-shrink: 0;
-  gap: 8px;
+  gap: 0.55rem;
+  margin-top: auto;
+  padding-top: 0.25rem;
+  padding-bottom: 0.15rem;
+}
+
+.nr-actions {
+  display: grid;
+  gap: 0.45rem;
 }
 
 .nr-btn {
-  min-height: 42px;
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: 10px;
+  min-height: 46px;
+  border: 0;
+  border-bottom: 1px solid rgb(255 248 230 / 10%);
+  border-radius: 0;
   background: transparent;
-  color: #fff8ea;
+  color: rgb(247 239 221 / 78%);
   font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.04em;
   cursor: pointer;
 }
 
 .nr-btn--primary {
   border: 0;
-  background: #d1b26f;
+  border-radius: 999px;
+  background: linear-gradient(155deg, #e8d18a, #c9a75a);
   color: #1a160f;
+  font-weight: 650;
+  box-shadow: 0 10px 24px rgb(209 178 111 / 18%);
 }
 
 .nr-btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .am-play,
+  .am-skip,
+  .am-track__knob,
+  .am-lyrics-btn {
+    transition: none;
+  }
 }
 </style>

@@ -7,7 +7,7 @@ import {
   type GameplayPreviewStage,
 } from "@path-seeker/game-renderer"
 import { useToastStore } from "@path-seeker/client-state"
-import { ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import { ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
 import { fetchNarrationDetail, type NarrationDetailResponse } from "@/services/gameplay"
 
@@ -143,7 +143,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="narration-page">
     <StagePlaySurface
       v-if="ready && chapter && playStage"
       :stage="playStage"
@@ -162,13 +162,15 @@ onMounted(() => {
       </template>
     </StagePlaySurface>
 
-    <ClientCard v-else-if="!ready || missionStore.gameplayPending || missionStore.detailPending">
-      <div class="space-y-4 p-5">
-        <ClientSkeleton class="h-6 w-24" />
-        <ClientSkeleton class="h-10 w-2/3" />
-        <ClientSkeleton class="h-40 w-full" />
-      </div>
-    </ClientCard>
+    <div
+      v-else-if="!ready || missionStore.gameplayPending || missionStore.detailPending"
+      class="narration-page__skeleton"
+    >
+      <ClientSkeleton class="h-4 w-20" />
+      <ClientSkeleton class="h-8 w-2/3" />
+      <ClientSkeleton class="h-[236px] w-full" />
+      <ClientSkeleton class="h-12 w-full rounded-full" />
+    </div>
 
     <ClientEmptyState
       v-else
@@ -179,3 +181,36 @@ onMounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.narration-page {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  /* 吃满 main 剩余高度，让底部按钮贴底 */
+  height: 100%;
+  min-height: 100%;
+}
+
+.narration-page :deep(.stage-play) {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  background: transparent;
+}
+
+.narration-page :deep(.narration-shell) {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+}
+
+.narration-page__skeleton {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-top: 0.35rem;
+}
+</style>

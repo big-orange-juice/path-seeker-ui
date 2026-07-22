@@ -227,9 +227,8 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
       </template>
     </FindScanPlayChain>
 
-    <!-- 11：解说，对齐 H5 narration 页；配图来自 detail.images -->
+    <!-- 11：解说 · 去 card，音频播放器布局；配图来自 detail.images -->
     <section v-else-if="stageKind === 'narration'" class="narration-shell">
-      <p class="play-kicker">{{ stageKicker }}</p>
       <NarrationRenderer
         :title="props.stage.title"
         :exhibit-name="props.stage.exhibitName"
@@ -398,16 +397,28 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   text-align: center;
 }
 
+/* 去 card：撑满宿主高度，内容内部分段贴底 */
 .narration-shell {
   display: flex;
   min-height: 0;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 1rem;
-  overflow: auto;
-  border: 1px solid rgba(255, 248, 230, 0.08);
-  border-radius: 0.75rem;
-  background: #0c0d10;
-  padding: 1rem;
+  gap: 0.45rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.narration-kicker {
+  flex-shrink: 0;
+  margin: 0;
+  opacity: 0.72;
+}
+
+.narration-shell :deep(.nr) {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 </style>

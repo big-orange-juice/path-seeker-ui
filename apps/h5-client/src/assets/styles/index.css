@@ -261,6 +261,11 @@
     @apply pb-[calc(7rem+env(safe-area-inset-bottom))];
   }
 
+  /* 任务流（map / 站点）：FAB 仍在，底栏留白更紧，按钮更贴底 */
+  .client-frame-mission {
+    @apply pb-[calc(4.25rem+env(safe-area-inset-bottom))];
+  }
+
   .client-panel {
     border: 1px solid var(--line);
     background: linear-gradient(165deg, rgba(24, 22, 18, 0.92), rgba(14, 12, 10, 0.88));

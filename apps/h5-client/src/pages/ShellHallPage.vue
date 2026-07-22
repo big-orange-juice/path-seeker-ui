@@ -13,7 +13,6 @@ import {
   ClientSheetFooter,
   ClientSheetHeader,
   ClientSheetTitle,
-  ClientSkeleton,
 } from "@/components/ui"
 import MissionPreviewCard from "@/components/shell/MissionPreviewCard.vue"
 import {
@@ -69,7 +68,7 @@ const filterSummary = computed(() =>
   ].filter((item) => item && !String(item).startsWith("全部")),
 )
 
-/** 骨架屏假高度轮询，真实卡片按站数分档 */
+/** 骨架屏假高度轮询，真实项按站数分档 */
 function skeletonHeightTone(index: number): "tall" | "mid" | "short" {
   const pattern = ["tall", "mid", "short", "mid"] as const
   return pattern[index % pattern.length] ?? "mid"
@@ -112,10 +111,11 @@ onMounted(() => {
 <template>
   <div class="hall-page">
     <header class="hall-top">
-      <div class="space-y-1">
-        <span class="client-tag is-gold">今日路线</span>
-        <p class="text-xs text-muted-foreground">
-          {{ missionStore.coverageSummary.missionCount }} 条
+      <div class="hall-intro">
+        <p class="hall-kicker">Gallery</p>
+        <h1 class="hall-title font-display">今日路线</h1>
+        <p class="hall-count">
+          {{ missionStore.coverageSummary.missionCount }} 条在展
           <template v-if="missionStore.coverageSummary.archiveCount">
             · 收藏 {{ missionStore.coverageSummary.archiveCount }}
           </template>
@@ -153,7 +153,7 @@ onMounted(() => {
       </button>
     </p>
 
-    <!-- 瀑布流 -->
+    <!-- 瀑布流 · 艺术海报块 -->
     <div v-if="hasRoutes" class="hall-waterfall">
       <MissionPreviewCard
         v-for="mission in missionStore.filteredRoutes"
@@ -163,9 +163,12 @@ onMounted(() => {
     </div>
 
     <div v-else-if="missionStore.routeListPending" class="hall-waterfall">
-      <div v-for="n in 4" :key="n" class="hall-skeleton" :class="`is-${skeletonHeightTone(n - 1)}`">
-        <ClientSkeleton class="h-full w-full rounded-[0.5rem]" />
-      </div>
+      <div
+        v-for="n in 4"
+        :key="n"
+        class="hall-skeleton"
+        :class="`is-${skeletonHeightTone(n - 1)}`"
+      />
     </div>
 
     <ClientEmptyState
@@ -238,7 +241,7 @@ onMounted(() => {
 .hall-page {
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 1rem;
   padding-bottom: 0.5rem;
 }
 
@@ -247,6 +250,39 @@ onMounted(() => {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+  padding-bottom: 0.15rem;
+}
+
+.hall-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.hall-kicker {
+  margin: 0;
+  color: rgba(209, 178, 111, 0.72);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.hall-title {
+  margin: 0;
+  color: #f4ede1;
+  font-size: 1.55rem;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+}
+
+.hall-count {
+  margin: 0.15rem 0 0;
+  color: rgba(168, 159, 144, 0.92);
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
 .hall-filter-btn {
@@ -255,7 +291,7 @@ onMounted(() => {
   gap: 0.35rem;
   border: 1px solid rgba(255, 248, 230, 0.1);
   border-radius: 999px;
-  background: rgba(18, 17, 15, 0.88);
+  background: transparent;
   padding: 0.45rem 0.75rem;
   color: rgba(242, 235, 224, 0.78);
   font-size: 12px;
@@ -264,7 +300,7 @@ onMounted(() => {
 
 .hall-filter-btn.is-on {
   border-color: rgba(209, 178, 111, 0.4);
-  background: rgba(209, 178, 111, 0.12);
+  background: rgba(209, 178, 111, 0.1);
   color: #e8c98a;
 }
 
@@ -274,30 +310,47 @@ onMounted(() => {
   gap: 0.4rem;
 }
 
-/* 双列瀑布流 */
+/* 双列瀑布：列距略松，像展墙间隔 */
 .hall-waterfall {
   column-count: 2;
-  column-gap: 10px;
+  column-gap: 0.75rem;
 }
 
+/* 骨架：溶边海报块 */
 .hall-skeleton {
   break-inside: avoid;
-  margin-bottom: 10px;
-  overflow: hidden;
-  border-radius: 0.5rem;
-  background: rgba(18, 17, 15, 0.9);
+  margin-bottom: 0.85rem;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 248, 230, 0.055) 0%,
+      rgba(255, 248, 230, 0.03) 55%,
+      transparent 100%
+    );
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0%,
+    #000 70%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 0%,
+    #000 70%,
+    transparent 100%
+  );
 }
 
 .hall-skeleton.is-tall {
-  height: 248px;
+  height: 15.2rem;
 }
 
 .hall-skeleton.is-mid {
-  height: 210px;
+  height: 13rem;
 }
 
 .hall-skeleton.is-short {
-  height: 178px;
+  height: 11rem;
 }
 
 .hall-picker :deep(label) {
