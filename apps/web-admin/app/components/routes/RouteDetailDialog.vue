@@ -96,7 +96,7 @@ const flowNodes = computed<Node[]>(() =>
     sourcePosition: Position.Bottom,
     targetPosition: Position.Top,
     data: {
-      label: `${node.sortOrder || index + 1}. ${node.title || '未命名节点'}\n${getInteractionTypeName(node.interactionType)}`,
+      label: `${node.sortOrder || index + 1}. ${node.title || '未命名站点'}\n${getInteractionTypeName(node.interactionType)}`,
     },
     class: node.stageId === selectedStageId.value ? 'is-selected-route-node' : '',
   })),
@@ -145,7 +145,6 @@ const previewStage = computed<GameplayPreviewStage | null>(() => {
     subtitle: node.subtitle,
     exhibitName: node.exhibitName,
     galleryName: node.galleryName,
-    score: node.score,
     config: parseNodeConfig(node),
     narration: isNarration ? mapNarrationPreview(narrationDetail.value) : null,
     narrationStatus: isNarration ? narrationStatus.value : 'idle',
@@ -200,7 +199,11 @@ const routeId = computed(() => String(props.detail?.route?.id ?? '').trim());
 const routeTitle = computed(() => props.detail?.route?.title || '路线详情');
 const routeMeta = computed(() => {
   const route = props.detail?.route;
-  return route ? `${route.puzzleCount || sortedNodes.value.length || 0} 个节点 · ${route.totalScore || 0} 分` : '暂无路线基础信息';
+  if (!route) {
+    return '左侧点站点可预览中间效果；可编辑时右侧助手可协助改路线';
+  }
+  const count = route.puzzleCount || sortedNodes.value.length || 0;
+  return `${count} 个站点 · 点左侧站点预览，右侧可让助手改路线`;
 });
 const stageAttachmentLabel = computed(() => {
   const node = selectedNode.value;
@@ -301,7 +304,7 @@ function closeDialog() {
   <Dialog v-model:open="isOpen">
     <DialogContent
       class="flex h-[92vh] max-w-[min(96vw,1560px)] flex-col overflow-hidden p-0">
-      <div class="flex shrink-0 items-start justify-between gap-3 border-b border-border/70 px-5 py-3">
+      <div class="flex shrink-0 items-start border-b border-border/70 px-5 py-3 pr-12">
         <DialogHeader class="min-w-0 space-y-1.5 text-left">
           <div class="flex min-w-0 flex-wrap items-center gap-2">
             <DialogTitle class="truncate">
@@ -323,15 +326,6 @@ function closeDialog() {
             {{ props.lockMessage }}
           </p>
         </DialogHeader>
-        <Button
-          variant="ghost"
-          size="icon"
-          type="button"
-          title="关闭"
-          class="shrink-0"
-          @click="closeDialog">
-          <AppIcon name="x" class="h-4 w-4" />
-        </Button>
       </div>
 
       <div
@@ -354,7 +348,7 @@ function closeDialog() {
               class="absolute right-3 top-3 z-10 h-8 px-3 text-xs"
               :disabled="!selectedNode"
               @click="openStageEditor">
-              编辑节点
+              编辑这一站
             </Button>
             <VueFlow
               :nodes="flowNodes"
@@ -372,7 +366,7 @@ function closeDialog() {
             <p
               v-if="!sortedNodes.length"
               class="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
-              当前路线暂无节点
+              当前路线还没有站点
             </p>
           </div>
         </section>
@@ -388,7 +382,7 @@ function closeDialog() {
           <div
             v-if="!props.canEdit"
             class="mb-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-            {{ props.lockMessage || '当前状态不可编辑。' }}
+            {{ props.lockMessage || '当前内容已锁定，暂不可编辑。' }}
           </div>
           <RouteEditChatPane
             v-if="props.canEdit"
@@ -405,7 +399,7 @@ function closeDialog() {
           <div
             v-else
             class="flex min-h-0 flex-1 items-center justify-center rounded-xl border border-border/70 bg-background/40 px-4 text-center text-sm text-muted-foreground">
-            内容已锁定，可查看左侧节点与预览。
+            内容已锁定，助手暂不可用。仍可查看左侧站点与中间预览；需要修改时，请先下线或等审核结束后再打开。
           </div>
         </section>
       </div>

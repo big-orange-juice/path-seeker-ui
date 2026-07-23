@@ -46,6 +46,48 @@ const resolveVoiceStatusMeta = (record: GuideRecord) => {
   return voiceStatusMap[record.voiceStatus] ?? voiceStatusMap[1]!
 }
 
+/**
+ * 列表状态合并展示优先级（U-04）：
+ * 生成中 > 失败 > 音色异常/未配置 > 启用/停用
+ * 标签文字仍用现有「处理中 / 失败 / 未配置 / 启用…」
+ */
+const resolvePrimaryStatus = (record: GuideRecord) => {
+  const generationMeta = getGuideGenerationStatusMeta(record.generationStatus)
+  const isProcessing = record.isGenerating || record.generationStatus === 1
+  if (isProcessing) {
+    const progress =
+      record.generationProgress != null ? ` ${record.generationProgress}%` : ''
+    return {
+      label: `${generationMeta.label}${progress}`,
+      className: generationMeta.className,
+      detail: record.generationError || '',
+    }
+  }
+  if (record.generationStatus === 3) {
+    return {
+      label: generationMeta.label,
+      className: generationMeta.className,
+      detail: record.generationError || '',
+    }
+  }
+
+  const voiceMeta = resolveVoiceStatusMeta(record)
+  if (voiceMeta.label !== '已就绪') {
+    return {
+      label: voiceMeta.label,
+      className: voiceMeta.className,
+      detail: '',
+    }
+  }
+
+  const enableMeta = statusMap[record.status] ?? statusMap[1]!
+  return {
+    label: enableMeta.label,
+    className: enableMeta.className,
+    detail: '',
+  }
+}
+
 const isActing = (id: string) => props.actingIds.includes(id)
 
 const columns = computed<ColumnDef<GuideRecord>[]>(() => [
@@ -71,11 +113,6 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
               record.isSystemDefault
                 ? h('span', { class: 'rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary' }, '默认')
                 : null,
-              record.isGenerating
-                ? h('span', {
-                    class: 'rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-200',
-                  }, '生成中')
-                : null,
             ]),
             h('p', { class: 'truncate text-xs text-muted-foreground' }, record.description || record.guideCode || '—'),
           ]),
@@ -84,44 +121,23 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
     },
   },
   {
-    accessorKey: 'generationStatus',
-    header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '生成状态'),
+    id: 'statusSummary',
+    header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '状态'),
     cell: ({ row }) => {
-      const meta = getGuideGenerationStatusMeta(row.original.generationStatus)
-      const progress =
-        row.original.isGenerating && row.original.generationProgress != null
-          ? ` ${row.original.generationProgress}%`
-          : ''
+      const primary = resolvePrimaryStatus(row.original)
       return h('div', { class: 'space-y-0.5' }, [
-        h('span', { class: `inline-flex rounded-full px-2 py-0.5 text-xs ${meta.className}` }, `${meta.label}${progress}`),
-        row.original.generationError
+        h('span', { class: `inline-flex rounded-full px-2 py-0.5 text-xs ${primary.className}` }, primary.label),
+        primary.detail
           ? h('p', {
               class: 'line-clamp-1 text-[11px] text-rose-300/90',
-              title: row.original.generationError,
-            }, row.original.generationError)
+              title: primary.detail,
+            }, primary.detail)
           : null,
       ])
     },
   },
   {
-    accessorKey: 'voiceStatus',
-    header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '音色状态'),
-    cell: ({ row }) => {
-      const meta = resolveVoiceStatusMeta(row.original)
-      return h('span', { class: `inline-flex rounded-full px-2 py-0.5 text-xs ${meta.className}` }, meta.label)
-    },
-  },
-  {
-    accessorKey: 'status',
-    header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '状态'),
-    cell: ({ row }) => {
-      const meta = statusMap[row.original.status] ?? statusMap[1]!
-      return h('span', { class: `inline-flex rounded-full px-2 py-0.5 text-xs ${meta.className}` }, meta.label)
-    },
-  },
-  {
-    id: 'actions',
-    header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '操作'),
+    id: 'actions',    header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '操作'),
     cell: ({ row }) => {
       const record = row.original
       const acting = isActing(record.id)

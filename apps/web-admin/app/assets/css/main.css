@@ -124,3 +124,28 @@
   transform: translateY(10px);
   filter: blur(2px);
 }
+
+/*
+ * 表单 / 详情：字段名淡金，值用正文色。
+ * 放在 @layer 外，避免被 text-foreground 等 utility 盖掉。
+ * - label / .form-label：表单字段名
+ * - .field-caption：详情只读字段名
+ */
+.admin-shell label,
+[data-dialog-overlay] label,
+.admin-shell .form-label,
+[data-dialog-overlay] .form-label,
+.admin-shell .field-caption,
+[data-dialog-overlay] .field-caption {
+  color: hsl(41 42% 56%);
+}
+
+.admin-shell label :where(input, textarea, select, button, audio),
+[data-dialog-overlay] label :where(input, textarea, select, button, audio) {
+  color: hsl(var(--foreground));
+}
+
+.admin-shell .form-value,
+[data-dialog-overlay] .form-value {
+  color: hsl(var(--foreground));
+}

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed } from 'vue';
 import { getInteractionTypeMeta } from '@path-seeker/game-renderer';
 import AppIcon from '@/components/ui/AppIcon.vue';
@@ -79,7 +79,7 @@ const progressTone = computed(() => {
 <template>
   <div class="flex min-h-0 flex-1 flex-col">
     <div class="border-b border-border/70 px-4 py-3">
-      <p class="text-sm font-medium text-foreground">
+      <p class="text-sm font-medium">
         生成结果
       </p>
       <p class="mt-0.5 text-xs text-muted-foreground">
@@ -94,7 +94,7 @@ const progressTone = computed(() => {
           当前路线
         </div>
         <div class="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
-          <p class="text-sm font-medium text-foreground">
+          <p class="text-sm font-medium">
             {{ routeTitle }}
           </p>
           <dl class="mt-2 space-y-1.5 text-xs text-muted-foreground">

@@ -104,6 +104,128 @@
         }
       }
     },
+    "/api/Admin/ResetPassword": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "当前管理员密码重置（需登录，校验旧密码）",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAdminPasswordRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAdminPasswordRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAdminPasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Admin/CancelAccount": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "当前管理员注销账号（禁用 + 逻辑删除）",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Admin/SoftDelete": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "逻辑删除指定管理员（仅 ADMIN，不可删除自己）",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoftDeleteAdminRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoftDeleteAdminRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoftDeleteAdminRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Admin/Roles": {
       "get": {
         "tags": ["Admin"],
@@ -913,6 +1035,81 @@
         }
       }
     },
+    "/api/AppUser/ResetPassword": {
+      "post": {
+        "tags": ["AppUser"],
+        "summary": "当前用户密码重置（需登录，校验旧密码）",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAppUserPasswordRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAppUserPasswordRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetAppUserPasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/AppUser/CancelAccount": {
+      "post": {
+        "tags": ["AppUser"],
+        "summary": "当前用户注销账号（status=3 + 逻辑删除）",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/AppUser/PageList": {
       "post": {
         "tags": ["AppUser"],
@@ -979,6 +1176,53 @@
             "application/*+json": {
               "schema": {
                 "$ref": "#/components/schemas/ChangeUserStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/AppUser/SoftDelete": {
+      "post": {
+        "tags": ["AppUser"],
+        "summary": "后台逻辑删除指定 C 端用户",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoftDeleteAppUserRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoftDeleteAppUserRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SoftDeleteAppUserRequest"
               }
             }
           }
@@ -6104,6 +6348,53 @@
         }
       }
     },
+    "/api/Poster/Generate": {
+      "post": {
+        "tags": ["Poster"],
+        "summary": "根据自然语言生成路线海报，完成后自动写入海报表。",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRoutePosterRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRoutePosterRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRoutePosterRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateRoutePosterResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateRoutePosterResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateRoutePosterResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Poster/Update": {
       "post": {
         "tags": ["Poster"],
@@ -8395,6 +8686,52 @@
         }
       }
     },
+    "/api/Upload/CancelTask": {
+      "post": {
+        "tags": ["Upload"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAssetGenerationTaskRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAssetGenerationTaskRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAssetGenerationTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelAssetGenerationTaskResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelAssetGenerationTaskResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelAssetGenerationTaskResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Upload/GetFileDetail": {
       "get": {
         "tags": ["Upload"],
@@ -10266,6 +10603,68 @@
         },
         "additionalProperties": false,
         "description": "构建路线步骤（组卷）请求 — 玩法无关入口，由对应玩法的创建策略解释"
+      },
+      "CancelAssetGenerationTaskRequest": {
+        "required": ["taskId"],
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancelAssetGenerationTaskResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusText": {
+            "type": "string",
+            "nullable": true
+          },
+          "stopPolling": {
+            "type": "boolean"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancelAssetGenerationTaskResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/CancelAssetGenerationTaskResponse"
+          }
+        },
+        "additionalProperties": false
       },
       "ChallengeIntroVideoProgressResponse": {
         "type": "object",
@@ -13430,11 +13829,11 @@
         },
         "additionalProperties": false
       },
-      "GenerateRouteStageNarrationImageRequest": {
-        "required": ["idempotencyKey", "prompt", "stageId"],
+      "GenerateRoutePosterRequest": {
+        "required": ["prompt", "routeId"],
         "type": "object",
         "properties": {
-          "stageId": {
+          "routeId": {
             "minLength": 1,
             "type": "string"
           },
@@ -13448,20 +13847,104 @@
             "type": "string",
             "nullable": true
           },
+          "referenceAttachmentIds": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "referenceImageUrls": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "priority": {
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": {
+              "nullable": true
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateRoutePosterResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "referenceImageCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "autoBind": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateRoutePosterResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GenerateRoutePosterResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenerateRouteStageNarrationImageRequest": {
+        "required": ["idempotencyKey", "prompt", "stageId"],
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
           "referenceImageUrls": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "公开可访问的 HTTP/HTTPS OSS 图片地址。",
-            "nullable": true
-          },
-          "referenceAttachmentIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "公开 OSS 图片附件 ID；服务会解析为公开 HTTP/HTTPS 地址。",
             "nullable": true
           },
           "priority": {
@@ -15717,6 +16200,42 @@
         "additionalProperties": false,
         "description": "回复反馈请求"
       },
+      "ResetAdminPasswordRequest": {
+        "required": ["newPassword", "oldPassword"],
+        "type": "object",
+        "properties": {
+          "oldPassword": {
+            "minLength": 1,
+            "type": "string",
+            "description": "旧密码"
+          },
+          "newPassword": {
+            "minLength": 6,
+            "type": "string",
+            "description": "新密码（至少 6 位）"
+          }
+        },
+        "additionalProperties": false,
+        "description": "B 端当前管理员密码重置（需验证旧密码）"
+      },
+      "ResetAppUserPasswordRequest": {
+        "required": ["newPassword", "oldPassword"],
+        "type": "object",
+        "properties": {
+          "oldPassword": {
+            "minLength": 1,
+            "type": "string",
+            "description": "旧密码"
+          },
+          "newPassword": {
+            "minLength": 6,
+            "type": "string",
+            "description": "新密码（至少 6 位）"
+          }
+        },
+        "additionalProperties": false,
+        "description": "C 端当前用户密码重置（需验证旧密码）"
+      },
       "ReviewPageRequest": {
         "type": "object",
         "properties": {
@@ -17353,6 +17872,32 @@
         },
         "additionalProperties": false,
         "description": "分享卡 / 结案海报数据（C端据此渲染分享图）"
+      },
+      "SoftDeleteAdminRequest": {
+        "required": ["adminId"],
+        "type": "object",
+        "properties": {
+          "adminId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "管理员 ID"
+          }
+        },
+        "additionalProperties": false,
+        "description": "管理端逻辑删除 B 端管理员请求"
+      },
+      "SoftDeleteAppUserRequest": {
+        "required": ["userId"],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "用户 ID"
+          }
+        },
+        "additionalProperties": false,
+        "description": "管理端逻辑删除 C 端用户请求"
       },
       "StageHintResponse": {
         "type": "object",

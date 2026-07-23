@@ -110,7 +110,11 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
         h('div', { class: 'flex items-center gap-2' }, [
           h(
             'p',
-            { class: 'truncate font-medium text-foreground' },
+            {
+              class: 'truncate font-medium text-foreground',
+              // 编码仅 hover 可见，列表主文案不强调（R-01）
+              title: record.routeCode ? `编码：${record.routeCode}` : undefined
+            },
             record.title || '未命名路线'
           ),
           record.isGenerating
@@ -134,11 +138,6 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
               )
             : null
         ]),
-        h(
-          'p',
-          { class: 'text-xs text-muted-foreground' },
-          record.routeCode || 'NO-CODE'
-        ),
         record.auditStatus === 3 && record.auditRemark
           ? h(
               'p',
@@ -174,21 +173,63 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
   },
   {
     accessorKey: 'scaleType',
-    header: renderHeader('规模', 'scaleType'),
+    header: () =>
+      h(
+        'button',
+        {
+          type: 'button',
+          class:
+            'inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground',
+          onClick: () => emit('sort', 'scaleType'),
+          title: '路线体量：短途 / 标准 / 深度等，点击排序'
+        },
+        [
+          h('span', '规模'),
+          h(AppIcon, {
+            name: getSortIconName('scaleType'),
+            class: 'h-3.5 w-3.5 text-muted-foreground/80',
+            strokeWidth: 1.8
+          })
+        ]
+      ),
     cell: ({ row }) =>
       h(
         'span',
-        { class: 'text-sm text-muted-foreground' },
+        {
+          class: 'text-sm text-muted-foreground',
+          title: '路线体量：短途 / 标准 / 深度'
+        },
         getScaleTypeLabel(row.original.scaleType)
       )
   },
   {
     accessorKey: 'puzzleCount',
-    header: renderHeader('谜题数', 'puzzleCount'),
+    header: () =>
+      h(
+        'button',
+        {
+          type: 'button',
+          class:
+            'inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground',
+          onClick: () => emit('sort', 'puzzleCount'),
+          title: '本路线包含的关卡/站点数量，点击排序'
+        },
+        [
+          h('span', '谜题数'),
+          h(AppIcon, {
+            name: getSortIconName('puzzleCount'),
+            class: 'h-3.5 w-3.5 text-muted-foreground/80',
+            strokeWidth: 1.8
+          })
+        ]
+      ),
     cell: ({ row }) =>
       h(
         'span',
-        { class: 'text-sm text-muted-foreground' },
+        {
+          class: 'text-sm text-muted-foreground',
+          title: '本路线包含的关卡/站点数量'
+        },
         String(row.original.puzzleCount)
       )
   },
@@ -208,16 +249,6 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
     accessorKey: 'publishStatus',
     header: renderHeader('状态', 'publishStatus'),
     cell: ({ row }) => renderStatus(row.original)
-  },
-  {
-    accessorKey: 'sortOrder',
-    header: renderHeader('排序', 'sortOrder'),
-    cell: ({ row }) =>
-      h(
-        'span',
-        { class: 'text-sm text-muted-foreground' },
-        String(row.original.sortOrder)
-      )
   },
   {
     id: 'actions',

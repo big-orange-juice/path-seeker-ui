@@ -8,6 +8,7 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
+import { v4 as uuidv4 } from 'uuid'
 import GuideSelectDialog from '@/components/guides/GuideSelectDialog.vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
@@ -26,6 +27,7 @@ import {
 } from '@path-seeker/game-renderer'
 import { useUploadAttachment } from '@/composables/useUploadAttachment'
 import type {
+  GenerateRouteStageNarrationImageResponse,
   NarrationDetailResponse,
   RouteStageNarrationImageResponse,
   UpdateNarrationStageResponse,
@@ -41,17 +43,30 @@ interface Props {
   canEdit?: boolean
 }
 
+interface ChoiceOptionRow {
+  id: string
+  label: string
+}
+
+/** 拼图碎片行：标识后台维护，导游只填名称与可选提示 */
+interface PuzzlePieceRow {
+  id: string
+  label: string
+  hint: string
+}
+
 interface StageFormState {
   title: string
   subtitle: string
   prompt: string
-  optionsInput: string
+  choiceOptions: ChoiceOptionRow[]
   correctOptionId: string
   hintsInput: string
   imageUrl: string
   gridSize: string
-  piecesInput: string
-  correctOrderInput: string
+  puzzlePieces: PuzzlePieceRow[]
+  /** 正确拼合顺序（碎片 id 列表） */
+  correctOrderIds: string[]
   clueText: string
   location: string
   videoUrl: string
@@ -78,6 +93,19 @@ const generatingAudio = ref(false)
 /** 生成音频任务轮询中（提交成功后轮询 detail.audioStatus） */
 const audioPolling = ref(false)
 const imageBusy = ref(false)
+/** 配图来源：手动上传 / AI 生成（二选一交互） */
+const imageSourceMode = ref<'upload' | 'generate'>('upload')
+/** AI 配图：画面描述 */
+const imageGenPrompt = ref('')
+/** AI 配图：已选参考图 URL 列表（最多 5，仅存有效地址） */
+const imageGenRefUrls = ref<string[]>([])
+/** 外链粘贴草稿 */
+const imageGenRefDraft = ref('')
+/** 大图预览（参考图 / 已有配图） */
+const imageLightboxUrl = ref('')
+const generatingImage = ref(false)
+/** AI 配图任务轮询中（提交后刷新 detail.images） */
+const imageGenPolling = ref(false)
 const errorMessage = ref('')
 const infoMessage = ref('')
 const narrationDetail = ref<NarrationDetailResponse | null>(null)
@@ -85,16 +113,25 @@ let audioPollTimer: ReturnType<typeof setInterval> | null = null
 let audioPollAttempts = 0
 const AUDIO_POLL_INTERVAL_MS = 2500
 const AUDIO_POLL_MAX_ATTEMPTS = 48
+let imageGenPollTimer: ReturnType<typeof setInterval> | null = null
+let imageGenPollAttempts = 0
+const IMAGE_GEN_POLL_INTERVAL_MS = 2500
+const IMAGE_GEN_POLL_MAX_ATTEMPTS = 48
+const IMAGE_GEN_REF_MAX = 5
 /** 解说配图本地列表；与 detail.images 同步，增删走 NarrationImage API */
 const narrationImages = shallowRef<RouteStageNarrationImageResponse[]>([])
 const imageInputRef = useTemplateRef<HTMLInputElement>('imageInput')
+const puzzleImageInputRef = useTemplateRef<HTMLInputElement>('puzzleImageInput')
+const videoInputRef = useTemplateRef<HTMLInputElement>('videoInput')
 const baseConfig = ref<Record<string, unknown>>({})
 const guideSelectOpen = ref(false)
 const guidePending = ref(false)
 const guides = ref<GuideRecord[]>([])
+const mediaUploading = ref(false)
+const showMediaAdvanced = ref(false)
 const form = reactive<StageFormState>({
-  title: '', subtitle: '', prompt: '', optionsInput: '', correctOptionId: '', hintsInput: '',
-  imageUrl: '', gridSize: '3', piecesInput: '', correctOrderInput: '', clueText: '', location: '', videoUrl: '',
+  title: '', subtitle: '', prompt: '', choiceOptions: [], correctOptionId: '', hintsInput: '',
+  imageUrl: '', gridSize: '3', puzzlePieces: [], correctOrderIds: [], clueText: '', location: '', videoUrl: '',
   userStyleInput: '', sceneContext: '', targetDurationSeconds: '90', narrationText: '', guideId: '', guideName: '',
 })
 
@@ -131,7 +168,7 @@ const isNarration = computed(() => interactionType.value === 11)
 const isObserveChoice = computed(() => interactionType.value === 1)
 const isImagePuzzle = computed(() => interactionType.value === 6)
 const isFindScan = computed(() => interactionType.value === 10)
-const nodeTitle = computed(() => props.node?.title || '未命名节点')
+const nodeTitle = computed(() => props.node?.title || '未命名站点')
 const interactionTypeLabel = computed(
   () => getInteractionTypeMeta(interactionType.value)?.label || `类型 ${interactionType.value}`,
 )
@@ -140,11 +177,11 @@ const selectedGuideLabel = computed(() => form.guideName || (form.guideId ? '已
 const canSave = computed(() => Boolean(
   props.canEdit && isSupported.value && stageId.value && props.routeId && !saving.value,
 ))
-/** 解说节点编辑弹窗更宽，便于主编辑区排版 */
+/** 解说节点稍宽；整体固定高度避免切换内容时弹窗抖动 */
 const dialogContentClass = computed(() =>
   isNarration.value
-    ? 'flex h-[90vh] max-w-[min(96vw,1080px)] flex-col overflow-hidden p-0'
-    : 'flex h-[90vh] max-w-[min(92vw,760px)] flex-col overflow-hidden p-0',
+    ? 'flex h-[90vh] max-w-[min(96vw,920px)] flex-col overflow-hidden p-0'
+    : 'flex h-[90vh] max-w-[min(92vw,720px)] flex-col overflow-hidden p-0',
 )
 const audioStatus = computed(() => {
   const status = narrationDetail.value?.audioStatus
@@ -162,6 +199,12 @@ const audioDurationLabel = computed(() => {
   const seconds = totalSec % 60
   return minutes > 0 ? `${minutes} 分 ${seconds} 秒` : `${seconds} 秒`
 })
+/** 本地解说词是否相对服务端已改（仅正文，不看场景/风格等其它字段） */
+const isNarrationTextDirty = computed(() => {
+  const draft = form.narrationText.trim()
+  const saved = String(narrationDetail.value?.narrationText ?? '').trim()
+  return draft !== saved
+})
 const audioStatusLabel = computed(() => {
   switch (audioStatus.value) {
     case NARRATION_AUDIO_STATUS.Queued:
@@ -169,15 +212,23 @@ const audioStatusLabel = computed(() => {
     case NARRATION_AUDIO_STATUS.Generating:
       return '生成中'
     case NARRATION_AUDIO_STATUS.Completed:
+      // 仅解说词变更才提示需重生成；标题/场景/配图等不影响
+      if (isNarrationTextDirty.value) {
+        return '解说词已改，保存后需重新生成'
+      }
       return audioDurationLabel.value ? `已生成 · ${audioDurationLabel.value}` : '已生成'
     case NARRATION_AUDIO_STATUS.Failed:
       return '生成失败'
     case NARRATION_AUDIO_STATUS.Stale:
-      return '正文已变更，需重新生成'
+      return '解说词已变更，需重新生成'
     default:
       return '尚未生成'
   }
 })
+/**
+ * 可随时重新生成：只要有解说词即可。
+ * 是否「需要」重生成只看解说词（Stale / 本地正文已改），与其它字段无关。
+ */
 const canGenerateAudio = computed(() => Boolean(
   props.canEdit
   && isNarration.value
@@ -190,6 +241,29 @@ const canGenerateAudio = computed(() => Boolean(
 const isAudioPendingStatus = (status: number) =>
   status === NARRATION_AUDIO_STATUS.Queued
   || status === NARRATION_AUDIO_STATUS.Generating
+
+const canGenerateImage = computed(() => Boolean(
+  props.canEdit
+  && isNarration.value
+  && stageId.value
+  && imageGenPrompt.value.trim()
+  && !generatingImage.value
+  && !imageGenPolling.value
+  && !imageBusy.value
+  && !saving.value,
+))
+
+/** 校验是否为可预览的 http(s) 图片地址 */
+const isPreviewableImageUrl = (value: string) => {
+  const text = value.trim()
+  if (!text) return false
+  try {
+    const parsed = new URL(text)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
 
 const resolveError = (error: unknown, fallback: string) => {
   if (error instanceof Error && error.message) return error.message
@@ -205,6 +279,56 @@ const readArray = (value: unknown) => Array.isArray(value) ? value : []
 const toLines = (value: unknown, mapper: (item: Record<string, unknown>, index: number) => string) =>
   readArray(value).map((item, index) => mapper(item as Record<string, unknown>, index)).join('\n')
 
+const createOptionId = (index: number) => `option-${index + 1}`
+const createPieceId = (index: number) => `piece-${index + 1}`
+
+const parseChoiceOptions = (value: unknown): ChoiceOptionRow[] => {
+  const rows = readArray(value).map((item, index) => {
+    const record = item as Record<string, unknown>
+    const id = readText(record.id) || readText(record.key) || createOptionId(index)
+    const label = readText(record.label) || readText(record.text) || `选项 ${index + 1}`
+    return { id, label }
+  }).filter((item) => Boolean(item.label.trim()))
+
+  if (rows.length >= 2) {
+    return rows
+  }
+
+  return [
+    { id: 'option-1', label: '' },
+    { id: 'option-2', label: '' },
+  ]
+}
+
+const parsePuzzlePieces = (value: unknown): PuzzlePieceRow[] => {
+  const rows = readArray(value).map((item, index) => {
+    const record = item as Record<string, unknown>
+    return {
+      id: readText(record.id) || readText(record.key) || createPieceId(index),
+      label: readText(record.label) || readText(record.text) || `碎片 ${index + 1}`,
+      hint: readText(record.hint) || readText(record.description),
+    }
+  }).filter((item) => Boolean(item.label.trim()))
+
+  if (rows.length) {
+    return rows
+  }
+
+  return [
+    { id: 'piece-1', label: '', hint: '' },
+    { id: 'piece-2', label: '', hint: '' },
+  ]
+}
+
+const syncCorrectOrderIds = (pieces: PuzzlePieceRow[], orderSource: unknown) => {
+  const pieceIds = new Set(pieces.map((item) => item.id))
+  const fromConfig = readArray(orderSource)
+    .map((item) => String(item).trim())
+    .filter((id) => pieceIds.has(id))
+  const missing = pieces.map((item) => item.id).filter((id) => !fromConfig.includes(id))
+  return [...fromConfig, ...missing]
+}
+
 const resetForm = () => {
   const node = props.node
   const config = node ? parseStageConfig(node.config) as Record<string, unknown> : {}
@@ -212,17 +336,19 @@ const resetForm = () => {
   form.title = node?.title || ''
   form.subtitle = node?.subtitle || ''
   form.prompt = readText(config.content) || readText(config.prompt)
-  form.optionsInput = toLines(config.options ?? config.choices, (item, index) =>
-    `${readText(item.id) || readText(item.key) || `option-${index + 1}`} | ${readText(item.label) || readText(item.text) || `选项 ${index + 1}`}`,
-  )
+  form.choiceOptions = parseChoiceOptions(config.options ?? config.choices)
   form.correctOptionId = readText(config.correct_option_id) || readText(config.correctOptionId) || readText(config.answer)
+  if (!form.choiceOptions.some((item) => item.id === form.correctOptionId)) {
+    form.correctOptionId = form.choiceOptions[0]?.id || ''
+  }
   form.hintsInput = toLines(config.hints, (item) => readText(item.content) || readText(item.text))
   form.imageUrl = readText(config.image_url) || readText(config.imageUrl)
   form.gridSize = String(config.grid_size ?? config.gridSize ?? 3)
-  form.piecesInput = toLines(config.pieces ?? config.items ?? config.fragments, (item, index) =>
-    `${readText(item.id) || readText(item.key) || `piece-${index + 1}`} | ${readText(item.label) || readText(item.text) || `碎片 ${index + 1}`} | ${readText(item.hint) || readText(item.description)}`,
+  form.puzzlePieces = parsePuzzlePieces(config.pieces ?? config.items ?? config.fragments)
+  form.correctOrderIds = syncCorrectOrderIds(
+    form.puzzlePieces,
+    config.correct_order ?? config.correctOrder ?? config.answer,
   )
-  form.correctOrderInput = readArray(config.correct_order ?? config.correctOrder ?? config.answer).map((item) => String(item)).join('\n')
   form.clueText = readText(config.clue_text) || readText(config.clue) || readText(config.rule_hint)
   form.location = readText(config.location) || readText(config.target_exhibit_name) || readText(config.gallery_name)
   form.videoUrl = readText(config.video_url) || readText(config.videoUrl) || readText(config.intro_video_url)
@@ -233,8 +359,136 @@ const resetForm = () => {
   form.guideId = String(narrationDetail.value?.guideId ?? config.guide_id ?? '').trim()
   form.guideName = String(narrationDetail.value?.guideName ?? config.guide_name ?? '').trim()
   syncNarrationImages(narrationDetail.value)
+  showMediaAdvanced.value = false
+  mediaUploading.value = false
+  imageSourceMode.value = 'upload'
+  imageGenPrompt.value = ''
+  imageGenRefUrls.value = []
+  imageGenRefDraft.value = ''
+  imageLightboxUrl.value = ''
   errorMessage.value = ''
   infoMessage.value = ''
+}
+
+const addChoiceOption = () => {
+  const nextIndex = form.choiceOptions.length
+  const id = createOptionId(nextIndex)
+  form.choiceOptions.push({ id, label: '' })
+  if (!form.correctOptionId) {
+    form.correctOptionId = id
+  }
+}
+
+const removeChoiceOption = (index: number) => {
+  if (form.choiceOptions.length <= 2) {
+    return
+  }
+  const [removed] = form.choiceOptions.splice(index, 1)
+  if (removed && form.correctOptionId === removed.id) {
+    form.correctOptionId = form.choiceOptions[0]?.id || ''
+  }
+}
+
+const addPuzzlePiece = () => {
+  const id = createPieceId(form.puzzlePieces.length)
+  form.puzzlePieces.push({ id, label: '', hint: '' })
+  if (!form.correctOrderIds.includes(id)) {
+    form.correctOrderIds.push(id)
+  }
+}
+
+const removePuzzlePiece = (index: number) => {
+  if (form.puzzlePieces.length <= 2) {
+    return
+  }
+  const [removed] = form.puzzlePieces.splice(index, 1)
+  if (removed) {
+    form.correctOrderIds = form.correctOrderIds.filter((id) => id !== removed.id)
+  }
+}
+
+const moveCorrectOrder = (index: number, direction: -1 | 1) => {
+  const target = index + direction
+  if (target < 0 || target >= form.correctOrderIds.length) {
+    return
+  }
+  const list = form.correctOrderIds
+  const current = list[index]
+  const swap = list[target]
+  if (current === undefined || swap === undefined) {
+    return
+  }
+  list[index] = swap
+  list[target] = current
+}
+
+const pieceLabelById = (id: string) => {
+  const piece = form.puzzlePieces.find((item) => item.id === id)
+  return piece?.label.trim() || id
+}
+
+const openPuzzleImagePicker = () => {
+  if (!props.canEdit || mediaUploading.value || saving.value) return
+  puzzleImageInputRef.value?.click()
+}
+
+const openVideoPicker = () => {
+  if (!props.canEdit || mediaUploading.value || saving.value) return
+  videoInputRef.value?.click()
+}
+
+const handlePuzzleImageUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  input.value = ''
+  if (!file) return
+
+  mediaUploading.value = true
+  errorMessage.value = ''
+  try {
+    const uploaded = await uploadAttachment(file, 'image')
+    const url = String(uploaded?.fileUrl ?? '').trim()
+    if (!url) {
+      throw new Error('上传成功但未返回图片地址。')
+    }
+    form.imageUrl = url
+    infoMessage.value = '拼图图片已上传。'
+  } catch (error) {
+    errorMessage.value = resolveError(error, '拼图图片上传失败。')
+  } finally {
+    mediaUploading.value = false
+  }
+}
+
+const handleVideoUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  input.value = ''
+  if (!file) return
+
+  mediaUploading.value = true
+  errorMessage.value = ''
+  try {
+    const uploaded = await uploadAttachment(file, 'file')
+    const url = String(uploaded?.fileUrl ?? '').trim()
+    if (!url) {
+      throw new Error('上传成功但未返回视频地址。')
+    }
+    form.videoUrl = url
+    infoMessage.value = '短片已上传。'
+  } catch (error) {
+    errorMessage.value = resolveError(error, '短片上传失败。')
+  } finally {
+    mediaUploading.value = false
+  }
+}
+
+const clearPuzzleImage = () => {
+  form.imageUrl = ''
+}
+
+const clearVideoUrl = () => {
+  form.videoUrl = ''
 }
 
 const loadNarrationDetail = async () => {
@@ -300,7 +554,7 @@ const finishAudioPollByStatus = (status: number) => {
     return true
   }
   if (status === NARRATION_AUDIO_STATUS.Stale) {
-    infoMessage.value = '正文已变更，请重新生成音频。'
+    infoMessage.value = '解说词已变更，请重新生成音频。'
     stopAudioPoll()
     emit('preview-refresh')
     return true
@@ -336,7 +590,7 @@ const startAudioPoll = () => {
 }
 
 const openImagePicker = () => {
-  if (!props.canEdit || imageBusy.value || saving.value) return
+  if (!props.canEdit || imageBusy.value || saving.value || generatingImage.value || imageGenPolling.value) return
   imageInputRef.value?.click()
 }
 
@@ -345,6 +599,201 @@ const collectAttachmentIds = () =>
   narrationImages.value
     .map((item) => String(item.attachmentId ?? '').trim())
     .filter(Boolean)
+
+const stopImageGenPoll = () => {
+  if (imageGenPollTimer) {
+    clearInterval(imageGenPollTimer)
+    imageGenPollTimer = null
+  }
+  imageGenPollAttempts = 0
+  imageGenPolling.value = false
+}
+
+/** 仅刷新配图列表，保留表单未保存正文 */
+const refreshNarrationImagesMeta = async () => {
+  if (!stageId.value) return
+  try {
+    const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
+      method: 'GET',
+      query: { stageId: stageId.value },
+    })
+    if (!detail) return
+    const draftText = form.narrationText.trim()
+    narrationDetail.value = {
+      ...(narrationDetail.value ?? {}),
+      ...detail,
+      narrationText: draftText || detail.narrationText,
+    }
+    syncNarrationImages(detail)
+  } catch {
+    // 状态刷新失败不阻断主流程
+  }
+}
+
+/**
+ * 轮询 detail.images：任务成功后自动绑定，检测到新附件即结束。
+ */
+const startImageGenPoll = (baselineAttachmentIds: Set<string>) => {
+  stopImageGenPoll()
+  imageGenPolling.value = true
+  imageGenPollAttempts = 0
+  infoMessage.value = '配图生成中，完成后将自动加入列表…'
+
+  const tick = async () => {
+    imageGenPollAttempts += 1
+    await refreshNarrationImagesMeta()
+    emit('preview-refresh')
+
+    const hasNew = collectAttachmentIds().some((id) => !baselineAttachmentIds.has(id))
+    if (hasNew) {
+      infoMessage.value = '配图已生成并加入列表。'
+      errorMessage.value = ''
+      stopImageGenPoll()
+      return
+    }
+
+    if (imageGenPollAttempts >= IMAGE_GEN_POLL_MAX_ATTEMPTS) {
+      infoMessage.value = '配图仍在生成，可稍后重新打开节点查看。'
+      stopImageGenPoll()
+    }
+  }
+
+  void tick()
+  imageGenPollTimer = setInterval(() => {
+    void tick()
+  }, IMAGE_GEN_POLL_INTERVAL_MS)
+}
+
+const normalizeImageUrl = (value: string) => value.trim()
+
+const isImageGenRefSelected = (url: string) => {
+  const target = normalizeImageUrl(url)
+  if (!target) return false
+  return imageGenRefUrls.value.some((item) => normalizeImageUrl(item) === target)
+}
+
+/** 写入参考图；满员 / 重复时给出提示，返回是否成功 */
+const pushImageGenRef = (url: string, options?: { silent?: boolean }) => {
+  const nextUrl = normalizeImageUrl(url)
+  if (!nextUrl || !isPreviewableImageUrl(nextUrl)) {
+    if (!options?.silent) {
+      errorMessage.value = '请使用可公开访问的 http(s) 图片地址。'
+    }
+    return false
+  }
+  if (isImageGenRefSelected(nextUrl)) {
+    // 重复加入静默忽略，靠「已参考」标记即可
+    return false
+  }
+  if (imageGenRefUrls.value.length >= IMAGE_GEN_REF_MAX) {
+    if (!options?.silent) {
+      errorMessage.value = `参考图最多 ${IMAGE_GEN_REF_MAX} 张。`
+    }
+    return false
+  }
+  imageGenRefUrls.value = [...imageGenRefUrls.value, nextUrl]
+  errorMessage.value = ''
+  return true
+}
+
+/** 粘贴外链加入参考（成功不弹全局提示，卡片本身即反馈） */
+const addImageGenRefFromDraft = () => {
+  if (!props.canEdit || generatingImage.value || imageGenPolling.value) return
+  if (pushImageGenRef(imageGenRefDraft.value)) {
+    imageGenRefDraft.value = ''
+  }
+}
+
+/** 从已有配图点击加入参考（成功静默，仅「已参考」标记反馈） */
+const addImageGenRefFromExisting = (image: RouteStageNarrationImageResponse) => {
+  if (!props.canEdit || generatingImage.value || imageGenPolling.value) return
+  const url = String(image.imageUrl ?? '').trim()
+  if (!url) {
+    errorMessage.value = '该配图暂无可用地址，无法加入参考。'
+    return
+  }
+  pushImageGenRef(url, { silent: true })
+}
+
+const removeImageGenRef = (index: number) => {
+  imageGenRefUrls.value = imageGenRefUrls.value.filter((_, i) => i !== index)
+}
+
+let lightboxEscHandler: ((event: KeyboardEvent) => void) | null = null
+
+const bindLightboxEsc = () => {
+  if (lightboxEscHandler || typeof window === 'undefined') return
+  lightboxEscHandler = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !imageLightboxUrl.value) return
+    event.preventDefault()
+    event.stopPropagation()
+    closeImageLightbox()
+  }
+  // capture：先于 Dialog 的 Esc 关闭逻辑
+  window.addEventListener('keydown', lightboxEscHandler, true)
+}
+
+const unbindLightboxEsc = () => {
+  if (!lightboxEscHandler || typeof window === 'undefined') return
+  window.removeEventListener('keydown', lightboxEscHandler, true)
+  lightboxEscHandler = null
+}
+
+const openImageLightbox = (url: string) => {
+  const next = normalizeImageUrl(url)
+  if (!next) return
+  // 不强制 http(s) 校验失败就静默：允许同源 / 相对路径预览
+  imageLightboxUrl.value = next
+  bindLightboxEsc()
+}
+
+const closeImageLightbox = () => {
+  imageLightboxUrl.value = ''
+  unbindLightboxEsc()
+}
+
+/** 提交 AI 配图任务；不传 parameters，priority 由服务端代理固定 10000 */
+const handleGenerateImages = async () => {
+  if (!canGenerateImage.value || !stageId.value) return
+
+  const prompt = imageGenPrompt.value.trim()
+  if (!prompt) {
+    errorMessage.value = '请填写画面描述。'
+    return
+  }
+
+  const referenceImageUrls = imageGenRefUrls.value
+    .map((item) => normalizeImageUrl(item))
+    .filter(Boolean)
+
+  const invalidRef = referenceImageUrls.find((url) => !isPreviewableImageUrl(url))
+  if (invalidRef) {
+    errorMessage.value = '参考图请使用可公开访问的 http(s) 链接。'
+    return
+  }
+
+  generatingImage.value = true
+  errorMessage.value = ''
+  infoMessage.value = ''
+  const baseline = new Set(collectAttachmentIds())
+
+  try {
+    await request<GenerateRouteStageNarrationImageResponse | null>('/api/narration-image/generate', {
+      method: 'POST',
+      body: {
+        stageId: stageId.value,
+        prompt,
+        idempotencyKey: uuidv4(),
+        ...(referenceImageUrls.length ? { referenceImageUrls } : {}),
+      },
+    })
+    startImageGenPoll(baseline)
+  } catch (error) {
+    errorMessage.value = resolveError(error, '配图生成提交失败。')
+  } finally {
+    generatingImage.value = false
+  }
+}
 
 /**
  * 传统上传双通道：
@@ -456,28 +905,11 @@ const removeNarrationImage = async (image: RouteStageNarrationImageResponse) => 
   }
 }
 
-/*
- * AI 生成配图（暂不开放）
- * 接口：POST /api/narration-image/generate
- * 异步任务，提交后需轮询或刷新 detail.images。
- *
- * const handleGenerateImages = async () => {
- *   await request('/api/narration-image/generate', {
- *     method: 'POST',
- *     body: {
- *       stageId: stageId.value,
- *       prompt: form.sceneContext || form.narrationText,
- *       idempotencyKey: `${stageId.value}-${Date.now()}`,
- *     },
- *   })
- *   // TODO: 轮询任务状态，完成后 loadNarrationDetail()
- * }
- */
-
 watch(
   () => [props.open, stageId.value, props.node?.config, props.node?.title, props.node?.subtitle],
   () => {
     stopAudioPoll()
+    stopImageGenPoll()
     if (isNarration.value && props.open) {
       void loadNarrationDetail().then(() => {
         // 打开时若任务已在排队/生成中，自动接上轮询
@@ -493,18 +925,29 @@ watch(
   { immediate: true },
 )
 
-const parseOptions = () => form.optionsInput.split('\n')
-  .map((line, index) => {
-    const [rawId, rawLabel] = line.split('|').map((part) => part.trim())
-    return rawLabel ? { id: rawId || `option-${index + 1}`, label: rawLabel } : null
+const parseChoiceOptionsForSave = () => form.choiceOptions
+  .map((item, index) => {
+    const label = item.label.trim()
+    if (!label) return null
+    return {
+      id: item.id.trim() || createOptionId(index),
+      label,
+    }
   })
-  .filter((item): item is { id: string; label: string } => item !== null)
-const parsePieces = () => form.piecesInput.split('\n')
-  .map((line, index) => {
-    const [rawId, rawLabel, rawHint] = line.split('|').map((part) => part.trim())
-    return rawLabel ? { id: rawId || `piece-${index + 1}`, label: rawLabel, hint: rawHint || null } : null
+  .filter((item): item is ChoiceOptionRow => item !== null)
+
+const parsePiecesForSave = () => form.puzzlePieces
+  .map((item, index) => {
+    const label = item.label.trim()
+    if (!label) return null
+    return {
+      id: item.id.trim() || createPieceId(index),
+      label,
+      hint: item.hint.trim() || null,
+    }
   })
   .filter((item): item is { id: string; label: string; hint: string | null } => item !== null)
+
 const parseHints = () => form.hintsInput.split('\n')
   .map((content, index) => ({ content: content.trim(), sort_order: index + 1 }))
   .filter((item) => Boolean(item.content))
@@ -519,19 +962,25 @@ const buildRegularConfig = () => {
   config.hints = hints
 
   if (isObserveChoice.value) {
-    const options = parseOptions()
-    if (!form.prompt.trim() || options.length < 2 || !form.correctOptionId.trim()) {
-      errorMessage.value = '请填写题干、至少两个选项和正确项。'
+    const options = parseChoiceOptionsForSave()
+    const correctId = form.correctOptionId.trim()
+    if (!form.prompt.trim() || options.length < 2 || !correctId) {
+      errorMessage.value = '请填写题干、至少两个选项，并点选正确答案。'
+      return null
+    }
+    if (!options.some((item) => item.id === correctId)) {
+      errorMessage.value = '请点选一个已填写的选项作为正确答案。'
       return null
     }
     config.content = form.prompt.trim()
     config.options = options
-    config.correct_option_id = form.correctOptionId.trim()
+    config.correct_option_id = correctId
   } else if (isImagePuzzle.value) {
-    const pieces = parsePieces()
-    const correctOrder = form.correctOrderInput.split('\n').map((item) => item.trim()).filter(Boolean)
+    const pieces = parsePiecesForSave()
+    const pieceIds = new Set(pieces.map((item) => item.id))
+    const correctOrder = form.correctOrderIds.filter((id) => pieceIds.has(id))
     if (!form.prompt.trim() || !pieces.length || !correctOrder.length) {
-      errorMessage.value = '请填写题干、碎片和正确顺序。'
+      errorMessage.value = '请填写题干、至少两块碎片，并设置正确顺序。'
       return null
     }
     config.content = form.prompt.trim()
@@ -590,6 +1039,7 @@ const selectGuide = (guide: GuideRecord) => {
 }
 
 const saveNarrationStage = async () => {
+  // 副标题 / 风格 / 时长 / 场景说明：UI 不再编辑，透传已有值以免被清空
   const targetDurationSeconds = toBoundedInteger(form.targetDurationSeconds, 10, 600, 90)
   // attachmentIds 全量有序同步；与上传时的 NarrationImage/create 互补
   const attachmentIds = collectAttachmentIds()
@@ -675,13 +1125,17 @@ const handleGenerateAudio = async () => {
 }
 
 const closeDialog = () => {
-  if (saving.value || generatingAudio.value || imageBusy.value) return
+  if (saving.value || generatingAudio.value || imageBusy.value || generatingImage.value) return
   stopAudioPoll()
+  stopImageGenPoll()
+  closeImageLightbox()
   isOpen.value = false
 }
 
 onBeforeUnmount(() => {
   stopAudioPoll()
+  stopImageGenPoll()
+  closeImageLightbox()
 })
 
 const handleSave = async () => {
@@ -705,56 +1159,39 @@ const handleSave = async () => {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent :class="dialogContentClass">
-      <!-- 统一头：标题 + 右上角关闭 -->
-      <div class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-5">
+      <!-- 统一头：关闭 X 由 DialogContent 提供 -->
+      <div class="flex h-14 shrink-0 items-center border-b border-border/70 px-5 pr-12">
         <DialogHeader class="min-w-0 space-y-0.5 text-left">
           <DialogTitle class="truncate text-base">
-            编辑节点
+            编辑这一站
           </DialogTitle>
           <DialogDescription class="truncate text-xs">
             {{ headerDescription }}
           </DialogDescription>
         </DialogHeader>
-        <Button
-          variant="ghost"
-          size="icon"
-          type="button"
-          title="关闭"
-          class="shrink-0"
-          :disabled="saving || generatingAudio || imageBusy"
-          @click="closeDialog">
-          <AppIcon name="x" class="h-4 w-4" />
-        </Button>
       </div>
 
-      <!-- 可滚动内容区：解说节点用 flex 列，主编辑区吃满高度 -->
-      <div
-        class="min-h-0 flex-1 overflow-y-auto px-5 py-4"
-        :class="isNarration ? 'flex flex-col gap-3' : 'space-y-4'">
+      <!-- 可滚动内容区：单栏文档流，分区用分割线而非多层嵌套卡片 -->
+      <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
         <div
           v-if="!isSupported"
-          class="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          此节点类型已不再支持编辑。
+          class="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-100">
+          这一站的玩法类型暂不支持在此直接编辑。可先用左侧预览查看，或换到其它站点继续调整；如需改动本站，请联系管理员协助。
         </div>
 
         <template v-else>
-          <!-- 基础信息（各类型共用） -->
-          <section class="shrink-0 space-y-2">
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label class="space-y-1 text-sm font-medium">
-                节点名称
-                <Input v-model="form.title" :disabled="!props.canEdit || saving" />
-              </label>
-              <label class="space-y-1 text-sm font-medium">
-                节点副标题
-                <Input v-model="form.subtitle" :disabled="!props.canEdit || saving" />
-              </label>
-            </div>
-          </section>
+          <!-- 站点名称：所有类型共用 -->
+          <label class="block space-y-1.5 text-sm font-medium">
+            站点名称
+            <Input
+              v-model="form.title"
+              class="max-w-xl"
+              :disabled="!props.canEdit || saving" />
+          </label>
 
           <template v-if="isObserveChoice">
-            <section class="space-y-3 border-t border-border/50 pt-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <section class="space-y-3 border-t border-border/60 pt-5">
+              <p class="text-sm font-medium">
                 题目内容
               </p>
               <label class="block space-y-1.5 text-sm font-medium">
@@ -764,25 +1201,63 @@ const handleSave = async () => {
                   class="min-h-[88px]"
                   :disabled="!props.canEdit || saving" />
               </label>
-              <div class="grid gap-3 sm:grid-cols-2">
-                <label class="space-y-1.5 text-sm font-medium">
-                  选项（每行：标识 | 文案）
-                  <Textarea
-                    v-model="form.optionsInput"
-                    class="min-h-[132px]"
-                    :disabled="!props.canEdit || saving" />
-                </label>
-                <label class="space-y-1.5 text-sm font-medium">
-                  正确项标识
-                  <Input v-model="form.correctOptionId" :disabled="!props.canEdit || saving" />
-                </label>
+
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium">
+                    选项
+                  </p>
+                  <p class="text-[11px] text-muted-foreground">
+                    点选左侧圆点设为正确答案
+                  </p>
+                </div>
+
+                <div class="space-y-2">
+                  <div
+                    v-for="(option, index) in form.choiceOptions"
+                    :key="option.id"
+                    class="flex items-center gap-2 rounded-lg border border-border/60 bg-background/30 px-2.5 py-2">
+                    <input
+                      type="radio"
+                      class="h-4 w-4 shrink-0 accent-primary"
+                      :name="`correct-option-${stageId}`"
+                      :checked="form.correctOptionId === option.id"
+                      :disabled="!props.canEdit || saving"
+                      :title="`设为正确答案`"
+                      @change="form.correctOptionId = option.id">
+                    <Input
+                      v-model="option.label"
+                      class="min-w-0 flex-1"
+                      :placeholder="`选项 ${index + 1}`"
+                      :disabled="!props.canEdit || saving" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      class="shrink-0"
+                      :disabled="!props.canEdit || saving || form.choiceOptions.length <= 2"
+                      @click="removeChoiceOption(index)">
+                      删除
+                    </Button>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  class="h-8"
+                  :disabled="!props.canEdit || saving"
+                  @click="addChoiceOption">
+                  添加选项
+                </Button>
               </div>
             </section>
           </template>
 
           <template v-else-if="isImagePuzzle">
-            <section class="space-y-3 border-t border-border/50 pt-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <section class="space-y-3 border-t border-border/60 pt-5">
+              <p class="text-sm font-medium">
                 拼图内容
               </p>
               <label class="block space-y-1.5 text-sm font-medium">
@@ -792,43 +1267,169 @@ const handleSave = async () => {
                   class="min-h-[88px]"
                   :disabled="!props.canEdit || saving" />
               </label>
-              <div class="grid gap-3 sm:grid-cols-2">
-                <label class="space-y-1.5 text-sm font-medium">
-                  拼图图片地址
-                  <Input v-model="form.imageUrl" :disabled="!props.canEdit || saving" />
-                </label>
-                <label class="space-y-1.5 text-sm font-medium">
-                  网格尺寸
-                  <Input
-                    v-model="form.gridSize"
-                    type="number"
-                    min="1"
-                    max="12"
-                    :disabled="!props.canEdit || saving" />
-                </label>
+
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium">
+                    拼图图片
+                  </p>
+                  <span class="text-[11px] text-muted-foreground">JPG / PNG</span>
+                </div>
+                <input
+                  ref="puzzleImageInput"
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="handlePuzzleImageUpload">
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    class="h-8"
+                    :disabled="!props.canEdit || saving || mediaUploading"
+                    @click="openPuzzleImagePicker">
+                    {{ mediaUploading ? '上传中…' : form.imageUrl ? '重新上传' : '上传图片' }}
+                  </Button>
+                  <Button
+                    v-if="form.imageUrl"
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    class="h-8"
+                    :disabled="!props.canEdit || saving || mediaUploading"
+                    @click="clearPuzzleImage">
+                    清除
+                  </Button>
+                </div>
+                <div
+                  v-if="form.imageUrl"
+                  class="overflow-hidden rounded-lg border border-border/60 bg-background/40">
+                  <img
+                    :src="form.imageUrl"
+                    alt="拼图预览"
+                    class="max-h-40 w-full object-contain">
+                </div>
+                <div class="rounded-lg border border-border/50">
+                  <button
+                    type="button"
+                    class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-muted-foreground"
+                    @click="showMediaAdvanced = !showMediaAdvanced">
+                    <span>高级：使用图片地址</span>
+                    <span>{{ showMediaAdvanced ? '收起' : '展开' }}</span>
+                  </button>
+                  <div v-if="showMediaAdvanced" class="border-t border-border/50 px-3 py-2">
+                    <Input
+                      v-model="form.imageUrl"
+                      placeholder="https://..."
+                      :disabled="!props.canEdit || saving" />
+                  </div>
+                </div>
               </div>
-              <div class="grid gap-3 sm:grid-cols-2">
-                <label class="space-y-1.5 text-sm font-medium">
-                  碎片（每行：标识 | 文案 | 提示）
-                  <Textarea
-                    v-model="form.piecesInput"
-                    class="min-h-[132px]"
-                    :disabled="!props.canEdit || saving" />
-                </label>
-                <label class="space-y-1.5 text-sm font-medium">
-                  正确顺序（每行一个碎片标识）
-                  <Textarea
-                    v-model="form.correctOrderInput"
-                    class="min-h-[132px]"
-                    :disabled="!props.canEdit || saving" />
-                </label>
+
+              <label class="block space-y-1.5 text-sm font-medium">
+                网格尺寸
+                <Input
+                  v-model="form.gridSize"
+                  type="number"
+                  min="1"
+                  max="12"
+                  :disabled="!props.canEdit || saving" />
+              </label>
+
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium">
+                    拼图碎片
+                  </p>
+                  <p class="text-[11px] text-muted-foreground">
+                    填写名称即可，标识由系统保存
+                  </p>
+                </div>
+                <div class="space-y-2">
+                  <div
+                    v-for="(piece, index) in form.puzzlePieces"
+                    :key="piece.id"
+                    class="grid gap-2 rounded-lg border border-border/60 bg-background/30 px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <Input
+                      v-model="piece.label"
+                      class="min-w-0"
+                      :placeholder="`碎片 ${index + 1} 名称`"
+                      :disabled="!props.canEdit || saving" />
+                    <Input
+                      v-model="piece.hint"
+                      class="min-w-0"
+                      placeholder="提示（可选）"
+                      :disabled="!props.canEdit || saving" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      class="shrink-0"
+                      :disabled="!props.canEdit || saving || form.puzzlePieces.length <= 2"
+                      @click="removePuzzlePiece(index)">
+                      删除
+                    </Button>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  class="h-8"
+                  :disabled="!props.canEdit || saving"
+                  @click="addPuzzlePiece">
+                  添加碎片
+                </Button>
+              </div>
+
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium">
+                    正确顺序
+                  </p>
+                  <p class="text-[11px] text-muted-foreground">
+                    用上下调整游客应拼合的先后
+                  </p>
+                </div>
+                <div class="space-y-1.5">
+                  <div
+                    v-for="(pieceId, index) in form.correctOrderIds"
+                    :key="`order-${pieceId}`"
+                    class="flex items-center gap-2 rounded-lg border border-border/60 bg-background/30 px-2.5 py-2">
+                    <span class="w-6 shrink-0 text-center text-xs text-muted-foreground">
+                      {{ index + 1 }}
+                    </span>
+                    <span class="min-w-0 flex-1 truncate text-sm">
+                      {{ pieceLabelById(pieceId) }}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      class="h-8 shrink-0 px-2"
+                      :disabled="!props.canEdit || saving || index === 0"
+                      @click="moveCorrectOrder(index, -1)">
+                      上移
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="button"
+                      class="h-8 shrink-0 px-2"
+                      :disabled="!props.canEdit || saving || index >= form.correctOrderIds.length - 1"
+                      @click="moveCorrectOrder(index, 1)">
+                      下移
+                    </Button>
+                  </div>
+                </div>
               </div>
             </section>
           </template>
 
           <template v-else-if="isFindScan">
-            <section class="space-y-3 border-t border-border/50 pt-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            <section class="space-y-3 border-t border-border/60 pt-5">
+              <p class="text-sm font-medium">
                 寻访内容
               </p>
               <label class="block space-y-1.5 text-sm font-medium">
@@ -838,102 +1439,110 @@ const handleSave = async () => {
                   class="min-h-[112px]"
                   :disabled="!props.canEdit || saving" />
               </label>
-              <div class="grid gap-3 sm:grid-cols-2">
-                <label class="space-y-1.5 text-sm font-medium">
-                  目标位置
-                  <Input v-model="form.location" :disabled="!props.canEdit || saving" />
-                </label>
-                <label class="space-y-1.5 text-sm font-medium">
-                  观展短片地址
-                  <Input v-model="form.videoUrl" :disabled="!props.canEdit || saving" />
-                </label>
+              <label class="block space-y-1.5 text-sm font-medium">
+                目标位置
+                <Input v-model="form.location" :disabled="!props.canEdit || saving" />
+              </label>
+
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium">
+                    观展短片
+                  </p>
+                  <span class="text-[11px] text-muted-foreground">视频文件</span>
+                </div>
+                <input
+                  ref="videoInput"
+                  type="file"
+                  accept="video/*,.mp4"
+                  class="hidden"
+                  @change="handleVideoUpload">
+                <div class="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    class="h-8"
+                    :disabled="!props.canEdit || saving || mediaUploading"
+                    @click="openVideoPicker">
+                    {{ mediaUploading ? '上传中…' : form.videoUrl ? '重新上传' : '上传短片' }}
+                  </Button>
+                  <Button
+                    v-if="form.videoUrl"
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    class="h-8"
+                    :disabled="!props.canEdit || saving || mediaUploading"
+                    @click="clearVideoUrl">
+                    清除
+                  </Button>
+                </div>
+                <p
+                  v-if="form.videoUrl"
+                  class="truncate text-xs text-muted-foreground"
+                  :title="form.videoUrl">
+                  已设置短片
+                </p>
+                <div class="rounded-lg border border-border/50">
+                  <button
+                    type="button"
+                    class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-muted-foreground"
+                    @click="showMediaAdvanced = !showMediaAdvanced">
+                    <span>高级：使用视频地址</span>
+                    <span>{{ showMediaAdvanced ? '收起' : '展开' }}</span>
+                  </button>
+                  <div v-if="showMediaAdvanced" class="border-t border-border/50 px-3 py-2">
+                    <Input
+                      v-model="form.videoUrl"
+                      placeholder="https://..."
+                      :disabled="!props.canEdit || saving" />
+                  </div>
+                </div>
               </div>
             </section>
           </template>
 
-          <!-- type 11：上排解说词+设置/音频；配图整行另起 -->
+          <!-- type 11：三块清晰分区 — 正文 / 讲解与音频 / 配图 -->
           <template v-else-if="isNarration">
-            <div class="flex min-h-0 flex-1 flex-col gap-3">
-              <div class="grid min-h-0 shrink-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.9fr)]">
-                <!-- 左：解说词主区 -->
-                <section class="flex min-h-[260px] flex-col gap-2 lg:min-h-[360px]">
-                  <div class="flex shrink-0 items-baseline justify-between gap-2">
-                    <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                      解说词
-                    </p>
-                    <p class="text-[11px] text-muted-foreground">
-                      保存写入节点；生成音频会先同步正文
-                    </p>
-                  </div>
+            <div class="space-y-5">
+              <!-- 正文 + 讲解侧栏 -->
+              <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
+                <label class="block space-y-1.5 text-sm font-medium">
+                  解说词
                   <Textarea
                     v-model="form.narrationText"
-                    class="min-h-[240px] flex-1 resize-y text-[15px] leading-7 lg:min-h-[340px]"
-                    placeholder="请输入或粘贴解说词正文…"
+                    class="h-[200px] resize-y text-sm leading-6 lg:h-[240px]"
+                    placeholder="请输入解说词正文…"
                     :disabled="!props.canEdit || saving" />
-                </section>
+                </label>
 
-                <!-- 右：设置 / 音频 -->
-                <div class="flex min-h-0 flex-col gap-3">
-                  <section class="space-y-2 rounded-lg border border-border/70 bg-background/25 p-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                      讲解设置
-                    </p>
-                    <div class="flex items-center gap-2">
-                      <div class="min-w-0 flex-1">
-                        <p class="text-sm font-medium">
-                          {{ selectedGuideLabel }}
-                        </p>
-                        <p class="text-[11px] text-muted-foreground">
-                          讲解导游
-                        </p>
-                      </div>
+                <div class="space-y-4 lg:border-l lg:border-border/60 lg:pl-5">
+                  <div class="space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="form-label text-sm font-medium">导游</span>
                       <Button
                         variant="outline"
                         type="button"
                         size="sm"
-                        class="h-8 shrink-0"
+                        class="h-7 shrink-0 px-2.5 text-xs"
                         :disabled="!props.canEdit || saving"
                         @click="openGuideSelector">
                         选择
                       </Button>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                      <label class="space-y-1 text-xs font-medium">
-                        风格
-                        <Input
-                          v-model="form.userStyleInput"
-                          class="h-8"
-                          placeholder="沉稳 / 科普"
-                          :disabled="!props.canEdit || saving" />
-                      </label>
-                      <label class="space-y-1 text-xs font-medium">
-                        时长(秒)
-                        <Input
-                          v-model="form.targetDurationSeconds"
-                          class="h-8"
-                          type="number"
-                          min="10"
-                          max="600"
-                          :disabled="!props.canEdit || saving" />
-                      </label>
-                    </div>
-                    <label class="block space-y-1 text-xs font-medium">
-                      场景说明
-                      <Textarea
-                        v-model="form.sceneContext"
-                        class="min-h-[64px] text-sm"
-                        placeholder="展品/场景上下文（可选）"
-                        :disabled="!props.canEdit || saving" />
-                    </label>
-                  </section>
+                    <p class="form-value break-words text-sm">
+                      {{ selectedGuideLabel }}
+                    </p>
+                  </div>
 
-                  <section class="space-y-2 rounded-lg border border-border/70 bg-background/25 p-3">
+                  <div class="space-y-2 border-t border-border/50 pt-4">
                     <div class="flex items-center justify-between gap-2">
                       <div class="min-w-0">
-                        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                          解说音频
+                        <p class="form-label text-sm font-medium">
+                          音频
                         </p>
-                        <p class="mt-0.5 truncate text-xs text-muted-foreground">
+                        <p class="mt-0.5 text-xs text-muted-foreground">
                           {{ audioStatusLabel }}
                         </p>
                       </div>
@@ -941,7 +1550,7 @@ const handleSave = async () => {
                         variant="outline"
                         type="button"
                         size="sm"
-                        class="h-8 shrink-0"
+                        class="h-7 shrink-0 px-2.5 text-xs"
                         :disabled="!canGenerateAudio"
                         @click="handleGenerateAudio">
                         {{ generatingAudio ? '提交中…' : audioPolling ? '同步中…' : '生成' }}
@@ -953,95 +1562,214 @@ const handleSave = async () => {
                       controls
                       preload="none"
                       class="h-9 w-full" />
-                    <p
-                      v-else-if="!form.narrationText.trim()"
-                      class="text-[11px] text-muted-foreground">
-                      填写解说词后可生成音频
-                    </p>
-                    <p
-                      v-else-if="audioPolling"
-                      class="text-[11px] text-muted-foreground">
-                      正在同步生成状态…
-                    </p>
-                  </section>
+                  </div>
                 </div>
               </div>
 
-              <!-- 配图整行：多图时更好操作 -->
-              <section class="shrink-0 space-y-2 rounded-lg border border-border/70 bg-background/25 p-3">
+              <!-- 配图：单层区块，顶栏 + 内容 + 图库 -->
+              <div class="space-y-3 border-t border-border/60 pt-5">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <div class="min-w-0">
-                    <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                      解说配图
-                    </p>
-                    <p class="mt-0.5 text-[11px] text-muted-foreground">
-                      支持多图；首张为封面，其余进入轮播
-                    </p>
+                  <span class="form-label text-sm font-medium">配图</span>
+                  <div
+                    class="inline-flex rounded-md border border-border/70 p-0.5"
+                    role="tablist"
+                    aria-label="配图来源">
+                    <button
+                      type="button"
+                      role="tab"
+                      class="h-7 rounded px-2.5 text-xs transition-colors"
+                      :class="imageSourceMode === 'upload'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'"
+                      :aria-selected="imageSourceMode === 'upload'"
+                      :disabled="!props.canEdit || generatingImage || imageGenPolling"
+                      @click="imageSourceMode = 'upload'">
+                      上传
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      class="h-7 rounded px-2.5 text-xs transition-colors"
+                      :class="imageSourceMode === 'generate'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:text-foreground'"
+                      :aria-selected="imageSourceMode === 'generate'"
+                      :disabled="!props.canEdit || imageBusy"
+                      @click="imageSourceMode = 'generate'">
+                      AI 生成
+                    </button>
                   </div>
+                </div>
+
+                <div v-if="imageSourceMode === 'upload'" class="flex items-center gap-2">
                   <Button
                     variant="outline"
                     type="button"
                     size="sm"
-                    class="h-8 shrink-0"
-                    :disabled="!props.canEdit || saving || imageBusy || !stageId"
+                    class="h-8"
+                    :disabled="!props.canEdit || saving || imageBusy || generatingImage || imageGenPolling || !stageId"
                     @click="openImagePicker">
                     <AppIcon name="image-up" class="mr-1.5 h-3.5 w-3.5" />
-                    {{ imageBusy ? '处理中…' : '上传图片' }}
+                    {{ imageBusy ? '处理中…' : '选择图片' }}
                   </Button>
+                  <input
+                    ref="imageInput"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    class="hidden"
+                    @change="handleImageFiles">
                 </div>
 
-                <input
-                  ref="imageInput"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  class="hidden"
-                  @change="handleImageFiles">
+                <div v-else class="space-y-3">
+                  <label class="block space-y-1.5 text-sm font-medium">
+                    画面描述
+                    <Textarea
+                      v-model="imageGenPrompt"
+                      class="min-h-[72px] resize-y text-sm"
+                      placeholder="描述希望生成的画面…"
+                      :disabled="!props.canEdit || saving || generatingImage || imageGenPolling"
+                      maxlength="4000" />
+                  </label>
 
+                  <div class="space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-sm font-medium">
+                        参考图
+                        <span class="font-normal text-muted-foreground">
+                          {{ imageGenRefUrls.length }}/{{ IMAGE_GEN_REF_MAX }}
+                        </span>
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        class="h-8"
+                        :disabled="!canGenerateImage"
+                        @click="handleGenerateImages">
+                        {{ generatingImage ? '提交中…' : imageGenPolling ? '生成中…' : '开始生成' }}
+                      </Button>
+                    </div>
+                    <div class="flex gap-2">
+                      <Input
+                        v-model="imageGenRefDraft"
+                        class="h-8 min-w-0 flex-1 text-sm"
+                        placeholder="粘贴参考图链接"
+                        :disabled="!props.canEdit || saving || generatingImage || imageGenPolling || imageGenRefUrls.length >= IMAGE_GEN_REF_MAX"
+                        @keydown.enter.prevent="addImageGenRefFromDraft" />
+                      <Button
+                        variant="outline"
+                        type="button"
+                        size="sm"
+                        class="h-8 shrink-0"
+                        :disabled="!props.canEdit || !imageGenRefDraft.trim() || imageGenRefUrls.length >= IMAGE_GEN_REF_MAX || generatingImage || imageGenPolling"
+                        @click="addImageGenRefFromDraft">
+                        加入
+                      </Button>
+                    </div>
+                    <div
+                      v-if="imageGenRefUrls.length"
+                      class="grid grid-cols-5 gap-2 sm:grid-cols-6">
+                      <div
+                        v-for="(refUrl, refIndex) in imageGenRefUrls"
+                        :key="`ref-${refIndex}-${refUrl}`"
+                        class="relative aspect-square overflow-hidden rounded-md border border-border/60 bg-muted/20">
+                        <button
+                          type="button"
+                          class="absolute inset-0 block h-full w-full cursor-zoom-in"
+                          title="放大"
+                          @click="openImageLightbox(refUrl)">
+                          <img :src="refUrl" alt="" class="h-full w-full object-cover">
+                        </button>
+                        <button
+                          v-if="props.canEdit"
+                          type="button"
+                          class="absolute right-0.5 top-0.5 z-10 flex h-5 w-5 items-center justify-center rounded bg-black/70 text-white"
+                          title="移除"
+                          :disabled="generatingImage || imageGenPolling"
+                          @click.stop="removeImageGenRef(refIndex)">
+                          <AppIcon name="x" class="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 图库 -->
                 <div
                   v-if="narrationImages.length"
-                  class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+                  class="grid grid-cols-4 gap-2 sm:grid-cols-5 md:grid-cols-6">
                   <div
                     v-for="(image, index) in narrationImages"
                     :key="String(image.id || image.attachmentId || image.imageUrl || index)"
-                    class="group relative aspect-square overflow-hidden rounded-lg border border-border/60 bg-[#0d0f12]">
-                    <img
+                    class="group relative aspect-square overflow-hidden rounded-md border border-border/60 bg-muted/20"
+                    :class="imageSourceMode === 'generate' && isImageGenRefSelected(String(image.imageUrl ?? ''))
+                      ? 'ring-2 ring-primary/60'
+                      : ''">
+                    <button
+                      v-if="imageSourceMode === 'generate' && image.imageUrl"
+                      type="button"
+                      class="absolute inset-0 block h-full w-full"
+                      :disabled="!props.canEdit || generatingImage || imageGenPolling"
+                      :title="isImageGenRefSelected(String(image.imageUrl)) ? '已参考' : '加入参考'"
+                      @click="addImageGenRefFromExisting(image)">
+                      <img
+                        :src="String(image.imageUrl)"
+                        :alt="`配图 ${index + 1}`"
+                        class="h-full w-full object-cover">
+                      <span
+                        v-if="isImageGenRefSelected(String(image.imageUrl))"
+                        class="absolute left-1 top-1 rounded bg-primary/90 px-1 py-0.5 text-[10px] text-primary-foreground">
+                        参考
+                      </span>
+                    </button>
+                    <template v-else>
+                      <img
+                        v-if="image.imageUrl"
+                        :src="String(image.imageUrl)"
+                        :alt="`配图 ${index + 1}`"
+                        class="h-full w-full object-cover">
+                      <div
+                        v-else
+                        class="flex h-full w-full items-center justify-center text-muted-foreground">
+                        <AppIcon name="image-up" class="h-4 w-4" />
+                      </div>
+                    </template>
+
+                    <button
                       v-if="image.imageUrl"
-                      :src="String(image.imageUrl)"
-                      :alt="`配图 ${index + 1}`"
-                      class="h-full w-full object-cover">
-                    <div
-                      v-else
-                      class="flex h-full w-full items-center justify-center text-muted-foreground">
-                      <AppIcon name="image-up" class="h-5 w-5" />
-                    </div>
-                    <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-black/55 px-1.5 py-1">
+                      type="button"
+                      class="absolute right-0.5 top-0.5 z-20 flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      title="放大"
+                      @click.stop.prevent="openImageLightbox(String(image.imageUrl))">
+                      <AppIcon name="zoom-in" class="h-3 w-3" />
+                    </button>
+
+                    <div class="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between bg-black/55 px-1 py-0.5">
                       <span class="truncate text-[10px] text-white/90">
-                        {{ index === 0 ? '封面' : `图 ${index + 1}` }}
+                        {{ index === 0 ? '封面' : index + 1 }}
                       </span>
                       <button
                         v-if="props.canEdit"
                         type="button"
-                        class="rounded px-1 text-[10px] text-white/90 hover:bg-white/15 disabled:opacity-40"
-                        :disabled="imageBusy"
-                        @click="removeNarrationImage(image)">
-                        删除
+                        class="text-[10px] text-white/90 hover:text-white disabled:opacity-40"
+                        :disabled="imageBusy || generatingImage || imageGenPolling"
+                        @click.stop="removeNarrationImage(image)">
+                        删
                       </button>
                     </div>
                   </div>
                 </div>
-                <p v-else class="text-xs text-muted-foreground">
-                  暂无配图，可点击上传
+                <p
+                  v-else
+                  class="text-xs text-muted-foreground">
+                  暂无配图
                 </p>
-              </section>
+              </div>
             </div>
           </template>
 
           <template v-if="!isNarration">
-            <section class="space-y-3 border-t border-border/50 pt-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                提示
-              </p>
+            <section class="space-y-3 border-t border-border/60 pt-5">
               <label class="block space-y-1.5 text-sm font-medium">
                 提示（每行一条）
                 <Textarea
@@ -1061,22 +1789,13 @@ const handleSave = async () => {
         </p>
       </div>
 
-      <!-- 固定高度 footer 贴底 -->
+      <!-- 固定高度 footer 贴底；音频生成入口在「解说音频」区块，此处不重复 -->
       <DialogFooter class="h-14 shrink-0 items-center border-t border-border/70 px-5">
-        <Button
-          v-if="isNarration && props.canEdit"
-          variant="outline"
-          type="button"
-          class="mr-auto h-8"
-          :disabled="!canGenerateAudio"
-          @click="handleGenerateAudio">
-          {{ generatingAudio ? '提交中…' : audioPolling ? '同步中…' : '生成音频' }}
-        </Button>
         <Button
           variant="outline"
           type="button"
           class="h-8"
-          :disabled="saving || generatingAudio"
+          :disabled="saving || generatingAudio || generatingImage"
           @click="closeDialog">
           取消
         </Button>
@@ -1098,4 +1817,30 @@ const handleSave = async () => {
     :selected-id="form.guideId || null"
     @select="selectGuide"
     @search="loadGuides" />
+
+  <!-- 配图大图预览：z 须高于 Dialog 栈（基线 1000） -->
+  <Teleport to="body">
+    <div
+      v-if="imageLightboxUrl"
+      data-image-lightbox
+      class="fixed inset-0 flex items-center justify-center bg-black/85 p-4"
+      style="z-index: 5000"
+      role="dialog"
+      aria-modal="true"
+      aria-label="图片预览"
+      @click="closeImageLightbox">
+      <button
+        type="button"
+        class="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-md bg-white/10 text-white hover:bg-white/20"
+        title="关闭"
+        @click.stop="closeImageLightbox">
+        <AppIcon name="x" class="h-4 w-4" />
+      </button>
+      <img
+        :src="imageLightboxUrl"
+        alt="预览"
+        class="max-h-[90vh] max-w-[min(96vw,1100px)] rounded-lg object-contain shadow-2xl"
+        @click.stop>
+    </div>
+  </Teleport>
 </template>

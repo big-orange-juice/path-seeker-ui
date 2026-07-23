@@ -32,7 +32,7 @@ const formatNumber = (value: number | null, suffix = '') => {
   <div class="warm-panel warm-outline rounded-[0.95rem] border border-border/70">
     <div class="flex items-center justify-between border-b border-border/70 px-4 py-3">
       <div>
-        <p class="text-sm font-semibold text-foreground">主体列表</p>
+        <p class="text-sm font-semibold text-foreground">博物馆列表</p>
       </div>
       <div class="rounded-full bg-secondary/70 px-3 py-1 text-xs text-muted-foreground">
         共 {{ props.museums.length }} 条
@@ -40,11 +40,11 @@ const formatNumber = (value: number | null, suffix = '') => {
     </div>
 
     <div v-if="props.pending" class="px-4 py-8 text-center text-sm text-muted-foreground">
-      正在加载主体数据...
+      正在加载博物馆数据...
     </div>
 
     <div v-else-if="!props.museums.length" class="px-4 py-8 text-center text-sm text-muted-foreground">
-      当前没有主体数据，可以先在右侧创建第一条。
+      当前没有博物馆数据，可以先新增第一条。
     </div>
 
     <div v-else class="divide-y divide-border/60">
@@ -55,10 +55,11 @@ const formatNumber = (value: number | null, suffix = '') => {
         :class="record.id === props.activeId ? 'bg-primary/6' : ''">
         <div class="space-y-2.5">
           <div class="flex flex-wrap items-center gap-2">
-            <h3 class="text-base font-semibold text-foreground">{{ record.name || '未命名主体' }}</h3>
-            <span class="rounded-full border border-border/80 bg-secondary/80 px-2.5 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              {{ record.museumCode || 'NO-CODE' }}
-            </span>
+            <h3
+              class="text-base font-semibold text-foreground"
+              :title="record.museumCode ? `编码：${record.museumCode}` : undefined">
+              {{ record.name || '未命名博物馆' }}
+            </h3>
             <span
               class="rounded-full px-2.5 py-1 text-[11px]"
               :class="record.status === 1 ? 'bg-emerald-500/12 text-emerald-300' : 'bg-white/8 text-muted-foreground'">

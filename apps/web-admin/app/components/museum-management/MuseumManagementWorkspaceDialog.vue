@@ -52,11 +52,11 @@ const formState = reactive<MuseumDraft>({
   status: 1,
 });
 
-const dialogTitle = computed(() => (props.mode === 'create' ? '新增主体' : '主体工作台'));
+const dialogTitle = computed(() => (props.mode === 'create' ? '新增博物馆' : '博物馆工作台'));
 const dialogDescription = computed(() =>
   props.mode === 'create'
-    ? '先保存主体基础信息，再继续维护楼层和设施。'
-    : '在同一个主体工作台中维护基础信息、楼层和设施。'
+    ? '先保存博物馆基础信息，再继续维护楼层和设施。'
+    : '在同一个博物馆工作台中维护基础信息、楼层和设施。'
 );
 
 const tabItems = [
@@ -135,7 +135,7 @@ const activeWorkbenchSection = computed<'floors' | 'facilities'>(() => {
   <Dialog :open="props.open" @update:open="handleOpenChange">
     <DialogContent class="h-[92vh] max-w-[1180px] overflow-hidden p-0">
       <div class="flex h-full min-h-0 flex-col">
-        <div class="flex items-center justify-between border-b border-border/70 px-5 py-3">
+        <div class="flex items-center border-b border-border/70 px-5 py-3 pr-12">
           <DialogHeader class="space-y-0.5">
             <DialogTitle class="text-[1.2rem] font-semibold tracking-tight text-foreground">
               {{ dialogTitle }}
@@ -144,10 +144,6 @@ const activeWorkbenchSection = computed<'floors' | 'facilities'>(() => {
               {{ dialogDescription }}
             </DialogDescription>
           </DialogHeader>
-
-          <Button variant="ghost" size="icon" :disabled="props.submitting" @click="closeDialog">
-            <UiAppIcon name="x" class="h-4 w-4" />
-          </Button>
         </div>
 
         <div class="border-b border-border/70 px-5 py-2.5">

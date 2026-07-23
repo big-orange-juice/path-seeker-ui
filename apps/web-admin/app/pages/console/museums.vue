@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { shallowRef } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Input from '@/components/shadcn/input/Input.vue';
@@ -71,7 +71,7 @@ const handleSave = async (draft: MuseumDraft) => {
 };
 
 const handleRemove = async (record: MuseumRecord) => {
-  const confirmed = window.confirm(`确认删除主体“${record.name || record.museumCode || record.id}”吗？`);
+  const confirmed = window.confirm(`确认删除博物馆“${record.name || record.museumCode || record.id}”吗？`);
   if (!confirmed) {
     return;
   }
@@ -95,17 +95,17 @@ const handleRemove = async (record: MuseumRecord) => {
 <template>
   <div class="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
     <div v-if="error" class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-      {{ error.message || '主体数据加载失败。' }}
+      {{ error.message || '博物馆数据加载失败。' }}
     </div>
 
     <section class="warm-panel warm-outline rounded-[0.95rem] border border-border/70 px-4 py-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="min-w-[280px] flex-1 space-y-2">
-          <label class="text-sm font-medium text-foreground">关键词</label>
-          <Input v-model="keyword" placeholder="搜索主体编码、名称、地址" />
+          <label class="text-sm font-medium">关键词</label>
+          <Input v-model="keyword" placeholder="搜索博物馆名称、编码、地址" />
         </div>
         <div class="w-[180px] space-y-2">
-          <label class="text-sm font-medium text-foreground">状态筛选</label>
+          <label class="text-sm font-medium">状态筛选</label>
           <Select :model-value="String(status)" @update:model-value="status = Number($event)">
             <option value="0">全部状态</option>
             <option value="1">启用</option>
@@ -118,7 +118,7 @@ const handleRemove = async (record: MuseumRecord) => {
             重置筛选
           </Button>
           <Button :disabled="submitting" @click="startCreate">
-            新增主体
+            新增博物馆
           </Button>
         </div>
       </div>

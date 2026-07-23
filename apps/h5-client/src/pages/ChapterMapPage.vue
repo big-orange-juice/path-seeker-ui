@@ -229,7 +229,7 @@ onMounted(() => {
             {{ displayMission.summary }}
           </p>
           <p class="mt-3 text-xs tracking-wide text-primary">
-            {{ missionStore.activeSession?.totalScore ?? 0 }} 分 · 点选站点进入
+            点选站点进入
           </p>
         </div>
       </section>

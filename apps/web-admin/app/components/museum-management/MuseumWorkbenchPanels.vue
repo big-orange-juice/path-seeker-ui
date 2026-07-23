@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import Button from '@/components/shadcn/button/Button.vue';
@@ -121,7 +121,7 @@ const selectedFloorMapImage = computed(() => selectedFloorMap.value?.mapImages[0
 const selectedFloorVenueCount = computed(() => venueDrafts.value.length);
 const galleryEmptyMessage = computed(() => {
   if (!floors.value.length) {
-    return '请先新增楼层，再维护当前主体的场馆点位。';
+    return '请先新增楼层，再维护当前博物馆的场馆点位。';
   }
 
   return '当前楼层还没有场馆点位，可直接新增。';
@@ -426,7 +426,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
     <div
       v-if="!hasMuseumId"
       class="rounded-[0.9rem] border border-dashed border-border/70 bg-secondary/20 px-4 py-8 text-center text-sm text-muted-foreground">
-      请先创建并保存主体，再继续维护楼层、场馆和设施。
+      请先创建并保存博物馆，再继续维护楼层、场馆和设施。
     </div>
 
     <template v-else>
@@ -439,7 +439,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
       <AdminSectionCard
         v-if="activeSection === 'floors'"
         title="楼层地图"
-        description="维护当前主体下的楼层编号、层级、底图与排序。">
+        description="维护当前博物馆下的楼层编号、层级、底图与排序。">
         <div class="space-y-3">
           <div class="flex justify-end">
             <Button size="sm" :disabled="props.disabled || floorSubmitting" @click="openCreateFloor">
@@ -456,7 +456,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
           <div
             v-else-if="!floors.length"
             class="rounded-md bg-secondary/20 px-4 py-6 text-center text-sm text-muted-foreground">
-            当前主体还没有楼层。
+            当前博物馆还没有楼层。
           </div>
 
           <div v-else class="grid gap-3 lg:grid-cols-2">
@@ -579,7 +579,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
       <AdminSectionCard
         v-else
         title="设施"
-        description="维护当前主体下的公共设施，并可关联到指定楼层。">
+        description="维护当前博物馆下的公共设施，并可关联到指定楼层。">
         <div class="space-y-3">
           <div class="flex justify-end">
             <Button size="sm" :disabled="props.disabled || facilitySubmitting" @click="openCreateFacility">
@@ -596,7 +596,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
           <div
             v-else-if="!facilities.length"
             class="rounded-md bg-secondary/20 px-4 py-6 text-center text-sm text-muted-foreground">
-            当前主体还没有设施。
+            当前博物馆还没有设施。
           </div>
 
           <div v-else class="space-y-2">
@@ -647,18 +647,18 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
               {{ facilityDialogMode === 'create' ? '新增设施' : '编辑设施' }}
             </DialogTitle>
             <DialogDescription class="text-xs text-muted-foreground">
-              维护当前主体下的设施信息和所属楼层。
+              维护当前博物馆下的设施信息和所属楼层。
             </DialogDescription>
           </DialogHeader>
         </div>
         <form class="space-y-4 px-5 py-4" @submit.prevent="saveFacility">
           <section class="grid gap-3 md:grid-cols-2">
             <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">设施名称</label>
+              <label class="text-sm font-medium">设施名称</label>
               <Input v-model="facilityDraft.name" placeholder="请输入设施名称" />
             </div>
             <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">所属楼层</label>
+              <label class="text-sm font-medium">所属楼层</label>
               <Select :model-value="facilityDraft.floorId ?? ''" @update:model-value="facilityDraft.floorId = $event || null">
                 <option value="">未绑定楼层</option>
                 <option v-for="option in floorOptions" :key="option.value" :value="option.value">
@@ -670,7 +670,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
 
           <section class="grid gap-3 md:grid-cols-2">
             <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">设施类型</label>
+              <label class="text-sm font-medium">设施类型</label>
               <Select :model-value="String(facilityDraft.facilityType)" @update:model-value="facilityDraft.facilityType = Number($event)">
                 <option v-for="option in facilityTypeOptions" :key="option.value" :value="String(option.value)">
                   {{ option.label }}
@@ -678,7 +678,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
               </Select>
             </div>
             <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">排序号</label>
+              <label class="text-sm font-medium">排序号</label>
               <Input
                 :model-value="String(facilityDraft.sortOrder)"
                 type="number"
@@ -687,7 +687,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
           </section>
 
           <section class="space-y-2">
-            <label class="text-sm font-medium text-foreground">位置描述</label>
+            <label class="text-sm font-medium">位置描述</label>
             <Textarea
               v-model="facilityDraft.locationDesc"
               rows="3"

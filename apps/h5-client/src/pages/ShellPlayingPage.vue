@@ -74,7 +74,7 @@ onMounted(() => {
           </p>
         </div>
 
-        <div class="grid grid-cols-3 gap-3">
+        <div class="grid grid-cols-2 gap-3">
           <div class="rounded-[0.9rem] bg-background/70 p-3">
             <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">进度</div>
             <div class="mt-2 text-lg font-semibold text-foreground">{{ missionStore.progressPercent }}%</div>
@@ -83,12 +83,6 @@ onMounted(() => {
             <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">已完成</div>
             <div class="mt-2 text-lg font-semibold text-foreground">
               {{ activeSession?.solvedChapterIds.length ?? 0 }}/{{ missionStore.activeMission?.chapterCount ?? 0 }}
-            </div>
-          </div>
-          <div class="rounded-[0.9rem] bg-background/70 p-3">
-            <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">得分</div>
-            <div class="mt-2 text-lg font-semibold text-foreground">
-              {{ activeSession?.totalScore ?? 0 }}
             </div>
           </div>
         </div>

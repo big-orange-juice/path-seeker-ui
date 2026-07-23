@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { shallowRef, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import GuideDataTable from '@/components/guides/GuideDataTable.vue'
@@ -83,15 +83,15 @@ const loadVoiceOptions = async (keyword?: string) => {
 }
 
 const searchVoiceOptions = useDebounceFn((keyword: string) => {
-  // 仅编辑弹窗需要音色列表
-  if (!formOpen.value || formMode.value !== 'edit') {
+  if (!formOpen.value) {
     return
   }
   void loadVoiceOptions(keyword)
 }, 300)
 
 watch(formOpen, (open) => {
-  if (open && formMode.value === 'edit') {
+  // 创建/编辑均加载内置音色；样本仅在内置不够用时补充
+  if (open) {
     void loadVoiceOptions()
   }
 })
@@ -256,11 +256,11 @@ const handleDetailEdit = (record: GuideRecord) => {
     <section class="warm-panel warm-outline rounded-[0.95rem] border border-border/70 px-4 py-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="min-w-[260px] flex-1 space-y-2">
-          <label class="text-sm font-medium text-foreground">关键词</label>
+          <label class="text-sm font-medium">关键词</label>
           <Input v-model="keyword" placeholder="搜索名称、简介" />
         </div>
         <div class="w-[150px] space-y-2">
-          <label class="text-sm font-medium text-foreground">状态</label>
+          <label class="text-sm font-medium">状态</label>
           <Select :model-value="String(status)" @update:model-value="status = Number($event)">
             <option
               v-for="option in GUIDE_STATUS_OPTIONS"
@@ -272,7 +272,7 @@ const handleDetailEdit = (record: GuideRecord) => {
           </Select>
         </div>
         <div class="w-[150px] space-y-2">
-          <label class="text-sm font-medium text-foreground">音色状态</label>
+          <label class="text-sm font-medium">音色状态</label>
           <Select :model-value="String(voiceStatus)" @update:model-value="voiceStatus = Number($event)">
             <option
               v-for="option in GUIDE_VOICE_STATUS_OPTIONS"

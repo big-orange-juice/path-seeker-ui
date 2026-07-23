@@ -47,8 +47,8 @@ const formState = reactive<MuseumDraft>({
   status: 1,
 });
 
-const dialogTitle = computed(() => (props.mode === 'create' ? '新增主体' : '编辑主体'));
-const dialogDescription = computed(() => '维护主体基础资料与对外展示所需的核心信息。');
+const dialogTitle = computed(() => (props.mode === 'create' ? '新增博物馆' : '编辑博物馆'));
+const dialogDescription = computed(() => '维护博物馆基础资料与对外展示所需的核心信息。');
 
 const syncFormState = (value: MuseumDraft) => {
   formState.id = value.id;
@@ -115,7 +115,7 @@ const submitForm = (...args: unknown[]) => {
 <template>
   <Dialog :open="props.open" @update:open="handleOpenChange">
     <DialogContent class="max-h-[90vh] overflow-hidden p-0">
-      <div class="flex items-center justify-between border-b border-border/70 px-5 py-3">
+      <div class="flex items-center border-b border-border/70 px-5 py-3 pr-12">
         <DialogHeader class="space-y-0.5">
           <DialogTitle class="text-[1.2rem] font-semibold tracking-tight text-foreground">
             {{ dialogTitle }}
@@ -124,10 +124,6 @@ const submitForm = (...args: unknown[]) => {
             {{ dialogDescription }}
           </DialogDescription>
         </DialogHeader>
-
-        <Button variant="ghost" size="icon" :disabled="props.submitting" @click="closeDialog">
-          <UiAppIcon name="x" class="h-4 w-4" />
-        </Button>
       </div>
 
       <div class="max-h-[calc(90vh-61px)] overflow-y-auto px-5 py-4">

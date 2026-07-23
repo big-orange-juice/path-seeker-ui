@@ -32,10 +32,8 @@ export const useCinemaStore = defineStore("cinema", () => {
   const bodySwirl = ref(false)
   const effect = ref<CinemaEffect | null>(null)
   const label = ref("")
-  const scoreFlash = ref("")
   const minLoadingMs = 520
   let loadingStartedAt = 0
-  let scoreTimer: ReturnType<typeof setTimeout> | null = null
 
   const isActive = computed(() => loadingDepth.value > 0 || transitBusy.value)
   const showVeil = computed(() => isActive.value || viewDimmed.value)
@@ -50,20 +48,6 @@ export const useCinemaStore = defineStore("cinema", () => {
   function setSwirl(on: boolean) {
     bodySwirl.value = on
     syncBodyClass()
-  }
-
-  function showScore(score: string | number) {
-    const text = String(score).startsWith("+") ? String(score) : `+${score}`
-    scoreFlash.value = ""
-    requestAnimationFrame(() => {
-      scoreFlash.value = text
-    })
-    if (scoreTimer) {
-      clearTimeout(scoreTimer)
-    }
-    scoreTimer = setTimeout(() => {
-      scoreFlash.value = ""
-    }, 900)
   }
 
   /**
@@ -134,7 +118,6 @@ export const useCinemaStore = defineStore("cinema", () => {
   async function playRouteExit(opts?: {
     effect?: CinemaEffect
     duration?: number
-    score?: string | number
     label?: string
   }) {
     if (prefersReducedMotion()) {
@@ -154,10 +137,6 @@ export const useCinemaStore = defineStore("cinema", () => {
     void getStarfield()?.swirlTransit(duration, peak)
 
     await wait(duration * 0.38)
-
-    if (opts?.score != null && opts.score !== "") {
-      showScore(opts.score)
-    }
   }
 
   /** 路由进入后：内容升起，结束过场（若仍有 loading 则保持 veil） */
@@ -201,7 +180,6 @@ export const useCinemaStore = defineStore("cinema", () => {
   async function runTransit(opts?: {
     effect?: CinemaEffect
     duration?: number
-    score?: string | number
     label?: string
   }) {
     await playRouteExit(opts)
@@ -220,7 +198,6 @@ export const useCinemaStore = defineStore("cinema", () => {
     bodySwirl,
     effect,
     label,
-    scoreFlash,
     isActive,
     showVeil,
     beginLoading,
@@ -229,7 +206,6 @@ export const useCinemaStore = defineStore("cinema", () => {
     playRouteExit,
     playRouteEnter,
     runTransit,
-    showScore,
     setVideoPlaying,
   }
 })

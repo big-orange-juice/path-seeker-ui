@@ -66,7 +66,7 @@ const playStage = computed<GameplayPreviewStage | null>(() => {
     interactionType: 11,
     title: current.artifact?.title || current.title,
     exhibitName: current.artifact?.title || current.title,
-    score: missionStore.activeSession?.totalScore ?? 0,
+
     config: {
       guide_id: guideId,
       guide_name: guideName || (guideId ? `讲解 ${guideId}` : ""),

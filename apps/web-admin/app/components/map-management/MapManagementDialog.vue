@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, reactive, shallowRef, watch } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import MapPhonePreview from '@/components/map-management/MapPhonePreview.vue';
@@ -228,7 +228,7 @@ const submitForm = () => {
   <Dialog :open="props.open" @update:open="handleOpenChange">
     <DialogContent class="h-[90vh] overflow-hidden p-0">
       <div class="flex h-full flex-col">
-        <div class="flex items-center justify-between border-b border-border/70 px-5 py-3">
+        <div class="flex items-center border-b border-border/70 px-5 py-3 pr-12">
           <DialogHeader class="space-y-0.5">
             <DialogTitle class="text-[1.2rem] font-semibold tracking-tight text-foreground">
               {{ dialogTitle }}
@@ -237,10 +237,6 @@ const submitForm = () => {
               {{ dialogDescription }}
             </DialogDescription>
           </DialogHeader>
-
-          <UiButton variant="ghost" size="icon" :disabled="props.submitting" @click="closeDialog">
-            <UiAppIcon name="x" class="h-4 w-4" />
-          </UiButton>
         </div>
 
         <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="submitForm">
@@ -254,17 +250,17 @@ const submitForm = () => {
 
                 <div class="grid gap-3 md:grid-cols-2">
                   <div class="space-y-2">
-                    <label class="text-sm font-medium text-foreground">楼层号</label>
+                    <label class="text-sm font-medium">楼层号</label>
                     <UiInput v-model="formState.floorNumber" placeholder="例如：3F" />
                   </div>
 
                   <div class="space-y-2">
-                    <label class="text-sm font-medium text-foreground">楼层名称</label>
+                    <label class="text-sm font-medium">楼层名称</label>
                     <UiInput v-model="formState.floorName" placeholder="例如：特展走廊" />
                   </div>
 
                   <div class="space-y-2">
-                    <label class="text-sm font-medium text-foreground">楼层层级</label>
+                    <label class="text-sm font-medium">楼层层级</label>
                     <UiInput
                       :model-value="String(formState.floorLevel)"
                       type="number"
@@ -273,7 +269,7 @@ const submitForm = () => {
                   </div>
 
                   <div class="space-y-2">
-                    <label class="text-sm font-medium text-foreground">排序号</label>
+                    <label class="text-sm font-medium">排序号</label>
                     <UiInput
                       :model-value="String(formState.sortOrder)"
                       type="number"
@@ -283,7 +279,7 @@ const submitForm = () => {
                 </div>
 
                 <div class="space-y-2">
-                  <label class="text-sm font-medium text-foreground">楼层描述</label>
+                  <label class="text-sm font-medium">楼层描述</label>
                   <UiTextarea
                     v-model="formState.description"
                     rows="4"

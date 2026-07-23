@@ -47,15 +47,14 @@ export interface UpdateRouteStageNarrationImageRequest {
 }
 
 /**
- * POST /api/NarrationImage/generate — 异步生成（当前编辑 UI 暂不开放）。
- * 提交后需轮询任务状态或刷新 detail.images。
+ * POST /api/NarrationImage/generate — 异步生成配图。
+ * 任务成功后附件自动绑定节点；前端轮询 detail.images 同步。
+ * parameters 前端不传；priority 默认 10000 且 UI 不展示。
  */
 export interface GenerateRouteStageNarrationImageRequest {
   stageId: string
   prompt: string
-  modelName?: string | null
   referenceImageUrls?: string[] | null
-  referenceAttachmentIds?: string[] | null
   priority?: number | null
   parameters?: Record<string, unknown> | null
   idempotencyKey: string

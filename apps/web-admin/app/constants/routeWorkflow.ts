@@ -116,15 +116,17 @@ export const isGuideRole = (roleCode: string | null | undefined) =>
   normalizeRoleCode(roleCode) === ROUTE_ROLE_GUIDE;
 
 export const roleDisplayName = (roleCode: string | null | undefined, roleName?: string | null) => {
-  const name = String(roleName ?? '').trim();
-  if (name) {
-    return name;
-  }
-  if (isAdminRole(roleCode)) {
+  const code = normalizeRoleCode(roleCode || roleName);
+  if (isAdminRole(code)) {
     return '管理员';
   }
-  if (isGuideRole(roleCode)) {
+  if (isGuideRole(code)) {
     return '导游';
+  }
+  const name = String(roleName ?? '').trim();
+  // 过滤后端码值，避免顶栏直接展示 CREATOR / ADMIN
+  if (name && !/^(ADMIN|ADMINISTRATOR|CREATOR|GUIDE|CURATOR)$/i.test(name)) {
+    return name;
   }
   return '后台账号';
 };
@@ -436,35 +438,35 @@ export const getEditLockMessage = (
   const owner = ctx ? isOwnedBy(record, ctx.adminId) : false;
 
   if (admin && !owner && audit === AUDIT_PENDING) {
-    return '待审核路线仅可查看内容，不可修改。审阅后请点右下角「审核」通过或驳回；可在列表直接上架/下线或删除。';
+    return '待审核路线仅可查看。请点右下角「审核」通过或驳回。';
   }
   if (admin && !owner && (publish === PUBLISH_DRAFT || publish === PUBLISH_OFFLINE)) {
     return publish === PUBLISH_DRAFT
-      ? '他人未上架路线内容不可编辑，可在列表上架或删除。'
-      : '他人已下线路线内容不可编辑，可在列表重新上架。';
+      ? '他人未上架路线内容只读，可在列表上架或删除。'
+      : '他人已下线路线内容只读，可在列表重新上架。';
   }
   if (guide && !owner && publish === PUBLISH_ONLINE) {
-    return '这是其他导游的已上架路线，仅可查看。';
+    return '其他导游的已上架路线，仅可查看。';
   }
   if (!owner && publish === PUBLISH_ONLINE) {
-    return '非本人路线，内容只读。';
+    return '非本人路线，仅可查看。';
   }
   if (publish === PUBLISH_ONLINE) {
-    return '路线已上架，内容不可编辑。请先下线后再修改。';
+    return '路线已上架，请先下线后再修改。';
   }
   if (audit === AUDIT_PENDING) {
-    return '路线正在审核中，内容已锁定，审核结束后可再修改。';
+    return '审核中，内容已锁定，结束后可再修改。';
   }
   if (Boolean(record.isGenerating)) {
     return '路线生成中，请稍后再编辑。';
   }
   if (record.canEdit === false) {
-    return '当前账号无权限编辑该路线。';
+    return '暂时不能编辑该路线。';
   }
   if (!owner) {
     return admin
-      ? '管理员不可编辑他人路线内容，可审核、上架/下线或删除未上架路线。'
-      : '仅路线归属人可编辑内容。';
+      ? '他人路线内容只读，可审核、上架/下线或删除未上架路线。'
+      : '仅路线归属人可编辑。';
   }
   return '当前状态不可编辑。';
 };

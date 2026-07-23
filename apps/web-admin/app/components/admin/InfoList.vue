@@ -17,7 +17,7 @@ defineProps<Props>();
     >
       <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div class="space-y-1">
-          <p class="text-sm font-medium text-foreground">{{ item.name }}</p>
+          <p class="text-sm font-medium">{{ item.name }}</p>
           <p class="text-xs leading-5 text-muted-foreground">{{ item.description }}</p>
         </div>
         <p v-if="item.value" class="max-w-xs text-xs leading-5 text-primary md:text-right">{{ item.value }}</p>

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, reactive, useTemplateRef } from 'vue';
 import type { VenueDraft } from '@/types/map-management';
 
@@ -226,7 +226,7 @@ const stopDragging = () => {
           v-if="!props.mapImage"
           class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
           <UiAppIcon name="map" class="h-7 w-7 text-primary/80" />
-          <p class="text-sm font-medium text-foreground">请先上传地图</p>
+          <p class="text-sm font-medium">请先上传地图</p>
         </div>
       </div>
     </div>

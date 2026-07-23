@@ -55,12 +55,12 @@ onUnmounted(() => {
       <div class="space-y-5 p-5">
         <div class="space-y-3 text-center">
           <div class="inline-flex w-fit items-center justify-center rounded-full bg-primary/14 px-4 py-1.5 text-sm font-semibold text-primary">
-            +{{ result.gainedScore }} 分
+            本站完成
           </div>
           <h2 class="font-display text-3xl leading-tight text-foreground">{{ result.chapterTitle }}</h2>
           <p v-if="result.narrative" class="client-page-copy">{{ result.narrative }}</p>
           <p class="text-sm text-muted-foreground">
-            总分 {{ missionStore.activeSession?.totalScore ?? 0 }} · 一会儿回路线…
+            一会儿回路线…
           </p>
         </div>
 

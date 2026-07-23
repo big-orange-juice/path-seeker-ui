@@ -8,7 +8,6 @@ import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue'
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue'
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue'
 import Input from '@/components/shadcn/input/Input.vue'
-import AppIcon from '@/components/ui/AppIcon.vue'
 import type { GuideRecord } from '@/types/guide'
 
 interface Props {
@@ -72,7 +71,7 @@ const handleSelect = (guide: GuideRecord) => {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent class="flex h-[min(80vh,32rem)] max-w-[min(92vw,28rem)] flex-col overflow-hidden rounded-xl border border-border bg-[#15171b] p-0 text-left">
-      <div class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/60 px-5">
+      <div class="flex h-14 shrink-0 items-center border-b border-border/60 px-5 pr-12">
         <DialogHeader class="min-w-0 space-y-0.5 text-left">
           <DialogTitle class="text-base">
             选择导游
@@ -81,16 +80,6 @@ const handleSelect = (guide: GuideRecord) => {
             为当前解说节点指定讲解导游。
           </DialogDescription>
         </DialogHeader>
-        <Button
-          variant="ghost"
-          size="icon"
-          type="button"
-          title="关闭"
-          class="shrink-0"
-          @click="isOpen = false"
-        >
-          <AppIcon name="x" class="h-4 w-4" />
-        </Button>
       </div>
 
       <div class="shrink-0 border-b border-border/50 px-5 py-3">

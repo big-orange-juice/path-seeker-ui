@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
@@ -65,7 +65,7 @@ const handleConfirm = () => {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent class="max-w-[min(92vw,26rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
-      <DialogHeader class="space-y-2 px-5 pb-2 pt-4">
+      <DialogHeader class="space-y-2 px-5 pb-2 pt-4 pr-12">
         <DialogTitle>审核路线</DialogTitle>
         <DialogDescription>
           审核「{{ routeName }}」。通过后导游可上架；驳回需填写原因。
@@ -93,7 +93,7 @@ const handleConfirm = () => {
         </div>
 
         <div class="space-y-1.5">
-          <label class="text-sm font-medium text-foreground">
+          <label class="text-sm font-medium">
             备注{{ pass ? '（可选）' : '（必填）' }}
           </label>
           <textarea

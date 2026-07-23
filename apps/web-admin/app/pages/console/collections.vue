@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Input from '@/components/shadcn/input/Input.vue';
@@ -50,7 +50,8 @@ const museumOptions = computed(() =>
     .filter((museum) => museum.id)
     .map((museum) => ({
       value: String(museum.id),
-      label: [museum.museumCode, museum.name].filter(Boolean).join(' / ') || String(museum.id),
+      // 下拉默认只展示名称；编码留给详情/表单（G-04）
+      label: String(museum.name || museum.museumCode || museum.id).trim() || String(museum.id),
     }))
 );
 
@@ -213,7 +214,7 @@ const handleRemove = async (record: ExhibitRecord) => {
     <section class="warm-panel warm-outline rounded-[0.95rem] border border-border/70 px-4 py-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="w-[280px] space-y-2">
-          <label class="text-sm font-medium text-foreground">所属博物馆</label>
+          <label class="text-sm font-medium">所属博物馆</label>
           <Select :model-value="selectedMuseumId" :disabled="museumPending || !museumOptions.length" @update:model-value="selectedMuseumId = $event">
             <option v-for="option in museumOptions" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -221,15 +222,15 @@ const handleRemove = async (record: ExhibitRecord) => {
           </Select>
         </div>
         <div class="min-w-[260px] flex-1 space-y-2">
-          <label class="text-sm font-medium text-foreground">关键词</label>
+          <label class="text-sm font-medium">关键词</label>
           <Input v-model="filters.keyword" placeholder="搜索馆藏名称、编码、类别" />
         </div>
         <div class="w-[180px] space-y-2">
-          <label class="text-sm font-medium text-foreground">年代筛选</label>
+          <label class="text-sm font-medium">年代筛选</label>
           <Input v-model="filters.dynasty" placeholder="如 商晚期 / 北宋" />
         </div>
         <div class="w-[260px] space-y-2">
-          <label class="text-sm font-medium text-foreground">场馆筛选</label>
+          <label class="text-sm font-medium">场馆筛选</label>
           <Select :model-value="filters.galleryId" @update:model-value="filters.galleryId = $event">
             <option value="">全部场馆</option>
             <option value="0">未展览</option>
@@ -239,7 +240,7 @@ const handleRemove = async (record: ExhibitRecord) => {
           </Select>
         </div>
         <div class="w-[180px] space-y-2">
-          <label class="text-sm font-medium text-foreground">重点筛选</label>
+          <label class="text-sm font-medium">重点筛选</label>
           <Select :model-value="String(filters.isHighlight)" @update:model-value="filters.isHighlight = Number($event)">
             <option value="-1">全部类型</option>
             <option value="1">重点展品</option>

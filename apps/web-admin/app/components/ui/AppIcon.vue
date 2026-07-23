@@ -23,6 +23,7 @@ import {
   Trash2,
   UserRound,
   X,
+  ZoomIn,
   type LucideIcon,
 } from 'lucide-vue-next';
 
@@ -48,7 +49,8 @@ export type AppIconName =
   | 'sparkles'
   | 'trash-2'
   | 'user-round'
-  | 'x';
+  | 'x'
+  | 'zoom-in';
 
 interface Props {
   name: AppIconName;
@@ -84,6 +86,7 @@ const iconMap: Record<AppIconName, LucideIcon> = {
   'trash-2': Trash2,
   'user-round': UserRound,
   x: X,
+  'zoom-in': ZoomIn,
 };
 
 const iconComponent = computed(() => iconMap[props.name]);

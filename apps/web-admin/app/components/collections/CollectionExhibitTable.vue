@@ -62,7 +62,15 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
       const record = row.original;
       return h('div', { class: 'min-w-0 space-y-1' }, [
         h('div', { class: 'flex items-center gap-2' }, [
-          h('p', { class: 'truncate font-medium text-foreground' }, record.name || '未命名馆藏'),
+          h(
+            'p',
+            {
+              class: 'truncate font-medium text-foreground',
+              // 编码仅 hover 可见，列表主文案不强调（M-03）
+              title: record.exhibitCode ? `编码：${record.exhibitCode}` : undefined,
+            },
+            record.name || '未命名馆藏'
+          ),
           h(
             'span',
             {
@@ -73,7 +81,6 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
             record.isHighlight === 1 ? '重点展品' : '普通馆藏'
           ),
         ]),
-        h('p', { class: 'text-xs text-muted-foreground' }, record.exhibitCode || 'NO-CODE'),
       ]);
     },
   },
@@ -96,11 +103,6 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
     accessorKey: 'recommendedMinutes',
     header: renderHeader('停留时长', 'recommendedMinutes'),
     cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, row.original.recommendedMinutes === null ? '未设置' : String(row.original.recommendedMinutes) + ' 分钟'),
-  },
-  {
-    accessorKey: 'sortOrder',
-    header: renderHeader('排序', 'sortOrder'),
-    cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, String(row.original.sortOrder ?? 0)),
   },
   {
     id: 'actions',

@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { computed } from 'vue';
+﻿<script setup lang="ts">
+import { computed, shallowRef } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
@@ -329,6 +329,9 @@ const hasArchiveContent = computed(() =>
   )
 );
 
+/** 深度档案默认折叠，避免首屏信息过载（M-04） */
+const showDeepArchive = shallowRef(false);
+
 const closeDialog = () => emit('update:open', false);
 const updateOpen = (...args: unknown[]) =>
   emit('update:open', Boolean(args[0]));
@@ -338,27 +341,17 @@ const updateOpen = (...args: unknown[]) =>
   <Dialog :open="props.open" @update:open="updateOpen">
     <DialogContent
       class="flex h-[92vh] max-w-[1320px] flex-col overflow-hidden p-0">
-      <DialogHeader class="border-b border-border/70 px-5 py-4">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <DialogTitle
-              class="truncate text-base font-semibold text-foreground">
-              {{ currentRecord?.name || '馆藏详情' }}
-            </DialogTitle>
-            <DialogDescription
-              class="mt-1 truncate text-xs text-muted-foreground">
-              {{ currentRecord?.exhibitCode || 'NO-CODE' }} ·
-              {{ currentRecord ? getGalleryName(currentRecord) : '未分配' }}
-            </DialogDescription>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            title="关闭详情"
-            @click="closeDialog">
-            <AppIcon name="x" class="h-4 w-4" />
-          </Button>
+      <DialogHeader class="border-b border-border/70 px-5 py-4 pr-12">
+        <div class="min-w-0">
+          <DialogTitle
+            class="truncate text-base font-semibold text-foreground">
+            {{ currentRecord?.name || '馆藏详情' }}
+          </DialogTitle>
+          <DialogDescription
+            class="mt-1 truncate text-xs text-muted-foreground"
+            :title="currentRecord?.exhibitCode ? `编码：${currentRecord.exhibitCode}` : undefined">
+            {{ currentRecord ? getGalleryName(currentRecord) : '未分配' }}
+          </DialogDescription>
         </div>
       </DialogHeader>
 
@@ -422,22 +415,6 @@ const updateOpen = (...args: unknown[]) =>
               </div>
             </section>
 
-            <section v-if="archiveSummaryFields.length" class="space-y-3">
-              <h3 class="text-sm font-semibold text-foreground">整理档案</h3>
-              <div class="grid gap-3 md:grid-cols-2">
-                <div
-                  v-for="field in archiveSummaryFields"
-                  :key="field.label"
-                  class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                  <p class="text-xs text-muted-foreground">{{ field.label }}</p>
-                  <p
-                    class="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">
-                    {{ field.value }}
-                  </p>
-                </div>
-              </div>
-            </section>
-
             <section v-if="groupedExtras.length" class="space-y-3">
               <h3 class="text-sm font-semibold text-foreground">扩展属性</h3>
               <div class="space-y-3">
@@ -445,7 +422,7 @@ const updateOpen = (...args: unknown[]) =>
                   v-for="group in groupedExtras"
                   :key="group.groupName"
                   class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                  <p class="text-sm font-medium text-foreground">
+                  <p class="text-sm font-medium">
                     {{ group.groupName }}
                   </p>
                   <div class="mt-3 grid gap-3 md:grid-cols-2">
@@ -477,156 +454,6 @@ const updateOpen = (...args: unknown[]) =>
               </div>
             </section>
 
-            <section v-if="timelinePhases.length" class="space-y-3">
-              <h3 class="text-sm font-semibold text-foreground">
-                关键人物时间线
-              </h3>
-              <div class="space-y-3">
-                <article
-                  v-for="phase in timelinePhases"
-                  :key="`${phase.phase}:${phase.period}`"
-                  class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-sm font-medium text-foreground">
-                      {{ phase.phase || '阶段' }}
-                    </p>
-                    <span
-                      v-if="phase.period"
-                      class="text-xs text-muted-foreground">
-                      {{ phase.period }}
-                    </span>
-                  </div>
-                  <p
-                    v-if="phase.description"
-                    class="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
-                    {{ phase.description }}
-                  </p>
-                  <div
-                    v-if="phase.persons?.length"
-                    class="mt-3 grid gap-2 md:grid-cols-2">
-                    <div
-                      v-for="person in phase.persons"
-                      :key="`${phase.phase}:${person.name}:${person.role}`"
-                      class="rounded-md bg-secondary/40 px-3 py-2.5">
-                      <p class="text-sm font-medium text-foreground">
-                        {{ person.name || '未命名人物' }}
-                      </p>
-                      <p
-                        v-if="person.role"
-                        class="mt-1 text-xs text-muted-foreground">
-                        {{ person.role }}
-                      </p>
-                      <p
-                        v-if="person.contribution"
-                        class="mt-2 text-sm leading-6 text-muted-foreground">
-                        {{ person.contribution }}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-              </div>
-            </section>
-
-            <section v-if="memoryPoints.length" class="space-y-3">
-              <h3 class="text-sm font-semibold text-foreground">核心记忆点</h3>
-              <div class="grid gap-3 md:grid-cols-2">
-                <article
-                  v-for="point in memoryPoints"
-                  :key="`${point.title}:${point.category}`"
-                  class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-sm font-medium text-foreground">
-                      {{ point.title || '未命名记忆点' }}
-                    </p>
-                    <span
-                      v-if="point.category"
-                      class="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
-                      {{ point.category }}
-                    </span>
-                  </div>
-                  <p
-                    v-if="point.description"
-                    class="mt-2 text-sm leading-6 text-muted-foreground">
-                    {{ point.description }}
-                  </p>
-                </article>
-              </div>
-            </section>
-
-            <section v-if="valueSummaries.length" class="space-y-3">
-              <h3 class="text-sm font-semibold text-foreground">价值摘要</h3>
-              <div
-                class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                <ol class="space-y-2 text-sm leading-6 text-muted-foreground">
-                  <li v-for="(item, index) in valueSummaries" :key="item">
-                    {{ index + 1 }}. {{ item }}
-                  </li>
-                </ol>
-              </div>
-            </section>
-
-            <section v-if="archiveRichSections.length" class="space-y-3">
-              <article
-                v-for="section in archiveRichSections"
-                :key="section.title"
-                class="space-y-2">
-                <h3 class="text-sm font-semibold text-foreground">
-                  {{ section.title }}
-                </h3>
-                <div
-                  class="rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm leading-6 text-muted-foreground">
-                  <p class="whitespace-pre-wrap">{{ section.value }}</p>
-                </div>
-              </article>
-            </section>
-
-            <section v-if="relationshipClues.length" class="space-y-3">
-              <h3 class="text-sm font-semibold text-foreground">关联线索</h3>
-              <div class="space-y-3">
-                <article
-                  v-for="(item, index) in relationshipClues"
-                  :key="`${item.clueType}:${index}`"
-                  class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <p class="text-sm font-medium text-foreground">
-                      {{ item.clueType || '线索' }}
-                    </p>
-                    <span
-                      v-if="item.confidence !== undefined"
-                      class="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
-                      置信度 {{ item.confidence }}
-                    </span>
-                  </div>
-                  <div
-                    class="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                    <span v-if="item.personName">
-                      人物：{{ item.personName }}
-                    </span>
-                    <span v-if="item.eventName">
-                      事件：{{ item.eventName }}
-                    </span>
-                    <span v-if="item.techniqueName">
-                      工艺：{{ item.techniqueName }}
-                    </span>
-                    <span v-if="item.motifName">
-                      题材：{{ item.motifName }}
-                    </span>
-                    <span v-if="item.siteName">地点：{{ item.siteName }}</span>
-                  </div>
-                  <p
-                    v-if="item.targetHint"
-                    class="mt-2 text-sm text-foreground">
-                    {{ item.targetHint }}
-                  </p>
-                  <p
-                    v-if="item.narrative"
-                    class="mt-2 text-sm leading-6 text-muted-foreground">
-                    {{ item.narrative }}
-                  </p>
-                </article>
-              </div>
-            </section>
-
             <section v-if="mediaItems.length" class="space-y-3">
               <h3 class="text-sm font-semibold text-foreground">媒体资源</h3>
               <div class="grid gap-3 md:grid-cols-2">
@@ -634,11 +461,11 @@ const updateOpen = (...args: unknown[]) =>
                   v-for="item in mediaItems"
                   :key="`${item.mediaUrl}:${item.sortOrder}`"
                   class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                  <p class="text-sm font-medium text-foreground">
+                  <p class="text-sm font-medium">
                     {{ item.title || '未命名媒体' }}
                   </p>
                   <p class="mt-1 text-xs text-muted-foreground">
-                    类型 {{ item.mediaType }} · 排序 {{ item.sortOrder }}
+                    媒体资料
                   </p>
                   <a
                     v-if="item.mediaUrl"
@@ -646,27 +473,218 @@ const updateOpen = (...args: unknown[]) =>
                     target="_blank"
                     rel="noreferrer"
                     class="mt-2 inline-block break-all text-sm text-sky-300 hover:text-sky-200">
-                    {{ item.mediaUrl }}
+                    打开媒体
                   </a>
                 </article>
               </div>
             </section>
 
-            <section v-if="archiveOtherFields.length" class="space-y-3">
-              <h3 class="text-sm font-semibold text-foreground">
-                其他档案字段
-              </h3>
-              <div class="grid gap-3 md:grid-cols-2">
-                <div
-                  v-for="field in archiveOtherFields"
-                  :key="field.label"
-                  class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
-                  <p class="text-xs text-muted-foreground">{{ field.label }}</p>
-                  <p
-                    class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
-                    {{ field.value }}
+            <section
+              v-if="hasArchiveContent"
+              class="rounded-lg border border-border/60">
+              <button
+                type="button"
+                class="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+                @click="showDeepArchive = !showDeepArchive">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-foreground">
+                    深度档案
+                  </p>
+                  <p class="mt-0.5 text-xs text-muted-foreground">
+                    整理档案、时间线、记忆点等扩展资料
                   </p>
                 </div>
+                <span class="shrink-0 text-xs text-muted-foreground">
+                  {{ showDeepArchive ? '收起' : '展开' }}
+                </span>
+              </button>
+
+              <div
+                v-if="showDeepArchive"
+                class="space-y-5 border-t border-border/60 px-4 py-4">
+                <section v-if="archiveSummaryFields.length" class="space-y-3">
+                  <h3 class="text-sm font-semibold text-foreground">整理档案</h3>
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <div
+                      v-for="field in archiveSummaryFields"
+                      :key="field.label"
+                      class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
+                      <p class="text-xs text-muted-foreground">{{ field.label }}</p>
+                      <p
+                        class="mt-1 whitespace-pre-wrap text-sm leading-6 text-foreground">
+                        {{ field.value }}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <section v-if="timelinePhases.length" class="space-y-3">
+                  <h3 class="text-sm font-semibold text-foreground">
+                    关键人物时间线
+                  </h3>
+                  <div class="space-y-3">
+                    <article
+                      v-for="phase in timelinePhases"
+                      :key="`${phase.phase}:${phase.period}`"
+                      class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-sm font-medium">
+                          {{ phase.phase || '阶段' }}
+                        </p>
+                        <span
+                          v-if="phase.period"
+                          class="text-xs text-muted-foreground">
+                          {{ phase.period }}
+                        </span>
+                      </div>
+                      <p
+                        v-if="phase.description"
+                        class="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                        {{ phase.description }}
+                      </p>
+                      <div
+                        v-if="phase.persons?.length"
+                        class="mt-3 grid gap-2 md:grid-cols-2">
+                        <div
+                          v-for="person in phase.persons"
+                          :key="`${phase.phase}:${person.name}:${person.role}`"
+                          class="rounded-md bg-secondary/40 px-3 py-2.5">
+                          <p class="text-sm font-medium">
+                            {{ person.name || '未命名人物' }}
+                          </p>
+                          <p
+                            v-if="person.role"
+                            class="mt-1 text-xs text-muted-foreground">
+                            {{ person.role }}
+                          </p>
+                          <p
+                            v-if="person.contribution"
+                            class="mt-2 text-sm leading-6 text-muted-foreground">
+                            {{ person.contribution }}
+                          </p>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </section>
+
+                <section v-if="memoryPoints.length" class="space-y-3">
+                  <h3 class="text-sm font-semibold text-foreground">核心记忆点</h3>
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <article
+                      v-for="point in memoryPoints"
+                      :key="`${point.title}:${point.category}`"
+                      class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-sm font-medium">
+                          {{ point.title || '未命名记忆点' }}
+                        </p>
+                        <span
+                          v-if="point.category"
+                          class="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
+                          {{ point.category }}
+                        </span>
+                      </div>
+                      <p
+                        v-if="point.description"
+                        class="mt-2 text-sm leading-6 text-muted-foreground">
+                        {{ point.description }}
+                      </p>
+                    </article>
+                  </div>
+                </section>
+
+                <section v-if="valueSummaries.length" class="space-y-3">
+                  <h3 class="text-sm font-semibold text-foreground">价值摘要</h3>
+                  <div
+                    class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
+                    <ol class="space-y-2 text-sm leading-6 text-muted-foreground">
+                      <li v-for="(item, index) in valueSummaries" :key="item">
+                        {{ index + 1 }}. {{ item }}
+                      </li>
+                    </ol>
+                  </div>
+                </section>
+
+                <section v-if="archiveRichSections.length" class="space-y-3">
+                  <article
+                    v-for="section in archiveRichSections"
+                    :key="section.title"
+                    class="space-y-2">
+                    <h3 class="text-sm font-semibold text-foreground">
+                      {{ section.title }}
+                    </h3>
+                    <div
+                      class="rounded-lg border border-border/70 bg-background/70 px-4 py-3 text-sm leading-6 text-muted-foreground">
+                      <p class="whitespace-pre-wrap">{{ section.value }}</p>
+                    </div>
+                  </article>
+                </section>
+
+                <section v-if="relationshipClues.length" class="space-y-3">
+                  <h3 class="text-sm font-semibold text-foreground">关联线索</h3>
+                  <div class="space-y-3">
+                    <article
+                      v-for="(item, index) in relationshipClues"
+                      :key="`${item.clueType}:${index}`"
+                      class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-sm font-medium">
+                          {{ item.clueType || '线索' }}
+                        </p>
+                        <span
+                          v-if="item.confidence !== undefined"
+                          class="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">
+                          置信度 {{ item.confidence }}
+                        </span>
+                      </div>
+                      <div
+                        class="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span v-if="item.personName">
+                          人物：{{ item.personName }}
+                        </span>
+                        <span v-if="item.eventName">
+                          事件：{{ item.eventName }}
+                        </span>
+                        <span v-if="item.techniqueName">
+                          工艺：{{ item.techniqueName }}
+                        </span>
+                        <span v-if="item.motifName">
+                          题材：{{ item.motifName }}
+                        </span>
+                        <span v-if="item.siteName">地点：{{ item.siteName }}</span>
+                      </div>
+                      <p
+                        v-if="item.targetHint"
+                        class="mt-2 text-sm text-foreground">
+                        {{ item.targetHint }}
+                      </p>
+                      <p
+                        v-if="item.narrative"
+                        class="mt-2 text-sm leading-6 text-muted-foreground">
+                        {{ item.narrative }}
+                      </p>
+                    </article>
+                  </div>
+                </section>
+
+                <section v-if="archiveOtherFields.length" class="space-y-3">
+                  <h3 class="text-sm font-semibold text-foreground">
+                    其他档案字段
+                  </h3>
+                  <div class="grid gap-3 md:grid-cols-2">
+                    <div
+                      v-for="field in archiveOtherFields"
+                      :key="field.label"
+                      class="rounded-lg border border-border/70 bg-background/70 px-4 py-3">
+                      <p class="text-xs text-muted-foreground">{{ field.label }}</p>
+                      <p
+                        class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
+                        {{ field.value }}
+                      </p>
+                    </div>
+                  </div>
+                </section>
               </div>
             </section>
 

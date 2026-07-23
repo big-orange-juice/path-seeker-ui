@@ -1,86 +1,101 @@
 <script setup lang="ts">
-import { computed, inject, onBeforeUnmount, watch } from 'vue';
-import { dialogContextKey } from './context';
-import { createDialogLayerHandle } from './layer';
-import { cn } from '@/utils/cn';
+import { computed, inject, onBeforeUnmount, watch } from 'vue'
+import { X } from 'lucide-vue-next'
+import { dialogContextKey } from './context'
+import { createDialogLayerHandle } from './layer'
+import { cn } from '@/utils/cn'
 
 const props = withDefaults(defineProps<{
-  class?: string;
+  class?: string
   /**
    * 可选：强制指定 z-index。
    * 默认由全局层级栈按打开顺序自动递增，一般无需传入。
    * 仅在需要压过全局栈（如登录过期提示）时使用。
    */
-  zIndex?: number;
+  zIndex?: number
+  /**
+   * 是否在右上角显示统一关闭按钮。
+   * 默认开启；登录过期等强制弹窗可关闭。
+   */
+  showClose?: boolean
 }>(), {
   class: '',
   zIndex: undefined,
-});
+  showClose: true,
+})
 
-const dialog = inject(dialogContextKey);
+const dialog = inject(dialogContextKey)
 if (!dialog) {
-  throw new Error('DialogContent must be used inside Dialog');
+  throw new Error('DialogContent must be used inside Dialog')
 }
 
-const layer = createDialogLayerHandle();
+const layer = createDialogLayerHandle()
 
 const overlayZIndex = computed(() => {
   if (typeof props.zIndex === 'number' && Number.isFinite(props.zIndex)) {
-    return props.zIndex;
+    return props.zIndex
   }
-  return layer.zIndex.value;
-});
+  return layer.zIndex.value
+})
 
 const handleEscape = (event: KeyboardEvent) => {
   if (event.key !== 'Escape') {
-    return;
+    return
   }
   // 仅最顶层 dialog 响应 Esc，避免一次关掉整条栈
   if (!layer.isTopmost.value) {
-    return;
+    return
   }
-  event.stopPropagation();
-  dialog.setOpen(false);
-};
+  // 大图预览打开时先交给预览层关闭，不连带关掉业务弹窗
+  if (typeof document !== 'undefined' && document.querySelector('[data-image-lightbox]')) {
+    return
+  }
+  event.stopPropagation()
+  dialog.setOpen(false)
+}
 
 const bindEscape = () => {
-  window.addEventListener('keydown', handleEscape, true);
-};
+  window.addEventListener('keydown', handleEscape, true)
+}
 
 const unbindEscape = () => {
-  window.removeEventListener('keydown', handleEscape, true);
-};
+  window.removeEventListener('keydown', handleEscape, true)
+}
+
+const closeDialog = () => {
+  dialog.setOpen(false)
+}
 
 watch(
   () => dialog.open.value,
   (open) => {
     if (open) {
-      layer.acquire();
-      bindEscape();
-      return;
+      layer.acquire()
+      bindEscape()
+      return
     }
-    unbindEscape();
-    layer.release();
+    unbindEscape()
+    layer.release()
   },
   { immediate: true },
-);
+)
 
 onBeforeUnmount(() => {
-  unbindEscape();
-  layer.release();
-});
+  unbindEscape()
+  layer.release()
+})
 
 /** 调用方已写 max-w 时不再套默认 1360，避免确认框被撑满 */
 const contentClass = computed(() => {
-  const extra = props.class || '';
-  const hasMaxWidth = /\bmax-w-/.test(extra);
+  const extra = props.class || ''
+  const hasMaxWidth = /\bmax-w-/.test(extra)
 
   return cn(
     'warm-panel warm-outline relative w-full rounded-[0.95rem] border border-border/80 bg-[#111316]',
     !hasMaxWidth && 'max-w-[1360px]',
     extra,
-  );
-});
+  )
+})
 </script>
 
 <template>
@@ -106,6 +121,17 @@ const contentClass = computed(() => {
           :aria-describedby="dialog.descriptionId.value"
           :class="contentClass"
         >
+          <!-- 统一右上角关闭：所有业务弹窗默认具备 -->
+          <button
+            v-if="props.showClose"
+            type="button"
+            class="absolute right-3 top-3 z-30 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground"
+            title="关闭"
+            aria-label="关闭"
+            @click="closeDialog"
+          >
+            <X class="h-4 w-4" :stroke-width="2" />
+          </button>
           <slot />
         </div>
       </div>

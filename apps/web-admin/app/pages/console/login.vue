@@ -28,21 +28,21 @@ const redirectTarget = computed(() => {
 });
 
 const highlights = [
-  { index: '01', title: '路线', text: '继续编排场馆路线与故事节点。' },
-  { index: '02', title: '谜题', text: '快速回到题型、提示与难度调整。' },
-  { index: '03', title: '复盘', text: '根据反馈修正下一次发布节奏。' },
+  { index: '01', title: '路线', text: '创建主题路线，编排博物馆里的站点与故事。' },
+  { index: '02', title: '讲解', text: '改站点讲解与谜题，调整提示与难度。' },
+  { index: '03', title: '发布', text: '提交审核或上架，按节奏推给现场游客。' },
 ];
 
 const quickNotes = [
   {
     eyebrow: '同一条工作线',
     title: '登录后，直接回到上一次停下的位置。',
-    text: '场馆、路线、谜题和内容判断都会沿着同一条工作流继续接续。',
+    text: '博物馆、路线、讲解与审核上架都在同一条工作流里接续。',
   },
   {
     eyebrow: '继续创作',
     title: '常用操作会更快回到手边。',
-    text: '减少查找入口和页面切换，把注意力留给内容判断、发布节奏和现场体验。',
+    text: '少找入口、少切页面，把注意力留给讲解内容与发布节奏。',
   },
 ];
 
@@ -66,7 +66,7 @@ const handleLogin = async () => {
     authStore.applyLogin(response ?? {});
 
     if (!authStore.isAuthenticated) {
-      throw new Error('登录成功，但未获取到有效 token。');
+      throw new Error('登录信息无效，请重新登录。');
     }
 
     await navigateTo(redirectTarget.value);
@@ -109,7 +109,7 @@ const handleLogin = async () => {
               继续下一段路线。
             </h1>
             <p data-motion-hero class="mt-5 max-w-xl text-base leading-8 text-[#a59b8c] sm:text-lg">
-              登录之后，继续管理场馆、内容与谜题，让当前路线、题型和发布节奏保持连贯。
+              登录后继续创建路线、改讲解、提交审核或上架，让博物馆内容与现场节奏保持连贯。
             </p>
 
             <div class="mt-8 grid gap-4 lg:grid-cols-[1.02fr_0.98fr]">
@@ -151,7 +151,7 @@ const handleLogin = async () => {
               <div>
                 <p class="text-xs uppercase tracking-[0.3em] text-[#c9a25f]">Sign in</p>
                 <h2 class="mt-3 font-display text-[2rem] font-semibold tracking-[-0.04em] text-[#f5eee0]">管理员登录</h2>
-                <p class="mt-3 text-sm leading-7 text-[#948c7d]">输入后台账号，继续管理当前内容工作线。</p>
+                <p class="mt-3 text-sm leading-7 text-[#948c7d]">输入账号后，继续管理路线、讲解与发布。</p>
               </div>
 
               <div class="mt-8 space-y-5">

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, shallowRef, useTemplateRef } from 'vue';
 import { useUploadAttachment } from '@/composables/useUploadAttachment';
 import type { UploadAttachment, UploadTarget } from '@/types/upload';
@@ -117,7 +117,7 @@ const removeImage = (index: number) => {
 <template>
   <div class="space-y-2.5">
     <div class="space-y-1">
-      <label class="text-sm font-medium text-foreground">{{ props.label }}</label>
+      <label class="text-sm font-medium">{{ props.label }}</label>
       <p class="text-xs text-muted-foreground">{{ props.hint }}</p>
     </div>
 
@@ -135,7 +135,7 @@ const removeImage = (index: number) => {
       :disabled="isUploading"
       @click="openPicker">
       <UiAppIcon name="image-up" class="h-4.5 w-4.5 text-primary" />
-      <span class="text-sm font-medium text-foreground">
+      <span class="text-sm font-medium">
         {{ isUploading ? '上传中...' : props.buttonText }}
       </span>
       <span class="text-xs text-muted-foreground">

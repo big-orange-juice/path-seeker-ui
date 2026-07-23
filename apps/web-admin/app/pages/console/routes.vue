@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
 import RouteAuditDialog from '@/components/routes/RouteAuditDialog.vue';
 import RouteCreateDialog from '@/components/routes/RouteCreateDialog.vue';
@@ -85,7 +85,8 @@ const museumOptions = computed(() =>
     .filter((museum) => museum.id)
     .map((museum) => ({
       value: String(museum.id),
-      label: [museum.museumCode, museum.name].filter(Boolean).join(' / ') || String(museum.id),
+      // 下拉默认只展示名称；编码留给详情/表单（G-04）
+      label: String(museum.name || museum.museumCode || museum.id).trim() || String(museum.id),
     }))
 );
 
@@ -269,8 +270,8 @@ const handleDetail = async (record: RouteRecord) => {
   const actions = getRouteWorkflowActions(record, workflowContext.value);
   if (!actions.canOpenDetail) {
     actionError.value = actions.isListOnly
-      ? '他人未上架/已下线路线仅列表可见（待审核除外），不可查看详情。'
-      : '当前账号无权查看该路线详情。';
+      ? '该路线暂不可打开详情，请先在列表完成审核或上架相关操作。'
+      : '暂时不能查看该路线详情。';
     return;
   }
 
@@ -360,28 +361,28 @@ const assertWorkflowAction = (
 };
 
 const handlePublish = (record: RouteRecord) => {
-  if (!assertWorkflowAction(record, 'canPublish', '无权上架该路线（管理员可上架任意路线；导游仅本人且审核通过）。')) {
+  if (!assertWorkflowAction(record, 'canPublish', '暂时不能上架，请先完成审核或确认路线归属。')) {
     return;
   }
   openConfirmDialog('publish', record);
 };
 
 const handleUnpublish = (record: RouteRecord) => {
-  if (!assertWorkflowAction(record, 'canUnpublish', '无权下线该路线（管理员可下线任意路线；导游仅本人）。')) {
+  if (!assertWorkflowAction(record, 'canUnpublish', '暂时不能下线该路线。')) {
     return;
   }
   openConfirmDialog('unpublish', record);
 };
 
 const handleSubmitAudit = (record: RouteRecord) => {
-  if (!assertWorkflowAction(record, 'canSubmitAudit', '无权提交审核。')) {
+  if (!assertWorkflowAction(record, 'canSubmitAudit', '暂时不能提交审核，请确认路线状态与归属。')) {
     return;
   }
   openConfirmDialog('submit-audit', record);
 };
 
 const handleAudit = (record: RouteRecord) => {
-  if (!assertWorkflowAction(record, 'canAudit', '无权审核该路线。')) {
+  if (!assertWorkflowAction(record, 'canAudit', '暂时不能审核该路线。')) {
     return;
   }
   auditRecord.value = record;
@@ -396,7 +397,7 @@ watch(auditDialogOpen, (open) => {
 });
 
 const handleRemove = (record: RouteRecord) => {
-  if (!assertWorkflowAction(record, 'canDelete', '无权删除该路线（管理员可删任意未上架；导游仅本人且非待审）。')) {
+  if (!assertWorkflowAction(record, 'canDelete', '暂时不能删除该路线。')) {
     return;
   }
   openConfirmDialog('delete', record);
@@ -530,7 +531,7 @@ const detailActions = computed(() => {
     <section class="warm-panel warm-outline rounded-xl border border-border/70 px-4 py-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="w-[240px] space-y-1.5">
-          <label class="text-sm font-medium text-foreground">所属博物馆</label>
+          <label class="text-sm font-medium">所属博物馆</label>
           <Select :model-value="selectedMuseumId" :disabled="museumPending || !museumOptions.length" @update:model-value="selectedMuseumId = $event">
             <option v-for="option in museumOptions" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -538,11 +539,11 @@ const detailActions = computed(() => {
           </Select>
         </div>
         <div class="min-w-[200px] flex-1 space-y-1.5">
-          <label class="text-sm font-medium text-foreground">关键词</label>
+          <label class="text-sm font-medium">关键词</label>
           <Input v-model="filters.keyword" placeholder="搜索路线标题、编码、主题" />
         </div>
         <div class="w-[130px] space-y-1.5">
-          <label class="text-sm font-medium text-foreground">发布状态</label>
+          <label class="text-sm font-medium">发布状态</label>
           <Select :model-value="String(filters.publishStatus)" @update:model-value="filters.publishStatus = Number($event)">
             <option v-for="option in ROUTE_PUBLISH_STATUS_OPTIONS" :key="option.value" :value="String(option.value)">
               {{ option.label }}
@@ -550,7 +551,7 @@ const detailActions = computed(() => {
           </Select>
         </div>
         <div class="w-[130px] space-y-1.5">
-          <label class="text-sm font-medium text-foreground">审核状态</label>
+          <label class="text-sm font-medium">审核状态</label>
           <Select :model-value="String(filters.auditStatus)" @update:model-value="filters.auditStatus = Number($event)">
             <option v-for="option in ROUTE_AUDIT_STATUS_OPTIONS" :key="option.value" :value="String(option.value)">
               {{ option.label }}
@@ -582,7 +583,7 @@ const detailActions = computed(() => {
       <div class="flex items-center justify-between gap-3 px-1">
         <div class="min-w-0 truncate text-sm text-muted-foreground">
           共 {{ total }} 条，当前第 {{ pageIndex }} / {{ Math.max(totalPages, 1) }} 页
-          <span v-if="authStore.isGuide" class="text-muted-foreground/80"> · 显示自己的路线与已上架路线</span>
+          <span v-if="authStore.isGuide" class="text-muted-foreground/80"> · 你创建的路线，以及已上架可参考的路线</span>
         </div>
         <div class="flex shrink-0 flex-nowrap items-center gap-2 text-sm text-muted-foreground">
           <span class="whitespace-nowrap">每页</span>

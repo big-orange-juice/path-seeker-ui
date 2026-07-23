@@ -109,7 +109,6 @@ const puzzleHeading = computed(
   () => adaptedPuzzle.value?.prompt || adaptedPuzzle.value?.title || displayTitle.value,
 )
 const typeLabel = computed(() => meta.value?.label || "关卡")
-const scoreLabel = computed(() => `${props.stage?.score || 0} 分`)
 const stageKicker = computed(() => {
   const no = props.stageNo
   const prefix = typeof no === "number" && no > 0 ? `第 ${no} 站 · ` : ""
@@ -182,7 +181,6 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
       <div class="play-panel__inner">
         <div class="play-meta-row">
           <span class="play-tag">{{ typeLabel }}</span>
-          <span class="play-score">{{ scoreLabel }}</span>
         </div>
 
         <div class="play-heading">
@@ -328,11 +326,6 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   color: var(--sp-gold-bright);
   font-size: 0.75rem;
   font-weight: 500;
-}
-
-.play-score {
-  color: var(--sp-fg-dim);
-  font-size: 0.875rem;
 }
 
 .play-heading {

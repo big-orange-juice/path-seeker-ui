@@ -111,7 +111,6 @@ const playStage = computed<GameplayPreviewStage | null>(() => {
     title: current.title,
     exhibitName: artifact.value?.title || current.title,
     galleryName: current.targetLocation || artifact.value?.location || "",
-    score: missionStore.activeSession?.totalScore ?? 0,
     config,
   }
 })

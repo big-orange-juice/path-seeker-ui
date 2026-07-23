@@ -14,12 +14,8 @@ export interface AdminNavItem {
 
 /** 全量菜单（管理员） */
 export const adminNavItems: AdminNavItem[] = [
-  {
-    label: '运营发布',
-    to: `${ADMIN_ROUTE_PREFIX}/operations`,
-    icon: 'bar-chart-3'
-  },
-  { label: '主体维护', to: ADMIN_CONSOLE_HOME_PATH, icon: 'library-big' },
+  // 「运营发布」暂无内容，不进菜单（G-02 / M-05）
+  { label: '博物馆', to: ADMIN_CONSOLE_HOME_PATH, icon: 'library-big' },
   {
     label: '馆藏内容',
     to: `${ADMIN_ROUTE_PREFIX}/collections`,
@@ -32,7 +28,8 @@ export const adminNavItems: AdminNavItem[] = [
 /** 导游账号可见菜单（只保留业务必要入口） */
 const guideNavItems: AdminNavItem[] = [
   { label: '主题路线', to: `${ADMIN_ROUTE_PREFIX}/routes`, icon: 'route' },
-  { label: '导游管理', to: `${ADMIN_ROUTE_PREFIX}/guides`, icon: 'user-round' }
+  // 导游自管视角：入口更贴近「讲解形象」而非后台管理（U-07）
+  { label: '我的讲解形象', to: `${ADMIN_ROUTE_PREFIX}/guides`, icon: 'user-round' }
 ];
 
 export const useAdminNavigation = () => {

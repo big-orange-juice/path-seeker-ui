@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import GuideStyleReferencePanel from '@/components/guides/GuideStyleReferencePanel.vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue'
@@ -66,7 +65,7 @@ const formatUpdatedAt = (value: string | null | undefined) => {
   ].join(' ')
 }
 
-const summaryFields = computed(() => {
+const metaRows = computed(() => {
   const record = props.record
   if (!record) {
     return [] as Array<{ label: string; value: string }>
@@ -76,6 +75,11 @@ const summaryFields = computed(() => {
     { label: '编码', value: record.guideCode || '—' },
     { label: '状态', value: statusLabel.value },
     { label: '默认导游', value: record.isSystemDefault ? '是' : '否' },
+    { label: '生成状态', value: generationMeta.value.label },
+    {
+      label: '生成进度',
+      value: record.generationProgress != null ? `${record.generationProgress}%` : '—',
+    },
     { label: '更新时间', value: formatUpdatedAt(record.updatedAt) },
   ]
 })
@@ -83,118 +87,129 @@ const summaryFields = computed(() => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="flex h-[90vh] max-w-[min(96vw,56rem)] flex-col overflow-hidden rounded-xl border border-border bg-[#15171b] p-0 text-left">
-      <DialogHeader class="shrink-0 space-y-1 border-b border-border/60 px-5 py-3.5">
+    <DialogContent class="flex h-[90vh] max-w-[min(96vw,40rem)] flex-col overflow-hidden rounded-xl border border-border bg-[#15171b] p-0 text-left">
+      <DialogHeader class="shrink-0 space-y-1 border-b border-border/60 px-5 py-3.5 pr-12">
         <DialogTitle>{{ record?.name || '导游详情' }}</DialogTitle>
         <DialogDescription>
-          {{ record?.guideCode || '查看导游资料、试听与风格参考' }}
+          查看导游资料与音色试听
         </DialogDescription>
       </DialogHeader>
 
       <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        <p v-if="pending" class="text-sm text-muted-foreground">正在加载详情…</p>
+        <p v-if="pending" class="text-sm text-muted-foreground">
+          正在加载详情…
+        </p>
         <template v-else-if="record">
-          <div class="flex flex-col gap-4">
-            <!-- 顶部：头像/试听 + 摘要信息 -->
-            <section class="grid gap-4 lg:grid-cols-[13rem_minmax(0,1fr)]">
-              <div class="flex flex-col gap-3">
-                <div class="overflow-hidden rounded-lg border border-border/50 bg-background/40">
-                  <div class="border-b border-border/40 px-3 py-2">
-                    <p class="text-[11px] uppercase tracking-[0.1em] text-muted-foreground">头像</p>
-                  </div>
-                  <div class="flex min-h-[9rem] items-center justify-center p-3">
-                    <img
-                      v-if="record.avatarUrl"
-                      :src="record.avatarUrl"
-                      alt=""
-                      class="max-h-40 w-full rounded-md object-cover"
-                    >
-                    <span v-else class="text-sm text-muted-foreground">暂无头像</span>
-                  </div>
-                </div>
-
-                <div class="rounded-lg border border-border/50 bg-background/40 p-3">
-                  <p class="mb-2 text-[11px] uppercase tracking-[0.1em] text-muted-foreground">音色试听</p>
-                  <audio
-                    v-if="record.voiceSampleUrl"
-                    class="w-full"
-                    controls
-                    :src="record.voiceSampleUrl"
-                    preload="metadata"
-                    controlsList="nodownload"
-                  >
-                    当前浏览器不支持音频播放
-                  </audio>
-                  <p v-else class="text-sm text-muted-foreground">暂无试听</p>
+          <div class="space-y-5">
+            <!-- 头像 + 名称简介 -->
+            <section class="flex gap-4">
+              <div class="h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background/40">
+                <img
+                  v-if="record.avatarUrl"
+                  :src="record.avatarUrl"
+                  alt=""
+                  class="h-full w-full object-cover"
+                >
+                <div
+                  v-else
+                  class="flex h-full w-full items-center justify-center text-xs text-muted-foreground"
+                >
+                  无头像
                 </div>
               </div>
-
-              <div class="flex min-w-0 flex-col gap-3">
+              <div class="min-w-0 flex-1 space-y-2">
                 <div class="flex flex-wrap items-center gap-2">
-                  <h3 class="text-base font-semibold text-foreground">
+                  <h3 class="form-value text-base font-semibold">
                     {{ record.name || '未命名导游' }}
                   </h3>
                   <span
                     class="inline-flex rounded-md px-2 py-0.5 text-[11px] font-medium"
                     :class="generationMeta.className"
                   >
-                    生成 · {{ generationMeta.label }}
-                  </span>
-                  <span
-                    v-if="record.generationProgress != null"
-                    class="text-xs text-muted-foreground"
-                  >
-                    进度 {{ record.generationProgress }}%
+                    {{ generationMeta.label }}
                   </span>
                 </div>
-
-                <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  <div
-                    v-for="field in summaryFields"
-                    :key="field.label"
-                    class="rounded-lg border border-border/50 bg-background/40 px-3 py-2"
-                  >
-                    <p class="text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
-                      {{ field.label }}
-                    </p>
-                    <p class="mt-1 break-all text-sm text-foreground">{{ field.value }}</p>
-                  </div>
-                </div>
-
-                <div
+                <p
                   v-if="record.description"
-                  class="rounded-lg border border-border/50 bg-background/40 px-3 py-2.5"
+                  class="form-value whitespace-pre-wrap text-sm leading-6 text-foreground/90"
                 >
-                  <p class="text-[11px] uppercase tracking-[0.1em] text-muted-foreground">简介</p>
-                  <p class="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-foreground/90">
-                    {{ record.description }}
-                  </p>
-                </div>
-
-                <div
-                  v-if="record.generationError"
-                  class="rounded-lg border border-rose-500/25 bg-rose-500/10 px-3 py-2.5"
+                  {{ record.description }}
+                </p>
+                <p
+                  v-else
+                  class="text-sm text-muted-foreground"
                 >
-                  <p class="text-[11px] uppercase tracking-[0.1em] text-rose-200/80">生成错误</p>
-                  <p class="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-rose-100">
-                    {{ record.generationError }}
-                  </p>
-                </div>
+                  暂无简介
+                </p>
               </div>
             </section>
 
-            <!-- 风格参考：主内容区 -->
-            <GuideStyleReferencePanel
-              :guide-id="record.id"
-              :active="isOpen && !pending"
-            />
+            <!-- 元信息：label / value 网格 -->
+            <section class="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+              <div
+                v-for="row in metaRows"
+                :key="row.label"
+                class="min-w-0"
+              >
+                <p class="field-caption">
+                  {{ row.label }}
+                </p>
+                <p class="form-value mt-0.5 break-all text-sm">
+                  {{ row.value }}
+                </p>
+              </div>
+            </section>
+
+            <!-- 音色试听 -->
+            <section class="space-y-1.5 border-t border-border/50 pt-4">
+              <p class="form-label text-sm font-medium">
+                音色试听
+              </p>
+              <audio
+                v-if="record.voiceSampleUrl"
+                class="w-full"
+                controls
+                :src="record.voiceSampleUrl"
+                preload="metadata"
+                controlsList="nodownload"
+              >
+                当前浏览器不支持音频播放
+              </audio>
+              <p
+                v-else
+                class="text-sm text-muted-foreground"
+              >
+                暂无试听
+              </p>
+            </section>
+
+            <section
+              v-if="record.generationError"
+              class="rounded-md border border-rose-500/25 bg-rose-500/10 px-3 py-2.5"
+            >
+              <p class="field-caption text-rose-200/80">
+                生成错误
+              </p>
+              <p class="mt-1 whitespace-pre-wrap text-sm leading-6 text-rose-100">
+                {{ record.generationError }}
+              </p>
+            </section>
           </div>
         </template>
-        <p v-else class="text-sm text-muted-foreground">暂无详情。</p>
+        <p
+          v-else
+          class="text-sm text-muted-foreground"
+        >
+          暂无详情。
+        </p>
       </div>
 
       <DialogFooter class="shrink-0 border-t border-border/60 px-5 py-3">
-        <Button variant="outline" type="button" @click="isOpen = false">
+        <Button
+          variant="outline"
+          type="button"
+          @click="isOpen = false"
+        >
           关闭
         </Button>
         <Button

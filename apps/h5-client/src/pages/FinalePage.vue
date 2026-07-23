@@ -42,7 +42,6 @@ const display = computed(() => {
   const localMission = mission.value
   const localSession = session.value
 
-  const totalScore = remote?.totalScore ?? localSession?.totalScore ?? 0
   const solvedCount = remote?.solvedCount ?? localSession?.solvedChapterIds.length ?? 0
   const puzzleCount = remote?.puzzleCount || localMission?.chapterCount || 0
   const title = remote?.routeTitle || localMission?.title || ""
@@ -58,7 +57,6 @@ const display = computed(() => {
     title,
     rewardTitle,
     theme,
-    totalScore,
     solvedCount,
     puzzleCount,
     difficultyLabel,
@@ -156,10 +154,6 @@ watch(routeId, () => {
             {{ display.title || "探索完成" }}
           </h2>
           <p v-if="display.theme" class="client-page-copy">{{ display.theme }}</p>
-          <div class="pt-1">
-            <p class="text-4xl font-semibold tabular-nums text-primary">{{ display.totalScore }}</p>
-            <p class="mt-1 text-xs text-muted-foreground">总分</p>
-          </div>
         </div>
 
         <div class="grid grid-cols-3 gap-3">

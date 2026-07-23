@@ -82,7 +82,7 @@ const loadFileContent = async (url: string) => {
     if (seq !== contentRequestSeq || activeUrl.value !== url) {
       return
     }
-    contentError.value = resolveApiErrorMessage(caughtError, '风格参考文件读取失败。')
+    contentError.value = resolveApiErrorMessage(caughtError, '讲解风格资料读取失败。')
   } finally {
     if (seq === contentRequestSeq) {
       contentPending.value = false
@@ -130,7 +130,7 @@ const loadFiles = async (guideId: string) => {
     if (seq !== filesRequestSeq) {
       return
     }
-    filesError.value = resolveApiErrorMessage(caughtError, '风格参考文件列表加载失败。')
+    filesError.value = resolveApiErrorMessage(caughtError, '讲解风格资料列表加载失败。')
   } finally {
     if (seq === filesRequestSeq) {
       filesPending.value = false
@@ -155,19 +155,19 @@ watch(
   <div class="rounded-lg border border-border/50 bg-background/40">
     <div class="border-b border-border/50 px-3 py-2">
       <p class="text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
-        风格参考
+        讲解风格资料
       </p>
     </div>
 
     <div class="px-3 py-3">
       <p v-if="filesPending" class="text-sm text-muted-foreground">
-        正在加载风格参考文件…
+        正在加载讲解风格资料…
       </p>
       <p v-else-if="filesError" class="text-sm text-rose-200">
         {{ filesError }}
       </p>
       <p v-else-if="!hasFiles" class="text-sm text-muted-foreground">
-        暂无风格参考文件。
+        暂无讲解风格资料。
       </p>
       <template v-else>
         <div class="flex flex-wrap gap-1.5">

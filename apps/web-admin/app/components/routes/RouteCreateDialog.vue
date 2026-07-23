@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { DIFFICULTY_LEVEL_OPTIONS } from '@path-seeker/ts-shared';
 import Button from '@/components/shadcn/button/Button.vue';
@@ -42,6 +42,7 @@ const emit = defineEmits<{
 }>();
 
 const activeTab = ref<'ai' | 'manual'>('ai');
+const showAdvanced = ref(false);
 const formState = reactive({
   title: '',
   theme: '',
@@ -91,6 +92,7 @@ const resetForm = () => {
   formState.pickCount = 7;
   formState.difficulty = 2;
   activeTab.value = 'ai';
+  showAdvanced.value = false;
   localError.value = '';
   chatWorkspaceRef.value?.resetSession();
 };
@@ -149,25 +151,15 @@ const submitManual = () => {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent class="flex h-[90vh] max-w-[min(96vw,1280px)] flex-col overflow-hidden p-0">
-      <div class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-5">
+      <div class="flex h-14 shrink-0 items-center border-b border-border/70 px-5 pr-12">
         <DialogHeader class="min-w-0 space-y-0.5 text-left">
           <DialogTitle class="text-base">
             新增主题路线
           </DialogTitle>
           <DialogDescription class="text-xs">
-            可通过对话创建，或使用参数表单生成。
+            一句话主题即可开始；也可按条件生成路线。
           </DialogDescription>
         </DialogHeader>
-        <Button
-          variant="ghost"
-          size="icon"
-          type="button"
-          title="关闭"
-          class="shrink-0"
-          :disabled="props.submitting"
-          @click="isOpen = false">
-          <AppIcon name="x" class="h-4 w-4" />
-        </Button>
       </div>
 
       <div class="flex shrink-0 border-b border-border/70 px-5 pt-3">
@@ -185,7 +177,7 @@ const submitManual = () => {
           :class="activeTab === 'manual' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
           @click="activeTab = 'manual'">
           <AppIcon name="route" class="h-4 w-4" />
-          手动创建
+          按条件生成
         </button>
       </div>
 
@@ -205,11 +197,11 @@ const submitManual = () => {
 
           <div class="grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">路线标题</label>
+              <label class="text-sm font-medium">路线标题</label>
               <Input v-model="formState.title" placeholder="请输入路线标题" />
             </div>
             <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">所属博物馆</label>
+              <label class="text-sm font-medium">所属博物馆</label>
               <Select v-model="formState.museumId" :disabled="!props.museumOptions.length">
                 <option v-for="option in props.museumOptions" :key="option.value" :value="option.value">
                   {{ option.label }}
@@ -219,26 +211,39 @@ const submitManual = () => {
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-foreground">路线主题</label>
-            <Input v-model="formState.theme" placeholder="请输入主题方向" />
+            <label class="text-sm font-medium">路线主题</label>
+            <Input v-model="formState.theme" placeholder="一句话概括，如：青铜器里的礼仪与战争" />
+            <p class="text-[11px] text-muted-foreground">
+              给访客看的主题方向，尽量简短好记。
+            </p>
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium text-foreground">生成提示</label>
-            <Textarea v-model="formState.themeQuery" class="min-h-[104px]" placeholder="请输入生成范围、题材或检索方向" />
+            <label class="text-sm font-medium">生成提示</label>
+            <Textarea
+              v-model="formState.themeQuery"
+              class="min-h-[104px]"
+              placeholder="补充生成条件，如：侧重二楼青铜厅、适合亲子、避开过于专业的术语" />
+            <p class="text-[11px] text-muted-foreground">
+              告诉系统怎么挑展品、怎么出题；与上方「主题」不同，不会直接当标题展示。
+            </p>
           </div>
 
-          <div class="grid gap-4 md:grid-cols-3">
+          <div class="grid gap-4 md:grid-cols-2">
             <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">最大查询数</label>
-              <Input v-model="maxNodesModel" type="number" min="35" max="50" />
+              <label class="text-sm font-medium">谜题数量</label>
+              <Input
+                v-model="pickCountModel"
+                type="number"
+                min="5"
+                max="9"
+                placeholder="建议 5–9" />
+              <p class="text-[11px] text-muted-foreground">
+                建议 5–9 个站点，对应路线内关卡数量。
+              </p>
             </div>
             <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">谜题数量</label>
-              <Input v-model="pickCountModel" type="number" min="5" max="9" />
-            </div>
-            <div class="space-y-2">
-              <label class="text-sm font-medium text-foreground">难度</label>
+              <label class="text-sm font-medium">难度</label>
               <Select :model-value="String(formState.difficulty)" @update:model-value="formState.difficulty = Number($event)">
                 <option
                   v-for="option in difficultyOptions"
@@ -247,6 +252,23 @@ const submitManual = () => {
                   {{ option.label }}
                 </option>
               </Select>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-border/60 bg-background/30">
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm text-muted-foreground transition hover:text-foreground"
+              @click="showAdvanced = !showAdvanced">
+              <span>高级选项</span>
+              <span class="text-xs">{{ showAdvanced ? '收起' : '展开' }}</span>
+            </button>
+            <div v-if="showAdvanced" class="space-y-2 border-t border-border/50 px-3 py-3">
+              <label class="text-sm font-medium">最大查询数</label>
+              <Input v-model="maxNodesModel" type="number" min="35" max="50" />
+              <p class="text-[11px] text-muted-foreground">
+                一般无需修改，系统默认即可。
+              </p>
             </div>
           </div>
         </div>

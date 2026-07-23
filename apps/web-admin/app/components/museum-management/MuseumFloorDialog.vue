@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
@@ -108,7 +108,7 @@ const submitForm = () => {
 <template>
   <Dialog :open="props.open" @update:open="handleOpenChange">
     <DialogContent class="max-w-[760px] overflow-hidden p-0">
-      <div class="border-b border-border/70 px-5 py-3">
+      <div class="border-b border-border/70 px-5 py-3 pr-12">
         <DialogHeader class="space-y-0.5">
           <DialogTitle class="text-[1.05rem] font-semibold tracking-tight text-foreground">
             {{ dialogTitle }}
@@ -122,25 +122,25 @@ const submitForm = () => {
       <form class="space-y-4 px-5 py-4" @submit.prevent="submitForm">
         <section class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
-            <label class="text-sm font-medium text-foreground">楼层号</label>
+            <label class="text-sm font-medium">楼层号</label>
             <Input v-model="formState.floorNumber" placeholder="例如：3F" />
           </div>
           <div class="space-y-2">
-            <label class="text-sm font-medium text-foreground">楼层名称</label>
+            <label class="text-sm font-medium">楼层名称</label>
             <Input v-model="formState.floorName" placeholder="例如：特展走廊" />
           </div>
         </section>
 
         <section class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
-            <label class="text-sm font-medium text-foreground">层级</label>
+            <label class="text-sm font-medium">层级</label>
             <Input
               :model-value="String(formState.floorLevel)"
               type="number"
               @update:model-value="formState.floorLevel = Number($event || 0)" />
           </div>
           <div class="space-y-2">
-            <label class="text-sm font-medium text-foreground">排序号</label>
+            <label class="text-sm font-medium">排序号</label>
             <Input
               :model-value="String(formState.sortOrder)"
               type="number"
@@ -149,7 +149,7 @@ const submitForm = () => {
         </section>
 
         <section class="space-y-2">
-          <label class="text-sm font-medium text-foreground">楼层说明</label>
+          <label class="text-sm font-medium">楼层说明</label>
           <Textarea
             v-model="formState.description"
             rows="3"

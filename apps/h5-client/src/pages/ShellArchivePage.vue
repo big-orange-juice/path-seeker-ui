@@ -11,15 +11,10 @@ const router = useRouter()
   <div class="space-y-4">
     <ClientCard v-for="entry in missionStore.archiveEntries" :key="entry.routeId">
       <div class="space-y-3 p-5">
-        <div class="flex items-start justify-between gap-4">
-          <div class="space-y-1.5">
-            <span class="client-tag is-gold">徽章</span>
-            <h2 class="text-2xl font-display text-foreground">{{ entry.routeTitle }}</h2>
-            <p v-if="entry.rewardTitle" class="client-page-copy">{{ entry.rewardTitle }}</p>
-          </div>
-          <div class="text-2xl font-semibold tabular-nums text-primary">
-            {{ entry.totalScore }}
-          </div>
+        <div class="space-y-1.5">
+          <span class="client-tag is-gold">徽章</span>
+          <h2 class="text-2xl font-display text-foreground">{{ entry.routeTitle }}</h2>
+          <p v-if="entry.rewardTitle" class="client-page-copy">{{ entry.rewardTitle }}</p>
         </div>
 
         <div class="grid grid-cols-3 gap-3 text-sm">
@@ -42,7 +37,7 @@ const router = useRouter()
     <ClientEmptyState
       v-if="!missionStore.archiveEntries.length"
       title="还没有收藏"
-      description="完成一条路线后，徽章与成绩会出现在这里。"
+      description="完成一条路线后，徽章与记录会出现在这里。"
       action-text="去闯关"
       @action="router.push('/shell/hall')"
     />

@@ -1033,12 +1033,8 @@ export const useMissionStore = defineStore(
           return buildMissionSubmitResult(false, response.message || puzzle.failureCopy, null)
         }
 
-        // 仅答对：得分闪烁；跳转 result/finale 时由路由 win 过场承接
+        // 答对后同步进度；分数仅服务端字段，前端不展示
         const score = response.scoreGained ?? 0
-        if (score > 0) {
-          cinema.showScore(score)
-        }
-
         const snapshot = finalizeSolve(false, score, response.message || "")
         clearCurrentPuzzleDraft()
         if (shouldMarkRouteCompleted(response) && activeSession.value) {
@@ -1166,10 +1162,6 @@ export const useMissionStore = defineStore(
         }
 
         const score = localOnlySkip ? 0 : (response.scoreGained ?? 0)
-        if (score > 0) {
-          cinema.showScore(score)
-        }
-
         const snapshot = finalizeSolve(
           skipped,
           score,
@@ -1270,9 +1262,6 @@ export const useMissionStore = defineStore(
 
         if (response.success) {
           const score = response.scoreGained ?? 0
-          if (score > 0) {
-            cinema.showScore(score)
-          }
           const snapshot = finalizeSolve(true, score, response.message || label)
           if (shouldMarkRouteCompleted(response) && activeSession.value) {
             const latestChapterResult = snapshot

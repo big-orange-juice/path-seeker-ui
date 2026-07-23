@@ -4,7 +4,7 @@ await navigateTo('/console/museums', { replace: true });
 
 <template>
   <div class="px-4 py-6 text-sm text-muted-foreground">
-    正在跳转到主体维护...
+    正在跳转到博物馆...
   </div>
 </template>
 

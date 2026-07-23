@@ -31,19 +31,15 @@ const formatValue = (value: number | string | null | undefined, suffix = '') => 
   <Dialog :open="props.open" @update:open="(...args) => emit('update:open', Boolean(args[0]))">
     <DialogContent class="max-h-[86vh] max-w-[920px] overflow-hidden p-0">
       <div v-if="props.record" class="flex max-h-[86vh] flex-col">
-        <div class="flex items-center justify-between border-b border-border/70 px-5 py-3">
+        <div class="flex items-center border-b border-border/70 px-5 py-3 pr-12">
           <DialogHeader class="space-y-0.5">
             <DialogTitle class="text-[1.2rem] font-semibold tracking-tight text-foreground">
-              {{ props.record.name || '主体详情' }}
+              {{ props.record.name || '博物馆详情' }}
             </DialogTitle>
             <DialogDescription class="text-xs text-muted-foreground">
-              查看主体完整资料与补充说明。
+              查看博物馆完整资料与补充说明。
             </DialogDescription>
           </DialogHeader>
-
-          <Button variant="ghost" size="icon" @click="emit('update:open', false)">
-            <UiAppIcon name="x" class="h-4 w-4" />
-          </Button>
         </div>
 
         <div class="overflow-y-auto px-5 py-4">
@@ -51,8 +47,8 @@ const formatValue = (value: number | string | null | undefined, suffix = '') => 
             <section class="space-y-3 rounded-[0.9rem] border border-border/70 bg-secondary/20 p-4">
               <h3 class="text-sm font-semibold text-foreground">基础信息</h3>
               <div class="grid gap-2 text-sm text-muted-foreground">
-                <p>主体编码：{{ formatValue(props.record.museumCode) }}</p>
-                <p>主体名称：{{ formatValue(props.record.name) }}</p>
+                <p>编码：{{ formatValue(props.record.museumCode) }}</p>
+                <p>名称：{{ formatValue(props.record.name) }}</p>
                 <p>状态：{{ props.record.status === 1 ? '启用' : '停用' }}</p>
                 <p>地址：{{ formatValue(props.record.address) }}</p>
                 <p>开放时间：{{ formatValue(props.record.openingHours) }}</p>
@@ -79,9 +75,9 @@ const formatValue = (value: number | string | null | undefined, suffix = '') => 
           </div>
 
           <section class="mt-4 space-y-3 rounded-[0.9rem] border border-border/70 bg-secondary/20 p-4">
-            <h3 class="text-sm font-semibold text-foreground">主体简介</h3>
+            <h3 class="text-sm font-semibold text-foreground">博物馆简介</h3>
             <p class="text-sm leading-7 text-muted-foreground">
-              {{ props.record.intro || '未填写主体简介。' }}
+              {{ props.record.intro || '未填写简介。' }}
             </p>
           </section>
         </div>

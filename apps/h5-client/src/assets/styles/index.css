@@ -142,30 +142,6 @@
     }
   }
 
-  .fx-score-flash {
-    position: fixed;
-    left: 50%;
-    top: 42%;
-    z-index: 210;
-    transform: translate(-50%, -50%) scale(0.92);
-    font-family: theme("fontFamily.display");
-    font-size: 2.2rem;
-    font-weight: 700;
-    color: #fff4d4;
-    letter-spacing: 0.04em;
-    text-shadow: 0 0 32px rgba(209, 178, 111, 0.45);
-    opacity: 0;
-    pointer-events: none;
-    transition:
-      opacity 0.45s ease,
-      transform 0.55s var(--ease-museum);
-  }
-
-  .fx-score-flash.show {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
-  }
-
   /* Cinema veil：过场 + loading 共用 */
   .cinema-veil {
     position: fixed;
