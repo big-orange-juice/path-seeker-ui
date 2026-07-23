@@ -1,10 +1,9 @@
 <script setup lang="ts">
 /**
- * 解说导览：博物馆音频播放器。
- * 封面（看）与解说词（词）二选一；点「词」从播放器区上滑盖住播放器，仿 Apple Music 歌词。
+ * 解说导览：去 card 的博物馆音频播放器。
+ * 封面 + 扁平播放条；点「文」全覆盖媒体区展示解说词（含播放器），可回封面。
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
-import { gsap } from "gsap"
+import { computed, onBeforeUnmount, ref, watch } from "vue"
 import {
   NARRATION_AUDIO_STATUS,
   type GameplayPreviewNarrationStatus,
@@ -92,80 +91,151 @@ const imageUrls = computed(() =>
 )
 const hasImages = computed(() => imageUrls.value.length > 0)
 
-/** true=词模式（盖住播放器）；false=封面+播放器 */
+/** true=解说文全覆盖媒体区（封面+播放器） */
 const lyricsOpen = ref(false)
-const mediaRef = ref<HTMLElement | null>(null)
-const lyricsRef = ref<HTMLElement | null>(null)
-let lyricsTween: gsap.core.Tween | null = null
+const lyricsBodyRef = ref<HTMLElement | null>(null)
+const sheetDragY = ref(0)
+const sheetDragging = ref(false)
 
-const applyLyricsOpen = async (open: boolean, animate: boolean) => {
-  lyricsOpen.value = open
-  await nextTick()
-  const panel = lyricsRef.value
-  if (!panel) return
+let sheetPointerId: number | null = null
+let sheetStartX = 0
+let sheetStartY = 0
+let sheetLastY = 0
+let sheetLastT = 0
+let sheetVelocityY = 0
+let sheetAxis: "x" | "y" | null = null
+/** 本次手势是否允许下拉关闭（正文滚到顶或点在顶栏） */
+let sheetCanDismiss = false
 
-  lyricsTween?.kill()
-  if (!animate) {
-    gsap.set(panel, {
-      yPercent: open ? 0 : 100,
-      autoAlpha: open ? 1 : 0,
-    })
-    return
+const sheetDragStyle = computed(() => {
+  if (!sheetDragging.value && sheetDragY.value <= 0) return undefined
+  const y = Math.max(0, sheetDragY.value)
+  const fade = Math.min(0.5, y / 420)
+  return {
+    transform: `translate3d(0, ${y}px, 0)`,
+    opacity: String(1 - fade),
   }
+})
 
-  if (open) {
-    gsap.set(panel, { yPercent: 100, autoAlpha: 1 })
-    lyricsTween = gsap.to(panel, {
-      yPercent: 0,
-      duration: 0.48,
-      ease: "power3.out",
-      overwrite: "auto",
-    })
-  } else {
-    lyricsTween = gsap.to(panel, {
-      yPercent: 100,
-      duration: 0.4,
-      ease: "power2.inOut",
-      overwrite: "auto",
-      onComplete: () => {
-        gsap.set(panel, { autoAlpha: 0 })
-      },
-    })
-  }
-}
-
-const openLyrics = () => {
-  if (!hasImages.value) return
-  void applyLyricsOpen(true, true)
-}
-
-const closeLyrics = () => {
-  if (!hasImages.value) return
-  void applyLyricsOpen(false, true)
+const resetSheetDrag = () => {
+  sheetPointerId = null
+  sheetAxis = null
+  sheetCanDismiss = false
+  sheetDragging.value = false
+  sheetDragY.value = 0
+  sheetVelocityY = 0
 }
 
 const toggleLyrics = () => {
   if (!hasImages.value) return
-  void applyLyricsOpen(!lyricsOpen.value, true)
+  resetSheetDrag()
+  lyricsOpen.value = !lyricsOpen.value
+}
+
+const closeLyrics = () => {
+  if (!hasImages.value) return
+  resetSheetDrag()
+  lyricsOpen.value = false
+}
+
+const onSheetPointerDown = (event: PointerEvent) => {
+  if (!lyricsOpen.value || !hasImages.value) return
+  // 仅主触点；按钮点击仍走自身 handler
+  if (event.button !== 0) return
+  const target = event.target as HTMLElement | null
+  if (target?.closest("button, a, input, textarea")) return
+
+  const body = lyricsBodyRef.value
+  const onHandle = Boolean(target?.closest("[data-lyrics-handle]"))
+  const atTop = !body || body.scrollTop <= 1
+  sheetCanDismiss = onHandle || atTop
+  if (!sheetCanDismiss) return
+
+  sheetPointerId = event.pointerId
+  sheetStartX = event.clientX
+  sheetStartY = event.clientY
+  sheetLastY = event.clientY
+  sheetLastT = performance.now()
+  sheetVelocityY = 0
+  sheetAxis = null
+  sheetDragging.value = false
+  sheetDragY.value = 0
+  ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+}
+
+const onSheetPointerMove = (event: PointerEvent) => {
+  if (sheetPointerId !== event.pointerId || !sheetCanDismiss) return
+  const dx = event.clientX - sheetStartX
+  const dy = event.clientY - sheetStartY
+
+  if (!sheetAxis) {
+    if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return
+    sheetAxis = Math.abs(dy) >= Math.abs(dx) ? "y" : "x"
+    if (sheetAxis === "x") {
+      sheetCanDismiss = false
+      return
+    }
+    // 正文未在顶时若用户在往上滚，交给滚动
+    const body = lyricsBodyRef.value
+    if (body && body.scrollTop > 1 && dy < 0) {
+      sheetCanDismiss = false
+      return
+    }
+  }
+  if (sheetAxis !== "y") return
+
+  // 仅下拉关闭；上推不跟手
+  const nextY = Math.max(0, dy)
+  if (nextY > 0) {
+    event.preventDefault()
+    sheetDragging.value = true
+    // 轻微阻尼
+    sheetDragY.value = nextY * 0.92
+    const now = performance.now()
+    const dt = Math.max(1, now - sheetLastT)
+    sheetVelocityY = ((event.clientY - sheetLastY) / dt) * 1000
+    sheetLastY = event.clientY
+    sheetLastT = now
+  }
+}
+
+const onSheetPointerUp = (event: PointerEvent) => {
+  if (sheetPointerId !== event.pointerId) return
+  const y = sheetDragY.value
+  const v = sheetVelocityY
+  const shouldClose = y > 96 || (y > 42 && v > 720)
+
+  sheetPointerId = null
+  sheetAxis = null
+  sheetCanDismiss = false
+  sheetDragging.value = false
+
+  if (shouldClose) {
+    sheetDragY.value = 0
+    sheetVelocityY = 0
+    lyricsOpen.value = false
+    return
+  }
+
+  // 回弹
+  sheetDragY.value = 0
+  sheetVelocityY = 0
+}
+
+const onSheetPointerCancel = (event: PointerEvent) => {
+  if (sheetPointerId !== event.pointerId) return
+  resetSheetDrag()
 }
 
 watch(
   hasImages,
-  async (ok) => {
-    await nextTick()
-    if (!ok) {
-      lyricsOpen.value = true
-      return
-    }
-    void applyLyricsOpen(false, false)
+  (ok) => {
+    // 无配图时直接展示解说词；有配图时默认封面模式
+    resetSheetDrag()
+    lyricsOpen.value = !ok
   },
   { immediate: true },
 )
-
-onMounted(async () => {
-  await nextTick()
-  if (hasImages.value) void applyLyricsOpen(false, false)
-})
 
 const audioRef = ref<HTMLAudioElement | null>(null)
 const isPlaying = ref(false)
@@ -280,8 +350,6 @@ watch(audioUrl, () => {
 
 onBeforeUnmount(() => {
   stopPlayback()
-  lyricsTween?.kill()
-  lyricsTween = null
 })
 
 const playerLabel = computed(() => {
@@ -300,16 +368,15 @@ const remainingLabel = computed(() => {
 </script>
 
 <template>
-  <div class="nr" :class="{ 'is-playing': isPlaying, 'is-lyrics': lyricsOpen }">
+  <div class="nr" :class="{ 'is-playing': isPlaying, 'is-lyrics': lyricsOpen && hasImages }">
     <header class="nr-head">
       <p class="nr-kicker">Audio Guide</p>
       <h3 class="nr-title">{{ displayTitle }}</h3>
       <p v-if="guideLabel" class="nr-sub">{{ guideLabel }}</p>
     </header>
 
-    <!-- 媒体区：封面 + 播放器叠在一起；词从底部上滑盖住二者 -->
-    <div ref="mediaRef" class="nr-media">
-      <!-- 封面 / 无图时的静态词 -->
+    <!-- 媒体栈：封面 + 播放器；解说文 absolute 全覆盖二者 -->
+    <div class="nr-media">
       <section class="nr-stage">
         <div v-if="hasImages" class="nr-stage-cover">
           <ImageCarousel
@@ -324,16 +391,14 @@ const remainingLabel = computed(() => {
             {{ props.errorMessage || "解说词加载失败" }}
           </div>
           <template v-else>
-            <p class="nr-script-label">解说词</p>
+            <p class="nr-script-label">解说文</p>
             <div v-if="displayText" class="nr-script-body">{{ displayText }}</div>
             <div v-else class="nr-script-state">暂无解说词</div>
           </template>
         </div>
       </section>
 
-      <!-- 播放器（词打开时被盖住） -->
       <section
-        v-if="hasImages"
         class="nr-player"
         :class="{
           'is-playing': isPlaying,
@@ -377,41 +442,41 @@ const remainingLabel = computed(() => {
           </div>
         </div>
 
-        <!-- 运输条：-15 · 播放 · +15 · 词 -->
         <div class="am-transport">
-          <button
-            type="button"
-            class="am-skip"
-            :disabled="!hasAudio || audioBusy"
-            aria-label="后退 15 秒"
-            @click="seekBy(-15)"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
-              />
-            </svg>
-            <span>15</span>
-          </button>
+          <!-- 居中运输组：-15 / 播放 / +15，不受「文」挤偏 -->
+          <div class="am-transport__core">
+            <button
+              type="button"
+              class="am-skip"
+              :disabled="!hasAudio || audioBusy"
+              aria-label="后退 15 秒"
+              @click="seekBy(-15)"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
+                />
+              </svg>
+              <span>15</span>
+            </button>
 
-          <button
-            type="button"
-            class="am-play"
-            :disabled="!hasAudio || audioBusy"
-            :title="isPlaying ? '暂停' : '播放'"
-            :aria-label="isPlaying ? '暂停' : '播放'"
-            @click="togglePlay"
-          >
-            <svg v-if="!isPlaying" class="am-play__icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M8.2 5.6v12.8l10.2-6.4L8.2 5.6Z" />
-            </svg>
-            <svg v-else class="am-play__icon is-pause" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M7 5.5h3.2v13H7v-13Zm6.8 0H17v13h-3.2v-13Z" />
-            </svg>
-          </button>
+            <button
+              type="button"
+              class="am-play"
+              :disabled="!hasAudio || audioBusy"
+              :title="isPlaying ? '暂停' : '播放'"
+              :aria-label="isPlaying ? '暂停' : '播放'"
+              @click="togglePlay"
+            >
+              <svg v-if="!isPlaying" class="am-play__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M8.2 5.6v12.8l10.2-6.4L8.2 5.6Z" />
+              </svg>
+              <svg v-else class="am-play__icon is-pause" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M7 5.5h3.2v13H7v-13Zm6.8 0H17v13h-3.2v-13Z" />
+              </svg>
+            </button>
 
-          <div class="am-right">
             <button
               type="button"
               class="am-skip is-fwd"
@@ -427,25 +492,29 @@ const remainingLabel = computed(() => {
               </svg>
               <span>15</span>
             </button>
-
-            <!-- Apple Music 式「词」开关 -->
-            <button
-              type="button"
-              class="am-lyrics-btn"
-              :class="{ 'is-on': lyricsOpen }"
-              :aria-pressed="lyricsOpen"
-              aria-label="解说词"
-              @click="toggleLyrics"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M4 4.8A1.8 1.8 0 0 1 5.8 3h12.4A1.8 1.8 0 0 1 20 4.8v9.4a1.8 1.8 0 0 1-1.8 1.8H9.2L5 19.8V16H5.8A1.8 1.8 0 0 1 4 14.2V4.8Zm2.2.7v8.7h1.1l.3.2 2.6 1.7V14.2h8V5.5H6.2Z"
-                />
-              </svg>
-              <span>词</span>
-            </button>
           </div>
+
+          <button
+            v-if="hasImages"
+            type="button"
+            class="am-lyrics-btn"
+            :class="{ 'is-on': lyricsOpen }"
+            :aria-pressed="lyricsOpen"
+            aria-label="解说文"
+            @click="toggleLyrics"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M5 4.75A1.75 1.75 0 0 1 6.75 3h10.5A1.75 1.75 0 0 1 19 4.75v9.5A1.75 1.75 0 0 1 17.25 16H9.2L5.4 19.1a.6.6 0 0 1-.9-.52V16h-.75A1.75 1.75 0 0 1 2 14.25v-9.5Zm2 .5v8.5h1.35l.28.2L11 15.7V14.25h6.25V5.25H7Z"
+              />
+              <path
+                fill="currentColor"
+                d="M8.2 7.4h7.6v1.15H8.2V7.4Zm0 2.55h5.6v1.15H8.2v-1.15Z"
+              />
+            </svg>
+            <span>文</span>
+          </button>
         </div>
 
         <p class="am-status">
@@ -460,114 +529,36 @@ const remainingLabel = computed(() => {
         </p>
       </section>
 
-      <!-- 无图时仍挂 audio 供底部无播放器？无图也该有播放器 -->
-      <section
-        v-if="!hasImages"
-        class="nr-player"
-        :class="{
-          'is-playing': isPlaying,
-          'is-ready': hasAudio && !audioBusy,
-          'is-busy': audioBusy,
-          'is-empty': !hasAudio && !audioBusy,
-          'is-scrubbing': scrubbing,
-        }"
-      >
-        <audio
-          :key="audioUrl || 'empty-static'"
-          ref="audioRef"
-          class="nr-audio-hidden"
-          :src="audioUrl || undefined"
-          preload="metadata"
-          @timeupdate="onTimeUpdate"
-          @loadedmetadata="onLoadedMeta"
-          @ended="onEnded"
-          @pause="isPlaying = false"
-          @play="isPlaying = true"
-        />
-        <div class="am-scrub">
-          <button
-            type="button"
-            class="am-track"
-            :disabled="!hasAudio || !duration"
-            @pointerdown="onTrackPointerDown"
-            @pointermove="onTrackPointerMove"
-            @pointerup="onTrackPointerUp"
-            @pointercancel="onTrackPointerUp"
-          >
-            <span class="am-track__rail" aria-hidden="true" />
-            <span class="am-track__fill" aria-hidden="true" :style="{ width: `${progress}%` }" />
-            <span class="am-track__knob" aria-hidden="true" :style="{ left: `${progress}%` }" />
-          </button>
-          <div class="am-times">
-            <span>{{ formatTime(currentTime) }}</span>
-            <span>{{ remainingLabel }}</span>
-          </div>
-        </div>
-        <div class="am-transport is-solo">
-          <button
-            type="button"
-            class="am-skip"
-            :disabled="!hasAudio || audioBusy"
-            @click="seekBy(-15)"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
-              />
-            </svg>
-            <span>15</span>
-          </button>
-          <button
-            type="button"
-            class="am-play"
-            :disabled="!hasAudio || audioBusy"
-            @click="togglePlay"
-          >
-            <svg v-if="!isPlaying" class="am-play__icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M8.2 5.6v12.8l10.2-6.4L8.2 5.6Z" />
-            </svg>
-            <svg v-else class="am-play__icon is-pause" viewBox="0 0 24 24" aria-hidden="true">
-              <path fill="currentColor" d="M7 5.5h3.2v13H7v-13Zm6.8 0H17v13h-3.2v-13Z" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="am-skip is-fwd"
-            :disabled="!hasAudio || audioBusy"
-            @click="seekBy(15)"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"
-              />
-            </svg>
-            <span>15</span>
-          </button>
-        </div>
-        <p class="am-status">{{ playerLabel }}</p>
-      </section>
-
-      <!-- 词层：从播放器位置上滑，盖住封面+播放器 -->
+      <!-- 解说文：全覆盖 + 毛玻璃；下拉 /「封面」关闭 -->
       <div
         v-if="hasImages"
-        ref="lyricsRef"
         class="nr-lyrics-sheet"
+        :class="{
+          'is-open': lyricsOpen,
+          'is-dragging': sheetDragging,
+        }"
+        :style="sheetDragStyle"
         :aria-hidden="!lyricsOpen"
+        @pointerdown="onSheetPointerDown"
+        @pointermove="onSheetPointerMove"
+        @pointerup="onSheetPointerUp"
+        @pointercancel="onSheetPointerCancel"
       >
-        <div class="nr-lyrics-sheet__top">
-          <p class="nr-script-label">解说词</p>
+        <div class="nr-lyrics-sheet__handle" data-lyrics-handle aria-hidden="true">
+          <span class="nr-lyrics-sheet__grabber" />
+        </div>
+        <div class="nr-lyrics-sheet__top" data-lyrics-handle>
+          <p class="nr-script-label">解说文</p>
           <button type="button" class="nr-lyrics-close" @click="closeLyrics">
             封面
           </button>
         </div>
-        <div class="nr-lyrics-sheet__body">
+        <div ref="lyricsBodyRef" class="nr-lyrics-sheet__body">
           <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
           <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
             {{ props.errorMessage || "解说词加载失败" }}
           </div>
-          <div v-else-if="displayText" class="nr-script-body">{{ displayText }}</div>
+          <div v-else-if="displayText" class="nr-script-body is-lyrics">{{ displayText }}</div>
           <div v-else class="nr-script-state">暂无解说词</div>
         </div>
       </div>
@@ -599,16 +590,17 @@ const remainingLabel = computed(() => {
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.55rem;
   color: #fff8ea;
 }
 
+/* 标题区：纯文字，无底板 */
 .nr-head {
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0 0.1rem;
+  gap: 0.12rem;
+  padding: 0 0.05rem;
 }
 
 .nr-kicker {
@@ -629,13 +621,13 @@ const remainingLabel = computed(() => {
 }
 
 .nr-sub {
-  margin: 0.1rem 0 0;
+  margin: 0.08rem 0 0;
   color: rgb(247 239 221 / 52%);
   font-size: 12px;
   letter-spacing: 0.04em;
 }
 
-/* 媒体栈：封面 + 播放器；词层 absolute 盖住 */
+/* 媒体栈：去 card，无圆角壳 / 无阴影面板 */
 .nr-media {
   position: relative;
   display: flex;
@@ -663,31 +655,59 @@ const remainingLabel = computed(() => {
   min-height: 0;
   flex-direction: column;
   gap: 0.45rem;
-  padding: 0.35rem 0.15rem;
+  padding: 0.25rem 0.05rem;
   overflow: hidden;
 }
 
-/* —— 词层：从底部（播放器位）上滑盖住 —— */
+/* 解说文：全覆盖 + 毛玻璃；支持下拉关闭 */
 .nr-lyrics-sheet {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 30;
   display: flex;
   flex-direction: column;
-  background:
-    linear-gradient(
-      180deg,
-      rgb(12 11 9 / 96%) 0%,
-      rgb(10 9 8 / 98%) 100%
-    );
+  background: rgb(12 11 9 / 58%);
+  backdrop-filter: blur(28px) saturate(1.15);
+  -webkit-backdrop-filter: blur(28px) saturate(1.15);
   opacity: 0;
-  transform: translateY(100%);
-  will-change: transform, opacity;
+  visibility: hidden;
+  transform: translate3d(0, 100%, 0);
+  transition:
+    transform 0.46s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.32s ease,
+    visibility 0.32s ease;
   pointer-events: none;
+  touch-action: pan-y;
+  will-change: transform, opacity;
 }
 
-.nr.is-lyrics .nr-lyrics-sheet {
+.nr-lyrics-sheet.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translate3d(0, 0, 0);
   pointer-events: auto;
+}
+
+.nr-lyrics-sheet.is-dragging {
+  transition: none;
+}
+
+.nr-lyrics-sheet__handle {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0 0.15rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.nr-lyrics-sheet__grabber {
+  display: block;
+  width: 2.4rem;
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(255 248 230 / 28%);
 }
 
 .nr-lyrics-sheet__top {
@@ -696,20 +716,23 @@ const remainingLabel = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.85rem 0.85rem 0.45rem;
+  padding: 0.35rem 0.1rem 0.35rem;
+  touch-action: none;
 }
 
 .nr-lyrics-close {
   border: 0;
-  border-radius: 999px;
-  background: rgb(209 178 111 / 14%);
-  padding: 0.4rem 0.85rem;
+  background: transparent;
+  padding: 0.35rem 0.15rem;
   color: #e8c98a;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgb(209 178 111 / 28%);
+}
+
+.nr-lyrics-close:hover {
+  color: #f0dfb0;
 }
 
 .nr-lyrics-sheet__body {
@@ -717,8 +740,12 @@ const remainingLabel = computed(() => {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  padding: 0.35rem 1rem 1.1rem;
-  overflow: hidden;
+  padding: 0.25rem 0.1rem 0.85rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .nr-script-label {
@@ -733,13 +760,19 @@ const remainingLabel = computed(() => {
 .nr-script-body {
   min-height: 0;
   flex: 1 1 auto;
-  overflow-y: auto;
   color: rgb(247 239 221 / 92%);
   font-size: 1.05rem;
   line-height: 1.85;
   white-space: pre-wrap;
   letter-spacing: 0.02em;
-  -webkit-overflow-scrolling: touch;
+}
+
+.nr-script-body.is-lyrics {
+  padding: 0.2rem 0.05rem 0.5rem;
+  font-size: 1.12rem;
+  font-weight: 500;
+  line-height: 1.92;
+  letter-spacing: 0.03em;
 }
 
 .nr-script-state {
@@ -753,15 +786,15 @@ const remainingLabel = computed(() => {
   color: #f0b4b4;
 }
 
-/* —— 播放器 —— */
+/* 播放条：扁平贴底，无卡片壳 */
 .nr-player {
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.45rem 0.15rem 0.2rem;
-  border-top: 1px solid rgb(255 248 230 / 6%);
-  background: linear-gradient(180deg, transparent, rgb(10 9 8 / 55%) 40%);
+  gap: 0.1rem;
+  padding: 0.4rem 0.05rem 0.15rem;
+  border-top: 1px solid rgb(255 248 230 / 7%);
+  background: transparent;
 }
 
 .nr-audio-hidden {
@@ -771,8 +804,8 @@ const remainingLabel = computed(() => {
 .am-scrub {
   display: flex;
   flex-direction: column;
-  gap: 0.28rem;
-  padding: 0 0.15rem;
+  gap: 0.22rem;
+  padding: 0 0.05rem;
 }
 
 .am-track {
@@ -797,7 +830,7 @@ const remainingLabel = computed(() => {
   position: absolute;
   top: 50%;
   left: 0;
-  height: 3px;
+  height: 2px;
   border-radius: 999px;
   transform: translateY(-50%);
   transition: height 0.15s ease;
@@ -805,25 +838,21 @@ const remainingLabel = computed(() => {
 
 .am-track__rail {
   width: 100%;
-  background: rgb(255 255 255 / 12%);
+  background: rgb(255 255 255 / 14%);
 }
 
 .am-track__fill {
-  background: linear-gradient(90deg, #b8924a, #e8d18a 70%, #f0dfb0);
-  box-shadow: 0 0 10px rgb(232 209 138 / 28%);
+  background: #e8d18a;
 }
 
 .am-track__knob {
   position: absolute;
   top: 50%;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
   background: #f0dfb0;
-  box-shadow:
-    0 0 0 3px rgb(209 178 111 / 28%),
-    0 1px 4px rgb(0 0 0 / 35%);
-  transform: translate(-50%, -50%) scale(0.6);
+  transform: translate(-50%, -50%) scale(0.55);
   opacity: 0;
   transition:
     transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
@@ -839,13 +868,12 @@ const remainingLabel = computed(() => {
 
 .nr-player.is-scrubbing .am-track__rail,
 .nr-player.is-scrubbing .am-track__fill {
-  height: 5px;
+  height: 4px;
 }
 
 .nr-player.is-scrubbing .am-track__knob {
-  width: 14px;
-  height: 14px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 40%);
+  width: 12px;
+  height: 12px;
 }
 
 .am-times {
@@ -860,43 +888,45 @@ const remainingLabel = computed(() => {
 }
 
 .am-transport {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.15rem 0.1rem;
+  justify-content: center;
+  min-height: 3.9rem;
+  padding: 0.4rem 0.05rem 0.05rem;
 }
 
-.am-transport.is-solo {
-  grid-template-columns: 1fr auto 1fr;
+/* -15 / 播放 / +15 作为整体水平居中 */
+.am-transport__core {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.15rem;
 }
 
 .am-play {
   display: grid;
-  width: 4rem;
-  height: 4rem;
+  width: 3.75rem;
+  height: 3.75rem;
+  flex-shrink: 0;
   place-items: center;
-  justify-self: center;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(155deg, #f0dfb0 0%, #d1b26f 48%, #b8924a 100%);
+  background: #e8d18a;
   color: #1a160d;
   cursor: pointer;
-  box-shadow:
-    0 1px 0 rgb(255 255 255 / 35%) inset,
-    0 10px 28px rgb(209 178 111 / 28%);
   transition:
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    filter 0.18s ease,
-    opacity 0.18s ease;
+    transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.16s ease,
+    filter 0.16s ease;
 }
 
 .am-play:hover:not(:disabled) {
-  filter: brightness(1.05);
+  filter: brightness(1.04);
 }
 
 .am-play:active:not(:disabled) {
-  transform: scale(0.92);
+  transform: scale(0.94);
 }
 
 .am-play:disabled {
@@ -905,15 +935,15 @@ const remainingLabel = computed(() => {
 }
 
 .am-play__icon {
-  width: 1.55rem;
-  height: 1.55rem;
-  margin-left: 0.12rem;
+  width: 1.45rem;
+  height: 1.45rem;
+  margin-left: 0.1rem;
 }
 
 .am-play__icon.is-pause {
   margin-left: 0;
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 1.3rem;
+  height: 1.3rem;
 }
 
 .am-skip {
@@ -921,8 +951,8 @@ const remainingLabel = computed(() => {
   display: grid;
   width: 2.55rem;
   height: 2.55rem;
+  flex-shrink: 0;
   place-items: center;
-  justify-self: end;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -932,18 +962,6 @@ const remainingLabel = computed(() => {
     color 0.15s ease,
     transform 0.15s ease,
     opacity 0.15s ease;
-}
-
-.am-skip.is-fwd {
-  justify-self: start;
-}
-
-.am-right {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 0.15rem;
-  justify-self: start;
 }
 
 .am-skip svg {
@@ -977,25 +995,28 @@ const remainingLabel = computed(() => {
   opacity: 0.3;
 }
 
-/* Music 式「词」按钮 */
+/* 「文」钉在右侧，不参与居中，避免整排偏左 */
 .am-lyrics-btn {
+  position: absolute;
+  top: 50%;
+  right: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
+  gap: 0.18rem;
   min-height: 2.2rem;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  padding: 0.25rem 0.55rem;
+  padding: 0.25rem 0.45rem;
   color: rgb(232 201 138 / 78%);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   cursor: pointer;
+  transform: translateY(-50%);
   transition:
-    background 0.16s ease,
-    color 0.16s ease,
-    box-shadow 0.16s ease;
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .am-lyrics-btn svg {
@@ -1005,16 +1026,15 @@ const remainingLabel = computed(() => {
 
 .am-lyrics-btn.is-on,
 .am-lyrics-btn:hover {
-  background: rgb(209 178 111 / 16%);
   color: #f0dfb0;
-  box-shadow: inset 0 0 0 1px rgb(209 178 111 / 32%);
+  background: rgb(209 178 111 / 12%);
 }
 
 .am-status {
   margin: 0;
   min-height: 1rem;
   text-align: center;
-  color: rgb(255 255 255 / 36%);
+  color: rgb(255 255 255 / 34%);
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -1029,8 +1049,8 @@ const remainingLabel = computed(() => {
   flex-shrink: 0;
   gap: 0.55rem;
   margin-top: auto;
-  padding-top: 0.25rem;
-  padding-bottom: 0.15rem;
+  padding-top: 0.15rem;
+  padding-bottom: 0.1rem;
 }
 
 .nr-actions {
@@ -1057,7 +1077,6 @@ const remainingLabel = computed(() => {
   background: linear-gradient(155deg, #e8d18a, #c9a75a);
   color: #1a160f;
   font-weight: 650;
-  box-shadow: 0 10px 24px rgb(209 178 111 / 18%);
 }
 
 .nr-btn:disabled {
@@ -1066,6 +1085,10 @@ const remainingLabel = computed(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .nr-lyrics-sheet {
+    transition: none;
+  }
+
   .am-play,
   .am-skip,
   .am-track__knob,
