@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * 解说导览：去 card 的博物馆音频播放器。
- * 封面 + 扁平播放条；点「文」全覆盖媒体区展示解说词（含播放器），可回封面。
+ * 媒体区图/播放器约 3:2；「文」正文只盖到播放器底，底栏仅遮罩防误点。
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue"
 import {
@@ -375,210 +375,223 @@ const remainingLabel = computed(() => {
       <p v-if="guideLabel" class="nr-sub">{{ guideLabel }}</p>
     </header>
 
-    <!-- 媒体栈：封面 + 播放器；解说文 absolute 全覆盖二者 -->
-    <div class="nr-media">
-      <section class="nr-stage">
-        <div v-if="hasImages" class="nr-stage-cover">
-          <ImageCarousel
-            :images="imageUrls"
-            :autoplay="!lyricsOpen && !isPlaying"
-            :height="0"
+    <!-- 主体：媒体 + 底栏；解说文正文只盖媒体区，底栏另做遮罩防误点 -->
+    <div class="nr-main">
+      <div class="nr-media">
+        <section class="nr-stage">
+          <div v-if="hasImages" class="nr-stage-cover">
+            <ImageCarousel
+              :images="imageUrls"
+              :autoplay="!lyricsOpen && !isPlaying"
+              :height="0"
+            />
+          </div>
+          <div v-else class="nr-lyrics-static">
+            <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
+            <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
+              {{ props.errorMessage || "解说词加载失败" }}
+            </div>
+            <template v-else>
+              <p class="nr-script-label">解说文</p>
+              <div v-if="displayText" class="nr-script-body">{{ displayText }}</div>
+              <div v-else class="nr-script-state">暂无解说词</div>
+            </template>
+          </div>
+        </section>
+
+        <section
+          class="nr-player"
+          :class="{
+            'is-playing': isPlaying,
+            'is-ready': hasAudio && !audioBusy,
+            'is-busy': audioBusy,
+            'is-empty': !hasAudio && !audioBusy,
+            'is-scrubbing': scrubbing,
+          }"
+        >
+          <audio
+            :key="audioUrl || 'empty'"
+            ref="audioRef"
+            class="nr-audio-hidden"
+            :src="audioUrl || undefined"
+            preload="metadata"
+            @timeupdate="onTimeUpdate"
+            @loadedmetadata="onLoadedMeta"
+            @ended="onEnded"
+            @pause="isPlaying = false"
+            @play="isPlaying = true"
           />
-        </div>
-        <div v-else class="nr-lyrics-static">
-          <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
-          <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
-            {{ props.errorMessage || "解说词加载失败" }}
+
+          <div class="am-scrub">
+            <button
+              type="button"
+              class="am-track"
+              :disabled="!hasAudio || !duration"
+              :aria-label="`进度 ${formatTime(currentTime)} / ${durationLabel}`"
+              @pointerdown="onTrackPointerDown"
+              @pointermove="onTrackPointerMove"
+              @pointerup="onTrackPointerUp"
+              @pointercancel="onTrackPointerUp"
+            >
+              <span class="am-track__rail" aria-hidden="true" />
+              <span class="am-track__fill" aria-hidden="true" :style="{ width: `${progress}%` }" />
+              <span class="am-track__knob" aria-hidden="true" :style="{ left: `${progress}%` }" />
+            </button>
+            <div class="am-times">
+              <span>{{ formatTime(currentTime) }}</span>
+              <span>{{ remainingLabel }}</span>
+            </div>
           </div>
-          <template v-else>
+
+          <div class="am-transport">
+            <!-- 三栏：左右等宽，中间 -10/播/+10 真正居中 -->
+            <div class="am-transport__side" aria-hidden="true" />
+
+            <div class="am-transport__core">
+              <button
+                type="button"
+                class="am-ctrl am-skip"
+                :disabled="!hasAudio || audioBusy"
+                aria-label="后退 10 秒"
+                @click="seekBy(-10)"
+              >
+                <!-- 圆环放大；数字单独叠字，保持可读字号 -->
+                <svg class="am-skip__ring" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
+                  />
+                </svg>
+                <span class="am-skip__num">10</span>
+              </button>
+
+              <button
+                type="button"
+                class="am-play"
+                :disabled="!hasAudio || audioBusy"
+                :title="isPlaying ? '暂停' : '播放'"
+                :aria-label="isPlaying ? '暂停' : '播放'"
+                @click="togglePlay"
+              >
+                <svg v-if="!isPlaying" class="am-play__icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="currentColor" d="M8.2 5.6v12.8l10.2-6.4L8.2 5.6Z" />
+                </svg>
+                <svg v-else class="am-play__icon is-pause" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="currentColor" d="M7 5.5h3.2v13H7v-13Zm6.8 0H17v13h-3.2v-13Z" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                class="am-ctrl am-skip is-fwd"
+                :disabled="!hasAudio || audioBusy"
+                aria-label="前进 10 秒"
+                @click="seekBy(10)"
+              >
+                <svg class="am-skip__ring" viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"
+                  />
+                </svg>
+                <span class="am-skip__num">10</span>
+              </button>
+            </div>
+
+            <div class="am-transport__side is-end">
+              <button
+                v-if="hasImages"
+                type="button"
+                class="am-ctrl am-lyrics-btn"
+                :class="{ 'is-on': lyricsOpen }"
+                :aria-pressed="lyricsOpen"
+                aria-label="解说文"
+                @click="toggleLyrics"
+              >
+                文
+              </button>
+            </div>
+          </div>
+
+          <p class="am-status">
+            <template v-if="audioBusy">语音生成中…</template>
+            <template v-else-if="!hasAudio">
+              {{ displayText ? "语音准备中" : "暂无语音" }}
+            </template>
+            <template v-else-if="resolvedAudioStatus === NARRATION_AUDIO_STATUS.Stale">
+              解说词已更新，语音更新中
+            </template>
+            <template v-else>{{ playerLabel }}</template>
+          </p>
+        </section>
+
+        <!-- 解说文：仅覆盖图+播放器（可滚动区止于播放器底端） -->
+        <div
+          v-if="hasImages"
+          class="nr-lyrics-sheet"
+          :class="{
+            'is-open': lyricsOpen,
+            'is-dragging': sheetDragging,
+          }"
+          :style="sheetDragStyle"
+          :aria-hidden="!lyricsOpen"
+          @pointerdown="onSheetPointerDown"
+          @pointermove="onSheetPointerMove"
+          @pointerup="onSheetPointerUp"
+          @pointercancel="onSheetPointerCancel"
+        >
+          <div class="nr-lyrics-sheet__handle" data-lyrics-handle aria-hidden="true">
+            <span class="nr-lyrics-sheet__grabber" />
+          </div>
+          <div class="nr-lyrics-sheet__top" data-lyrics-handle>
             <p class="nr-script-label">解说文</p>
-            <div v-if="displayText" class="nr-script-body">{{ displayText }}</div>
+            <button type="button" class="nr-lyrics-close" @click="closeLyrics">
+              封面
+            </button>
+          </div>
+          <div ref="lyricsBodyRef" class="nr-lyrics-sheet__body">
+            <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
+            <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
+              {{ props.errorMessage || "解说词加载失败" }}
+            </div>
+            <div v-else-if="displayText" class="nr-script-body is-lyrics">{{ displayText }}</div>
             <div v-else class="nr-script-state">暂无解说词</div>
-          </template>
-        </div>
-      </section>
-
-      <section
-        class="nr-player"
-        :class="{
-          'is-playing': isPlaying,
-          'is-ready': hasAudio && !audioBusy,
-          'is-busy': audioBusy,
-          'is-empty': !hasAudio && !audioBusy,
-          'is-scrubbing': scrubbing,
-        }"
-      >
-        <audio
-          :key="audioUrl || 'empty'"
-          ref="audioRef"
-          class="nr-audio-hidden"
-          :src="audioUrl || undefined"
-          preload="metadata"
-          @timeupdate="onTimeUpdate"
-          @loadedmetadata="onLoadedMeta"
-          @ended="onEnded"
-          @pause="isPlaying = false"
-          @play="isPlaying = true"
-        />
-
-        <div class="am-scrub">
-          <button
-            type="button"
-            class="am-track"
-            :disabled="!hasAudio || !duration"
-            :aria-label="`进度 ${formatTime(currentTime)} / ${durationLabel}`"
-            @pointerdown="onTrackPointerDown"
-            @pointermove="onTrackPointerMove"
-            @pointerup="onTrackPointerUp"
-            @pointercancel="onTrackPointerUp"
-          >
-            <span class="am-track__rail" aria-hidden="true" />
-            <span class="am-track__fill" aria-hidden="true" :style="{ width: `${progress}%` }" />
-            <span class="am-track__knob" aria-hidden="true" :style="{ left: `${progress}%` }" />
-          </button>
-          <div class="am-times">
-            <span>{{ formatTime(currentTime) }}</span>
-            <span>{{ remainingLabel }}</span>
           </div>
-        </div>
-
-        <div class="am-transport">
-          <!-- 居中运输组：-15 / 播放 / +15，不受「文」挤偏 -->
-          <div class="am-transport__core">
-            <button
-              type="button"
-              class="am-skip"
-              :disabled="!hasAudio || audioBusy"
-              aria-label="后退 15 秒"
-              @click="seekBy(-15)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"
-                />
-              </svg>
-              <span>15</span>
-            </button>
-
-            <button
-              type="button"
-              class="am-play"
-              :disabled="!hasAudio || audioBusy"
-              :title="isPlaying ? '暂停' : '播放'"
-              :aria-label="isPlaying ? '暂停' : '播放'"
-              @click="togglePlay"
-            >
-              <svg v-if="!isPlaying" class="am-play__icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path fill="currentColor" d="M8.2 5.6v12.8l10.2-6.4L8.2 5.6Z" />
-              </svg>
-              <svg v-else class="am-play__icon is-pause" viewBox="0 0 24 24" aria-hidden="true">
-                <path fill="currentColor" d="M7 5.5h3.2v13H7v-13Zm6.8 0H17v13h-3.2v-13Z" />
-              </svg>
-            </button>
-
-            <button
-              type="button"
-              class="am-skip is-fwd"
-              :disabled="!hasAudio || audioBusy"
-              aria-label="前进 15 秒"
-              @click="seekBy(15)"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"
-                />
-              </svg>
-              <span>15</span>
-            </button>
-          </div>
-
-          <button
-            v-if="hasImages"
-            type="button"
-            class="am-lyrics-btn"
-            :class="{ 'is-on': lyricsOpen }"
-            :aria-pressed="lyricsOpen"
-            aria-label="解说文"
-            @click="toggleLyrics"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M5 4.75A1.75 1.75 0 0 1 6.75 3h10.5A1.75 1.75 0 0 1 19 4.75v9.5A1.75 1.75 0 0 1 17.25 16H9.2L5.4 19.1a.6.6 0 0 1-.9-.52V16h-.75A1.75 1.75 0 0 1 2 14.25v-9.5Zm2 .5v8.5h1.35l.28.2L11 15.7V14.25h6.25V5.25H7Z"
-              />
-              <path
-                fill="currentColor"
-                d="M8.2 7.4h7.6v1.15H8.2V7.4Zm0 2.55h5.6v1.15H8.2v-1.15Z"
-              />
-            </svg>
-            <span>文</span>
-          </button>
-        </div>
-
-        <p class="am-status">
-          <template v-if="audioBusy">语音生成中…</template>
-          <template v-else-if="!hasAudio">
-            {{ displayText ? "语音准备中" : "暂无语音" }}
-          </template>
-          <template v-else-if="resolvedAudioStatus === NARRATION_AUDIO_STATUS.Stale">
-            解说词已更新，语音更新中
-          </template>
-          <template v-else>{{ playerLabel }}</template>
-        </p>
-      </section>
-
-      <!-- 解说文：全覆盖 + 毛玻璃；下拉 /「封面」关闭 -->
-      <div
-        v-if="hasImages"
-        class="nr-lyrics-sheet"
-        :class="{
-          'is-open': lyricsOpen,
-          'is-dragging': sheetDragging,
-        }"
-        :style="sheetDragStyle"
-        :aria-hidden="!lyricsOpen"
-        @pointerdown="onSheetPointerDown"
-        @pointermove="onSheetPointerMove"
-        @pointerup="onSheetPointerUp"
-        @pointercancel="onSheetPointerCancel"
-      >
-        <div class="nr-lyrics-sheet__handle" data-lyrics-handle aria-hidden="true">
-          <span class="nr-lyrics-sheet__grabber" />
-        </div>
-        <div class="nr-lyrics-sheet__top" data-lyrics-handle>
-          <p class="nr-script-label">解说文</p>
-          <button type="button" class="nr-lyrics-close" @click="closeLyrics">
-            封面
-          </button>
-        </div>
-        <div ref="lyricsBodyRef" class="nr-lyrics-sheet__body">
-          <div v-if="props.status === 'loading'" class="nr-script-state">正在加载解说词…</div>
-          <div v-else-if="props.status === 'error'" class="nr-script-state is-error">
-            {{ props.errorMessage || "解说词加载失败" }}
-          </div>
-          <div v-else-if="displayText" class="nr-script-body is-lyrics">{{ displayText }}</div>
-          <div v-else class="nr-script-state">暂无解说词</div>
         </div>
       </div>
-    </div>
 
-    <div class="nr-foot">
-      <footer v-if="showPlayActions" class="nr-actions">
-        <button
-          type="button"
-          class="nr-btn nr-btn--primary"
-          :disabled="props.completing"
-          @click="emit('complete')"
-        >
-          {{ props.completing ? "提交中…" : "听完了，继续" }}
-        </button>
-        <button type="button" class="nr-btn" :disabled="props.completing" @click="emit('skip')">
-          {{ props.completing ? "提交中…" : "跳过解说" }}
-        </button>
-      </footer>
-      <slot name="footer" />
+      <div
+        class="nr-foot"
+        :class="{ 'is-masked': lyricsOpen && hasImages }"
+        :aria-hidden="lyricsOpen && hasImages ? 'true' : undefined"
+      >
+        <footer v-if="showPlayActions" class="nr-actions">
+          <button
+            type="button"
+            class="nr-btn nr-btn--primary"
+            :disabled="props.completing || (lyricsOpen && hasImages)"
+            @click="emit('complete')"
+          >
+            {{ props.completing ? "提交中…" : "听完了，继续" }}
+          </button>
+          <button
+            type="button"
+            class="nr-btn"
+            :disabled="props.completing || (lyricsOpen && hasImages)"
+            @click="emit('skip')"
+          >
+            {{ props.completing ? "提交中…" : "跳过解说" }}
+          </button>
+        </footer>
+        <slot name="footer" />
+        <!-- 仅遮罩、无文字，挡住底栏误点 -->
+        <div
+          v-if="hasImages"
+          class="nr-foot-mask"
+          :class="{ 'is-on': lyricsOpen }"
+          aria-hidden="true"
+        />
+      </div>
     </div>
   </div>
 </template>
@@ -587,10 +600,12 @@ const remainingLabel = computed(() => {
 .nr {
   display: flex;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
   gap: 0.55rem;
+  overflow: hidden;
   color: #fff8ea;
 }
 
@@ -627,20 +642,29 @@ const remainingLabel = computed(() => {
   letter-spacing: 0.04em;
 }
 
-/* 媒体栈：去 card，无圆角壳 / 无阴影面板 */
-.nr-media {
-  position: relative;
+/* 主体：媒体 + 底栏 */
+.nr-main {
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
+  gap: 0.55rem;
+  overflow: hidden;
+}
+
+/* 媒体栈：图 / 播放器高度约 3:2；sheet 相对此层，止于播放器底 */
+.nr-media {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-rows: minmax(0, 2.85fr) minmax(0, 2.35fr);
   overflow: hidden;
 }
 
 .nr-stage {
   position: relative;
-  min-height: 12rem;
-  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -655,20 +679,21 @@ const remainingLabel = computed(() => {
   min-height: 0;
   flex-direction: column;
   gap: 0.45rem;
-  padding: 0.25rem 0.05rem;
+  padding: 0.35rem 0.05rem 0.15rem;
   overflow: hidden;
 }
 
-/* 解说文：全覆盖 + 毛玻璃；支持下拉关闭 */
+/* 解说文：仅盖媒体区（图+播放器），不叠到底栏文字区 */
 .nr-lyrics-sheet {
   position: absolute;
   inset: 0;
   z-index: 30;
   display: flex;
   flex-direction: column;
-  background: rgb(12 11 9 / 58%);
-  backdrop-filter: blur(28px) saturate(1.15);
-  -webkit-backdrop-filter: blur(28px) saturate(1.15);
+  /* 提高遮罩不透明度，减少背后图片干扰阅读 */
+  background: rgb(10 9 8 / 88%);
+  backdrop-filter: blur(36px) saturate(1.2);
+  -webkit-backdrop-filter: blur(36px) saturate(1.2);
   opacity: 0;
   visibility: hidden;
   transform: translate3d(0, 100%, 0);
@@ -786,14 +811,16 @@ const remainingLabel = computed(() => {
   color: #f0b4b4;
 }
 
-/* 播放条：扁平贴底，无卡片壳 */
+/* 播放区：略抬高占比；左右留白避免窄屏（模拟器）裁切 */
 .nr-player {
   display: flex;
-  flex-shrink: 0;
+  min-width: 0;
+  min-height: 0;
   flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.4rem 0.05rem 0.15rem;
-  border-top: 1px solid rgb(255 248 230 / 7%);
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.35rem 0.35rem;
+  border-top: 1px solid rgb(255 248 230 / 8%);
   background: transparent;
 }
 
@@ -803,16 +830,17 @@ const remainingLabel = computed(() => {
 
 .am-scrub {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 0.22rem;
-  padding: 0 0.05rem;
+  padding: 0.1rem 0.1rem 0;
 }
 
 .am-track {
   position: relative;
   display: block;
   width: 100%;
-  height: 28px;
+  height: 36px;
   border: 0;
   background: transparent;
   padding: 0;
@@ -830,7 +858,7 @@ const remainingLabel = computed(() => {
   position: absolute;
   top: 50%;
   left: 0;
-  height: 2px;
+  height: 3.5px;
   border-radius: 999px;
   transform: translateY(-50%);
   transition: height 0.15s ease;
@@ -838,25 +866,28 @@ const remainingLabel = computed(() => {
 
 .am-track__rail {
   width: 100%;
-  background: rgb(255 255 255 / 14%);
+  background: rgb(255 255 255 / 18%);
 }
 
 .am-track__fill {
-  background: #e8d18a;
+  background: linear-gradient(90deg, #d4b56a, #f0dfb0);
+  box-shadow: 0 0 10px rgb(232 209 138 / 22%);
 }
 
 .am-track__knob {
   position: absolute;
   top: 50%;
-  width: 8px;
-  height: 8px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  background: #f0dfb0;
-  transform: translate(-50%, -50%) scale(0.55);
-  opacity: 0;
+  background: #f7efdd;
+  box-shadow: 0 0 0 3px rgb(232 209 138 / 20%);
+  transform: translate(-50%, -50%) scale(0.75);
+  opacity: 0.65;
   transition:
     transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.16s ease;
+    opacity 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .nr-player.is-ready .am-track:hover .am-track__knob,
@@ -868,189 +899,276 @@ const remainingLabel = computed(() => {
 
 .nr-player.is-scrubbing .am-track__rail,
 .nr-player.is-scrubbing .am-track__fill {
-  height: 4px;
+  height: 5px;
 }
 
 .nr-player.is-scrubbing .am-track__knob {
-  width: 12px;
-  height: 12px;
+  width: 15px;
+  height: 15px;
+  box-shadow: 0 0 0 5px rgb(232 209 138 / 24%);
 }
 
 .am-times {
   display: flex;
+  min-width: 0;
   justify-content: space-between;
-  color: rgb(255 255 255 / 38%);
-  font-size: 11px;
+  gap: 0.5rem;
+  padding: 0 0.05rem;
+  color: rgb(255 255 255 / 48%);
+  font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
   font-feature-settings: "tnum";
 }
 
-.am-transport {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 3.9rem;
-  padding: 0.4rem 0.05rem 0.05rem;
+.am-times span {
+  flex-shrink: 0;
 }
 
-/* -15 / 播放 / +15 作为整体水平居中 */
+/* 运输区：三栏等宽，中间控件组真正居中；窄屏压缩尺寸 */
+.am-transport {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(2.85rem, 1fr) auto minmax(2.85rem, 1fr);
+  align-items: center;
+  column-gap: 0.25rem;
+  padding: 0.3rem 0 0.15rem;
+}
+
+.am-transport__side {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.am-transport__side.is-end {
+  justify-content: flex-end;
+  padding-right: 0.05rem;
+}
+
+/* -10 / 播放 / +10：次要控件同系，主按钮突出 */
 .am-transport__core {
   display: flex;
+  max-width: 100%;
   align-items: center;
   justify-content: center;
-  gap: 1.15rem;
+  gap: 0.7rem;
 }
 
 .am-play {
   display: grid;
-  width: 3.75rem;
-  height: 3.75rem;
+  width: 3.85rem;
+  height: 3.85rem;
   flex-shrink: 0;
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: #e8d18a;
+  /* 金质渐变 + 内高光，比纯色更有立体感 */
+  background:
+    linear-gradient(165deg, #f3e4b4 0%, #e8d18a 46%, #c9a75a 100%);
   color: #1a160d;
+  box-shadow:
+    0 1.5px 0 rgb(255 255 255 / 38%) inset,
+    0 -1.5px 2px rgb(90 70 20 / 18%) inset,
+    0 10px 24px rgb(0 0 0 / 34%),
+    0 2px 6px rgb(0 0 0 / 18%),
+    0 0 0 1px rgb(232 209 138 / 22%);
   cursor: pointer;
   transition:
     transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
     opacity 0.16s ease,
-    filter 0.16s ease;
+    filter 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .am-play:hover:not(:disabled) {
-  filter: brightness(1.04);
+  filter: brightness(1.05);
+  box-shadow:
+    0 1.5px 0 rgb(255 255 255 / 42%) inset,
+    0 -1.5px 2px rgb(90 70 20 / 16%) inset,
+    0 12px 28px rgb(0 0 0 / 38%),
+    0 3px 8px rgb(0 0 0 / 20%),
+    0 0 0 1px rgb(240 223 176 / 28%);
 }
 
 .am-play:active:not(:disabled) {
   transform: scale(0.94);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 28%) inset,
+    0 4px 12px rgb(0 0 0 / 28%),
+    0 0 0 1px rgb(232 209 138 / 18%);
 }
 
+/* 无音频时仍保持可辨识，不用过低 opacity 糊成泥色 */
 .am-play:disabled {
   cursor: not-allowed;
-  opacity: 0.35;
+  background: linear-gradient(165deg, rgb(243 228 180 / 45%), rgb(201 167 90 / 38%));
+  color: rgb(26 22 13 / 48%);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 12%) inset,
+    0 4px 12px rgb(0 0 0 / 14%);
+  filter: none;
 }
 
 .am-play__icon {
-  width: 1.45rem;
-  height: 1.45rem;
-  margin-left: 0.1rem;
+  width: 1.48rem;
+  height: 1.48rem;
+  margin-left: 0.12rem;
+  filter: drop-shadow(0 0.5px 0 rgb(255 255 255 / 25%));
 }
 
 .am-play__icon.is-pause {
   margin-left: 0;
-  width: 1.3rem;
-  height: 1.3rem;
+  width: 1.32rem;
+  height: 1.32rem;
 }
 
-.am-skip {
+/* 次要控件统一：同色、同圆角；skip 更大以便数字可读 */
+.am-ctrl {
+  display: inline-flex;
   position: relative;
-  display: grid;
-  width: 2.55rem;
-  height: 2.55rem;
   flex-shrink: 0;
-  place-items: center;
+  align-items: center;
+  justify-content: center;
+  height: 2.7rem;
+  min-width: 2.7rem;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: rgb(232 201 138 / 88%);
+  color: rgb(240 223 176 / 88%);
   cursor: pointer;
   transition:
     color 0.15s ease,
     transform 0.15s ease,
-    opacity 0.15s ease;
+    background 0.15s ease;
 }
 
-.am-skip svg {
-  width: 1.45rem;
-  height: 1.45rem;
-  opacity: 0.92;
+.am-ctrl:hover:not(:disabled) {
+  color: #f7efdd;
+  background: rgb(209 178 111 / 12%);
 }
 
-.am-skip span {
+.am-ctrl:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.am-ctrl:disabled {
+  cursor: not-allowed;
+  color: rgb(240 223 176 / 38%);
+  background: transparent;
+}
+
+.am-ctrl__icon {
+  display: block;
+  width: 1.72rem;
+  height: 1.72rem;
+  flex-shrink: 0;
+}
+
+/* 快进/快退：圆环放大，数字用固定可读字号居中 */
+.am-skip {
+  width: 3.05rem;
+  height: 3.05rem;
+  min-width: 3.05rem;
+  padding: 0;
+}
+
+.am-skip__ring {
+  display: block;
+  width: 2.15rem;
+  height: 2.15rem;
+}
+
+.am-skip__num {
   position: absolute;
-  top: 50%;
+  top: 52%;
   left: 50%;
-  transform: translate(-50%, -46%);
-  font-size: 8px;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  line-height: 1;
+  letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
 
-.am-skip:hover:not(:disabled) {
-  color: #f0dfb0;
-}
-
-.am-skip:active:not(:disabled) {
-  transform: scale(0.9);
-}
-
-.am-skip:disabled {
-  cursor: not-allowed;
-  opacity: 0.3;
-}
-
-/* 「文」钉在右侧，不参与居中，避免整排偏左 */
+/* 「文」：纯文字、放大，与 skip 同高 */
 .am-lyrics-btn {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.18rem;
-  min-height: 2.2rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  padding: 0.25rem 0.45rem;
-  color: rgb(232 201 138 / 78%);
-  font-size: 13px;
+  height: 3.05rem;
+  min-width: 3.05rem;
+  padding: 0 0.85rem;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  cursor: pointer;
-  transform: translateY(-50%);
-  transition:
-    color 0.15s ease,
-    background 0.15s ease;
+  line-height: 1;
 }
 
-.am-lyrics-btn svg {
-  width: 1.05rem;
-  height: 1.05rem;
-}
-
-.am-lyrics-btn.is-on,
-.am-lyrics-btn:hover {
-  color: #f0dfb0;
-  background: rgb(209 178 111 / 12%);
+.am-lyrics-btn.is-on {
+  color: #f7efdd;
+  background: rgb(209 178 111 / 18%);
 }
 
 .am-status {
   margin: 0;
-  min-height: 1rem;
+  flex-shrink: 0;
+  min-height: 1.15rem;
+  padding: 0.1rem 0.1rem 0.05rem;
   text-align: center;
-  color: rgb(255 255 255 / 34%);
-  font-size: 11px;
+  color: rgb(255 255 255 / 42%);
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
 }
 
 .nr-player.is-busy .am-status {
-  color: rgb(232 201 138 / 72%);
+  color: rgb(232 201 138 / 78%);
+}
+
+.nr-player.is-playing .am-status {
+  color: rgb(240 223 176 / 62%);
 }
 
 .nr-foot {
+  position: relative;
   display: grid;
   flex-shrink: 0;
   gap: 0.55rem;
   margin-top: auto;
   padding-top: 0.15rem;
   padding-bottom: 0.1rem;
+}
+
+/* 底栏遮罩：无文字，仅挡误点 */
+.nr-foot-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: rgb(10 9 8 / 42%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 0.28s ease,
+    visibility 0.28s ease;
+}
+
+.nr-foot-mask.is-on {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.nr-foot.is-masked {
+  pointer-events: none;
+}
+
+.nr-foot.is-masked .nr-foot-mask {
+  pointer-events: auto;
 }
 
 .nr-actions {

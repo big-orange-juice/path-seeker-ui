@@ -301,39 +301,38 @@ function closeDialog() {
   <Dialog v-model:open="isOpen">
     <DialogContent
       class="flex h-[92vh] max-w-[min(96vw,1560px)] flex-col overflow-hidden p-0">
-      <DialogHeader class="shrink-0 border-b border-border/70 px-5 py-3">
-        <div class="flex min-w-0 items-start justify-between gap-3">
-          <div class="min-w-0 space-y-1.5">
-            <div class="flex min-w-0 flex-wrap items-center gap-2">
-              <DialogTitle class="truncate">
-                {{ routeTitle }}
-              </DialogTitle>
-              <RouteStatusBadge v-if="props.record" :record="props.record" />
-            </div>
-            <DialogDescription>
-              {{ routeMeta }}
-            </DialogDescription>
-            <p
-              v-if="props.record?.auditStatus === 3 && props.record.auditRemark"
-              class="text-xs text-rose-300">
-              驳回原因：{{ props.record.auditRemark }}
-            </p>
-            <p
-              v-if="!props.canEdit && props.lockMessage"
-              class="text-xs text-amber-200/90">
-              {{ props.lockMessage }}
-            </p>
+      <div class="flex shrink-0 items-start justify-between gap-3 border-b border-border/70 px-5 py-3">
+        <DialogHeader class="min-w-0 space-y-1.5 text-left">
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <DialogTitle class="truncate">
+              {{ routeTitle }}
+            </DialogTitle>
+            <RouteStatusBadge v-if="props.record" :record="props.record" />
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            title="关闭"
-            class="shrink-0"
-            @click="closeDialog">
-            <AppIcon name="x" class="h-4 w-4" />
-          </Button>
-        </div>
-      </DialogHeader>
+          <DialogDescription>
+            {{ routeMeta }}
+          </DialogDescription>
+          <p
+            v-if="props.record?.auditStatus === 3 && props.record.auditRemark"
+            class="text-xs text-rose-300">
+            驳回原因：{{ props.record.auditRemark }}
+          </p>
+          <p
+            v-if="!props.canEdit && props.lockMessage"
+            class="text-xs text-amber-200/90">
+            {{ props.lockMessage }}
+          </p>
+        </DialogHeader>
+        <Button
+          variant="ghost"
+          size="icon"
+          type="button"
+          title="关闭"
+          class="shrink-0"
+          @click="closeDialog">
+          <AppIcon name="x" class="h-4 w-4" />
+        </Button>
+      </div>
 
       <div
         v-if="props.pending && !props.detail"
@@ -412,8 +411,8 @@ function closeDialog() {
       </div>
 
       <!-- 业务操作统一右下角；待审时主按钮为「审核」 -->
-      <DialogFooter class="shrink-0 border-t border-border/70 px-5 py-3">
-        <Button variant="outline" type="button" @click="closeDialog">
+      <DialogFooter class="h-14 shrink-0 items-center border-t border-border/70 px-5">
+        <Button variant="outline" type="button" class="h-8" @click="closeDialog">
           关闭
         </Button>
         <Button

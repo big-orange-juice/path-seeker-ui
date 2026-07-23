@@ -4,15 +4,15 @@
  *
  * 发布状态文案：未上架(1) / 已上架(2) / 已下线(3)
  *
- * 管理员数据权限（防越权）：
- * | 场景 | 列表 | 详情查看 | 编辑/删除 | 其它 |
- * | 本人未上架/已下线（免审） | ✅ | ✅ | ✅（待审不可改） | 上架/下线 |
- * | 他人未上架（非待审） | ✅ 仅知存在 | ❌ | ❌ | — |
- * | 他人未上架（待审核） | ✅ | ✅ 只读（列表「审核」打开） | ❌ | 详情底部「审核」通过/驳回 |
- * | 他人已下线 | ✅ | ❌ | ❌ | — |
- * | 已上架（本人） | ✅ | ✅ 只读内容 | ❌ | 下线 |
- * | 已上架（他人） | ✅ | ✅ 只读 | ❌ | — |
+ * 管理员数据权限：
+ * | 场景 | 列表 | 详情查看 | 编辑内容 | 删除 | 其它 |
+ * | 本人未上架/已下线（免审） | ✅ | ✅ | ✅（待审不可改） | ✅ 未上架 | 上架/下线 |
+ * | 他人未上架（非待审） | ✅ | ❌ | ❌ | ✅ | 上架/下线 |
+ * | 他人未上架（待审核） | ✅ | ✅ 只读（列表「审核」） | ❌ | ✅ | 审核通过/驳回；上架/下线 |
+ * | 他人已下线 | ✅ | ❌ | ❌ | ❌（仅未上架可删） | 上架 |
+ * | 已上架（本人/他人） | ✅ | ✅ 只读 | ❌ | ❌ | 下线 |
  *
+ * 原则：管理员可对任意路线上架/下线，可删导游未上架路线；不可改他人内容，仅审核。
  * 导游：本人全流程；他人仅已上架只读。
  */
 
@@ -290,27 +290,27 @@ export const getRouteWorkflowActions = (
     && audit === AUDIT_PENDING
     && publish !== PUBLISH_ONLINE;
 
-  // 上架/下线：仅本人
-  const publishGateOk = !auditRequired || audit === AUDIT_PASSED;
+  // 上架前置：导游需审路线须审核通过；管理员可强制上架（含他人路线）
+  const publishGateOk = admin || !auditRequired || audit === AUDIT_PASSED;
 
+  // 上架：管理员任意未上架/已下线；导游仅本人且通过审核门槛
   const canPublish =
     !generating
-    && owner
     && (publish === PUBLISH_DRAFT || publish === PUBLISH_OFFLINE)
     && publishGateOk
-    && (admin || guide);
+    && (admin || (guide && owner));
 
+  // 下线：管理员任意已上架；非管理员仅本人已上架
   const canUnpublish =
     !generating
-    && owner
-    && publish === PUBLISH_ONLINE;
+    && publish === PUBLISH_ONLINE
+    && (admin || owner);
 
-  // 删除：仅本人 + 未上架 + 非待审（管理员不得删他人未上架）
+  // 删除：未上架；本人非待审可删；管理员可删任意未上架（含导游待审）
   const canDelete =
     !generating
-    && owner
     && publish === PUBLISH_DRAFT
-    && audit !== AUDIT_PENDING;
+    && (admin || (owner && audit !== AUDIT_PENDING));
 
   // 列表主入口：可审合并为「审核」（打开只读详情，底部再审）；否则编辑/查看
   let openLabel = '';
@@ -436,12 +436,12 @@ export const getEditLockMessage = (
   const owner = ctx ? isOwnedBy(record, ctx.adminId) : false;
 
   if (admin && !owner && audit === AUDIT_PENDING) {
-    return '待审核路线仅可查看内容，不可修改。审阅后请点右下角「审核」通过或驳回。';
+    return '待审核路线仅可查看内容，不可修改。审阅后请点右下角「审核」通过或驳回；可在列表直接上架/下线或删除。';
   }
   if (admin && !owner && (publish === PUBLISH_DRAFT || publish === PUBLISH_OFFLINE)) {
     return publish === PUBLISH_DRAFT
-      ? '他人未上架路线仅列表可见，不可查看或编辑。'
-      : '他人已下线路线仅列表可见，不可查看或编辑。';
+      ? '他人未上架路线内容不可编辑，可在列表上架或删除。'
+      : '他人已下线路线内容不可编辑，可在列表重新上架。';
   }
   if (guide && !owner && publish === PUBLISH_ONLINE) {
     return '这是其他导游的已上架路线，仅可查看。';
@@ -462,7 +462,9 @@ export const getEditLockMessage = (
     return '当前账号无权限编辑该路线。';
   }
   if (!owner) {
-    return '仅路线归属人可编辑或删除。';
+    return admin
+      ? '管理员不可编辑他人路线内容，可审核、上架/下线或删除未上架路线。'
+      : '仅路线归属人可编辑内容。';
   }
   return '当前状态不可编辑。';
 };

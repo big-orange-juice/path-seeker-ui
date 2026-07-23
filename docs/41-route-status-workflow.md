@@ -57,8 +57,9 @@
 ```
 
 - **无审核环节**：ADMIN 创建即免审，`CanPublish()` 始终返回 `true`。
-- **上架/下架**：仅 ADMIN 本人可操作自己创建的免审路线。
-- **编辑限制**：已上架（`publish_status=2`）时不可编辑；已下线（`publish_status=3`）可编辑。
+- **上架/下架**：管理员可对**任意路线**（含导游名下）执行上架/下线。
+- **删除**：管理员可删除**任意未上架**路线（含导游待审）。
+- **编辑限制**：仅可编辑**本人**未上架/已下线路线；**不可编辑他人（导游）内容**，对导游路线以审核为主。已上架（`publish_status=2`）时不可编辑。
 
 ---
 
@@ -120,11 +121,12 @@
 
 | 操作 | ADMIN | CREATOR |
 |------|-------|---------|
-| **编辑内容** (`CanEditContent`) | ✅ 草稿/已下线 | ✅ 草稿(`audit=0`)/已驳回(`audit=3`)/已下线<br>❌ 待审核(`audit=1`)/已上架 |
+| **编辑内容** (`CanEditContent`) | ✅ 仅本人草稿/已下线<br>❌ **不可编辑他人（导游）路线内容** | ✅ 草稿(`audit=0`)/已驳回(`audit=3`)/已下线<br>❌ 待审核(`audit=1`)/已上架 |
 | **提交审核** (`CanSubmitAudit`) | ❌ 免审，无需提交 | ✅ 自己的草稿或已驳回路线（未上架） |
 | **审核路线** (`CanAudit`) | ✅ 仅待审核的策展人路线（列表「审核」= 只读打开详情，底部再通过/驳回） | ❌ |
-| **上架/下架** (`CanChangePublication`) | ✅ 仅自己创建的免审路线 | ✅ 仅自己创建且审核通过的路线 |
-| **上架前置** (`CanPublish`) | ✅ 始终可上架 | ✅ 仅审核通过(`audit=2`)后可上架 |
+| **上架/下架** (`CanChangePublication`) | ✅ **任意路线**（含导游名下） | ✅ 仅自己创建且审核通过的路线 |
+| **上架前置** (`CanPublish`) | ✅ 始终可上架（可强制） | ✅ 仅审核通过(`audit=2`)后可上架 |
+| **删除** (`CanDelete`) | ✅ **任意未上架路线**（含导游待审） | ✅ 仅本人未上架且非待审 |
 | **修改后审核失效** (`InvalidateAuditAfterContentChange`) | ❌ 不失效 | ✅ 自动重置 `audit=0` |
 
 ---
@@ -180,8 +182,8 @@ stateDiagram-v2
 | `route:edit` | 编辑路线内容 | ADMIN / CREATOR（受工作流限制） |
 | `route:submit-audit` | 提交审核 | CREATOR |
 | `route:audit` | 审核路线 | ADMIN |
-| `route:publish` | 上架/下架 | ADMIN / CREATOR（各自名下） |
-| `route:delete` | 删除路线 | ADMIN / CREATOR（仅草稿可删） |
+| `route:publish` | 上架/下架 | ADMIN（任意） / CREATOR（本人且审核通过） |
+| `route:delete` | 删除路线 | ADMIN（任意未上架） / CREATOR（本人草稿且非待审） |
 
 > CREATOR 默认拥有：`route:list, route:view, route:create, route:edit, route:submit-audit, route:publish, route:delete`  
 > ADMIN 默认拥有：`*`（通配，全部权限）

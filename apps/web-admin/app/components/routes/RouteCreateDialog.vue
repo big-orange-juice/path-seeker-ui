@@ -149,15 +149,20 @@ const submitManual = () => {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent class="flex h-[90vh] max-w-[min(96vw,1280px)] flex-col overflow-hidden p-0">
-      <div class="flex shrink-0 items-start justify-between gap-3 border-b border-border/70 px-5 py-4">
-        <DialogHeader class="space-y-1">
-          <DialogTitle>新增主题路线</DialogTitle>
-          <DialogDescription>可通过对话创建，或使用参数表单生成。</DialogDescription>
+      <div class="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/70 px-5">
+        <DialogHeader class="min-w-0 space-y-0.5 text-left">
+          <DialogTitle class="text-base">
+            新增主题路线
+          </DialogTitle>
+          <DialogDescription class="text-xs">
+            可通过对话创建，或使用参数表单生成。
+          </DialogDescription>
         </DialogHeader>
         <Button
           variant="ghost"
           size="icon"
           type="button"
+          title="关闭"
           class="shrink-0"
           :disabled="props.submitting"
           @click="isOpen = false">
@@ -247,13 +252,19 @@ const submitManual = () => {
         </div>
       </div>
 
-      <DialogFooter class="shrink-0 border-t border-border/70 px-5 py-3">
-        <Button variant="outline" type="button" :disabled="props.submitting" @click="isOpen = false">
+      <DialogFooter class="h-14 shrink-0 items-center border-t border-border/70 px-5">
+        <Button
+          variant="outline"
+          type="button"
+          class="h-8"
+          :disabled="props.submitting"
+          @click="isOpen = false">
           {{ activeTab === 'manual' ? '取消' : '关闭' }}
         </Button>
         <Button
           v-if="activeTab === 'manual'"
           type="button"
+          class="h-8"
           :disabled="props.submitting || !canSubmitManual"
           @click="submitManual">
           {{ props.submitting ? '生成中...' : '开始生成' }}

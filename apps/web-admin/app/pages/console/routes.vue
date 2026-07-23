@@ -205,7 +205,9 @@ const confirmDialogDescription = computed(() => {
     case 'submit-audit':
       return `确认将「${routeName}」提交审核吗？提交后内容将锁定，直至审核完成。`;
     default:
-      return `确认删除「${routeName}」吗？仅未上架且非待审的本人路线可删，删除后不可恢复。`;
+      return authStore.isAdmin
+        ? `确认删除「${routeName}」吗？未上架路线删除后不可恢复。`
+        : `确认删除「${routeName}」吗？仅未上架且非待审的本人路线可删，删除后不可恢复。`;
   }
 });
 
@@ -358,14 +360,14 @@ const assertWorkflowAction = (
 };
 
 const handlePublish = (record: RouteRecord) => {
-  if (!assertWorkflowAction(record, 'canPublish', '无权上架该路线（仅归属人且满足审核条件）。')) {
+  if (!assertWorkflowAction(record, 'canPublish', '无权上架该路线（管理员可上架任意路线；导游仅本人且审核通过）。')) {
     return;
   }
   openConfirmDialog('publish', record);
 };
 
 const handleUnpublish = (record: RouteRecord) => {
-  if (!assertWorkflowAction(record, 'canUnpublish', '无权下线该路线（仅归属人可下线）。')) {
+  if (!assertWorkflowAction(record, 'canUnpublish', '无权下线该路线（管理员可下线任意路线；导游仅本人）。')) {
     return;
   }
   openConfirmDialog('unpublish', record);
@@ -394,7 +396,7 @@ watch(auditDialogOpen, (open) => {
 });
 
 const handleRemove = (record: RouteRecord) => {
-  if (!assertWorkflowAction(record, 'canDelete', '无权删除该路线（仅归属人可删未上架且非待审路线）。')) {
+  if (!assertWorkflowAction(record, 'canDelete', '无权删除该路线（管理员可删任意未上架；导游仅本人且非待审）。')) {
     return;
   }
   openConfirmDialog('delete', record);

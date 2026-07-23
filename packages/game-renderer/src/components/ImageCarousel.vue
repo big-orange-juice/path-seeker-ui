@@ -51,7 +51,7 @@ const stageHeight = computed(() =>
 )
 const stageStyle = computed(() =>
   fillParent.value
-    ? { height: "100%", minHeight: "12rem" }
+    ? { height: "100%", minHeight: "0" }
     : { height: `${stageHeight.value}px` },
 )
 
@@ -534,7 +534,7 @@ onUnmounted(() => {
 
 .ic.is-fill {
   height: 100%;
-  min-height: 12rem;
+  min-height: 0;
 }
 
 .ic-stage {

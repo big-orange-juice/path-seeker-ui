@@ -81,16 +81,23 @@ const props = defineProps<{ stage: GameplayPreviewStage | null }>()
 .route-device__signal i:nth-child(3) { height: 9px; }
 .route-device__viewport {
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  padding: 36px 10px 10px;
+  /* 左右略加宽，避免解说运输控件贴边被手机框裁切 */
+  padding: 36px 14px 12px;
 }
 .route-device__viewport :deep(.stage-play) {
+  min-width: 0;
   min-height: 0;
   flex: 1;
-  overflow: auto;
+  overflow: hidden;
+}
+.route-device__viewport :deep(.narration-shell),
+.route-device__viewport :deep(.nr) {
+  min-width: 0;
 }
 .route-device__home {
   flex-shrink: 0;

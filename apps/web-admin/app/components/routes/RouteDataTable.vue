@@ -338,7 +338,7 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
             {
               class:
                 'inline-flex h-7 items-center px-1 text-[11px] text-muted-foreground',
-              title: '他人未上架/已下线路线仅列表可见；待审核可点「审核」打开只读详情'
+              title: '他人未上架/已下线路线内容不可编辑；管理员可上架/下线或删除未上架；待审核可点「审核」'
             },
             ''
           )
