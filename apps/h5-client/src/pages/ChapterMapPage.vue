@@ -74,7 +74,8 @@ const stationList = computed(() => {
 
     let stateLabel = "待探索"
     if (solved) {
-      stateLabel = "完成"
+      // 已完成仍可再进，文案提示可重玩
+      stateLabel = "可再玩"
     } else if (active) {
       stateLabel = "当前"
     } else if (type === 11) {
@@ -107,6 +108,18 @@ const currentStepLabel = computed(() => {
   }
   return `${missionStore.activeSession.solvedChapterIds.length}/${displayMission.value.chapterCount}`
 })
+
+/** 路线已通关：可重复游玩，终局页仅主动进入 */
+const isRouteCompleted = computed(
+  () => missionStore.activeSession?.status === "completed",
+)
+
+async function openFinale() {
+  if (!routeId.value) {
+    return
+  }
+  await router.push(`/missions/${routeId.value}/finale`)
+}
 
 /**
  * 进入 map 即就绪选站：有本路线会话则恢复，否则自动 Join。
@@ -164,15 +177,8 @@ async function enterSelectedChapter() {
     return
   }
 
-  const chapter = missionStore.currentChapter
-  const progress = missionStore.getChapterProgress(chapter.id)
-
-  if (progress.solved || missionStore.activeSession.solvedChapterIds.includes(chapter.id)) {
-    toastStore.info("这一站已完成", "可以选其他站点继续探索。")
-    return
-  }
-
-  const path = missionStore.resolveEnterChapterPath(chapter.id)
+  // 已完成节点允许重复进入游玩，不拦截
+  const path = missionStore.resolveEnterChapterPath(missionStore.currentChapter.id)
   if (!path) {
     return
   }
@@ -271,6 +277,14 @@ onMounted(() => {
       <div class="grid gap-3 pt-1">
         <ClientButton class="w-full" @click="enterSelectedChapter()">
           进入这一站
+        </ClientButton>
+        <ClientButton
+          v-if="isRouteCompleted"
+          variant="outline"
+          class="w-full"
+          @click="openFinale()"
+        >
+          查看通关结果
         </ClientButton>
         <ClientButton variant="outline" class="w-full" @click="goBackToHall()">
           返回展厅

@@ -45,6 +45,12 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
   if (!rows.length) return null;
 
   const titles = rows.map((item) => item.title || item.routeId || '未命名');
+  /** 类目较多时默认只露出一段，拖拽 / 缩放可浏览其余 */
+  const defaultWindow = 8;
+  const zoomEnd = titles.length > defaultWindow
+    ? Math.max(12, Math.round((defaultWindow / titles.length) * 100))
+    : 100;
+
   return {
     color: [chartTheme.gold, chartTheme.sky],
     tooltip: {
@@ -59,7 +65,48 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
       top: 0,
       textStyle: { color: chartTheme.text, fontSize: 11 },
     },
-    grid: { left: 40, right: 16, top: 36, bottom: 48 },
+    grid: { left: 40, right: 16, top: 36, bottom: 72 },
+    dataZoom: [
+      {
+        type: 'inside',
+        xAxisIndex: 0,
+        filterMode: 'none',
+        start: 0,
+        end: zoomEnd,
+        zoomOnMouseWheel: true,
+        moveOnMouseMove: true,
+        moveOnMouseWheel: false,
+      },
+      {
+        type: 'slider',
+        xAxisIndex: 0,
+        filterMode: 'none',
+        height: 18,
+        bottom: 6,
+        start: 0,
+        end: zoomEnd,
+        brushSelect: false,
+        borderColor: 'rgba(200, 194, 182, 0.2)',
+        backgroundColor: 'rgba(200, 194, 182, 0.06)',
+        fillerColor: 'rgba(209, 178, 111, 0.18)',
+        handleStyle: {
+          color: chartTheme.gold,
+          borderColor: chartTheme.gold,
+        },
+        moveHandleStyle: {
+          color: chartTheme.gold,
+        },
+        dataBackground: {
+          lineStyle: { color: 'rgba(200, 194, 182, 0.25)' },
+          areaStyle: { color: 'rgba(200, 194, 182, 0.08)' },
+        },
+        selectedDataBackground: {
+          lineStyle: { color: chartTheme.gold },
+          areaStyle: { color: 'rgba(209, 178, 111, 0.12)' },
+        },
+        textStyle: { color: chartTheme.text, fontSize: 10 },
+      },
+    ],
     xAxis: {
       type: 'category',
       data: titles,
@@ -67,8 +114,9 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
         color: chartTheme.text,
         fontSize: 10,
         interval: 0,
-        rotate: titles.length > 5 ? 28 : 0,
-        formatter: (value: string) => (value.length > 8 ? `${value.slice(0, 8)}…` : value),
+        hideOverlap: false,
+        rotate: 32,
+        overflow: 'none',
       },
       axisLine: { lineStyle: { color: chartTheme.axis } },
       axisTick: { show: false },
@@ -141,6 +189,7 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
         title="路线开始 / 完成"
         :option="routeStatsOption"
         empty-text="暂无路线统计"
+        height-class="h-[340px]"
       />
     </section>
   </div>

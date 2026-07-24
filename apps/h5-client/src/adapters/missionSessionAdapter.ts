@@ -177,7 +177,8 @@ export function buildRestoredMissionSession(
  * 进入某一站时的路径决策：
  * - 11 解说：独立 narration 页
  * - 1/6：进入 brief 后直接题面；10：在 brief 内完成找一找与短片
- * - 10 播片完成后若已 videoWatched 但未 solved：回 map 防循环
+ * - 已完成节点允许重复进入对应玩法页
+ * - 10 未完成且已 videoWatched：回 map 防循环
  */
 export function resolveChapterEnterPath(
   routeId: string,
@@ -185,23 +186,19 @@ export function resolveChapterEnterPath(
   progress: ChapterGateProgress,
   interactionType?: number | null,
 ) {
-  if (progress.solved) {
-    return `/missions/${routeId}/map`
-  }
-
   const type = Number(interactionType || 0)
 
-  // 11 解说导览：听讲页独立
+  // 11 解说导览：听讲页独立（含已完成重听）
   if (type === 11) {
     return `/missions/${routeId}/chapters/${chapterId}/narration`
   }
 
-  // 10 找一找：播片提交完成后若仍残留 videoWatched，回 map
-  if (type === 10 && progress.videoWatched) {
+  // 10 找一找：未完成且播片闸门已过，回 map 防卡在视频环
+  if (type === 10 && progress.videoWatched && !progress.solved) {
     return `/missions/${routeId}/map`
   }
 
-  // 1~10：线索 / 扫一扫 / 短片 / 闯关 同页分阶段
+  // 1~10：线索 / 扫一扫 / 短片 / 闯关 同页分阶段（含已完成重玩）
   return `/missions/${routeId}/chapters/${chapterId}/brief`
 }
 
@@ -217,11 +214,13 @@ export function resolveMissionResumePath(input: {
 }) {
   const { session, mission, chapterId } = input
 
-  if (session.status === "completed" || session.latestChapterResult?.finalChapter) {
-    return `/missions/${session.routeId}/finale`
+  // 已完成路线：回选站页可重复观看/游玩，不自动进终局页
+  if (session.status === "completed") {
+    return `/missions/${session.routeId}/map`
   }
 
   if (session.latestChapterResult?.chapterId) {
+    // 刚通关一站的短结果页仍可恢复；终局页不自动跳
     return `/missions/${session.routeId}/chapters/${session.latestChapterResult.chapterId}/result`
   }
 

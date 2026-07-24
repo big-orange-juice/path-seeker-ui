@@ -39,11 +39,8 @@ async function bootstrapClient() {
   }
 
   void authStore.loadProfile()
+  // 路线列表走服务端；进行中/收藏会话不再从本地缓存恢复
   void missionStore.loadRouteCards({ force: true })
-
-  if (missionStore.activeSession && !missionStore.getMission(missionStore.activeSession.routeId)) {
-    void missionStore.restoreActiveMission()
-  }
 }
 
 app.mount("#app")

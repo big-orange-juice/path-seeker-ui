@@ -127,12 +127,7 @@ async function bootstrap() {
     }
   }
 
-  const gate = missionStore.getChapterProgress(chapterId.value)
-  if (gate.solved) {
-    await router.replace(`/missions/${routeId.value}/map`)
-    return
-  }
-
+  // 已完成解说节点允许重复收听，不因 solved 踢回路线页
   ready.value = true
   await loadDetail()
 }

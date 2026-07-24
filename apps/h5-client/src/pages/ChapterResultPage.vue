@@ -19,15 +19,8 @@ async function backToMap() {
   }
   cancelled.value = true
 
-  const finalChapter = Boolean(result.value?.finalChapter || missionStore.activeSession?.status === "completed")
   missionStore.advanceFromChapterResult()
-
-  if (finalChapter) {
-    await router.push(`/missions/${routeId.value}/finale`)
-    return
-  }
-
-  // 对齐 demo：完成一站后回到路线，不自动开下一站
+  // 完成一站（含末站）一律回路线选站；终局页不自动进入，由用户主动查看
   await router.push(`/missions/${routeId.value}/map`)
 }
 

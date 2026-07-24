@@ -45,12 +45,12 @@ const tips = computed(() => {
 })
 
 const canUseHint = computed(
-  () => !missionStore.currentChapterSolved && !missionStore.currentHintText && !missionStore.gameplayPending,
+  () => !missionStore.currentHintText && !missionStore.gameplayPending,
 )
 
 const canSubmitPuzzle = computed(() => {
   const puzzle = missionStore.currentPuzzle
-  if (!puzzle || missionStore.currentChapterSolved || missionStore.gameplayPending) return false
+  if (!puzzle || missionStore.gameplayPending) return false
   const value = draft.value?.value
   if (puzzle.templateType === "observe_choice") {
     const options = puzzle.questionPayload?.options
@@ -128,11 +128,9 @@ async function bootstrap() {
     return
   }
 
+  // 已完成节点允许重复游玩：不再因 solved 踢回路线页
   const gate = missionStore.getChapterProgress(chapterId.value)
-  if (gate.solved || missionStore.currentChapterSolved) {
-    await router.replace(`/missions/${routeId.value}/map`)
-    return
-  }
+  const alreadySolved = gate.solved || missionStore.currentChapterSolved
 
   if (interactionType.value === 1 || interactionType.value === 6) {
     syncPuzzleDraft()
@@ -146,7 +144,10 @@ async function bootstrap() {
     return
   }
 
-  if (gate.videoWatched && !gate.solved) {
+  // 重玩时从扫码阶段重开；未完成则沿用本地闸门相位
+  if (alreadySolved) {
+    findPhase.value = "scan"
+  } else if (gate.videoWatched && !gate.solved) {
     findPhase.value = "video"
   } else if (gate.recognized) {
     findPhase.value = "video"
@@ -178,10 +179,6 @@ async function forceSkipStage() {
       return
     }
     toastStore.info("已跳过本站", "进度已更新。")
-    if (result.snapshot?.finalChapter) {
-      await router.push(`/missions/${routeId.value}/finale`)
-      return
-    }
     await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/result`)
   } catch (error) {
     toastStore.warning("跳过失败", error instanceof Error ? error.message : "请稍后重试")
@@ -205,10 +202,7 @@ async function completeFind(options: { skipped?: boolean } = {}) {
     return
   }
   if (options.skipped) toastStore.info("已跳过本站", "进度已更新。")
-  if (result.snapshot?.finalChapter) {
-    await router.push(`/missions/${routeId.value}/finale`)
-    return
-  }
+  // 末站也不自动进终局，统一走本站结果再回选站
   await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/result`)
 }
 
@@ -222,7 +216,7 @@ async function useHint() {
 }
 
 async function submitAnswer() {
-  if (!draft.value || missionStore.currentChapterSolved) return
+  if (!draft.value) return
   const result = await missionStore.submitCurrentDraft(draft.value)
   if (!result.isCorrect) {
     toastStore.warning("再想想", result.message || "答案还差一点。")
@@ -232,10 +226,7 @@ async function submitAnswer() {
     result.snapshot?.finalChapter ? "本路线已完成" : "章节解锁成功",
     result.message || "可以继续探索。",
   )
-  if (result.snapshot?.finalChapter) {
-    await router.push(`/missions/${routeId.value}/finale`)
-    return
-  }
+  // 末站也不自动进终局，统一走本站结果再回选站
   await router.push(`/missions/${routeId.value}/chapters/${chapterId.value}/result`)
 }
 
@@ -277,8 +268,8 @@ onUnmounted(() => {
         <template #actions>
           <template v-if="interactionType === 1 || interactionType === 6">
             <div v-if="missionStore.currentChapterSolved" class="rounded-[1rem] bg-background/70 p-4">
-              <p class="text-sm font-semibold text-foreground">此章节已完成</p>
-              <p class="mt-2 text-sm leading-6 text-muted-foreground">可返回路线或查看本站结果。</p>
+              <p class="text-sm font-semibold text-foreground">此站已完成，可再玩一次</p>
+              <p class="mt-2 text-sm leading-6 text-muted-foreground">重新作答或返回路线继续其他站点。</p>
             </div>
 
             <div v-if="missionStore.currentHintText" class="rounded-[1rem] bg-primary/10 p-4">
@@ -291,20 +282,14 @@ onUnmounted(() => {
                 {{ missionStore.currentHintText ? "已用提示" : "提示" }}
               </ClientButton>
               <ClientButton class="w-full" :disabled="!canSubmitPuzzle" @click="submitAnswer()">
-                {{
-                  missionStore.currentChapterSolved
-                    ? "已通过"
-                    : missionStore.gameplayPending
-                      ? "提交中..."
-                      : "提交"
-                }}
+                {{ missionStore.gameplayPending ? "提交中..." : "提交" }}
               </ClientButton>
             </div>
 
             <ClientButton
               variant="outline"
               class="w-full"
-              :disabled="missionStore.gameplayPending || missionStore.currentChapterSolved"
+              :disabled="missionStore.gameplayPending"
               @click="forceSkipStage()">
               {{ missionStore.gameplayPending ? "处理中…" : "跳过本站" }}
             </ClientButton>

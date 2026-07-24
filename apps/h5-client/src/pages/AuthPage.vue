@@ -20,12 +20,9 @@ const route = useRoute()
 const router = useRouter()
 const mode = shallowRef<AuthMode>("guest")
 
-/** 登录成功后拉列表；有本地会话且无 mission 缓存时再恢复 */
+/** 登录成功后拉展厅列表；进行中/收藏不再从本地缓存恢复 */
 async function afterAuthSuccess() {
   void missionStore.loadRouteCards({ force: true })
-  if (missionStore.activeSession && !missionStore.getMission(missionStore.activeSession.routeId)) {
-    void missionStore.restoreActiveMission()
-  }
 }
 
 const loginForm = reactive({

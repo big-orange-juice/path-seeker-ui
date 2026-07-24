@@ -15,10 +15,8 @@ import {
 } from "@/adapters/gameplayMissionAdapter"
 import {
   adaptRemoteRouteCard,
-  appendArchiveEntry,
   buildRoutePageQuery,
   buildMissionSubmitResult,
-  buildMissionArchiveEntry,
   resolveRouteList,
   resolveRouteTotal,
   resolveStageHintTarget,
@@ -51,13 +49,11 @@ import {
   type StagePlayResponse,
 } from "@/services/gameplay"
 import { resolveRequestErrorMessage } from "@/services/http"
-import { getDifficultyLabel } from "@/utils/puzzleLabels"
 import type {
   AgeBand,
   ChapterGateProgress,
   HintLevel,
   MissionAnswerDraft,
-  MissionArchiveEntry,
   MissionChapter,
   MissionDetail,
   MissionFilters,
@@ -96,8 +92,8 @@ export const useMissionStore = defineStore(
     const routeResultPending = shallowRef(false)
     const routeResultError = shallowRef("")
     const routeResult = shallowRef<MissionRouteResult | null>(null)
+    /** 仅内存会话：当前访问中的游玩态，不落本地缓存；列表以服务端为准 */
     const activeSession = shallowRef<MissionSession | null>(null)
-    const archiveEntries = shallowRef<MissionArchiveEntry[]>([])
     const filters = reactive<MissionFilters>(defaultFilters())
     /** Stages 缓存：start / restore 复用，减少重复拉 */
     const stagesCache = shallowRef<Record<string, StagePlayResponse[]>>({})
@@ -180,7 +176,8 @@ export const useMissionStore = defineStore(
       /** @deprecated 请用 scaleTypes */
       taskKinds: SCALE_TYPE_FILTER_OPTIONS.length,
       missionCount: routeCards.value.length,
-      archiveCount: archiveEntries.value.length,
+      /** 收藏列表待服务端游玩记录接口，不再用本地归档计数 */
+      archiveCount: 0,
       hasActiveSession: hasActiveSession.value,
     }))
 
@@ -623,8 +620,7 @@ export const useMissionStore = defineStore(
           : {}
 
         if (nextSession.status === "completed") {
-          const nextEntry = buildMissionArchiveEntry(nextSession, mission, getDifficultyLabel(mission.difficultyLevel))
-          archiveEntries.value = appendArchiveEntry(archiveEntries.value, nextEntry)
+          // 收藏/完成记录改由服务端游玩历史接口提供，不再写本地归档
           void loadRouteResult(routeId, { silent: true })
         }
 
@@ -669,30 +665,12 @@ export const useMissionStore = defineStore(
 
         routeResult.value = adapted
 
-        // 同步会话分数/完成态
+        // 同步会话分数/完成态；收藏列表不再写本地缓存
         if (activeSession.value?.routeId === routeId) {
           activeSession.value = {
             ...activeSession.value,
             totalScore: adapted.totalScore,
             status: adapted.completed ? "completed" : activeSession.value.status,
-          }
-
-          const mission = getMission(routeId) || activeMission.value
-          if (mission && adapted.completed) {
-            const nextEntry = buildMissionArchiveEntry(
-              activeSession.value,
-              mission,
-              getDifficultyLabel(mission.difficultyLevel),
-              {
-                rewardTitle: adapted.rewardTitle,
-                totalScore: adapted.totalScore,
-                solvedCount: adapted.solvedCount,
-                puzzleCount: adapted.puzzleCount,
-                usedHintCount: adapted.usedClueCount,
-                completedAt: adapted.completedAt,
-              },
-            )
-            archiveEntries.value = appendArchiveEntry(archiveEntries.value, nextEntry)
           }
         }
 
@@ -974,7 +952,7 @@ export const useMissionStore = defineStore(
       const hints = activeSession.value.hintHistory[currentPuzzle.value.id] || []
       const chapterId = currentChapter.value.id
       const previousProgress = activeSession.value.chapterProgress || {}
-      const { nextSession, routeCompleted, snapshot } = finalizeSessionAfterSolve({
+      const { nextSession, snapshot } = finalizeSessionAfterSolve({
         session: activeSession.value,
         mission: activeMission.value,
         chapter: currentChapter.value,
@@ -995,15 +973,6 @@ export const useMissionStore = defineStore(
             solved: true,
           },
         },
-      }
-
-      if (routeCompleted) {
-        const nextEntry = buildMissionArchiveEntry(
-          activeSession.value,
-          activeMission.value,
-          getDifficultyLabel(activeMission.value.difficultyLevel),
-        )
-        archiveEntries.value = appendArchiveEntry(archiveEntries.value, nextEntry)
       }
 
       return snapshot
@@ -1333,7 +1302,6 @@ export const useMissionStore = defineStore(
       currentHintLevel,
       currentHintText,
       progressPercent,
-      archiveEntries,
       coverageSummary,
       unlockedClueTitles,
       detailPending,
@@ -1382,7 +1350,8 @@ export const useMissionStore = defineStore(
   {
     persist: {
       key: "path-seeker:h5-client:mission",
-      pick: ["activeSession", "archiveEntries", "filters"],
+      // 游玩进度 / 收藏只信服务端，本地仅保留筛选偏好
+      pick: ["filters"],
     },
   },
 )

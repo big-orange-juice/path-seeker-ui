@@ -87,9 +87,6 @@ onMounted(() => {
         <h1 class="hall-title font-display">今日路线</h1>
         <p class="hall-count">
           {{ missionStore.coverageSummary.missionCount }} 条在展
-          <template v-if="missionStore.coverageSummary.archiveCount">
-            · 收藏 {{ missionStore.coverageSummary.archiveCount }}
-          </template>
         </p>
       </div>
       <button

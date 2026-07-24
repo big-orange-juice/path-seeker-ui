@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'v
 import * as echarts from 'echarts/core';
 import { BarChart, LineChart, PieChart } from 'echarts/charts';
 import {
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
   TooltipComponent,
@@ -14,6 +15,7 @@ echarts.use([
   BarChart,
   LineChart,
   PieChart,
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
   TooltipComponent,
