@@ -11,7 +11,7 @@ import {
 import type { CSSProperties } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { gsap } from 'gsap';
-import { Archive, Compass, Map, MessageCircle, Play } from 'lucide-vue-next';
+import { Compass, History, Map, MessageCircle, Play } from 'lucide-vue-next';
 import { useAskStore } from '@/stores/useAskStore';
 import { useMissionStore } from '@/stores/useMissionStore';
 import type { ShellTab } from '@/types/mission';
@@ -49,7 +49,7 @@ const shellItems: Array<{
 }> = [
   { label: '展厅', value: 'hall', to: '/shell/hall', icon: Compass },
   { label: '探索', value: 'playing', to: '/shell/playing', icon: Play },
-  { label: '收藏', value: 'archive', to: '/shell/archive', icon: Archive }
+  { label: '历史', value: 'archive', to: '/shell/archive', icon: History }
 ];
 
 const routeId = computed(() => String(route.params.routeId || ''));

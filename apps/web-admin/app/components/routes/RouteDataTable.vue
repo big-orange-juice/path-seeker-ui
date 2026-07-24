@@ -29,6 +29,8 @@ const emit = defineEmits<{
   sort: [columnId: string];
   /** 打开详情：编辑 / 查看 / 审核（待审只读，底部再审） */
   detail: [record: RouteRecord];
+  /** 海报管理：生成 / 查看路线海报 */
+  poster: [record: RouteRecord];
   publish: [record: RouteRecord];
   unpublish: [record: RouteRecord];
   submitAudit: [record: RouteRecord];
@@ -244,7 +246,7 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
           )
         );
 
-        return h('div', { class: 'flex flex-wrap justify-end gap-1.5' }, nodes);
+        return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, nodes);
       }
 
       if (actions.canSubmitAudit) {
@@ -331,6 +333,22 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
         );
       }
 
+      // 海报管理：主色按钮，每条路线均可进入（生成中除外，上方已 return）
+      nodes.push(
+        h(
+          Button,
+          {
+            variant: 'default',
+            size: 'sm',
+            class: 'h-7 px-2.5 text-xs',
+            disabled: acting,
+            title: '管理路线海报，可参考节点图片生成',
+            onClick: () => emit('poster', record)
+          },
+          () => '海报'
+        )
+      );
+
       if (actions.canDelete) {
         nodes.push(
           h(
@@ -348,7 +366,7 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
         );
       }
 
-      return h('div', { class: 'flex flex-wrap justify-end gap-1.5' }, nodes);
+      return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, nodes);
     }
   }
 ]);

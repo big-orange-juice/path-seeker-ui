@@ -107,7 +107,7 @@ const columns = computed<ColumnDef<AdminUserRecord>[]>(() => [
       const self = isSelf(record.id);
       const enabled = record.status === ADMIN_USER_STATUS.ENABLED;
 
-      return h('div', { class: 'flex flex-wrap items-center gap-1.5' }, [
+      return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
         h(
           Button,
           {

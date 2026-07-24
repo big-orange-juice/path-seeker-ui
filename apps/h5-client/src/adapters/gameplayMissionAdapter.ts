@@ -23,6 +23,8 @@ import type {
   RouteDetailResponse,
   RouteNodeResponse,
   RouteResultResponse,
+  UserRouteFootprintResponse,
+  UserRouteHistoryItemResponse,
   RouteStageProgressItemResponse,
   StagePlayResponse,
 } from "@/services/gameplay"
@@ -37,6 +39,7 @@ import type {
   MissionRouteBadge,
   MissionRouteCard,
   MissionRouteCollectible,
+  MissionRouteHistoryItem,
   MissionRouteResult,
   MissionSchemaMeta,
   MissionShareCard,
@@ -622,6 +625,95 @@ export function formatDurationSec(durationSec?: number | null) {
     return `${minutes} 分 ${seconds} 秒`
   }
   return `${seconds} 秒`
+}
+
+export function formatHistoryTime(value?: string | null) {
+  if (!value) {
+    return ""
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ""
+  }
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  const hh = String(date.getHours()).padStart(2, "0")
+  const mm = String(date.getMinutes()).padStart(2, "0")
+  return `${y}-${m}-${d} ${hh}:${mm}`
+}
+
+export function resolveRouteProgressStatusLabel(status?: number | null) {
+  switch (Number(status ?? 0)) {
+    case ROUTE_PROGRESS_STATUS.inProgress:
+      return "进行中"
+    case ROUTE_PROGRESS_STATUS.completed:
+      return "已完成"
+    case ROUTE_PROGRESS_STATUS.abandoned:
+      return "已放弃"
+    case ROUTE_PROGRESS_STATUS.failed:
+      return "失败"
+    default:
+      return ""
+  }
+}
+
+function adaptHistoryBase(
+  item: UserRouteHistoryItemResponse | UserRouteFootprintResponse,
+): MissionRouteHistoryItem | null {
+  const routeId = normalizeText(item.routeId)
+  if (!routeId) {
+    return null
+  }
+
+  return {
+    routeId,
+    routeTitle: normalizeText(item.routeTitle) || "未命名路线",
+    theme: normalizeText(item.theme) || undefined,
+    coverImageUrl: normalizeText(item.coverImageUrl) || undefined,
+    museumId: normalizeText(item.museumId) || undefined,
+    teamId: item.teamId ?? null,
+    status: Number(item.status ?? 0),
+    solvedCount: Number(item.solvedCount ?? 0),
+    puzzleCount: Number(item.puzzleCount ?? 0),
+    totalScore: Number(item.totalScore ?? 0),
+    usedClueCount: Number(item.usedClueCount ?? 0),
+    startedAt: item.startedAt ?? null,
+    completedAt: item.completedAt ?? null,
+    durationSec: item.durationSec ?? null,
+    footprintNo:
+      "footprintNo" in item && item.footprintNo != null
+        ? Number(item.footprintNo)
+        : undefined,
+  }
+}
+
+export function adaptRouteHistoryItem(
+  item: UserRouteHistoryItemResponse,
+): MissionRouteHistoryItem | null {
+  return adaptHistoryBase(item)
+}
+
+export function adaptRouteFootprintItem(
+  item: UserRouteFootprintResponse,
+): MissionRouteHistoryItem | null {
+  return adaptHistoryBase(item)
+}
+
+export function adaptRouteHistoryList(
+  items?: UserRouteHistoryItemResponse[] | null,
+): MissionRouteHistoryItem[] {
+  return (items || [])
+    .map(adaptRouteHistoryItem)
+    .filter((item): item is MissionRouteHistoryItem => Boolean(item))
+}
+
+export function adaptRouteFootprintList(
+  items?: UserRouteFootprintResponse[] | null,
+): MissionRouteHistoryItem[] {
+  return (items || [])
+    .map(adaptRouteFootprintItem)
+    .filter((item): item is MissionRouteHistoryItem => Boolean(item))
 }
 
 

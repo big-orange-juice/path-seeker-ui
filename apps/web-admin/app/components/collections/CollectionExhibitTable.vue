@@ -108,7 +108,7 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
     id: 'actions',
     header: () => h('span', { class: 'sr-only' }, '操作'),
     cell: ({ row }) =>
-      h('div', { class: 'flex items-center justify-end gap-2' }, [
+      h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
         h(
           Button,
           { variant: 'ghost', size: 'sm', onClick: () => emit('detail', row.original) },

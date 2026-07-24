@@ -3,7 +3,7 @@ import { computed, onMounted, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useToastStore } from "@path-seeker/client-state"
 import { ClientBadge, ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
-import { formatDurationSec } from "@/adapters/gameplayMissionAdapter"
+import { formatDurationSec, formatHistoryTime } from "@/adapters/gameplayMissionAdapter"
 import { useMissionStore } from "@/stores/useMissionStore"
 
 const route = useRoute()
@@ -13,6 +13,7 @@ const toastStore = useToastStore()
 
 const routeId = computed(() => String(route.params.routeId || ""))
 
+/** 终局仅展示 GET RouteResult，不用本地会话拼成绩 */
 const result = computed(() => {
   const remote = missionStore.routeResult
   if (remote && remote.routeId === routeId.value) {
@@ -21,78 +22,30 @@ const result = computed(() => {
   return null
 })
 
-const mission = computed(() => {
-  if (missionStore.activeMission?.id === routeId.value) {
-    return missionStore.activeMission
-  }
-  return missionStore.getMission(routeId.value)
-})
+const durationLabel = computed(() => formatDurationSec(result.value?.durationSec))
+const completedLabel = computed(() => formatHistoryTime(result.value?.completedAt))
 
-const session = computed(() => {
-  if (missionStore.activeSession?.routeId === routeId.value) {
-    return missionStore.activeSession
-  }
-  return null
-})
-
-/** 展示优先 RouteResult，缺字段时用本地会话兜底（不编造叙事） */
-const display = computed(() => {
-  const remote = result.value
-  const localMission = mission.value
-  const localSession = session.value
-
-  const solvedCount = remote?.solvedCount ?? localSession?.solvedChapterIds.length ?? 0
-  const puzzleCount = remote?.puzzleCount || localMission?.chapterCount || 0
-  const title = remote?.routeTitle || localMission?.title || ""
-  const rewardTitle = remote?.rewardTitle || localMission?.rewardTitle
-  const theme = remote?.theme || localMission?.theme
-  const durationLabel = formatDurationSec(remote?.durationSec)
-  const shareLine = remote?.shareCard?.shareCode
-    ? `分享码 ${remote.shareCard.shareCode}`
-    : remote?.shareCard?.routeTitle || ""
-
-  return {
-    title,
-    rewardTitle,
-    theme,
-    solvedCount,
-    puzzleCount,
-    durationLabel,
-    noCluePerfect: remote?.noCluePerfect ?? false,
-    usedClueCount: remote?.usedClueCount,
-    badges: remote?.badges || [],
-    collectibles: remote?.collectibles || [],
-    shareLine,
-    shareCard: remote?.shareCard || null,
-    hasRemote: Boolean(remote),
-  }
-})
-
-const canShow = computed(() => Boolean(display.value.title || result.value || session.value))
+const canShow = computed(() => Boolean(result.value))
+const loading = computed(
+  () => missionStore.routeResultPending && !result.value,
+)
 
 async function ensureFinaleData() {
   if (!routeId.value) {
     return
   }
 
-  // 无 mission 缓存时尽量恢复会话（带 MyRouteProgress）
-  if (missionStore.activeSession?.routeId === routeId.value && !missionStore.activeMission) {
-    await missionStore.restoreActiveMission()
-  }
-
-  const hasResult = missionStore.routeResult?.routeId === routeId.value
-  if (!hasResult) {
-    await missionStore.loadRouteResult(routeId.value)
-  }
+  // 每次进入终局都拉最新结算，避免沿用内存旧值
+  await missionStore.loadRouteResult(routeId.value)
 }
 
-async function backToArchive() {
-  toastStore.info("已进入归档", "这条路线的完成记录已经沉淀在你的归档里。")
+async function backToHistory() {
+  toastStore.info("已进入游玩历史", "完成记录已由服务端同步。")
   await router.push("/shell/archive")
 }
 
 async function replayMission() {
-  const targetId = mission.value?.id || routeId.value
+  const targetId = result.value?.routeId || routeId.value
   if (!targetId) {
     return
   }
@@ -109,7 +62,7 @@ async function replayMission() {
 }
 
 async function copyShareCode() {
-  const code = display.value.shareCard?.shareCode
+  const code = result.value?.shareCard?.shareCode
   if (!code) {
     return
   }
@@ -133,56 +86,67 @@ watch(routeId, () => {
 
 <template>
   <div class="client-surface">
-    <ClientSkeleton v-if="missionStore.routeResultPending && !canShow" class="h-72 w-full rounded-[1.5rem]" />
+    <ClientSkeleton v-if="loading" class="h-72 w-full rounded-[1.5rem]" />
 
-    <template v-else-if="canShow">
+    <template v-else-if="canShow && result">
       <div class="client-surface-block space-y-3 text-center">
         <p
-          v-if="display.rewardTitle"
+          v-if="result.rewardTitle"
           class="text-xs font-semibold uppercase tracking-[0.12em] text-primary"
         >
-          {{ display.rewardTitle }}
+          {{ result.rewardTitle }}
         </p>
         <p v-else class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
           通关
         </p>
         <h2 class="font-display text-3xl leading-tight text-foreground">
-          {{ display.title || "探索完成" }}
+          {{ result.routeTitle || "探索完成" }}
         </h2>
-        <p v-if="display.theme" class="client-page-copy">{{ display.theme }}</p>
+        <p v-if="result.theme" class="client-page-copy">{{ result.theme }}</p>
+        <p v-if="completedLabel" class="text-xs text-muted-foreground">
+          完成于 {{ completedLabel }}
+        </p>
       </div>
 
       <div class="grid grid-cols-2 gap-3">
         <div class="client-stat-cell">
           <p class="text-xs text-muted-foreground">完成</p>
           <p class="mt-2 text-xl font-semibold text-foreground">
-            {{ display.solvedCount }}/{{ display.puzzleCount || "—" }}
+            {{ result.solvedCount }}/{{ result.puzzleCount || "—" }}
           </p>
         </div>
         <div class="client-stat-cell">
-          <p class="text-xs text-muted-foreground">
-            {{ display.durationLabel ? "用时" : "提示" }}
-          </p>
+          <p class="text-xs text-muted-foreground">积分</p>
           <p class="mt-2 text-xl font-semibold text-foreground">
-            <template v-if="display.durationLabel">{{ display.durationLabel }}</template>
-            <template v-else-if="display.usedClueCount != null">{{ display.usedClueCount }}</template>
-            <template v-else>—</template>
+            {{ result.totalScore }}
+          </p>
+        </div>
+        <div class="client-stat-cell">
+          <p class="text-xs text-muted-foreground">用时</p>
+          <p class="mt-2 text-xl font-semibold text-foreground">
+            {{ durationLabel || "—" }}
+          </p>
+        </div>
+        <div class="client-stat-cell">
+          <p class="text-xs text-muted-foreground">线索</p>
+          <p class="mt-2 text-xl font-semibold text-foreground">
+            {{ result.usedClueCount }}
           </p>
         </div>
       </div>
 
       <div
-        v-if="display.noCluePerfect"
+        v-if="result.noCluePerfect"
         class="rounded-[1rem] border border-primary/30 bg-primary/10 px-4 py-3 text-center text-sm text-primary"
       >
         无线索完美通关
       </div>
 
-      <div v-if="display.badges.length" class="client-surface-block space-y-3">
+      <div v-if="result.badges.length" class="client-surface-block space-y-3">
         <p class="text-sm font-semibold text-foreground">获得徽章</p>
         <div class="flex flex-wrap gap-2">
           <ClientBadge
-            v-for="badge in display.badges"
+            v-for="badge in result.badges"
             :key="badge.id"
             class="max-w-full"
           >
@@ -190,7 +154,7 @@ watch(routeId, () => {
           </ClientBadge>
         </div>
         <p
-          v-for="badge in display.badges.filter((item) => item.description)"
+          v-for="badge in result.badges.filter((item) => item.description)"
           :key="`${badge.id}-desc`"
           class="text-xs text-muted-foreground"
         >
@@ -198,11 +162,11 @@ watch(routeId, () => {
         </p>
       </div>
 
-      <div v-if="display.collectibles.length" class="client-surface-block space-y-3">
+      <div v-if="result.collectibles.length" class="client-surface-block space-y-3">
         <p class="text-sm font-semibold text-foreground">收集品</p>
         <div class="flex flex-wrap gap-2">
           <ClientBadge
-            v-for="item in display.collectibles"
+            v-for="item in result.collectibles"
             :key="item.id"
             variant="muted"
           >
@@ -212,16 +176,18 @@ watch(routeId, () => {
       </div>
 
       <div
-        v-if="display.shareCard?.shareCode || display.shareLine"
+        v-if="result.shareCard?.shareCode || result.shareCard?.routeTitle"
         class="client-surface-block space-y-2"
       >
         <p class="text-xs text-muted-foreground">分享</p>
-        <p v-if="display.shareCard?.shareCode" class="font-mono text-sm text-foreground">
-          {{ display.shareCard.shareCode }}
+        <p v-if="result.shareCard?.shareCode" class="font-mono text-sm text-foreground">
+          {{ result.shareCard.shareCode }}
         </p>
-        <p v-else-if="display.shareLine" class="text-sm text-foreground">{{ display.shareLine }}</p>
+        <p v-else-if="result.shareCard?.routeTitle" class="text-sm text-foreground">
+          {{ result.shareCard.routeTitle }}
+        </p>
         <ClientButton
-          v-if="display.shareCard?.shareCode"
+          v-if="result.shareCard?.shareCode"
           variant="outline"
           class="w-full"
           @click="copyShareCode()"
@@ -230,15 +196,10 @@ watch(routeId, () => {
         </ClientButton>
       </div>
 
-      <p
-        v-if="missionStore.routeResultError && !display.hasRemote"
-        class="text-center text-xs text-muted-foreground"
-      >
-        {{ missionStore.routeResultError }}（已展示本地成绩）
-      </p>
-
       <div class="space-y-3 pt-1">
-        <ClientButton variant="outline" class="w-full" @click="backToArchive()">查看归档</ClientButton>
+        <ClientButton variant="outline" class="w-full" @click="backToHistory()">
+          查看游玩历史
+        </ClientButton>
         <ClientButton class="w-full" @click="replayMission()">重新开始</ClientButton>
       </div>
     </template>

@@ -4,6 +4,7 @@ import RouteAuditDialog from '@/components/routes/RouteAuditDialog.vue';
 import RouteCreateDialog from '@/components/routes/RouteCreateDialog.vue';
 import RouteDataTable from '@/components/routes/RouteDataTable.vue';
 import RouteDetailDialog from '@/components/routes/RouteDetailDialog.vue';
+import RoutePosterDialog from '@/components/routes/RoutePosterDialog.vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
@@ -51,6 +52,8 @@ const routeDetail = shallowRef<RouteDetailResponse | null>(null);
 const auditDialogOpen = shallowRef(false);
 const auditRecord = shallowRef<RouteRecord | null>(null);
 const auditSubmitting = shallowRef(false);
+const posterDialogOpen = shallowRef(false);
+const posterRecord = shallowRef<RouteRecord | null>(null);
 
 const workflowContext = computed(() => ({
   roleCode: authStore.roleCode,
@@ -253,6 +256,18 @@ const onAuditDialogOpenChange = (value: boolean) => {
   if (!value) {
     auditRecord.value = null;
     auditSubmitting.value = false;
+  }
+};
+
+const handlePoster = (record: RouteRecord) => {
+  posterRecord.value = record;
+  posterDialogOpen.value = true;
+};
+
+const onPosterDialogOpenChange = (value: boolean) => {
+  posterDialogOpen.value = value;
+  if (!value) {
+    posterRecord.value = null;
   }
 };
 
@@ -586,6 +601,7 @@ const detailActions = computed(() => {
         :workflow-context="workflowContext"
         @sort="toggleSort"
         @detail="handleDetail"
+        @poster="handlePoster"
         @publish="handlePublish"
         @unpublish="handleUnpublish"
         @submit-audit="handleSubmitAudit"
@@ -628,6 +644,13 @@ const detailActions = computed(() => {
       :submitting="auditSubmitting"
       @update:open="onAuditDialogOpenChange"
       @confirm="submitAuditDecision" />
+
+    <RoutePosterDialog
+      v-if="posterDialogOpen"
+      :key="posterRecord?.id || 'route-poster'"
+      :open="posterDialogOpen"
+      :record="posterRecord"
+      @update:open="onPosterDialogOpenChange" />
 
     <Dialog v-model:open="confirmDialogOpen">
       <DialogContent class="max-w-[min(92vw,24rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">

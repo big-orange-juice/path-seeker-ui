@@ -20,7 +20,7 @@ const route = useRoute()
 const router = useRouter()
 const mode = shallowRef<AuthMode>("guest")
 
-/** 登录成功后拉展厅列表；进行中/收藏不再从本地缓存恢复 */
+/** 登录成功后拉展厅列表；游玩历史/进行中走服务端接口 */
 async function afterAuthSuccess() {
   void missionStore.loadRouteCards({ force: true })
 }

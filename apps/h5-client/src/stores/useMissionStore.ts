@@ -7,11 +7,14 @@ import {
 import { useCinemaStore } from "@/stores/useCinemaStore"
 import {
   adaptRouteDetailToMission,
+  adaptRouteFootprintList,
+  adaptRouteHistoryList,
   adaptRouteResult,
   encodeStageSubmitPayload,
   isRouteProgressCompleted,
   resolveCurrentChapterIndex,
   resolveSolvedChapterIds,
+  ROUTE_PROGRESS_STATUS,
 } from "@/adapters/gameplayMissionAdapter"
 import {
   adaptRemoteRouteCard,
@@ -35,6 +38,9 @@ import {
 import { AGE_BAND_OPTIONS, DIFFICULTY_OPTIONS, SCALE_TYPE_FILTER_OPTIONS } from "@/constants/missionSchema"
 import {
   fetchGameplayStages,
+  fetchMyCompletedRoutes,
+  fetchMyFootprints,
+  fetchMyRouteHistory,
   fetchMyRouteProgress,
   fetchRouteDetail,
   fetchPublishedRoutes,
@@ -58,6 +64,7 @@ import type {
   MissionDetail,
   MissionFilters,
   MissionRouteCard,
+  MissionRouteHistoryItem,
   MissionRouteResult,
   MissionSession,
 } from "@/types/mission"
@@ -95,16 +102,29 @@ export const useMissionStore = defineStore(
     /** 仅内存会话：当前访问中的游玩态，不落本地缓存；列表以服务端为准 */
     const activeSession = shallowRef<MissionSession | null>(null)
     const filters = reactive<MissionFilters>(defaultFilters())
+    /** 探索 Tab：进行中路线（MyRouteHistory status=1） */
+    const playingHistory = shallowRef<MissionRouteHistoryItem[]>([])
+    const playingHistoryPending = shallowRef(false)
+    const playingHistoryError = shallowRef("")
+    /** 游玩历史 Tab：已完成路线 + 足迹 */
+    const completedHistory = shallowRef<MissionRouteHistoryItem[]>([])
+    const footprintHistory = shallowRef<MissionRouteHistoryItem[]>([])
+    const playHistoryPending = shallowRef(false)
+    const playHistoryError = shallowRef("")
     /** Stages 缓存：start / restore 复用，减少重复拉 */
     const stagesCache = shallowRef<Record<string, StagePlayResponse[]>>({})
     /** 列表最近一次成功拉取时间（用于 TTL） */
     const routeListFetchedAt = shallowRef(0)
     /** 列表请求序号：丢弃过期响应 */
     let routeListRequestId = 0
+    /** Published 列表进行中 Promise：bootstrap + 展厅 mount 共用，避免连打两次 */
+    let routeListInflight: Promise<MissionRouteCard[]> | null = null
     /** Detail 进行中 Promise，避免 map 预览与 start 并行打两次 */
     const missionDetailInflight = new Map<string, Promise<MissionDetail | null>>()
     /** restore 进行中 Promise，避免 main + 探索页重复恢复 */
     const restoreInflight = new Map<string, Promise<MissionDetail | null>>()
+    /** 筛选序列化，避免 rehydrate / 同值写入重复 force 拉列表 */
+    let lastFiltersKey = JSON.stringify(defaultFilters())
 
     const hasActiveSession = computed(() => Boolean(activeSession.value))
 
@@ -176,8 +196,9 @@ export const useMissionStore = defineStore(
       /** @deprecated 请用 scaleTypes */
       taskKinds: SCALE_TYPE_FILTER_OPTIONS.length,
       missionCount: routeCards.value.length,
-      /** 收藏列表待服务端游玩记录接口，不再用本地归档计数 */
-      archiveCount: 0,
+      /** 游玩历史：已完成条数 */
+      archiveCount: completedHistory.value.length,
+      playingCount: playingHistory.value.length,
       hasActiveSession: hasActiveSession.value,
     }))
 
@@ -254,11 +275,21 @@ export const useMissionStore = defineStore(
       Object.assign(filters, defaultFilters())
     }
 
+    function serializeFilters() {
+      return JSON.stringify({
+        ageBand: filters.ageBand ?? "all",
+        difficulty: filters.difficulty ?? "all",
+        scaleType: filters.scaleType ?? "all",
+        keyword: filters.keyword || "",
+      })
+    }
+
     /**
      * 拉取路线列表。
      * - force：忽略 TTL
      * - 失败保留旧列表，不把 UI 打成空
      * - requestId 丢弃过期响应，避免筛选竞态
+     * - inflight 合并：bootstrap 与展厅 onMounted 共用同一请求，避免连打两次 Published
      */
     async function loadRouteCards(options: { force?: boolean } = {}) {
       const force = Boolean(options.force)
@@ -271,62 +302,91 @@ export const useMissionStore = defineStore(
         return routeCards.value
       }
 
+      // 并发：非 force 直接复用进行中请求；force 等完成后再按最新筛选重拉
+      if (routeListInflight) {
+        if (!force) {
+          return routeListInflight
+        }
+        await routeListInflight
+        // 等完后若仍有新的 inflight（他人已 force），继续复用
+        if (routeListInflight) {
+          return routeListInflight
+        }
+      }
+
       const requestId = ++routeListRequestId
+      const filtersKeyAtStart = serializeFilters()
       routeListPending.value = true
       routeListError.value = ""
 
-      try {
-        // 兼容旧持久化筛选（仅有 taskKind、无 scaleType）
-        if (filters.scaleType === undefined || filters.scaleType === null) {
-          filters.scaleType = "all"
-        }
-        if (filters.keyword === undefined || filters.keyword === null) {
-          filters.keyword = ""
-        }
+      routeListInflight = (async () => {
+        try {
+          // 兼容旧持久化筛选（仅有 taskKind、无 scaleType）
+          if (filters.scaleType === undefined || filters.scaleType === null) {
+            filters.scaleType = "all"
+          }
+          if (filters.keyword === undefined || filters.keyword === null) {
+            filters.keyword = ""
+          }
 
-        // 难度/规模已从 UI 移除，列表查询固定不传筛选
-        const response = await fetchPublishedRoutes(
-          buildRoutePageQuery({
-            museumId: DEFAULT_MUSEUM_ID,
-            ageBand: filters.ageBand ?? "all",
-            difficulty: "all",
-            scaleType: "all",
-            keyword: filters.keyword || null,
-          }),
-        )
+          // 难度/规模已从 UI 移除，列表查询固定不传筛选
+          const response = await fetchPublishedRoutes(
+            buildRoutePageQuery({
+              museumId: DEFAULT_MUSEUM_ID,
+              ageBand: filters.ageBand ?? "all",
+              difficulty: "all",
+              scaleType: "all",
+              keyword: filters.keyword || null,
+            }),
+          )
 
-        if (requestId !== routeListRequestId) {
+          if (requestId !== routeListRequestId) {
+            return routeCards.value
+          }
+
+          const nextRoutes = resolveRouteList(response)
+            .map(adaptRemoteRouteCard)
+            .filter((route): route is MissionRouteCard => Boolean(route))
+
+          routeCards.value = nextRoutes
+          routeTotal.value = resolveRouteTotal(response, nextRoutes.length)
+          routeListFetchedAt.value = Date.now()
+          return nextRoutes
+        } catch (error) {
+          if (requestId !== routeListRequestId) {
+            return routeCards.value
+          }
+
+          // 失败保留旧数据；仅无缓存时 total 置 0
+          if (!routeCards.value.length) {
+            routeTotal.value = 0
+          }
+          routeListError.value = resolveRequestErrorMessage(error, "任务列表加载失败")
           return routeCards.value
+        } finally {
+          if (requestId === routeListRequestId) {
+            routeListPending.value = false
+          }
+          routeListInflight = null
         }
+      })()
 
-        const nextRoutes = resolveRouteList(response)
-          .map(adaptRemoteRouteCard)
-          .filter((route): route is MissionRouteCard => Boolean(route))
+      const result = await routeListInflight
 
-        routeCards.value = nextRoutes
-        routeTotal.value = resolveRouteTotal(response, nextRoutes.length)
-        routeListFetchedAt.value = Date.now()
-        return nextRoutes
-      } catch (error) {
-        if (requestId !== routeListRequestId) {
-          return routeCards.value
-        }
-
-        // 失败保留旧数据；仅无缓存时 total 置 0
-        if (!routeCards.value.length) {
-          routeTotal.value = 0
-        }
-        routeListError.value = resolveRequestErrorMessage(error, "任务列表加载失败")
-        return routeCards.value
-      } finally {
-        if (requestId === routeListRequestId) {
-          routeListPending.value = false
-        }
+      // 请求进行中筛选已变：用最新条件再拉一次
+      if (requestId === routeListRequestId && serializeFilters() !== filtersKeyAtStart) {
+        return loadRouteCards({ force: true })
       }
+
+      return result
     }
 
-    /** 展厅进入：空列表或过期时再拉 */
+    /** 展厅进入：空列表或过期时再拉；已有进行中请求则复用 */
     async function ensureRouteCards(options: { force?: boolean } = {}) {
+      if (routeListInflight) {
+        return routeListInflight
+      }
+
       if (options.force) {
         return loadRouteCards({ force: true })
       }
@@ -620,7 +680,7 @@ export const useMissionStore = defineStore(
           : {}
 
         if (nextSession.status === "completed") {
-          // 收藏/完成记录改由服务端游玩历史接口提供，不再写本地归档
+          // 完成记录由服务端游玩历史接口提供；预取终局结算
           void loadRouteResult(routeId, { silent: true })
         }
 
@@ -634,7 +694,7 @@ export const useMissionStore = defineStore(
     }
 
     /**
-     * 终局：GET RouteResult 为权威数据源。
+     * 终局：GET RouteResult 为唯一权威数据源，不拼本地会话成绩。
      * silent：通关后预取时不抢 cinema / 不写硬错误。
      */
     async function loadRouteResult(routeId: string, options: { silent?: boolean } = {}) {
@@ -659,13 +719,14 @@ export const useMissionStore = defineStore(
         if (!adapted) {
           if (!options.silent) {
             routeResultError.value = "终局数据不完整"
+            routeResult.value = null
           }
           return null
         }
 
         routeResult.value = adapted
 
-        // 同步会话分数/完成态；收藏列表不再写本地缓存
+        // 同步会话分数/完成态；游玩历史列表由服务端接口提供
         if (activeSession.value?.routeId === routeId) {
           activeSession.value = {
             ...activeSession.value,
@@ -678,6 +739,7 @@ export const useMissionStore = defineStore(
       } catch (error) {
         if (!options.silent) {
           routeResultError.value = resolveRequestErrorMessage(error, "终局结果加载失败")
+          routeResult.value = null
         }
         return null
       } finally {
@@ -688,6 +750,72 @@ export const useMissionStore = defineStore(
     function clearRouteResult() {
       routeResult.value = null
       routeResultError.value = ""
+    }
+
+    /** 探索 Tab：进行中的路线历史 */
+    async function loadPlayingHistory(options: { force?: boolean } = {}) {
+      if (playingHistoryPending.value && !options.force) {
+        return playingHistory.value
+      }
+
+      playingHistoryPending.value = true
+      playingHistoryError.value = ""
+
+      try {
+        const response = await fetchMyRouteHistory({
+          status: ROUTE_PROGRESS_STATUS.inProgress,
+          pageIndex: 1,
+          pageSize: 50,
+        })
+        playingHistory.value = adaptRouteHistoryList(response?.list)
+        return playingHistory.value
+      } catch (error) {
+        playingHistoryError.value = resolveRequestErrorMessage(error, "进行中路线加载失败")
+        return playingHistory.value
+      } finally {
+        playingHistoryPending.value = false
+      }
+    }
+
+    /**
+     * 游玩历史 Tab：
+     * - MyCompletedRoutes 已完成列表
+     * - MyFootprints 足迹（含序号）
+     */
+    async function loadPlayHistory(options: { force?: boolean } = {}) {
+      if (playHistoryPending.value && !options.force) {
+        return {
+          completed: completedHistory.value,
+          footprints: footprintHistory.value,
+        }
+      }
+
+      playHistoryPending.value = true
+      playHistoryError.value = ""
+
+      try {
+        const [completedRaw, footprintsRaw] = await Promise.all([
+          fetchMyCompletedRoutes(),
+          fetchMyFootprints({ pageIndex: 1, pageSize: 50 }),
+        ])
+
+        completedHistory.value = adaptRouteHistoryList(
+          Array.isArray(completedRaw) ? completedRaw : [],
+        )
+        footprintHistory.value = adaptRouteFootprintList(footprintsRaw?.list)
+        return {
+          completed: completedHistory.value,
+          footprints: footprintHistory.value,
+        }
+      } catch (error) {
+        playHistoryError.value = resolveRequestErrorMessage(error, "游玩历史加载失败")
+        return {
+          completed: completedHistory.value,
+          footprints: footprintHistory.value,
+        }
+      } finally {
+        playHistoryPending.value = false
+      }
     }
 
     /**
@@ -1278,10 +1406,15 @@ export const useMissionStore = defineStore(
       return startRemoteMission(routeId, mission.recommendedAgeBand)
     }
 
-    // 筛选变更强制重拉；不在 store 创建时 immediate，避免抢在鉴权前打 Published
+    // 筛选变更强制重拉；跳过同值（含 persist rehydrate），避免与 bootstrap 叠两次 Published
     watch(
       () => ({ ...filters }),
-      () => {
+      (next) => {
+        const key = JSON.stringify(next)
+        if (key === lastFiltersKey) {
+          return
+        }
+        lastFiltersKey = key
         void loadRouteCards({ force: true })
       },
       { deep: true },
@@ -1315,6 +1448,13 @@ export const useMissionStore = defineStore(
       routeResult,
       routeResultPending,
       routeResultError,
+      playingHistory,
+      playingHistoryPending,
+      playingHistoryError,
+      completedHistory,
+      footprintHistory,
+      playHistoryPending,
+      playHistoryError,
       hasActiveSession,
       getMission,
       getMissionDraft,
@@ -1327,6 +1467,8 @@ export const useMissionStore = defineStore(
       startRemoteMission,
       loadRouteResult,
       clearRouteResult,
+      loadPlayingHistory,
+      loadPlayHistory,
       recordStageActivity,
       selectChapter,
       selectChapterById,
@@ -1350,7 +1492,7 @@ export const useMissionStore = defineStore(
   {
     persist: {
       key: "path-seeker:h5-client:mission",
-      // 游玩进度 / 收藏只信服务端，本地仅保留筛选偏好
+      // 游玩进度 / 历史只信服务端，本地仅保留筛选偏好
       pick: ["filters"],
     },
   },

@@ -144,7 +144,7 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
 
       // 未完成生成：仅刷新（同路线列表）
       if (record.isGenerating) {
-        return h('div', { class: 'flex flex-wrap items-center gap-1.5' }, [
+        return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
           h(
             Button,
             {
@@ -166,7 +166,7 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
         ])
       }
 
-      return h('div', { class: 'flex flex-wrap items-center gap-1.5' }, [
+      return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
         h(
           Button,
           {

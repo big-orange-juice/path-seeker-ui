@@ -81,7 +81,7 @@ const formatNumber = (value: number | null, suffix = '') => {
           </div>
         </div>
 
-        <div class="flex items-end justify-end gap-2">
+        <div class="flex flex-wrap items-center justify-start gap-1.5">
           <Button variant="ghost" size="sm" @click="emit('detail', record)">
             详情
           </Button>

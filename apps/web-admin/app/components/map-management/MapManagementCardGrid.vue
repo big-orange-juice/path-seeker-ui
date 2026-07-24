@@ -53,16 +53,14 @@ const emit = defineEmits<{
             </span>
           </div>
 
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-xs text-white/65">{{ record.mapImages[0] ? '已配置地图底图' : '未配置地图底图' }}</p>
-            <div class="flex items-center gap-2">
-              <UiButton size="sm" variant="secondary" @click="emit('edit', record)">
-                编辑
-              </UiButton>
-              <UiButton size="sm" variant="ghost" @click="emit('remove', record)">
-                删除
-              </UiButton>
-            </div>
+          <p class="text-xs text-white/65">{{ record.mapImages[0] ? '已配置地图底图' : '未配置地图底图' }}</p>
+          <div class="flex flex-wrap items-center justify-start gap-1.5">
+            <UiButton size="sm" variant="secondary" @click="emit('edit', record)">
+              编辑
+            </UiButton>
+            <UiButton size="sm" variant="ghost" @click="emit('remove', record)">
+              删除
+            </UiButton>
           </div>
         </div>
       </div>

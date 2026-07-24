@@ -419,6 +419,95 @@ export function fetchRouteResult(routeId: string, teamId?: string | null) {
   })
 }
 
+/** 路线游玩历史条目（MyCompletedRoutes / MyRouteHistory） */
+export interface UserRouteHistoryItemResponse {
+  routeId?: string | null
+  routeTitle?: string | null
+  theme?: string | null
+  coverImageUrl?: string | null
+  museumId?: string | null
+  teamId?: string | null
+  /** 1=进行中 2=已完成 3=已放弃 4=失败 */
+  status?: number
+  solvedCount?: number
+  puzzleCount?: number
+  totalScore?: number
+  usedClueCount?: number
+  startedAt?: string
+  completedAt?: string | null
+  durationSec?: number | null
+}
+
+/** 已完成足迹（MyFootprints） */
+export interface UserRouteFootprintResponse {
+  routeId?: string | null
+  routeTitle?: string | null
+  theme?: string | null
+  coverImageUrl?: string | null
+  museumId?: string | null
+  teamId?: string | null
+  status?: number
+  solvedCount?: number
+  puzzleCount?: number
+  totalScore?: number
+  usedClueCount?: number
+  startedAt?: string
+  completedAt?: string | null
+  durationSec?: number | null
+  footprintNo?: number
+}
+
+export interface UserRouteHistoryPageResult {
+  list?: UserRouteHistoryItemResponse[] | null
+  pageIndex?: number
+  pageSize?: number
+  total?: number
+  totalPages?: number
+}
+
+export interface UserRouteFootprintPageResult {
+  list?: UserRouteFootprintResponse[] | null
+  pageIndex?: number
+  pageSize?: number
+  total?: number
+  totalPages?: number
+}
+
+/** 全部已完成路线（倒序） */
+export function fetchMyCompletedRoutes() {
+  return request<UserRouteHistoryItemResponse[]>("/Gameplay/MyCompletedRoutes")
+}
+
+/**
+ * 分页路线历史；Status 可选：1 进行中 / 2 已完成 / 3 放弃 / 4 失败
+ */
+export function fetchMyRouteHistory(options: {
+  status?: number | null
+  pageIndex?: number
+  pageSize?: number
+} = {}) {
+  return request<UserRouteHistoryPageResult>("/Gameplay/MyRouteHistory", {
+    query: {
+      Status: options.status ?? undefined,
+      PageIndex: options.pageIndex ?? 1,
+      PageSize: options.pageSize ?? 20,
+    },
+  })
+}
+
+/** 分页已完成足迹 */
+export function fetchMyFootprints(options: {
+  pageIndex?: number
+  pageSize?: number
+} = {}) {
+  return request<UserRouteFootprintPageResult>("/Gameplay/MyFootprints", {
+    query: {
+      PageIndex: options.pageIndex ?? 1,
+      PageSize: options.pageSize ?? 20,
+    },
+  })
+}
+
 /** 弱行为上报（进入/离开节点等，失败可忽略） */
 export function recordRouteActivity(payload: RecordRouteActivityRequest) {
   return request<void>("/Gameplay/RecordActivity", {

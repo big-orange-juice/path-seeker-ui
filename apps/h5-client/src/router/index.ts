@@ -66,7 +66,7 @@ const router = createRouter({
               component: ShellArchivePage,
               meta: {
                 shellTab: "archive",
-                title: "收藏",
+                title: "游玩历史",
                 showTabBar: true,
               },
             },

@@ -15,9 +15,9 @@ interface TabItem {
 const route = useRoute()
 
 const items: TabItem[] = [
-  { label: "大厅", icon: "compass", routeName: "shell-hall", value: "hall" },
-  { label: "游玩", icon: "route", routeName: "shell-playing", value: "playing" },
-  { label: "归档", icon: "archive", routeName: "shell-archive", value: "archive" },
+  { label: "展厅", icon: "compass", routeName: "shell-hall", value: "hall" },
+  { label: "探索", icon: "route", routeName: "shell-playing", value: "playing" },
+  { label: "历史", icon: "archive", routeName: "shell-archive", value: "archive" },
 ]
 
 const activeTab = computed(() => String(route.meta.shellTab || "hall"))

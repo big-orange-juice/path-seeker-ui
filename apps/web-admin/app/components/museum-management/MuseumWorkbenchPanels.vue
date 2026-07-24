@@ -482,7 +482,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
                   {{ floor.description || '未填写楼层说明。' }}
                 </p>
               </div>
-              <div class="flex items-end justify-end gap-2">
+              <div class="flex flex-wrap items-center justify-start gap-1.5">
                 <Button variant="secondary" size="sm" @click="openEditFloor(floor)">
                   编辑
                 </Button>
@@ -617,7 +617,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
                   {{ facility.locationDesc || '未填写位置描述。' }}
                 </p>
               </div>
-              <div class="flex items-end justify-end gap-2">
+              <div class="flex flex-wrap items-center justify-start gap-1.5">
                 <Button variant="secondary" size="sm" @click="openEditFacility(facility)">
                   编辑
                 </Button>

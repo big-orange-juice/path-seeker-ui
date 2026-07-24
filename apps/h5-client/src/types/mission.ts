@@ -265,6 +265,7 @@ export interface MissionSession {
   latestChapterResult: ChapterResultSnapshot | null
 }
 
+/** @deprecated 本地归档已废弃，请用 MissionRouteHistoryItem */
 export interface MissionArchiveEntry {
   routeId: string
   routeTitle: string
@@ -279,6 +280,27 @@ export interface MissionArchiveEntry {
   solvedCount: number
   puzzleCount: number
   usedHintCount: number
+}
+
+/** 服务端游玩历史 / 已完成路线条目 */
+export interface MissionRouteHistoryItem {
+  routeId: string
+  routeTitle: string
+  theme?: string
+  coverImageUrl?: string
+  museumId?: string
+  teamId?: string | null
+  /** 1=进行中 2=已完成 3=已放弃 4=失败 */
+  status: number
+  solvedCount: number
+  puzzleCount: number
+  totalScore: number
+  usedClueCount: number
+  startedAt?: string | null
+  completedAt?: string | null
+  durationSec?: number | null
+  /** 足迹序号（MyFootprints 有值） */
+  footprintNo?: number
 }
 
 export interface MissionFilters {
