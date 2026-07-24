@@ -1,3 +1,5 @@
 <script setup lang="ts">
-await navigateTo('/console/museums', { replace: true });
+import { ADMIN_CONSOLE_HOME_PATH } from '@/constants/admin-auth';
+
+await navigateTo(ADMIN_CONSOLE_HOME_PATH, { replace: true });
 </script>

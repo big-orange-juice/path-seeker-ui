@@ -19,9 +19,9 @@ export function useAdminTabs() {
 
   const tabs = useState<AdminTabItem[]>('admin-tabs', () => [
     {
-      label: '主题路线',
-      to: `${ADMIN_ROUTE_PREFIX}/routes`,
-      icon: 'route',
+      label: '运营分析',
+      to: ADMIN_CONSOLE_HOME_PATH,
+      icon: 'bar-chart-3',
       closable: false,
     },
   ]);

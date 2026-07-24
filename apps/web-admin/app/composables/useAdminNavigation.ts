@@ -14,15 +14,16 @@ export interface AdminNavItem {
 
 /** 全量菜单（管理员） */
 export const adminNavItems: AdminNavItem[] = [
-  // 「运营发布」暂无内容，不进菜单（G-02 / M-05）
-  { label: '博物馆', to: ADMIN_CONSOLE_HOME_PATH, icon: 'library-big' },
+  { label: '运营分析', to: ADMIN_CONSOLE_HOME_PATH, icon: 'bar-chart-3' },
+  { label: '博物馆', to: `${ADMIN_ROUTE_PREFIX}/museums`, icon: 'library-big' },
   {
     label: '馆藏内容',
     to: `${ADMIN_ROUTE_PREFIX}/collections`,
     icon: 'library'
   },
   { label: '主题路线', to: `${ADMIN_ROUTE_PREFIX}/routes`, icon: 'route' },
-  { label: '导游管理', to: `${ADMIN_ROUTE_PREFIX}/guides`, icon: 'user-round' }
+  { label: '导游管理', to: `${ADMIN_ROUTE_PREFIX}/guides`, icon: 'user-round' },
+  { label: '用户管理', to: `${ADMIN_ROUTE_PREFIX}/users`, icon: 'user-round' },
 ];
 
 /** 导游账号可见菜单（只保留业务必要入口） */
