@@ -19,6 +19,7 @@ definePageMeta({
   middleware: 'admin-auth',
 });
 
+const actionFeedback = useActionFeedback();
 const runtimeConfig = useRuntimeConfig();
 const selectedMuseumId = shallowRef(String(runtimeConfig.public.museumId || '1').trim());
 const { request } = useApiClient();
@@ -184,6 +185,9 @@ const handleSave = async (draft: ExhibitDraft) => {
       id: savedId,
     };
     dialogOpen.value = false;
+    actionFeedback.success('馆藏已保存。');
+  } catch (caughtError) {
+    actionFeedback.errorFrom(caughtError, '馆藏保存失败。');
   } finally {
     submitting.value = false;
   }
@@ -199,6 +203,9 @@ const handleRemove = async (record: ExhibitRecord) => {
 
   try {
     await deleteExhibit(record.id);
+    actionFeedback.success('馆藏已删除。');
+  } catch (caughtError) {
+    actionFeedback.errorFrom(caughtError, '馆藏删除失败。');
   } finally {
     submitting.value = false;
   }

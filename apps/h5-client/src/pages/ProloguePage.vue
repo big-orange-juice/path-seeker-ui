@@ -2,7 +2,7 @@
 import { computed, onMounted } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useToastStore } from "@path-seeker/client-state"
-import { ClientBadge, ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import { ClientBadge, ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
 
 const route = useRoute()
@@ -38,54 +38,50 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <ClientCard v-if="missionStore.activeMission" class="overflow-hidden">
-      <div class="space-y-5 p-5">
-        <div class="space-y-3">
-          <div class="flex flex-wrap gap-2">
-            <ClientBadge v-if="missionStore.activeMission.theme">{{ missionStore.activeMission.theme }}</ClientBadge>
-            <ClientBadge variant="muted">{{ missionStore.activeMission.recommendedAgeBand }}</ClientBadge>
-          </div>
-
-          <div class="space-y-2">
-            <h2 class="font-display text-3xl leading-tight text-foreground">{{ missionStore.activeMission.title }}</h2>
-            <p v-if="introCopy" class="client-page-copy">{{ introCopy }}</p>
-          </div>
+  <div class="client-surface">
+    <template v-if="missionStore.activeMission">
+      <div class="client-surface-block space-y-3">
+        <div class="flex flex-wrap gap-2">
+          <ClientBadge v-if="missionStore.activeMission.theme">{{ missionStore.activeMission.theme }}</ClientBadge>
+          <ClientBadge variant="muted">{{ missionStore.activeMission.recommendedAgeBand }}</ClientBadge>
         </div>
 
-        <div v-if="missionStore.activeMission.prologue.length" class="space-y-4">
-          <article
-            v-for="(beat, index) in missionStore.activeMission.prologue"
-            :key="beat.title || beat.content || index"
-            class="flex gap-3"
-          >
-            <div class="pt-1 text-xs font-semibold tabular-nums text-primary">
-              {{ String(index + 1).padStart(2, "0") }}
-            </div>
-            <div class="min-w-0 flex-1 space-y-1.5 rounded-[1rem] bg-background/70 p-4">
-              <p v-if="beat.eyebrow" class="text-xs font-semibold tracking-[0.12em] text-primary">{{ beat.eyebrow }}</p>
-              <h3 v-if="beat.title" class="font-display text-lg text-foreground">{{ beat.title }}</h3>
-              <p v-if="beat.content" class="text-sm leading-6 text-muted-foreground">{{ beat.content }}</p>
-            </div>
-          </article>
+        <div class="space-y-2">
+          <h2 class="font-display text-3xl leading-tight text-foreground">{{ missionStore.activeMission.title }}</h2>
+          <p v-if="introCopy" class="client-page-copy">{{ introCopy }}</p>
         </div>
-
-        <ClientButton class="w-full" @click="enterMap()">开始探索</ClientButton>
       </div>
-    </ClientCard>
 
-    <ClientCard v-else-if="missionStore.gameplayPending || missionStore.detailPending">
-      <div class="space-y-4 p-5">
-        <div class="flex gap-2">
-          <ClientSkeleton class="h-6 w-24 rounded-full" />
-          <ClientSkeleton class="h-6 w-20 rounded-full" />
-        </div>
-        <ClientSkeleton class="h-10 w-3/4" />
-        <ClientSkeleton class="h-24 w-full" />
-        <ClientSkeleton class="h-20 w-full" />
-        <ClientSkeleton class="h-10 w-full" />
+      <div v-if="missionStore.activeMission.prologue.length" class="space-y-4">
+        <article
+          v-for="(beat, index) in missionStore.activeMission.prologue"
+          :key="beat.title || beat.content || index"
+          class="flex gap-3"
+        >
+          <div class="pt-1 text-xs font-semibold tabular-nums text-primary">
+            {{ String(index + 1).padStart(2, "0") }}
+          </div>
+          <div class="min-w-0 flex-1 space-y-1.5 border-b border-white/5 pb-4">
+            <p v-if="beat.eyebrow" class="text-xs font-semibold tracking-[0.12em] text-primary">{{ beat.eyebrow }}</p>
+            <h3 v-if="beat.title" class="font-display text-lg text-foreground">{{ beat.title }}</h3>
+            <p v-if="beat.content" class="text-sm leading-6 text-muted-foreground">{{ beat.content }}</p>
+          </div>
+        </article>
       </div>
-    </ClientCard>
+
+      <ClientButton class="w-full" @click="enterMap()">开始探索</ClientButton>
+    </template>
+
+    <div v-else-if="missionStore.gameplayPending || missionStore.detailPending" class="space-y-4">
+      <div class="flex gap-2">
+        <ClientSkeleton class="h-6 w-24 rounded-full" />
+        <ClientSkeleton class="h-6 w-20 rounded-full" />
+      </div>
+      <ClientSkeleton class="h-10 w-3/4" />
+      <ClientSkeleton class="h-24 w-full" />
+      <ClientSkeleton class="h-20 w-full" />
+      <ClientSkeleton class="h-10 w-full" />
+    </div>
 
     <ClientEmptyState
       v-else

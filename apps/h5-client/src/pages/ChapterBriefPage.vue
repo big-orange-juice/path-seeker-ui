@@ -12,7 +12,7 @@ import {
 } from "@path-seeker/game-renderer"
 import { createPuzzleDraft } from "@path-seeker/game-runtime"
 import { useToastStore } from "@path-seeker/client-state"
-import { ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import { ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { isPlayableMediaUrl } from "@/adapters/gameplayMissionAdapter"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
 import { useCinemaStore } from "@/stores/useCinemaStore"
@@ -332,15 +332,13 @@ onUnmounted(() => {
       </StagePlaySurface>
     </template>
 
-    <ClientCard v-else-if="!ready || missionStore.gameplayPending || missionStore.detailPending">
-      <div class="space-y-4 p-5">
-        <ClientSkeleton class="h-6 w-28" />
-        <ClientSkeleton class="h-10 w-2/3" />
-        <ClientSkeleton class="h-20 w-full" />
-        <ClientSkeleton class="h-64 w-full" />
-        <ClientSkeleton class="h-10 w-full" />
-      </div>
-    </ClientCard>
+    <div v-else-if="!ready || missionStore.gameplayPending || missionStore.detailPending" class="space-y-4 pt-1">
+      <ClientSkeleton class="h-6 w-28" />
+      <ClientSkeleton class="h-10 w-2/3" />
+      <ClientSkeleton class="h-20 w-full" />
+      <ClientSkeleton class="h-64 w-full" />
+      <ClientSkeleton class="h-10 w-full" />
+    </div>
 
     <ClientEmptyState
       v-else

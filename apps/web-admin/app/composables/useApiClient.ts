@@ -1,27 +1,45 @@
 import { resolveHttpErrorMessage } from '@path-seeker/ts-shared';
 import { useAdminAuthStore } from '@/stores/adminAuth';
 
-const resolveAuthExpiredMessage = (payload: unknown) => {
+const DEFAULT_AUTH_EXPIRED_MESSAGE = '未登录或登录已过期，请重新登录';
+
+const pickAuthExpiredMessage = (payload: unknown) => {
   if (!payload || typeof payload !== 'object') {
     return '';
   }
 
   const record = payload as Record<string, unknown>;
-  const directCode = record.code;
   const nestedData = record.data && typeof record.data === 'object'
     ? (record.data as Record<string, unknown>)
     : null;
-  const candidateCode = nestedData?.code ?? directCode;
+  const directMessage = typeof record.message === 'string' ? record.message.trim() : '';
+  const nestedMessage = typeof nestedData?.message === 'string' ? nestedData.message.trim() : '';
+  const statusMessage = typeof record.statusMessage === 'string' ? record.statusMessage.trim() : '';
+
+  return nestedMessage || directMessage || statusMessage;
+};
+
+/** 识别 10002 业务码或 HTTP 401，返回过期文案；非过期返回空串 */
+const resolveAuthExpiredMessage = (payload: unknown, statusCode?: number) => {
+  if (statusCode === 401) {
+    return pickAuthExpiredMessage(payload) || DEFAULT_AUTH_EXPIRED_MESSAGE;
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return '';
+  }
+
+  const record = payload as Record<string, unknown>;
+  const nestedData = record.data && typeof record.data === 'object'
+    ? (record.data as Record<string, unknown>)
+    : null;
+  const candidateCode = nestedData?.code ?? record.code;
 
   if (candidateCode !== 10002) {
     return '';
   }
 
-  const directMessage = typeof record.message === 'string' ? record.message : '';
-  const nestedMessage = typeof nestedData?.message === 'string' ? nestedData.message : '';
-  const statusMessage = typeof record.statusMessage === 'string' ? record.statusMessage : '';
-
-  return nestedMessage || directMessage || statusMessage || '未登录或登录已过期，请重新登录';
+  return pickAuthExpiredMessage(payload) || DEFAULT_AUTH_EXPIRED_MESSAGE;
 };
 
 /**
@@ -65,7 +83,10 @@ export const useApiClient = () => {
       return await $fetch<T>(url, {
         ...options,
         async onResponseError(context) {
-          const message = resolveAuthExpiredMessage(context.response._data);
+          const message = resolveAuthExpiredMessage(
+            context.response._data,
+            context.response.status,
+          );
 
           if (message) {
             store.openSessionExpiredDialog(message);
@@ -77,7 +98,12 @@ export const useApiClient = () => {
         },
       });
     } catch (error) {
-      throw toFriendlyRequestError(error, '请求失败，请稍后重试');
+      const friendly = toFriendlyRequestError(error, '请求失败，请稍后重试');
+      const message = resolveAuthExpiredMessage(friendly.data, friendly.statusCode);
+      if (message) {
+        store.openSessionExpiredDialog(message);
+      }
+      throw friendly;
     }
   };
 

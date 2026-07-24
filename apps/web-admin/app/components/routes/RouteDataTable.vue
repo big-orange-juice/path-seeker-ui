@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { computed, h } from 'vue';
 import type { ColumnDef, SortingState } from '@tanstack/vue-table';
-import {
-  getDifficultyLevelLabel,
-  getScaleTypeLabel
-} from '@path-seeker/ts-shared';
 import CollectionDataTable from '@/components/collections/CollectionDataTable.vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
@@ -159,47 +155,6 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
         'span',
         { class: 'text-sm text-muted-foreground' },
         row.original.theme || '未设置'
-      )
-  },
-  {
-    accessorKey: 'difficultyLevel',
-    header: renderHeader('难度', 'difficultyLevel'),
-    cell: ({ row }) =>
-      h(
-        'span',
-        { class: 'text-sm text-muted-foreground' },
-        getDifficultyLevelLabel(row.original.difficultyLevel)
-      )
-  },
-  {
-    accessorKey: 'scaleType',
-    header: () =>
-      h(
-        'button',
-        {
-          type: 'button',
-          class:
-            'inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground',
-          onClick: () => emit('sort', 'scaleType'),
-          title: '路线体量：短途 / 标准 / 深度等，点击排序'
-        },
-        [
-          h('span', '规模'),
-          h(AppIcon, {
-            name: getSortIconName('scaleType'),
-            class: 'h-3.5 w-3.5 text-muted-foreground/80',
-            strokeWidth: 1.8
-          })
-        ]
-      ),
-    cell: ({ row }) =>
-      h(
-        'span',
-        {
-          class: 'text-sm text-muted-foreground',
-          title: '路线体量：短途 / 标准 / 深度'
-        },
-        getScaleTypeLabel(row.original.scaleType)
       )
   },
   {

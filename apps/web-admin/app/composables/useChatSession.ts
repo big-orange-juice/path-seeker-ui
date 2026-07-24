@@ -22,7 +22,7 @@ import { createSseParser } from '@/utils/sse';
 export interface UseChatSessionOptions {
   contextRouteId?: string | null;
   onEvent?: (event: ChatEventResponse) => void;
-  onDone?: (payload: ChatDonePayload, event: ChatEventResponse) => void;
+  onDone?: (payload: ChatDonePayload, event: ChatEventResponse | null) => void;
   onError?: (payload: ChatErrorPayload, event: ChatEventResponse | null) => void;
   onConfirmationRequired?: (payload: ChatConfirmationPayload, event: ChatEventResponse) => void;
 }
@@ -66,6 +66,8 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
 
   let abortController: AbortController | null = null;
   let activeAssistantId = '';
+  /** 本轮 run 是否已收到 done/error，用于 HTTP 正常收尾时合成 onDone */
+  let runTerminalReceived = false;
 
   const isRunning = computed(() => runStatus.value === 'running');
   const canSend = computed(() => !isRunning.value);
@@ -142,9 +144,34 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     });
   };
 
+  const absorbRouteIdFromPayload = (payload: unknown) => {
+    if (!payload || typeof payload !== 'object') {
+      return;
+    }
+
+    const record = payload as Record<string, unknown>;
+    const candidate = record.routeId ?? record.id;
+    const nextId = candidate != null ? String(candidate).trim() : '';
+
+    if (nextId) {
+      contextRouteId.value = nextId;
+    }
+  };
+
   const handleEvent = (event: ChatEventResponse) => {
     if (event.eventId) {
       lastEventId.value = String(event.eventId);
+    }
+
+    // 中间 UI 事件若带 routeId，写入上下文，供 done 兜底刷新
+    if (
+      event.type === 'ui.route.list.updated'
+      || event.type === 'ui.route.detail.updated'
+      || event.type === 'ui.route.stage.updated'
+      || event.type === 'ui.route.build.progress'
+      || event.type === 'ui.route.build.complete'
+    ) {
+      absorbRouteIdFromPayload(event.payload);
     }
 
     options.onEvent?.(event);
@@ -284,6 +311,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
 
       case 'done': {
         const payload = (event.payload ?? {}) as ChatDonePayload;
+        runTerminalReceived = true;
         runStatus.value = 'completed';
         activeTools.value = activeTools.value.map((item) => ({
           ...item,
@@ -299,8 +327,11 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
           });
         }
 
-        if (payload.routeId) {
-          contextRouteId.value = String(payload.routeId);
+        // 保证 done 回调一定带上可用 routeId，便于 UI 刷新
+        const resolvedRouteId = String(payload.routeId || contextRouteId.value || '').trim();
+        if (resolvedRouteId) {
+          contextRouteId.value = resolvedRouteId;
+          payload.routeId = resolvedRouteId;
         }
 
         options.onDone?.(payload, event);
@@ -311,6 +342,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
 
       case 'error': {
         const payload = (event.payload ?? {}) as ChatErrorPayload;
+        runTerminalReceived = true;
         const message = String(payload.message || '对话处理失败。');
         runStatus.value = 'failed';
         errorMessage.value = message;
@@ -382,16 +414,30 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
       parser.push(decoder.decode(value, { stream: true }));
     }
 
-    if (!terminated && runStatus.value === 'running') {
-      runStatus.value = 'unknown';
-      errorMessage.value = '连接已中断，请稍后重试或刷新历史。';
+    // 流正常结束但未收到 done/error：按成功收尾并合成 onDone，保证 UI 至少刷新一次
+    if (!terminated && runStatus.value === 'running' && !runTerminalReceived) {
+      runStatus.value = 'completed';
+      activeTools.value = activeTools.value.map((item) => ({
+        ...item,
+        status: 'done' as const,
+        pendingCallIds: [],
+        label: resolveToolStatusLabel(item.toolName, 'done', item.count),
+      }));
 
       if (activeAssistantId) {
         updateMessage(activeAssistantId, {
-          status: 'failed',
-          errorMessage: errorMessage.value,
+          status: 'completed',
         });
       }
+
+      const syntheticPayload: ChatDonePayload = {
+        assistantMessageId: null,
+        routeId: contextRouteId.value || null,
+        routeVersion: null,
+      };
+      runTerminalReceived = true;
+      options.onDone?.(syntheticPayload, null);
+      activeAssistantId = '';
     }
   };
 
@@ -418,6 +464,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     pendingConfirmation.value = null;
     activeTools.value = [];
     runStatus.value = 'running';
+    runTerminalReceived = false;
 
     const clientMessageId = optionsOverride?.clientMessageId || uuidv4();
     const userMessage = createLocalMessage('user', displayMessage, 'completed', { clientMessageId });
@@ -484,9 +531,20 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
       updateMessage(assistantMessage.id, { status: 'streaming' });
       await consumeSseStream(response);
 
-      if (runStatus.value === 'running') {
+      // 双保险：流已结束仍未 terminal 时再合成一次 done（consume 内已处理多数路径）
+      if (runStatus.value === 'running' && !runTerminalReceived) {
         runStatus.value = 'completed';
         updateMessage(assistantMessage.id, { status: 'completed' });
+        runTerminalReceived = true;
+        options.onDone?.(
+          {
+            assistantMessageId: null,
+            routeId: contextRouteId.value || null,
+            routeVersion: null,
+          },
+          null,
+        );
+        activeAssistantId = '';
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {

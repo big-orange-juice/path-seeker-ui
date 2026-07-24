@@ -287,12 +287,13 @@ export const useMissionStore = defineStore(
           filters.keyword = ""
         }
 
+        // 难度/规模已从 UI 移除，列表查询固定不传筛选
         const response = await fetchPublishedRoutes(
           buildRoutePageQuery({
             museumId: DEFAULT_MUSEUM_ID,
             ageBand: filters.ageBand ?? "all",
-            difficulty: filters.difficulty,
-            scaleType: filters.scaleType ?? "all",
+            difficulty: "all",
+            scaleType: "all",
             keyword: filters.keyword || null,
           }),
         )

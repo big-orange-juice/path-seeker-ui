@@ -2,7 +2,7 @@
 import { computed, onMounted } from "vue"
 import { useRouter } from "vue-router"
 import { useToastStore } from "@path-seeker/client-state"
-import { ClientButton, ClientCard, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import { ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
 
 const missionStore = useMissionStore()
@@ -63,63 +63,58 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <ClientCard v-if="hasRestorableSession">
-      <div class="space-y-4 p-5">
-        <div class="space-y-1">
-          <span class="client-tag is-gold">探索中</span>
-          <h2 class="mt-2 text-2xl font-display text-foreground">{{ activeSession?.routeTitle }}</h2>
-          <p class="client-page-copy">
-            {{ missionStore.currentChapter?.title || "打开路线选择一站继续" }}
-          </p>
-        </div>
+  <div class="client-surface">
+    <template v-if="hasRestorableSession">
+      <div class="client-surface-block space-y-3">
+        <span class="client-tag is-gold">探索中</span>
+        <h2 class="text-2xl font-display text-foreground">{{ activeSession?.routeTitle }}</h2>
+        <p class="client-page-copy">
+          {{ missionStore.currentChapter?.title || "打开路线选择一站继续" }}
+        </p>
+      </div>
 
+      <div class="grid grid-cols-2 gap-3">
+        <div class="client-stat-cell">
+          <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">进度</div>
+          <div class="mt-2 text-lg font-semibold text-foreground">{{ missionStore.progressPercent }}%</div>
+        </div>
+        <div class="client-stat-cell">
+          <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">已完成</div>
+          <div class="mt-2 text-lg font-semibold text-foreground">
+            {{ activeSession?.solvedChapterIds.length ?? 0 }}/{{ missionStore.activeMission?.chapterCount ?? 0 }}
+          </div>
+        </div>
+      </div>
+
+      <div class="grid gap-3 pt-1">
+        <ClientButton class="w-full" @click="openRouteMap()">
+          打开路线选站
+        </ClientButton>
         <div class="grid grid-cols-2 gap-3">
-          <div class="rounded-[0.9rem] bg-background/70 p-3">
-            <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">进度</div>
-            <div class="mt-2 text-lg font-semibold text-foreground">{{ missionStore.progressPercent }}%</div>
-          </div>
-          <div class="rounded-[0.9rem] bg-background/70 p-3">
-            <div class="text-[11px] uppercase tracking-[0.12em] text-muted-foreground">已完成</div>
-            <div class="mt-2 text-lg font-semibold text-foreground">
-              {{ activeSession?.solvedChapterIds.length ?? 0 }}/{{ missionStore.activeMission?.chapterCount ?? 0 }}
-            </div>
-          </div>
-        </div>
-
-        <div class="grid gap-3">
-          <ClientButton class="w-full" @click="openRouteMap()">
-            打开路线选站
+          <ClientButton variant="outline" class="w-full" @click="clearCurrentSession()">
+            清空
           </ClientButton>
-          <div class="grid grid-cols-2 gap-3">
-            <ClientButton variant="outline" class="w-full" @click="clearCurrentSession()">
-              清空
-            </ClientButton>
-            <ClientButton
-              v-if="activeSession?.routeId"
-              variant="outline"
-              class="w-full"
-              @click="replayCurrentMission()"
-            >
-              重新开始
-            </ClientButton>
-          </div>
+          <ClientButton
+            v-if="activeSession?.routeId"
+            variant="outline"
+            class="w-full"
+            @click="replayCurrentMission()"
+          >
+            重新开始
+          </ClientButton>
         </div>
       </div>
-    </ClientCard>
+    </template>
 
-    <ClientCard v-else-if="missionStore.gameplayPending || missionStore.detailPending">
-      <div class="space-y-4 p-5">
-        <ClientSkeleton class="h-8 w-36" />
-        <div class="grid grid-cols-3 gap-3">
-          <ClientSkeleton class="h-20 w-full" />
-          <ClientSkeleton class="h-20 w-full" />
-          <ClientSkeleton class="h-20 w-full" />
-        </div>
-        <ClientSkeleton class="h-10 w-full" />
-        <ClientSkeleton class="h-10 w-full" />
+    <div v-else-if="missionStore.gameplayPending || missionStore.detailPending" class="space-y-4">
+      <ClientSkeleton class="h-8 w-36" />
+      <div class="grid grid-cols-2 gap-3">
+        <ClientSkeleton class="h-20 w-full" />
+        <ClientSkeleton class="h-20 w-full" />
       </div>
-    </ClientCard>
+      <ClientSkeleton class="h-10 w-full" />
+      <ClientSkeleton class="h-10 w-full" />
+    </div>
 
     <ClientEmptyState
       v-else

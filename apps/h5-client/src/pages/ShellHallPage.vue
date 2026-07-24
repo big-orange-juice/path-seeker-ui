@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef, watch } from "vue"
-import type { SelectOption } from "@path-seeker/ui"
 import { Filter, Search } from "lucide-vue-next"
 import {
   ClientButton,
   ClientEmptyState,
   ClientInput,
-  ClientSelect,
   ClientSheet,
   ClientSheetContent,
   ClientSheetDescription,
@@ -15,32 +13,11 @@ import {
   ClientSheetTitle,
 } from "@/components/ui"
 import MissionPreviewCard from "@/components/shell/MissionPreviewCard.vue"
-import {
-  DIFFICULTY_OPTIONS,
-  SCALE_TYPE_FILTER_OPTIONS,
-} from "@/constants/missionSchema"
 import { useMissionStore } from "@/stores/useMissionStore"
-import type { DifficultyLevel, ScaleTypeCode } from "@/types/mission"
 
 const missionStore = useMissionStore()
 const filterSheetOpen = shallowRef(false)
 const keywordDraft = ref(missionStore.filters.keyword || "")
-
-const difficultyOptions: SelectOption[] = [
-  { label: "全部难度", value: "all" },
-  ...DIFFICULTY_OPTIONS.map((item) => ({
-    label: item.label,
-    value: item.value,
-  })),
-]
-
-const scaleTypeOptions: SelectOption[] = [
-  { label: "全部规模", value: "all" },
-  ...SCALE_TYPE_FILTER_OPTIONS.map((item) => ({
-    label: item.label,
-    value: item.value,
-  })),
-]
 
 const hasRoutes = computed(() => missionStore.filteredRoutes.length > 0)
 const listFailed = computed(() => Boolean(missionStore.routeListError) && !hasRoutes.value)
@@ -49,23 +26,17 @@ const emptyTitle = computed(() => (listFailed.value ? "路线加载失败" : "�
 const emptyText = computed(() =>
   listFailed.value
     ? missionStore.routeListError || "请检查网络后重试。"
-    : "没有匹配路线，换个难度、规模或标题再试试。",
+    : "没有匹配路线，换个标题关键词再试试。",
 )
 
-const filterOn = computed(() =>
-  missionStore.filters.difficulty !== "all"
-  || missionStore.filters.scaleType !== "all"
-  || Boolean(String(missionStore.filters.keyword || "").trim()),
-)
+const filterOn = computed(() => Boolean(String(missionStore.filters.keyword || "").trim()))
 
 const filterSummary = computed(() =>
   [
-    difficultyOptions.find((item) => item.value === missionStore.filters.difficulty)?.label,
-    scaleTypeOptions.find((item) => item.value === String(missionStore.filters.scaleType))?.label,
     String(missionStore.filters.keyword || "").trim()
       ? `「${String(missionStore.filters.keyword).trim()}」`
       : "",
-  ].filter((item) => item && !String(item).startsWith("全部")),
+  ].filter(Boolean),
 )
 
 /** 骨架屏假高度轮询，真实项按站数分档 */
@@ -179,13 +150,13 @@ onMounted(() => {
       @action="refreshRoutes(true)"
     />
 
-    <!-- 底部筛选：仅难度 / 规模 / 标题 -->
+    <!-- 底部筛选：仅标题关键词 -->
     <ClientSheet v-model="filterSheetOpen">
       <ClientSheetContent side="bottom" class="hall-picker">
         <ClientSheetHeader>
           <ClientSheetTitle>筛选路线</ClientSheetTitle>
           <ClientSheetDescription>
-            按难度、规模和标题收窄列表。
+            按标题关键词收窄列表。
           </ClientSheetDescription>
         </ClientSheetHeader>
 
@@ -201,26 +172,6 @@ onMounted(() => {
                 @keydown.enter.prevent="confirmFilters"
               />
             </div>
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-medium text-muted-foreground">难度</label>
-            <ClientSelect
-              :model-value="missionStore.filters.difficulty"
-              :options="difficultyOptions"
-              @update:model-value="missionStore.setFilters({ difficulty: $event as DifficultyLevel | 'all' })"
-            />
-          </div>
-
-          <div class="space-y-1.5">
-            <label class="text-xs font-medium text-muted-foreground">规模</label>
-            <ClientSelect
-              :model-value="missionStore.filters.scaleType === 'all' ? 'all' : String(missionStore.filters.scaleType)"
-              :options="scaleTypeOptions"
-              @update:model-value="missionStore.setFilters({
-                scaleType: $event === 'all' ? 'all' : Number($event) as ScaleTypeCode,
-              })"
-            />
           </div>
         </div>
 

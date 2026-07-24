@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { ADMIN_LANDING_PATH } from '@/constants/admin-auth';
+import {
+  ADMIN_AUTH_REDIRECT_QUERY,
+  ADMIN_LOGIN_PATH,
+  ADMIN_PUBLIC_PATHS,
+} from '@/constants/admin-auth';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
 import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
@@ -9,16 +13,29 @@ import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import { useAdminAuthStore } from '@/stores/adminAuth';
 
 const store = useAdminAuthStore();
+const route = useRoute();
 
 const handleConfirm = async () => {
   store.closeSessionExpiredDialog();
   store.logout();
-  await navigateTo(ADMIN_LANDING_PATH);
+
+  const currentPath = String(route.fullPath || '').trim();
+  const canRedirect =
+    currentPath
+    && !ADMIN_PUBLIC_PATHS.has(route.path)
+    && !currentPath.startsWith(ADMIN_LOGIN_PATH);
+
+  await navigateTo({
+    path: ADMIN_LOGIN_PATH,
+    query: canRedirect
+      ? { [ADMIN_AUTH_REDIRECT_QUERY]: currentPath }
+      : undefined,
+  });
 };
 </script>
 
 <template>
-  <Dialog :open="store.sessionExpiredDialogOpen" @update:open="store.closeSessionExpiredDialog()">
+  <Dialog :open="store.sessionExpiredDialogOpen" @update:open="() => {}">
     <DialogContent
       :z-index="11000"
       :show-close="false"
@@ -34,7 +51,7 @@ const handleConfirm = async () => {
 
       <DialogFooter class="px-5 pb-4 pt-3">
         <UiButton @click="handleConfirm">
-          返回首页
+          重新登录
         </UiButton>
       </DialogFooter>
     </DialogContent>

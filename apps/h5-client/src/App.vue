@@ -5,6 +5,7 @@ import { computed } from "vue"
 import CinemaStage from "@/components/fx/CinemaStage.vue"
 import GalleryBackground from "@/components/fx/GalleryBackground.vue"
 import AskPanel from "@/components/shell/AskPanel.vue"
+import AuthExpiredDialog from "@/components/shell/AuthExpiredDialog.vue"
 import FloatingMissionFab from "@/components/shell/FloatingMissionFab.vue"
 import ClientToastViewport from "@/components/ui/ClientToastViewport.vue"
 import { useCinemaStore } from "@/stores/useCinemaStore"
@@ -36,4 +37,5 @@ const showAskSheet = computed(() => route.path !== "/shell/ask" && route.path !=
   <AskPanel v-if="showAskSheet" />
   <CinemaStage />
   <ClientToastViewport />
+  <AuthExpiredDialog />
 </template>

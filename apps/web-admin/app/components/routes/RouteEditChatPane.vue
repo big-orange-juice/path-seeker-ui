@@ -91,7 +91,9 @@ const {
     }
   },
   onDone: (payload) => {
-    const doneRouteId = String(payload.routeId ?? props.routeId ?? '').trim();
+    // 与 stage.updated 同路径：done 时强制详情刷新，保证完整 SSE 至少一次 UI 更新
+    // useChatSession 已尽量把 routeId 写进 payload
+    const doneRouteId = String(payload.routeId || props.routeId || '').trim();
 
     if (doneRouteId) {
       emit('flushDetailRefresh', doneRouteId);
@@ -169,14 +171,7 @@ watch(
   { immediate: true }
 );
 
-watch(
-  () => props.active,
-  (active) => {
-    if (!active) {
-      abortActiveRun();
-    }
-  }
-);
+// active 仅表示是否在前台展示，切 tab / 失焦不中断 SSE；关闭 dialog 由父级 abort
 
 defineExpose({
   resetSession,
@@ -191,7 +186,7 @@ defineExpose({
       :tools="activeTools"
       :is-running="isRunning"
       empty-title="用对话编辑当前路线"
-      empty-description="例如：给当前节点增加提示、调整难度，或按主题补几个节点。"
+      empty-description="例如：给当前节点增加提示，或按主题补几个节点。"
       @retry="retryLastFailed"
       @suggestion="handleSend" />
 

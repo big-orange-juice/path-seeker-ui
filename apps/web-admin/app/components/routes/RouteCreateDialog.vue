@@ -1,6 +1,5 @@
 ﻿<script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
-import { DIFFICULTY_LEVEL_OPTIONS } from '@path-seeker/ts-shared';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
@@ -15,7 +14,8 @@ import AppIcon from '@/components/ui/AppIcon.vue';
 import RouteChatWorkspace from '@/components/routes/RouteChatWorkspace.vue';
 import type { BuildRouteFromThemePayload } from '@/types/route';
 
-const difficultyOptions = DIFFICULTY_LEVEL_OPTIONS;
+/** 后端仍要求 difficulty，UI 不再暴露，固定中等 */
+const DEFAULT_DIFFICULTY = 2;
 
 interface MuseumOption {
   value: string;
@@ -50,7 +50,6 @@ const formState = reactive({
   themeQuery: '',
   maxNodes: 35,
   pickCount: 7,
-  difficulty: 2,
 });
 const localError = ref('');
 const chatWorkspaceRef = ref<InstanceType<typeof RouteChatWorkspace> | null>(null);
@@ -90,7 +89,6 @@ const resetForm = () => {
   formState.themeQuery = '';
   formState.maxNodes = 35;
   formState.pickCount = 7;
-  formState.difficulty = 2;
   activeTab.value = 'ai';
   showAdvanced.value = false;
   localError.value = '';
@@ -143,7 +141,7 @@ const submitManual = () => {
     themeQuery: formState.themeQuery.trim(),
     maxNodes: clampInteger(formState.maxNodes, 35, 50),
     pickCount: clampInteger(formState.pickCount, 5, 9),
-    difficulty: clampInteger(formState.difficulty, 1, 3),
+    difficulty: DEFAULT_DIFFICULTY,
   });
 };
 </script>
@@ -184,7 +182,7 @@ const submitManual = () => {
       <div v-show="activeTab === 'ai'" class="flex min-h-0 flex-1 flex-col">
         <RouteChatWorkspace
           ref="chatWorkspaceRef"
-          :active="props.open && activeTab === 'ai'"
+          :active="props.open"
           @route-changed="emit('routeChanged', $event)"
           @route-published="emit('routePublished', $event)" />
       </div>
@@ -229,30 +227,17 @@ const submitManual = () => {
             </p>
           </div>
 
-          <div class="grid gap-4 md:grid-cols-2">
-            <div class="space-y-2">
-              <label class="text-sm font-medium">谜题数量</label>
-              <Input
-                v-model="pickCountModel"
-                type="number"
-                min="5"
-                max="9"
-                placeholder="建议 5–9" />
-              <p class="text-[11px] text-muted-foreground">
-                建议 5–9 个站点，对应路线内关卡数量。
-              </p>
-            </div>
-            <div class="space-y-2">
-              <label class="text-sm font-medium">难度</label>
-              <Select :model-value="String(formState.difficulty)" @update:model-value="formState.difficulty = Number($event)">
-                <option
-                  v-for="option in difficultyOptions"
-                  :key="option.value"
-                  :value="String(option.value)">
-                  {{ option.label }}
-                </option>
-              </Select>
-            </div>
+          <div class="space-y-2">
+            <label class="text-sm font-medium">谜题数量</label>
+            <Input
+              v-model="pickCountModel"
+              type="number"
+              min="5"
+              max="9"
+              placeholder="建议 5–9" />
+            <p class="text-[11px] text-muted-foreground">
+              建议 5–9 个站点，对应路线内关卡数量。
+            </p>
           </div>
 
           <div class="rounded-lg border border-border/60 bg-background/30">

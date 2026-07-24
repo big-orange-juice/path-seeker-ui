@@ -16,4 +16,5 @@ const keepalive = {
   </NuxtLayout>
 
   <AdminAuthExpiredDialog />
+  <AdminActionFeedbackDialog />
 </template>

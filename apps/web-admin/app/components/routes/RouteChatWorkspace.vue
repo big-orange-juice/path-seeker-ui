@@ -456,8 +456,12 @@ const {
 } = useChatSession({
   onEvent: handleUiEvent,
   onDone: (payload: ChatDonePayload) => {
-    if (payload.routeId) {
-      emit('routeChanged', String(payload.routeId));
+    // 与 ui.route.*.updated 同路径：完整 SSE 结束至少刷一次列表/预览
+    // useChatSession 已把 contextRouteId 回填进 payload.routeId
+    const routeId = String(payload.routeId || routeDetail.value?.id || '').trim();
+
+    if (routeId) {
+      emit('routeChanged', routeId);
     }
   },
 });
@@ -467,14 +471,7 @@ const resetSession = () => {
   resetChatSession();
 };
 
-watch(
-  () => props.active,
-  (active) => {
-    if (!active) {
-      abortActiveRun();
-    }
-  },
-);
+// active 仅表示是否在前台展示，切 tab 不中断 SSE；关闭 dialog 由父级 abortActiveRun
 
 // 新一轮对话开始时清掉上一批进度，避免残留。
 watch(isRunning, (running, wasRunning) => {

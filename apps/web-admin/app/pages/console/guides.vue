@@ -15,6 +15,7 @@ import Input from '@/components/shadcn/input/Input.vue'
 import Select from '@/components/shadcn/select/Select.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { resolveApiErrorMessage } from '@/composables/useApiClient'
+import { useActionFeedback } from '@/composables/useActionFeedback'
 import {
   createEmptyGuideDraft,
   createGuideDraftFromRecord,
@@ -68,8 +69,7 @@ const detailRecord = shallowRef<GuideRecord | null>(null)
 const confirmOpen = shallowRef(false)
 const confirmRecord = shallowRef<GuideRecord | null>(null)
 const actionPendingIds = shallowRef<string[]>([])
-const actionError = shallowRef('')
-const actionFeedback = shallowRef('')
+const actionFeedback = useActionFeedback()
 
 const loadVoiceOptions = async (keyword?: string) => {
   voiceLoading.value = true
@@ -127,7 +127,6 @@ const openDetail = async (record: GuideRecord) => {
   detailRecord.value = record
   detailOpen.value = true
   detailPending.value = true
-  actionError.value = ''
 
   try {
     const detail = await fetchGuideDetail(record.id)
@@ -135,7 +134,7 @@ const openDetail = async (record: GuideRecord) => {
       detailRecord.value = detail
     }
   } catch (caughtError) {
-    actionError.value = resolveApiErrorMessage(caughtError, '导游详情加载失败。')
+    actionFeedback.errorFrom(caughtError, '导游详情加载失败。')
   } finally {
     detailPending.value = false
   }
@@ -144,18 +143,20 @@ const openDetail = async (record: GuideRecord) => {
 const handleFormSubmit = async (draft: GuideDraft) => {
   formSubmitting.value = true
   formError.value = ''
-  actionFeedback.value = ''
 
   try {
     await saveGuide(draft, formMode.value)
     // 异步接口返回后即可关闭并刷新列表
     formOpen.value = false
-    actionFeedback.value =
+    actionFeedback.success(
       formMode.value === 'edit'
         ? '导游已提交更新，生成完成后可在列表中查看。'
-        : '导游已提交创建，生成完成后可在列表中查看。'
+        : '导游已提交创建，生成完成后可在列表中查看。',
+    )
   } catch (caughtError) {
-    formError.value = resolveApiErrorMessage(caughtError, '导游保存失败。')
+    const message = resolveApiErrorMessage(caughtError, '导游保存失败。')
+    formError.value = message
+    actionFeedback.error(message, '保存失败')
   } finally {
     formSubmitting.value = false
   }
@@ -167,14 +168,12 @@ const refreshGuideRow = async (record: GuideRecord) => {
   }
 
   actionPendingIds.value = [...actionPendingIds.value, record.id]
-  actionError.value = ''
-  actionFeedback.value = ''
 
   try {
     await refresh()
-    actionFeedback.value = `已刷新「${record.name || record.guideCode || record.id}」。`
+    actionFeedback.success(`已刷新「${record.name || record.guideCode || record.id}」。`)
   } catch (caughtError) {
-    actionError.value = resolveApiErrorMessage(caughtError, '导游列表刷新失败。')
+    actionFeedback.errorFrom(caughtError, '导游列表刷新失败。')
   } finally {
     actionPendingIds.value = actionPendingIds.value.filter((item) => item !== record.id)
   }
@@ -183,7 +182,6 @@ const refreshGuideRow = async (record: GuideRecord) => {
 const askRemove = (record: GuideRecord) => {
   confirmRecord.value = record
   confirmOpen.value = true
-  actionError.value = ''
 }
 
 const finishActing = (id: string) => {
@@ -201,8 +199,6 @@ const submitRemove = async () => {
   }
 
   actionPendingIds.value = [...actionPendingIds.value, record.id]
-  actionError.value = ''
-  actionFeedback.value = ''
 
   try {
     await deleteGuide(record.id)
@@ -212,9 +208,9 @@ const submitRemove = async () => {
       detailOpen.value = false
       detailRecord.value = null
     }
-    actionFeedback.value = '导游已删除。'
+    actionFeedback.success('导游已删除。')
   } catch (caughtError) {
-    actionError.value = resolveApiErrorMessage(caughtError, '导游删除失败。')
+    actionFeedback.errorFrom(caughtError, '导游删除失败。')
   } finally {
     finishActing(record.id)
   }
@@ -234,25 +230,6 @@ const handleDetailEdit = (record: GuideRecord) => {
     >
       {{ error.message || '导游数据加载失败。' }}
     </div>
-    <div
-      v-if="formError"
-      class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-    >
-      {{ formError }}
-    </div>
-    <div
-      v-if="actionError"
-      class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-    >
-      {{ actionError }}
-    </div>
-    <div
-      v-if="actionFeedback"
-      class="rounded-[0.85rem] border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200"
-    >
-      {{ actionFeedback }}
-    </div>
-
     <section class="warm-panel warm-outline rounded-[0.95rem] border border-border/70 px-4 py-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="min-w-[260px] flex-1 space-y-2">

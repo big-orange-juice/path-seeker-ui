@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, shallowRef } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { ClientButton, ClientCard, ClientEmptyState } from "@/components/ui"
+import { ClientButton, ClientEmptyState } from "@/components/ui"
 import { useMissionStore } from "@/stores/useMissionStore"
 
 const route = useRoute()
@@ -50,23 +50,21 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <ClientCard v-if="result" class="overflow-hidden">
-      <div class="space-y-5 p-5">
-        <div class="space-y-3 text-center">
-          <div class="inline-flex w-fit items-center justify-center rounded-full bg-primary/14 px-4 py-1.5 text-sm font-semibold text-primary">
-            本站完成
-          </div>
-          <h2 class="font-display text-3xl leading-tight text-foreground">{{ result.chapterTitle }}</h2>
-          <p v-if="result.narrative" class="client-page-copy">{{ result.narrative }}</p>
-          <p class="text-sm text-muted-foreground">
-            一会儿回路线…
-          </p>
+  <div class="client-surface">
+    <section v-if="result" class="space-y-5 pt-4 text-center">
+      <div class="space-y-3">
+        <div class="inline-flex w-fit items-center justify-center rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm font-semibold text-primary">
+          本站完成
         </div>
-
-        <ClientButton class="w-full" @click="backToMap()">回路线</ClientButton>
+        <h2 class="font-display text-3xl leading-tight text-foreground">{{ result.chapterTitle }}</h2>
+        <p v-if="result.narrative" class="client-page-copy">{{ result.narrative }}</p>
+        <p class="text-sm text-muted-foreground">
+          一会儿回路线…
+        </p>
       </div>
-    </ClientCard>
+
+      <ClientButton class="w-full" @click="backToMap()">回路线</ClientButton>
+    </section>
 
     <ClientEmptyState
       v-else

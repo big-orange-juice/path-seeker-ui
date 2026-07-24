@@ -4,6 +4,7 @@ import {
   resolveHttpStatusMessage,
 } from "@path-seeker/ts-shared"
 import { getAccessToken } from "@/services/authSession"
+import { useAuthStore } from "@/stores/useAuthStore"
 
 // 约定：VITE_API_BASE_URL 已包含 /api 前缀（如 .../path-seeker/api），业务 path 勿再写 /api。
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
@@ -141,6 +142,30 @@ export function resolveRequestErrorMessage(error: unknown, fallback = "请求失
   })
 }
 
+function notifySessionExpiredIfNeeded(error: ApiRequestError) {
+  const isExpired =
+    error.statusCode === 401
+    || error.code === 10002
+
+  if (!isExpired) {
+    return
+  }
+
+  // 登录/注册接口本身的 401 不弹「会话过期」
+  try {
+    const authStore = useAuthStore()
+    if (!authStore.accessToken && !authStore.isLoggedIn) {
+      // 已无会话时仍可能是访客态失败；仅在曾有 token 或明确 10002 时提示
+      if (error.code !== 10002) {
+        return
+      }
+    }
+    authStore.openSessionExpiredDialog(error.message)
+  } catch {
+    // Pinia 未就绪时忽略
+  }
+}
+
 export async function request<T>(path: string, options: RequestOptions = {}) {
   const { method = "GET", query, data, header } = options
   const accessToken = getAccessToken()
@@ -161,13 +186,24 @@ export async function request<T>(path: string, options: RequestOptions = {}) {
 
   const payload = await parseResponsePayload(response)
 
-  if (!response.ok) {
-    throw createStatusError(response.status, payload)
-  }
+  try {
+    if (!response.ok) {
+      throw createStatusError(response.status, payload)
+    }
 
-  if (isApiResponse<T>(payload)) {
-    return unwrapApiResponse(payload)
-  }
+    if (isApiResponse<T>(payload)) {
+      return unwrapApiResponse(payload)
+    }
 
-  return payload as T
+    return payload as T
+  } catch (error) {
+    if (error instanceof ApiRequestError) {
+      // 登录相关接口不弹全局过期框
+      const isAuthPath = /^\/?AppUser\/(Login|Register|GuestLogin|RefreshToken)/i.test(path)
+      if (!isAuthPath) {
+        notifySessionExpiredIfNeeded(error)
+      }
+    }
+    throw error
+  }
 }

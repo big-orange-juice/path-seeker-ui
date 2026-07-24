@@ -62,6 +62,8 @@ export const useAuthStore = defineStore(
     const profile = ref<UserProfileResponse | null>(null)
     const pending = ref(false)
     const error = ref("")
+    const sessionExpiredDialogOpen = ref(false)
+    const sessionExpiredMessage = ref("未登录或登录已过期，请重新登录")
 
     const isLoggedIn = computed(() => Boolean(accessToken.value))
     const isTokenExpired = computed(() => Boolean(expiresAt.value && expiresAt.value <= Date.now()))
@@ -206,7 +208,21 @@ export const useAuthStore = defineStore(
       expiresAt.value = null
       profile.value = null
       error.value = ""
+      sessionExpiredDialogOpen.value = false
+      sessionExpiredMessage.value = "未登录或登录已过期，请重新登录"
       syncAccessTokenSession("")
+    }
+
+    function openSessionExpiredDialog(message?: string | null) {
+      // 已弹过则只更新文案，避免并发 401 反复打断
+      if (!sessionExpiredDialogOpen.value) {
+        sessionExpiredDialogOpen.value = true
+      }
+      sessionExpiredMessage.value = String(message || "未登录或登录已过期，请重新登录").trim()
+    }
+
+    function closeSessionExpiredDialog() {
+      sessionExpiredDialogOpen.value = false
     }
 
     return {
@@ -216,6 +232,8 @@ export const useAuthStore = defineStore(
       profile,
       pending,
       error,
+      sessionExpiredDialogOpen,
+      sessionExpiredMessage,
       isLoggedIn,
       isTokenExpired,
       displayName,
@@ -226,6 +244,8 @@ export const useAuthStore = defineStore(
       loadProfile,
       updateProfile,
       logout,
+      openSessionExpiredDialog,
+      closeSessionExpiredDialog,
     }
   },
   {

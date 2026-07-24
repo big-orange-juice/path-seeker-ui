@@ -25,6 +25,7 @@ import {
   getEditLockMessage,
   getRouteWorkflowActions,
 } from '@/constants/routeWorkflow';
+import { useActionFeedback } from '@/composables/useActionFeedback';
 import { useAdminAuthStore } from '@/stores/adminAuth';
 import type { BuildRouteFromThemePayload, RouteDetailResponse, RouteRecord } from '@/types/route';
 import type { MuseumResponse, MuseumResponseListTotalPageResult } from '@/types/museum';
@@ -34,14 +35,12 @@ definePageMeta({
 });
 
 const authStore = useAdminAuthStore();
+const actionFeedback = useActionFeedback();
 const selectedMuseumId = shallowRef('');
 const { request } = useApiClient();
 const createDialogOpen = shallowRef(false);
 const createSubmitting = shallowRef(false);
-const createError = shallowRef('');
 const actionPendingIds = shallowRef<string[]>([]);
-const actionFeedback = shallowRef('');
-const actionError = shallowRef('');
 const confirmDialogOpen = shallowRef(false);
 const confirmActionType = shallowRef<'publish' | 'unpublish' | 'delete' | 'submit-audit'>('publish');
 const confirmRecord = shallowRef<RouteRecord | null>(null);
@@ -132,7 +131,6 @@ const {
 
 const handleCreateManual = async (payload: BuildRouteFromThemePayload) => {
   createSubmitting.value = true;
-  createError.value = '';
 
   try {
     await request<string>('/api/route/build-from-theme', {
@@ -141,26 +139,24 @@ const handleCreateManual = async (payload: BuildRouteFromThemePayload) => {
     });
     createDialogOpen.value = false;
     await refresh();
+    actionFeedback.success('主题路线已生成。');
   } catch (caughtError) {
-    createError.value = caughtError instanceof Error ? caughtError.message : '主题路线创建失败。';
+    actionFeedback.errorFrom(caughtError, '主题路线创建失败。');
   } finally {
     createSubmitting.value = false;
   }
 };
 
 const handleChatRouteChanged = async (_routeId: string) => {
-  actionFeedback.value = '';
-  actionError.value = '';
-
   try {
     await refresh();
   } catch (caughtError) {
-    actionError.value = resolveActionErrorMessage(caughtError, '路线列表刷新失败。');
+    actionFeedback.errorFrom(caughtError, '路线列表刷新失败。');
   }
 };
 
 const handleChatRoutePublished = async (routeId: string) => {
-  actionFeedback.value = '路线状态已更新。';
+  actionFeedback.success('路线状态已更新。');
   await handleChatRouteChanged(routeId);
 };
 
@@ -175,9 +171,6 @@ const startRowAction = (routeId: string) => {
 const finishRowAction = (routeId: string) => {
   actionPendingIds.value = actionPendingIds.value.filter((item) => item !== routeId);
 };
-
-const resolveActionErrorMessage = (caughtError: unknown, fallback: string) =>
-  caughtError instanceof Error ? caughtError.message : fallback;
 
 const confirmDialogTitle = computed(() => {
   switch (confirmActionType.value) {
@@ -264,14 +257,14 @@ const onAuditDialogOpenChange = (value: boolean) => {
 };
 
 const handleDetail = async (record: RouteRecord) => {
-  actionFeedback.value = '';
-  actionError.value = '';
-
   const actions = getRouteWorkflowActions(record, workflowContext.value);
   if (!actions.canOpenDetail) {
-    actionError.value = actions.isListOnly
-      ? '该路线暂不可打开详情，请先在列表完成审核或上架相关操作。'
-      : '暂时不能查看该路线详情。';
+    actionFeedback.error(
+      actions.isListOnly
+        ? '该路线暂不可打开详情，请先在列表完成审核或上架相关操作。'
+        : '暂时不能查看该路线详情。',
+      '无法打开',
+    );
     return;
   }
 
@@ -285,7 +278,7 @@ const handleDetail = async (record: RouteRecord) => {
   try {
     routeDetail.value = await fetchRouteDetail(record.id);
   } catch (caughtError) {
-    actionError.value = resolveActionErrorMessage(caughtError, '主题路线详情获取失败。');
+    actionFeedback.errorFrom(caughtError, '主题路线详情获取失败。');
   } finally {
     detailPending.value = false;
     finishRowAction(record.id);
@@ -302,15 +295,13 @@ watch(detailDialogOpen, (open) => {
 });
 
 const refreshRouteRow = async (record: RouteRecord) => {
-  actionFeedback.value = '';
-  actionError.value = '';
   startRowAction(record.id);
 
   try {
     await refresh();
-    actionFeedback.value = `已刷新「${record.title || record.routeCode || record.id}」。`;
+    actionFeedback.success(`已刷新「${record.title || record.routeCode || record.id}」。`);
   } catch (caughtError) {
-    actionError.value = resolveActionErrorMessage(caughtError, '主题路线刷新失败。');
+    actionFeedback.errorFrom(caughtError, '主题路线刷新失败。');
   } finally {
     finishRowAction(record.id);
   }
@@ -327,8 +318,6 @@ const refreshRouteDetail = async (options?: { silent?: boolean }) => {
     detailPending.value = true;
   }
 
-  actionError.value = '';
-
   try {
     routeDetail.value = await fetchRouteDetail(record.id);
     // 同步列表行状态，保持详情工具栏与锁一致
@@ -338,7 +327,7 @@ const refreshRouteDetail = async (options?: { silent?: boolean }) => {
     }
   } catch (caughtError) {
     if (!silent) {
-      actionError.value = resolveActionErrorMessage(caughtError, '主题路线详情刷新失败。');
+      actionFeedback.errorFrom(caughtError, '主题路线详情刷新失败。');
     }
   } finally {
     if (!silent) {
@@ -354,7 +343,7 @@ const assertWorkflowAction = (
 ) => {
   const actions = getRouteWorkflowActions(record, workflowContext.value);
   if (!actions[key]) {
-    actionError.value = deniedMessage;
+    actionFeedback.error(deniedMessage, '无法操作');
     return false;
   }
   return true;
@@ -409,8 +398,6 @@ const submitConfirmedAction = async () => {
     return;
   }
 
-  actionFeedback.value = '';
-  actionError.value = '';
   startRowAction(record.id);
 
   try {
@@ -419,19 +406,19 @@ const submitConfirmedAction = async () => {
         id: record.id,
         publishStatus: PUBLISH_ONLINE,
       });
-      actionFeedback.value = `已上架「${record.title || record.routeCode || record.id}」。`;
+      actionFeedback.success(`已上架「${record.title || record.routeCode || record.id}」。`);
     } else if (confirmActionType.value === 'unpublish') {
       await publishRoute({
         id: record.id,
         publishStatus: PUBLISH_OFFLINE,
       });
-      actionFeedback.value = `已下线「${record.title || record.routeCode || record.id}」。`;
+      actionFeedback.success(`已下线「${record.title || record.routeCode || record.id}」。`);
     } else if (confirmActionType.value === 'submit-audit') {
       await submitAudit({ id: record.id });
-      actionFeedback.value = `已提交审核「${record.title || record.routeCode || record.id}」。`;
+      actionFeedback.success(`已提交审核「${record.title || record.routeCode || record.id}」。`);
     } else {
       await deleteRoute(record.id);
-      actionFeedback.value = `已删除「${record.title || record.routeCode || record.id}」。`;
+      actionFeedback.success(`已删除「${record.title || record.routeCode || record.id}」。`);
     }
     resetConfirmDialog();
   } catch (caughtError) {
@@ -443,7 +430,7 @@ const submitConfirmedAction = async () => {
           : confirmActionType.value === 'submit-audit'
             ? '提交审核失败。'
             : '主题路线删除失败。';
-    actionError.value = resolveActionErrorMessage(caughtError, fallback);
+    actionFeedback.errorFrom(caughtError, fallback);
   } finally {
     finishRowAction(record.id);
   }
@@ -455,8 +442,6 @@ const submitAuditDecision = async (payload: { pass: boolean; remark: string }) =
     return;
   }
 
-  actionFeedback.value = '';
-  actionError.value = '';
   auditSubmitting.value = true;
   startRowAction(record.id);
 
@@ -466,9 +451,11 @@ const submitAuditDecision = async (payload: { pass: boolean; remark: string }) =
       pass: payload.pass,
       remark: payload.remark || null,
     });
-    actionFeedback.value = payload.pass
-      ? `已通过「${record.title || record.routeCode || record.id}」。`
-      : `已驳回「${record.title || record.routeCode || record.id}」。`;
+    actionFeedback.success(
+      payload.pass
+        ? `已通过「${record.title || record.routeCode || record.id}」。`
+        : `已驳回「${record.title || record.routeCode || record.id}」。`,
+    );
     auditDialogOpen.value = false;
     auditRecord.value = null;
 
@@ -481,7 +468,7 @@ const submitAuditDecision = async (payload: { pass: boolean; remark: string }) =
       await refreshRouteDetail({ silent: true });
     }
   } catch (caughtError) {
-    actionError.value = resolveActionErrorMessage(caughtError, '审核提交失败。');
+    actionFeedback.errorFrom(caughtError, '审核提交失败。');
   } finally {
     auditSubmitting.value = false;
     finishRowAction(record.id);
@@ -518,16 +505,6 @@ const detailActions = computed(() => {
     <div v-if="error" class="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
       {{ error.message || '主题路线数据加载失败。' }}
     </div>
-    <div v-if="createError" class="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-      {{ createError }}
-    </div>
-    <div v-if="actionError" class="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-      {{ actionError }}
-    </div>
-    <div v-if="actionFeedback" class="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-      {{ actionFeedback }}
-    </div>
-
     <section class="warm-panel warm-outline rounded-xl border border-border/70 px-4 py-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="w-[240px] space-y-1.5">
