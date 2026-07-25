@@ -28,6 +28,12 @@ export interface RouteMutationPayload {
   publishStatus?: number;
 }
 
+export interface UpdateRouteTitlePayload {
+  id: string;
+  routeCode: string;
+  title: string;
+}
+
 export interface RouteCardResponse {
   id: string | null;
   title: string | null;

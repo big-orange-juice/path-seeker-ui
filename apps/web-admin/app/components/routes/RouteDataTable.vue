@@ -2,8 +2,8 @@
 import { computed, h } from 'vue';
 import type { ColumnDef, SortingState } from '@tanstack/vue-table';
 import CollectionDataTable from '@/components/collections/CollectionDataTable.vue';
-import Button from '@/components/shadcn/button/Button.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
+import RouteRowActions from '@/components/routes/RouteRowActions.vue';
 import {
   getRouteStatusPresentation,
   getRouteWorkflowActions,
@@ -222,151 +222,20 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
       const record = row.original;
       const acting = isRecordActing(record.id);
       const actions = getRouteWorkflowActions(record, props.workflowContext);
-      const nodes = [];
 
-      if (record.isGenerating) {
-        nodes.push(
-          h(
-            Button,
-            {
-              variant: 'ghost',
-              size: 'sm',
-              class: 'h-7 px-2.5 text-xs',
-              disabled: acting,
-              onClick: () => emit('refreshRow', record)
-            },
-            () => [
-              h(AppIcon, {
-                name: 'refresh-cw',
-                class: 'h-3.5 w-3.5',
-                strokeWidth: 1.8
-              }),
-              h('span', '刷新')
-            ]
-          )
-        );
-
-        return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, nodes);
-      }
-
-      if (actions.canSubmitAudit) {
-        nodes.push(
-          h(
-            Button,
-            {
-              size: 'sm',
-              class: 'h-7 px-2.5 text-xs',
-              disabled: acting,
-              onClick: () => emit('submitAudit', record)
-            },
-            () => '提交审核'
-          )
-        );
-      }
-
-      // 待审「审核」并入详情入口：点开只读查看，详情底部再通过/驳回
-
-      if (actions.canPublish) {
-        nodes.push(
-          h(
-            Button,
-            {
-              size: 'sm',
-              class: 'h-7 px-2.5 text-xs',
-              disabled: acting,
-              onClick: () => emit('publish', record)
-            },
-            () => (record.publishStatus === 3 ? '重新上架' : '上架')
-          )
-        );
-      }
-
-      if (actions.canUnpublish) {
-        nodes.push(
-          h(
-            Button,
-            {
-              variant: 'outline',
-              size: 'sm',
-              class: 'h-7 px-2.5 text-xs',
-              disabled: acting,
-              onClick: () => emit('unpublish', record)
-            },
-            () => '下线'
-          )
-        );
-      }
-
-      // 详情入口：编辑 / 查看 / 审核（待审只读）
-      if (actions.canOpenDetail && actions.openLabel) {
-        nodes.push(
-          h(
-            Button,
-            {
-              variant: actions.canAudit
-                ? 'default'
-                : actions.canEditContent
-                  ? 'outline'
-                  : 'ghost',
-              size: 'sm',
-              class: 'h-7 px-2.5 text-xs',
-              disabled: acting,
-              title: actions.canAudit
-                ? '打开路线内容只读审阅，底部可提交审核结论'
-                : undefined,
-              onClick: () => emit('detail', record)
-            },
-            () => actions.openLabel
-          )
-        );
-      } else if (actions.isListOnly) {
-        nodes.push(
-          h(
-            'span',
-            {
-              class:
-                'inline-flex h-7 items-center px-1 text-[11px] text-muted-foreground',
-              title: '他人未上架/已下线路线内容不可编辑；管理员可上架/下线或删除未上架；待审核可点「审核」'
-            },
-            ''
-          )
-        );
-      }
-
-      // 海报管理：主色按钮，每条路线均可进入（生成中除外，上方已 return）
-      nodes.push(
-        h(
-          Button,
-          {
-            variant: 'default',
-            size: 'sm',
-            class: 'h-7 px-2.5 text-xs',
-            disabled: acting,
-            title: '管理路线海报，可参考节点图片生成',
-            onClick: () => emit('poster', record)
-          },
-          () => '海报'
-        )
-      );
-
-      if (actions.canDelete) {
-        nodes.push(
-          h(
-            Button,
-            {
-              variant: 'ghost',
-              size: 'sm',
-              class:
-                'h-7 px-2.5 text-xs text-destructive hover:text-destructive',
-              disabled: acting,
-              onClick: () => emit('remove', record)
-            },
-            () => '删除'
-          )
-        );
-      }
-
-      return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, nodes);
+      // 主操作外露，海报/删除收进「更多」，避免操作列挤成一团
+      return h(RouteRowActions, {
+        record,
+        actions,
+        acting,
+        onDetail: () => emit('detail', record),
+        onPoster: () => emit('poster', record),
+        onPublish: () => emit('publish', record),
+        onUnpublish: () => emit('unpublish', record),
+        onSubmitAudit: () => emit('submitAudit', record),
+        onRefreshRow: () => emit('refreshRow', record),
+        onRemove: () => emit('remove', record),
+      });
     }
   }
 ]);

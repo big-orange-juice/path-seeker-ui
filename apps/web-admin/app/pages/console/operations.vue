@@ -45,11 +45,17 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
   if (!rows.length) return null;
 
   const titles = rows.map((item) => item.title || item.routeId || '未命名');
-  /** 类目较多时默认只露出一段，拖拽 / 缩放可浏览其余 */
+  /** 类目较多时默认只露出一段，拖拽底部条 / 滚轮缩放可浏览其余 */
   const defaultWindow = 8;
   const zoomEnd = titles.length > defaultWindow
     ? Math.max(12, Math.round((defaultWindow / titles.length) * 100))
     : 100;
+
+  /** 水平标签截断，避免倾斜；完整名走 tooltip */
+  const formatCategoryLabel = (value: string) => {
+    const text = String(value ?? '');
+    return text.length > 8 ? `${text.slice(0, 8)}…` : text;
+  };
 
   return {
     color: [chartTheme.gold, chartTheme.sky],
@@ -65,12 +71,13 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
       top: 0,
       textStyle: { color: chartTheme.text, fontSize: 11 },
     },
-    grid: { left: 40, right: 16, top: 36, bottom: 72 },
+    /** 水平 x 标签 + 精简缩放条，底部留白收紧 */
+    grid: { left: 40, right: 16, top: 36, bottom: 48 },
     dataZoom: [
       {
         type: 'inside',
         xAxisIndex: 0,
-        filterMode: 'none',
+        filterMode: 'filter',
         start: 0,
         end: zoomEnd,
         zoomOnMouseWheel: true,
@@ -80,31 +87,42 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
       {
         type: 'slider',
         xAxisIndex: 0,
-        filterMode: 'none',
-        height: 18,
-        bottom: 6,
+        filterMode: 'filter',
+        height: 16,
+        bottom: 4,
         start: 0,
         end: zoomEnd,
+        /** 不显示起止数值浮标，减少干扰 */
+        showDetail: false,
+        showDataShadow: true,
         brushSelect: false,
-        borderColor: 'rgba(200, 194, 182, 0.2)',
-        backgroundColor: 'rgba(200, 194, 182, 0.06)',
-        fillerColor: 'rgba(209, 178, 111, 0.18)',
+        realtime: true,
+        borderColor: 'rgba(200, 194, 182, 0.18)',
+        backgroundColor: 'rgba(200, 194, 182, 0.05)',
+        fillerColor: 'rgba(209, 178, 111, 0.22)',
+        handleSize: 14,
         handleStyle: {
           color: chartTheme.gold,
-          borderColor: chartTheme.gold,
+          borderColor: 'rgba(209, 178, 111, 0.85)',
+          borderWidth: 1,
+          shadowBlur: 0,
         },
-        moveHandleStyle: {
-          color: chartTheme.gold,
-        },
+        moveHandleSize: 0,
         dataBackground: {
-          lineStyle: { color: 'rgba(200, 194, 182, 0.25)' },
-          areaStyle: { color: 'rgba(200, 194, 182, 0.08)' },
+          lineStyle: { color: 'rgba(200, 194, 182, 0.2)', width: 1 },
+          areaStyle: { color: 'rgba(200, 194, 182, 0.06)' },
         },
         selectedDataBackground: {
-          lineStyle: { color: chartTheme.gold },
-          areaStyle: { color: 'rgba(209, 178, 111, 0.12)' },
+          lineStyle: { color: chartTheme.gold, width: 1 },
+          areaStyle: { color: 'rgba(209, 178, 111, 0.14)' },
         },
-        textStyle: { color: chartTheme.text, fontSize: 10 },
+        emphasis: {
+          handleStyle: {
+            color: chartTheme.gold,
+            borderColor: '#e8d5a3',
+          },
+        },
+        textStyle: { color: 'transparent', fontSize: 0 },
       },
     ],
     xAxis: {
@@ -112,11 +130,12 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
       data: titles,
       axisLabel: {
         color: chartTheme.text,
-        fontSize: 10,
+        fontSize: 11,
         interval: 0,
-        hideOverlap: false,
-        rotate: 32,
-        overflow: 'none',
+        hideOverlap: true,
+        rotate: 0,
+        margin: 10,
+        formatter: formatCategoryLabel,
       },
       axisLine: { lineStyle: { color: chartTheme.axis } },
       axisTick: { show: false },
@@ -132,13 +151,13 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
       {
         name: '开始',
         type: 'bar',
-        barMaxWidth: 18,
+        barMaxWidth: 22,
         data: rows.map((item) => item.startCount ?? 0),
       },
       {
         name: '完成',
         type: 'bar',
-        barMaxWidth: 18,
+        barMaxWidth: 22,
         data: rows.map((item) => item.completeCount ?? 0),
       },
     ],

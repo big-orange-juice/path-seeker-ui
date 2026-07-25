@@ -42,6 +42,7 @@ const POLL_INTERVAL_MS = 2500
 const POLL_MAX_ATTEMPTS = 48
 
 const bootstrapping = ref(false)
+const loadingNodeImages = ref(false)
 const generating = ref(false)
 const polling = ref(false)
 const errorMessage = ref('')
@@ -49,9 +50,13 @@ const infoMessage = ref('')
 const prompt = ref('')
 const refDraft = ref('')
 const refUrls = ref<string[]>([])
+/** 是否启用节点可用图：默认关闭，勾选后再拉取当前路线 nodes 图片 */
+const useNodeImages = ref(false)
 const candidates = ref<RoutePosterCandidateImage[]>([])
 const posters = ref<RoutePosterResponse[]>([])
 const lightboxUrl = ref('')
+/** 缓存详情，避免反复勾选时重复请求路线详情 */
+const cachedDetail = ref<RouteDetailResponse | null>(null)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let pollAttempts = 0
@@ -287,19 +292,47 @@ const startPoll = (baselineIds: Set<string>) => {
   }, POLL_INTERVAL_MS)
 }
 
+/** 打开弹窗时只拉已生成海报；节点图按勾选再取 */
 const bootstrap = async () => {
   if (!routeId.value) return
 
   bootstrapping.value = true
   errorMessage.value = ''
   infoMessage.value = ''
+  useNodeImages.value = false
+  candidates.value = []
+  cachedDetail.value = null
   stopPoll()
 
   try {
-    const detail = await request<RouteDetailResponse | null>('/api/route/detail', {
-      method: 'GET',
-      query: { id: routeId.value },
-    })
+    await loadPosters()
+  } catch (error) {
+    errorMessage.value = resolveError(error, '加载海报列表失败。')
+    posters.value = []
+  } finally {
+    bootstrapping.value = false
+  }
+}
+
+/** 勾选启用后：拉取当前路线所有 nodes 图片（含封面、节点图、解说配图） */
+const loadNodeCandidates = async () => {
+  if (!routeId.value) {
+    candidates.value = []
+    return
+  }
+
+  loadingNodeImages.value = true
+  errorMessage.value = ''
+
+  try {
+    let detail = cachedDetail.value
+    if (!detail) {
+      detail = await request<RouteDetailResponse | null>('/api/route/detail', {
+        method: 'GET',
+        query: { id: routeId.value },
+      })
+      cachedDetail.value = detail
+    }
 
     const staticCandidates = collectStaticCandidates(detail)
     let narrationCandidates: RoutePosterCandidateImage[] = []
@@ -317,15 +350,22 @@ const bootstrap = async () => {
       merged.push(item)
     })
     candidates.value = merged
-
-    await loadPosters()
   } catch (error) {
-    errorMessage.value = resolveError(error, '加载路线图片失败。')
-    candidates.value = collectStaticCandidates(null)
-    posters.value = []
+    errorMessage.value = resolveError(error, '加载节点图片失败。')
+    candidates.value = []
   } finally {
-    bootstrapping.value = false
+    loadingNodeImages.value = false
   }
+}
+
+const onUseNodeImagesChange = (event: Event) => {
+  const checked = (event.target as HTMLInputElement | null)?.checked ?? false
+  useNodeImages.value = checked
+  if (!checked) {
+    candidates.value = []
+    return
+  }
+  void loadNodeCandidates()
 }
 
 const handleGenerate = async () => {
@@ -399,14 +439,17 @@ const resetState = () => {
   stopPoll()
   closeLightbox()
   bootstrapping.value = false
+  loadingNodeImages.value = false
   generating.value = false
   errorMessage.value = ''
   infoMessage.value = ''
   prompt.value = ''
   refDraft.value = ''
   refUrls.value = []
+  useNodeImages.value = false
   candidates.value = []
   posters.value = []
+  cachedDetail.value = null
 }
 
 const onOpenChange = (value: boolean) => {
@@ -438,7 +481,7 @@ onBeforeUnmount(() => {
       <DialogHeader class="shrink-0 space-y-1.5 border-b border-border/60 px-5 py-4">
         <DialogTitle>海报管理</DialogTitle>
         <DialogDescription>
-          {{ routeTitle }} · 可选节点图片或外链作参考，生成后自动加入列表
+          {{ routeTitle }} · 可粘贴外链参考；需要时再启用节点图片
         </DialogDescription>
       </DialogHeader>
 
@@ -447,7 +490,7 @@ onBeforeUnmount(() => {
           v-if="bootstrapping"
           class="rounded-lg border border-border/60 bg-muted/10 px-3 py-6 text-center text-sm text-muted-foreground"
         >
-          正在加载路线图片…
+          正在加载海报…
         </div>
 
         <template v-else>
@@ -532,12 +575,27 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="space-y-1.5">
-            <p class="text-sm font-medium">
-              节点可用图片
-              <span class="font-normal text-muted-foreground">点击加入参考</span>
-            </p>
+            <label class="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                class="h-3.5 w-3.5 rounded border-border accent-primary"
+                :checked="useNodeImages"
+                :disabled="generating || polling || loadingNodeImages"
+                @change="onUseNodeImagesChange"
+              >
+              <span>启用节点可用图</span>
+              <span class="font-normal text-muted-foreground">勾选后加载本路线节点图片</span>
+            </label>
+
             <div
-              v-if="candidates.length"
+              v-if="useNodeImages && loadingNodeImages"
+              class="rounded-lg border border-border/60 bg-muted/10 px-3 py-4 text-center text-xs text-muted-foreground"
+            >
+              正在获取节点图片…
+            </div>
+
+            <div
+              v-else-if="useNodeImages && candidates.length"
               class="grid grid-cols-4 gap-2 sm:grid-cols-5"
             >
               <button
@@ -564,8 +622,9 @@ onBeforeUnmount(() => {
                 </span>
               </button>
             </div>
+
             <p
-              v-else
+              v-else-if="useNodeImages && !loadingNodeImages"
               class="rounded-lg border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground"
             >
               当前路线节点暂无可用图片，可粘贴外链作参考。

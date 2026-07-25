@@ -8,6 +8,7 @@ import {
   BarChart3,
   CircleAlert,
   CircleCheck,
+  Ellipsis,
   ImageUp,
   Library,
   LibraryBig,
@@ -35,6 +36,7 @@ export type AppIconName =
   | 'bot'
   | 'circle-alert'
   | 'circle-check'
+  | 'ellipsis'
   | 'image-up'
   | 'library'
   | 'library-big'
@@ -71,6 +73,7 @@ const iconMap: Record<AppIconName, LucideIcon> = {
   bot: Bot,
   'circle-alert': CircleAlert,
   'circle-check': CircleCheck,
+  ellipsis: Ellipsis,
   'image-up': ImageUp,
   library: Library,
   'library-big': LibraryBig,
