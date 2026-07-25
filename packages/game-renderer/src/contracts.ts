@@ -57,14 +57,20 @@ export interface ImagePuzzlePiece {
   label: string
   hint?: string | null
   imageUrl?: string | null
+  /** 正解行号（0 基），来自 config.pieces[].correct_row */
+  correctRow?: number | null
+  /** 正解列号（0 基），来自 config.pieces[].correct_col */
+  correctCol?: number | null
 }
 
 export interface ImagePuzzlePayload {
   prompt: string
+  /** 完整底图；后端字段为 base_image_url，兼容 image_url */
   imageUrl?: string | null
+  /** @deprecated 正方形兜底，优先用 gridRows / gridCols */
   gridSize: number
-  gridRows?: number
-  gridCols?: number
+  gridRows: number
+  gridCols: number
   pieces: ImagePuzzlePiece[]
   correctOrder: string[]
   revealTitle?: string | null

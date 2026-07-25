@@ -23,6 +23,7 @@ import AppIcon from '@/components/ui/AppIcon.vue'
 import {
   getInteractionTypeMeta,
   isSupportedInteractionType,
+  parseJsonValue,
   parseStageConfig,
 } from '@path-seeker/game-renderer'
 import { useUploadAttachment } from '@/composables/useUploadAttachment'
@@ -48,11 +49,16 @@ interface ChoiceOptionRow {
   label: string
 }
 
-/** 拼图碎片行：标识后台维护，导游只填名称与可选提示 */
+/** 拼图碎片行：对齐 config.pieces[]（id/key/label/hint/image_url/correct_row/col） */
 interface PuzzlePieceRow {
   id: string
   label: string
   hint: string
+  /** 预裁切碎片图；每片独立上传，对应 pieces[].image_url */
+  imageUrl: string
+  /** 正解行列（0 基）；编辑时由列表顺序回算 */
+  correctRow: number | null
+  correctCol: number | null
 }
 
 interface StageFormState {
@@ -63,7 +69,10 @@ interface StageFormState {
   correctOptionId: string
   hintsInput: string
   imageUrl: string
-  gridSize: string
+  /** 网格行数（对齐后端 config.grid_rows） */
+  gridRows: string
+  /** 网格列数（对齐后端 config.grid_cols） */
+  gridCols: string
   puzzlePieces: PuzzlePieceRow[]
   /** 正确拼合顺序（碎片 id 列表） */
   correctOrderIds: string[]
@@ -121,7 +130,7 @@ const IMAGE_GEN_REF_MAX = 5
 /** 解说配图本地列表；与 detail.images 同步，增删走 NarrationImage API */
 const narrationImages = shallowRef<RouteStageNarrationImageResponse[]>([])
 const imageInputRef = useTemplateRef<HTMLInputElement>('imageInput')
-const puzzleImageInputRef = useTemplateRef<HTMLInputElement>('puzzleImageInput')
+const pieceImageInputRef = useTemplateRef<HTMLInputElement>('pieceImageInput')
 const videoInputRef = useTemplateRef<HTMLInputElement>('videoInput')
 const baseConfig = ref<Record<string, unknown>>({})
 const guideSelectOpen = ref(false)
@@ -129,9 +138,15 @@ const guidePending = ref(false)
 const guides = ref<GuideRecord[]>([])
 const mediaUploading = ref(false)
 const showMediaAdvanced = ref(false)
+/** 当前正在上传碎片图的格子下标 */
+const pieceUploadIndex = ref<number | null>(null)
+/** 拼图编辑网格：拖动交换起点 / 悬停目标 */
+const pieceDragFrom = ref<number | null>(null)
+const pieceDragOver = ref<number | null>(null)
+let pieceDragPointerId: number | null = null
 const form = reactive<StageFormState>({
   title: '', subtitle: '', prompt: '', choiceOptions: [], correctOptionId: '', hintsInput: '',
-  imageUrl: '', gridSize: '3', puzzlePieces: [], correctOrderIds: [], clueText: '', location: '', videoUrl: '',
+  imageUrl: '', gridRows: '3', gridCols: '3', puzzlePieces: [], correctOrderIds: [], clueText: '', location: '', videoUrl: '',
   userStyleInput: '', sceneContext: '', targetDurationSeconds: '90', narrationText: '', guideId: '', guideName: '',
 })
 
@@ -274,24 +289,71 @@ const resolveError = (error: unknown, fallback: string) => {
   }
   return fallback
 }
-const readText = (value: unknown) => typeof value === 'string' ? value.trim() : ''
-const readArray = (value: unknown) => Array.isArray(value) ? value : []
+const readText = (value: unknown) => {
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return ''
+}
+
+/** 兼容数组 / JSON 字符串 / .NET $values，与 adaptStage.asArray 对齐 */
+const asConfigArray = (value: unknown): unknown[] => {
+  const parsed = parseJsonValue(value)
+  if (Array.isArray(parsed)) return parsed
+  if (parsed && typeof parsed === 'object') {
+    const values = (parsed as { $values?: unknown }).$values
+    if (Array.isArray(values)) return values
+  }
+  return []
+}
+
+const readRecordText = (record: Record<string, unknown>, ...keys: string[]) => {
+  for (const key of keys) {
+    const text = readText(record[key])
+    if (text) return text
+  }
+  return ''
+}
+
 const toLines = (value: unknown, mapper: (item: Record<string, unknown>, index: number) => string) =>
-  readArray(value).map((item, index) => mapper(item as Record<string, unknown>, index)).join('\n')
+  asConfigArray(value).map((item, index) => mapper(item as Record<string, unknown>, index)).join('\n')
 
 const createOptionId = (index: number) => `option-${index + 1}`
 const createPieceId = (index: number) => `piece-${index + 1}`
 
+/**
+ * 解析线性答题选项。
+ * 兼容：对象数组、纯字符串数组、JSON 字符串、$values，以及 label/text/title/content/value 等别名。
+ */
 const parseChoiceOptions = (value: unknown): ChoiceOptionRow[] => {
-  const rows = readArray(value).map((item, index) => {
-    const record = item as Record<string, unknown>
-    const id = readText(record.id) || readText(record.key) || createOptionId(index)
-    const label = readText(record.label) || readText(record.text) || `选项 ${index + 1}`
+  const rows = asConfigArray(value).map((item, index) => {
+    // 纯字符串选项：["两种", "三种"]
+    if (typeof item === 'string' || typeof item === 'number') {
+      const label = readText(item)
+      return { id: createOptionId(index), label }
+    }
+    const record = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
+    // id 只用标识字段；value 更常见作文案，留给 label
+    const id = readRecordText(record, 'id', 'Id', 'key', 'Key') || createOptionId(index)
+    const label = readRecordText(
+      record,
+      'label', 'Label',
+      'text', 'Text',
+      'title', 'Title',
+      'content', 'Content',
+      'name', 'Name',
+      'option', 'Option',
+      'value', 'Value',
+    )
     return { id, label }
   }).filter((item) => Boolean(item.label.trim()))
 
   if (rows.length >= 2) {
     return rows
+  }
+
+  // 不足两项时补空行，便于编辑；已有一项则保留
+  if (rows.length === 1) {
+    return [...rows, { id: createOptionId(1), label: '' }]
   }
 
   return [
@@ -300,55 +362,201 @@ const parseChoiceOptions = (value: unknown): ChoiceOptionRow[] => {
   ]
 }
 
-const parsePuzzlePieces = (value: unknown): PuzzlePieceRow[] => {
-  const rows = readArray(value).map((item, index) => {
-    const record = item as Record<string, unknown>
-    return {
-      id: readText(record.id) || readText(record.key) || createPieceId(index),
-      label: readText(record.label) || readText(record.text) || `碎片 ${index + 1}`,
-      hint: readText(record.hint) || readText(record.description),
+const readNumberOrNull = (...values: unknown[]): number | null => {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value
     }
-  }).filter((item) => Boolean(item.label.trim()))
+    if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) {
+      return Number(value)
+    }
+  }
+  return null
+}
+
+const emptyPieceRow = (index: number): PuzzlePieceRow => ({
+  id: createPieceId(index),
+  label: '',
+  hint: '',
+  imageUrl: '',
+  correctRow: null,
+  correctCol: null,
+})
+
+/**
+ * 解析拼图碎片（对齐 config.pieces[]）：
+ * id / key / label / hint / image_url / correct_row / correct_col
+ */
+const parsePuzzlePieces = (value: unknown): PuzzlePieceRow[] => {
+  const rows = asConfigArray(value).map((item, index) => {
+    const record = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>
+    const id = readRecordText(record, 'id', 'Id', 'key', 'Key', 'value', 'Value') || createPieceId(index)
+    const label = readRecordText(record, 'label', 'Label', 'text', 'Text', 'title', 'Title', 'name', 'Name')
+      || `碎片 ${index + 1}`
+    return {
+      id,
+      label,
+      hint: readRecordText(record, 'hint', 'Hint', 'description', 'Description'),
+      imageUrl: readRecordText(record, 'image_url', 'imageUrl', 'ImageUrl', 'url', 'Url'),
+      correctRow: readNumberOrNull(record.correct_row, record.correctRow, record.row, record.Row),
+      correctCol: readNumberOrNull(record.correct_col, record.correctCol, record.col, record.Col),
+    }
+  }).filter((item) => Boolean(item.id.trim() || item.imageUrl.trim() || item.label.trim()))
 
   if (rows.length) {
     return rows
   }
 
-  return [
-    { id: 'piece-1', label: '', hint: '' },
-    { id: 'piece-2', label: '', hint: '' },
-  ]
+  return [emptyPieceRow(0), emptyPieceRow(1)]
 }
 
-const syncCorrectOrderIds = (pieces: PuzzlePieceRow[], orderSource: unknown) => {
-  const pieceIds = new Set(pieces.map((item) => item.id))
-  const fromConfig = readArray(orderSource)
+/**
+ * 列表顺序 = 正确拼合顺序（行优先）。
+ * 优先 config.correct_order；否则按 correct_row/col 排序；再否则保持原序。
+ */
+const orderPuzzlePieces = (pieces: PuzzlePieceRow[], orderSource: unknown, cols: number): PuzzlePieceRow[] => {
+  if (!pieces.length) return pieces
+  const byId = new Map(pieces.map((item) => [item.id, item]))
+  const fromConfig = asConfigArray(orderSource)
     .map((item) => String(item).trim())
-    .filter((id) => pieceIds.has(id))
-  const missing = pieces.map((item) => item.id).filter((id) => !fromConfig.includes(id))
-  return [...fromConfig, ...missing]
+    .map((id) => byId.get(id))
+    .filter((item): item is PuzzlePieceRow => Boolean(item))
+
+  if (fromConfig.length === pieces.length) {
+    return fromConfig
+  }
+  if (fromConfig.length) {
+    const used = new Set(fromConfig.map((item) => item.id))
+    return [...fromConfig, ...pieces.filter((item) => !used.has(item.id))]
+  }
+
+  const positioned = pieces.filter((item) => item.correctRow != null && item.correctCol != null)
+  if (positioned.length === pieces.length) {
+    const span = Math.max(1, cols)
+    return [...pieces].sort(
+      (left, right) =>
+        (Number(left.correctRow) * span + Number(left.correctCol))
+        - (Number(right.correctRow) * span + Number(right.correctCol)),
+    )
+  }
+
+  return pieces
+}
+
+const syncCorrectOrderFromPieces = () => {
+  form.correctOrderIds = form.puzzlePieces.map((item) => item.id)
+}
+
+/** 编辑网格行列（与渲染端 grid_rows / grid_cols 一致） */
+const clampGridDim = (value: string, fallback = 3) => {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue)
+    ? Math.min(12, Math.max(1, Math.round(numberValue)))
+    : fallback
+}
+const puzzleGridRows = computed(() => clampGridDim(form.gridRows))
+const puzzleGridCols = computed(() => clampGridDim(form.gridCols))
+const puzzleSlotCount = computed(() => puzzleGridRows.value * puzzleGridCols.value)
+/** 编辑盘面：单格约 144px，整体不超过 560px（相对上一版 ×2，保证换图/删除可点） */
+const puzzleGridStyle = computed(() => {
+  const cols = puzzleGridCols.value
+  const rows = puzzleGridRows.value
+  const maxBoard = 560
+  const cell = Math.max(80, Math.min(144, Math.floor(maxBoard / Math.max(cols, rows))))
+  return {
+    display: 'grid',
+    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+    width: `${cell * cols}px`,
+    height: `${cell * rows}px`,
+  }
+})
+
+/**
+ * 按当前行列对齐碎片槽位数：多裁少补。
+ * 编辑态固定 rows×cols 格，与渲染盘面一致。
+ */
+const ensurePuzzleGridSize = () => {
+  const count = Math.max(1, puzzleSlotCount.value)
+  const usedIds = new Set(form.puzzlePieces.map((item) => item.id))
+  while (form.puzzlePieces.length < count) {
+    const index = form.puzzlePieces.length
+    let next = index + 1
+    let id = createPieceId(next)
+    while (usedIds.has(id)) {
+      next += 1
+      id = createPieceId(next)
+    }
+    usedIds.add(id)
+    form.puzzlePieces.push({
+      ...emptyPieceRow(index),
+      id,
+      label: `碎片 ${index + 1}`,
+    })
+  }
+  if (form.puzzlePieces.length > count) {
+    form.puzzlePieces.splice(count)
+  }
+  // 空名称按槽位补默认名，便于保存
+  form.puzzlePieces.forEach((piece, index) => {
+    if (!piece.label.trim()) {
+      piece.label = `碎片 ${index + 1}`
+    }
+  })
+  syncCorrectOrderFromPieces()
 }
 
 const resetForm = () => {
   const node = props.node
   const config = node ? parseStageConfig(node.config) as Record<string, unknown> : {}
   baseConfig.value = { ...config }
+  // 答案扩展：可能嵌在 config.answer_extra（JSON 字符串或对象），与 C 端 StagePlay.answerExtra 同源字段
+  const answerExtra = parseStageConfig(
+    config.answer_extra ?? config.answerExtra ?? config.AnswerExtra,
+  ) as Record<string, unknown>
+
   form.title = node?.title || ''
   form.subtitle = node?.subtitle || ''
-  form.prompt = readText(config.content) || readText(config.prompt)
-  form.choiceOptions = parseChoiceOptions(config.options ?? config.choices)
-  form.correctOptionId = readText(config.correct_option_id) || readText(config.correctOptionId) || readText(config.answer)
+  form.prompt = readText(config.content)
+    || readText(config.Content)
+    || readText(config.prompt)
+    || readText(config.Prompt)
+  form.choiceOptions = parseChoiceOptions(
+    config.options
+    ?? config.Options
+    ?? config.choices
+    ?? config.Choices
+    ?? answerExtra.options
+    ?? answerExtra.Options
+    ?? answerExtra.choices,
+  )
+  form.correctOptionId = readText(config.correct_option_id)
+    || readText(config.correctOptionId)
+    || readText(config.CorrectOptionId)
+    || readText(config.answer)
+    || readText(answerExtra.correct_option_id)
+    || readText(answerExtra.correctOptionId)
+    || readText(answerExtra.answer)
+    || readText(answerExtra.correct_answer)
   if (!form.choiceOptions.some((item) => item.id === form.correctOptionId)) {
     form.correctOptionId = form.choiceOptions[0]?.id || ''
   }
   form.hintsInput = toLines(config.hints, (item) => readText(item.content) || readText(item.text))
-  form.imageUrl = readText(config.image_url) || readText(config.imageUrl)
-  form.gridSize = String(config.grid_size ?? config.gridSize ?? 3)
-  form.puzzlePieces = parsePuzzlePieces(config.pieces ?? config.items ?? config.fragments)
-  form.correctOrderIds = syncCorrectOrderIds(
-    form.puzzlePieces,
-    config.correct_order ?? config.correctOrder ?? config.answer,
+  form.imageUrl = readText(config.base_image_url)
+    || readText(config.baseImageUrl)
+    || readText(config.image_url)
+    || readText(config.imageUrl)
+  // 行列：显式优先；仅有旧 grid_size 时按正方形回填
+  const legacyGridSize = readNumberOrNull(config.grid_size, config.gridSize)
+  form.gridRows = String(readNumberOrNull(config.grid_rows, config.gridRows) ?? legacyGridSize ?? 3)
+  form.gridCols = String(readNumberOrNull(config.grid_cols, config.gridCols) ?? legacyGridSize ?? 3)
+  const cols = Number(form.gridCols) || 3
+  form.puzzlePieces = orderPuzzlePieces(
+    parsePuzzlePieces(config.pieces ?? config.Pieces ?? config.items ?? config.fragments ?? config.peace),
+    config.correct_order ?? config.correctOrder ?? answerExtra.correct_order ?? answerExtra.correctOrder,
+    cols,
   )
+  // 按行列铺满网格槽位，与渲染盘面一致
+  ensurePuzzleGridSize()
   form.clueText = readText(config.clue_text) || readText(config.clue) || readText(config.rule_hint)
   form.location = readText(config.location) || readText(config.target_exhibit_name) || readText(config.gallery_name)
   form.videoUrl = readText(config.video_url) || readText(config.videoUrl) || readText(config.intro_video_url)
@@ -361,6 +569,8 @@ const resetForm = () => {
   syncNarrationImages(narrationDetail.value)
   showMediaAdvanced.value = false
   mediaUploading.value = false
+  pieceUploadIndex.value = null
+  resetPieceDrag()
   imageSourceMode.value = 'upload'
   imageGenPrompt.value = ''
   imageGenRefUrls.value = []
@@ -389,47 +599,23 @@ const removeChoiceOption = (index: number) => {
   }
 }
 
-const addPuzzlePiece = () => {
-  const id = createPieceId(form.puzzlePieces.length)
-  form.puzzlePieces.push({ id, label: '', hint: '' })
-  if (!form.correctOrderIds.includes(id)) {
-    form.correctOrderIds.push(id)
-  }
+/** 交换两格碎片（正解位置随槽位变） */
+const swapPuzzlePieces = (from: number, to: number) => {
+  if (from === to || from < 0 || to < 0) return
+  const list = form.puzzlePieces
+  if (from >= list.length || to >= list.length) return
+  const left = list[from]
+  const right = list[to]
+  if (left === undefined || right === undefined) return
+  list[from] = right
+  list[to] = left
+  syncCorrectOrderFromPieces()
 }
 
-const removePuzzlePiece = (index: number) => {
-  if (form.puzzlePieces.length <= 2) {
-    return
-  }
-  const [removed] = form.puzzlePieces.splice(index, 1)
-  if (removed) {
-    form.correctOrderIds = form.correctOrderIds.filter((id) => id !== removed.id)
-  }
-}
-
-const moveCorrectOrder = (index: number, direction: -1 | 1) => {
-  const target = index + direction
-  if (target < 0 || target >= form.correctOrderIds.length) {
-    return
-  }
-  const list = form.correctOrderIds
-  const current = list[index]
-  const swap = list[target]
-  if (current === undefined || swap === undefined) {
-    return
-  }
-  list[index] = swap
-  list[target] = current
-}
-
-const pieceLabelById = (id: string) => {
-  const piece = form.puzzlePieces.find((item) => item.id === id)
-  return piece?.label.trim() || id
-}
-
-const openPuzzleImagePicker = () => {
+const openPieceImagePicker = (index: number) => {
   if (!props.canEdit || mediaUploading.value || saving.value) return
-  puzzleImageInputRef.value?.click()
+  pieceUploadIndex.value = index
+  pieceImageInputRef.value?.click()
 }
 
 const openVideoPicker = () => {
@@ -437,11 +623,15 @@ const openVideoPicker = () => {
   videoInputRef.value?.click()
 }
 
-const handlePuzzleImageUpload = async (event: Event) => {
+const handlePieceImageUpload = async (event: Event) => {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0] ?? null
   input.value = ''
-  if (!file) return
+  const index = pieceUploadIndex.value
+  if (!file || index == null || index < 0 || index >= form.puzzlePieces.length) {
+    pieceUploadIndex.value = null
+    return
+  }
 
   mediaUploading.value = true
   errorMessage.value = ''
@@ -451,13 +641,85 @@ const handlePuzzleImageUpload = async (event: Event) => {
     if (!url) {
       throw new Error('上传成功但未返回图片地址。')
     }
-    form.imageUrl = url
-    infoMessage.value = '拼图图片已上传。'
+    const piece = form.puzzlePieces[index]
+    if (piece) {
+      piece.imageUrl = url
+      if (!piece.label.trim()) {
+        piece.label = `碎片 ${index + 1}`
+      }
+    }
+    // 兼容字段：首片图同步到 base_image_url（部分旧预览仍读底图）
+    if (index === 0 || !form.imageUrl.trim()) {
+      form.imageUrl = url
+    }
+    infoMessage.value = `第 ${index + 1} 格碎片已上传。`
   } catch (error) {
-    errorMessage.value = resolveError(error, '拼图图片上传失败。')
+    errorMessage.value = resolveError(error, '碎片图片上传失败。')
   } finally {
     mediaUploading.value = false
+    pieceUploadIndex.value = null
   }
+}
+
+/** 清除格内碎片图（槽位保留，对齐固定行列网格） */
+const clearPieceImage = (index: number) => {
+  const piece = form.puzzlePieces[index]
+  if (!piece) return
+  piece.imageUrl = ''
+}
+
+const resetPieceDrag = () => {
+  pieceDragFrom.value = null
+  pieceDragOver.value = null
+  pieceDragPointerId = null
+}
+
+const pieceSlotFromPoint = (clientX: number, clientY: number): number | null => {
+  if (typeof document === 'undefined') return null
+  const el = document.elementFromPoint(clientX, clientY)
+  const cell = el?.closest?.('[data-puzzle-slot]') as HTMLElement | null
+  if (!cell) return null
+  const slot = Number(cell.dataset.puzzleSlot)
+  return Number.isFinite(slot) ? slot : null
+}
+
+/** 与渲染端一致：拖到另一格松开即交换 */
+const onPiecePointerDown = (index: number, event: PointerEvent) => {
+  if (!props.canEdit || mediaUploading.value || saving.value) return
+  // 点在操作按钮上不进入拖动
+  const target = event.target as HTMLElement | null
+  if (target?.closest?.('[data-piece-action]')) return
+
+  pieceDragPointerId = event.pointerId
+  pieceDragFrom.value = index
+  pieceDragOver.value = index
+  try {
+    (event.currentTarget as HTMLElement | null)?.setPointerCapture?.(event.pointerId)
+  } catch {
+    // ignore
+  }
+}
+
+const onPiecePointerMove = (event: PointerEvent) => {
+  if (pieceDragFrom.value === null || pieceDragPointerId !== event.pointerId) return
+  const slot = pieceSlotFromPoint(event.clientX, event.clientY)
+  if (slot !== null) {
+    pieceDragOver.value = slot
+  }
+}
+
+const onPiecePointerUp = (event: PointerEvent) => {
+  if (pieceDragFrom.value === null || pieceDragPointerId !== event.pointerId) return
+  const from = pieceDragFrom.value
+  const to = pieceSlotFromPoint(event.clientX, event.clientY)
+  resetPieceDrag()
+  if (to == null || to === from) return
+  swapPuzzlePieces(from, to)
+}
+
+const onPiecePointerCancel = (event: PointerEvent) => {
+  if (pieceDragPointerId !== null && event.pointerId !== pieceDragPointerId) return
+  resetPieceDrag()
 }
 
 const handleVideoUpload = async (event: Event) => {
@@ -481,10 +743,6 @@ const handleVideoUpload = async (event: Event) => {
   } finally {
     mediaUploading.value = false
   }
-}
-
-const clearPuzzleImage = () => {
-  form.imageUrl = ''
 }
 
 const clearVideoUrl = () => {
@@ -925,6 +1183,15 @@ watch(
   { immediate: true },
 )
 
+/** 改行列时同步网格槽位，保持与渲染盘面一致 */
+watch(
+  () => [form.gridRows, form.gridCols, isImagePuzzle.value] as const,
+  () => {
+    if (!isImagePuzzle.value) return
+    ensurePuzzleGridSize()
+  },
+)
+
 const parseChoiceOptionsForSave = () => form.choiceOptions
   .map((item, index) => {
     const label = item.label.trim()
@@ -936,17 +1203,44 @@ const parseChoiceOptionsForSave = () => form.choiceOptions
   })
   .filter((item): item is ChoiceOptionRow => item !== null)
 
-const parsePiecesForSave = () => form.puzzlePieces
-  .map((item, index) => {
-    const label = item.label.trim()
-    if (!label) return null
-    return {
-      id: item.id.trim() || createPieceId(index),
-      label,
-      hint: item.hint.trim() || null,
-    }
-  })
-  .filter((item): item is { id: string; label: string; hint: string | null } => item !== null)
+interface PuzzlePieceConfig {
+  id: string
+  key: string
+  label: string
+  hint: string | null
+  image_url: string | null
+  correct_row: number | null
+  correct_col: number | null
+}
+
+/**
+ * 碎片落库：列表顺序即正解（行优先），回写 correct_row / correct_col。
+ * 每片必须自带 image_url（预裁切碎片图），不再用整张底图回退。
+ */
+const parsePiecesForSave = (cols: number): PuzzlePieceConfig[] => {
+  const span = Math.max(1, cols)
+  // 以当前列表顺序为准
+  syncCorrectOrderFromPieces()
+
+  return form.puzzlePieces
+    .map((item, index): PuzzlePieceConfig | null => {
+      const imageUrl = item.imageUrl.trim()
+      if (!imageUrl) return null
+      const id = item.id.trim() || createPieceId(index)
+      const label = item.label.trim() || `碎片 ${index + 1}`
+      return {
+        id,
+        // 后端 config 用 key 标识碎片，与 id 同值便于双向读取
+        key: id,
+        label,
+        hint: item.hint.trim() || null,
+        image_url: imageUrl,
+        correct_row: Math.floor(index / span),
+        correct_col: index % span,
+      }
+    })
+    .filter((item): item is PuzzlePieceConfig => item !== null)
+}
 
 const parseHints = () => form.hintsInput.split('\n')
   .map((content, index) => ({ content: content.trim(), sort_order: index + 1 }))
@@ -975,17 +1269,42 @@ const buildRegularConfig = () => {
     config.content = form.prompt.trim()
     config.options = options
     config.correct_option_id = correctId
+    // 同步 answer_extra，避免 C 端只读答案扩展时丢失选项/正解
+    const prevExtra = parseStageConfig(
+      config.answer_extra ?? config.answerExtra,
+    ) as Record<string, unknown>
+    config.answer_extra = {
+      ...prevExtra,
+      options,
+      correct_option_id: correctId,
+    }
+    delete config.answerExtra
   } else if (isImagePuzzle.value) {
-    const pieces = parsePiecesForSave()
-    const pieceIds = new Set(pieces.map((item) => item.id))
-    const correctOrder = form.correctOrderIds.filter((id) => pieceIds.has(id))
-    if (!form.prompt.trim() || !pieces.length || !correctOrder.length) {
-      errorMessage.value = '请填写题干、至少两块碎片，并设置正确顺序。'
+    ensurePuzzleGridSize()
+    const rows = puzzleGridRows.value
+    const cols = puzzleGridCols.value
+    const pieces = parsePiecesForSave(cols)
+    const correctOrder = pieces.map((item) => item.id)
+    if (!form.prompt.trim()) {
+      errorMessage.value = '请填写题干。'
+      return null
+    }
+    if (form.puzzlePieces.some((item) => !item.imageUrl.trim())) {
+      errorMessage.value = '请为网格中每一格上传碎片图片。'
+      return null
+    }
+    if (pieces.length !== rows * cols || pieces.length < 2) {
+      errorMessage.value = `请按 ${rows} × ${cols} 网格上传全部碎片（至少 2 格）。`
       return null
     }
     config.content = form.prompt.trim()
-    config.image_url = form.imageUrl.trim() || null
-    config.grid_size = toBoundedInteger(form.gridSize, 1, 12, 3)
+    // 底图可选：取首片图作兼容字段；游玩端以 pieces[].image_url 为准
+    const firstPieceUrl = pieces[0]?.image_url ?? null
+    config.base_image_url = form.imageUrl.trim() || firstPieceUrl
+    config.image_url = form.imageUrl.trim() || firstPieceUrl
+    config.grid_rows = rows
+    config.grid_cols = cols
+    delete config.grid_size
     config.pieces = pieces
     config.correct_order = correctOrder
   } else if (isFindScan.value) {
@@ -1268,159 +1587,112 @@ const handleSave = async () => {
                   :disabled="!props.canEdit || saving" />
               </label>
 
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-medium">
+                    网格尺寸
+                  </p>
+                  <p class="text-[11px] text-muted-foreground">
+                    {{ puzzleGridRows }} × {{ puzzleGridCols }} = {{ puzzleSlotCount }} 格
+                  </p>
+                </div>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <label class="block space-y-1 text-xs text-muted-foreground">
+                    行数
+                    <Input
+                      v-model="form.gridRows"
+                      type="number"
+                      min="1"
+                      max="12"
+                      :disabled="!props.canEdit || saving" />
+                  </label>
+                  <label class="block space-y-1 text-xs text-muted-foreground">
+                    列数
+                    <Input
+                      v-model="form.gridCols"
+                      type="number"
+                      min="1"
+                      max="12"
+                      :disabled="!props.canEdit || saving" />
+                  </label>
+                </div>
+              </div>
+
               <div class="space-y-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-sm font-medium">
-                    拼图图片
+                    拼图盘面
                   </p>
-                  <span class="text-[11px] text-muted-foreground">JPG / PNG</span>
+                  <p class="text-[11px] text-muted-foreground">
+                    空格点击上传 · 拖动交换 · 悬停清除
+                  </p>
                 </div>
                 <input
-                  ref="puzzleImageInput"
+                  ref="pieceImageInput"
                   type="file"
                   accept="image/*"
                   class="hidden"
-                  @change="handlePuzzleImageUpload">
-                <div class="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                    class="h-8"
-                    :disabled="!props.canEdit || saving || mediaUploading"
-                    @click="openPuzzleImagePicker">
-                    {{ mediaUploading ? '上传中…' : form.imageUrl ? '重新上传' : '上传图片' }}
-                  </Button>
-                  <Button
-                    v-if="form.imageUrl"
-                    variant="ghost"
-                    size="sm"
-                    type="button"
-                    class="h-8"
-                    :disabled="!props.canEdit || saving || mediaUploading"
-                    @click="clearPuzzleImage">
-                    清除
-                  </Button>
-                </div>
+                  @change="handlePieceImageUpload">
                 <div
-                  v-if="form.imageUrl"
-                  class="overflow-hidden rounded-lg border border-border/60 bg-background/40">
-                  <img
-                    :src="form.imageUrl"
-                    alt="拼图预览"
-                    class="max-h-40 w-full object-contain">
-                </div>
-                <div class="rounded-lg border border-border/50">
-                  <button
-                    type="button"
-                    class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs text-muted-foreground"
-                    @click="showMediaAdvanced = !showMediaAdvanced">
-                    <span>高级：使用图片地址</span>
-                    <span>{{ showMediaAdvanced ? '收起' : '展开' }}</span>
-                  </button>
-                  <div v-if="showMediaAdvanced" class="border-t border-border/50 px-3 py-2">
-                    <Input
-                      v-model="form.imageUrl"
-                      placeholder="https://..."
-                      :disabled="!props.canEdit || saving" />
-                  </div>
-                </div>
-              </div>
-
-              <label class="block space-y-1.5 text-sm font-medium">
-                网格尺寸
-                <Input
-                  v-model="form.gridSize"
-                  type="number"
-                  min="1"
-                  max="12"
-                  :disabled="!props.canEdit || saving" />
-              </label>
-
-              <div class="space-y-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-sm font-medium">
-                    拼图碎片
-                  </p>
-                  <p class="text-[11px] text-muted-foreground">
-                    填写名称即可，标识由系统保存
-                  </p>
-                </div>
-                <div class="space-y-2">
+                  class="mx-auto gap-0.5 overflow-hidden rounded-lg border border-border/60 bg-black/40"
+                  :style="puzzleGridStyle">
                   <div
                     v-for="(piece, index) in form.puzzlePieces"
                     :key="piece.id"
-                    class="grid gap-2 rounded-lg border border-border/60 bg-background/30 px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                    <Input
-                      v-model="piece.label"
-                      class="min-w-0"
-                      :placeholder="`碎片 ${index + 1} 名称`"
-                      :disabled="!props.canEdit || saving" />
-                    <Input
-                      v-model="piece.hint"
-                      class="min-w-0"
-                      placeholder="提示（可选）"
-                      :disabled="!props.canEdit || saving" />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      type="button"
-                      class="shrink-0"
-                      :disabled="!props.canEdit || saving || form.puzzlePieces.length <= 2"
-                      @click="removePuzzlePiece(index)">
-                      删除
-                    </Button>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  class="h-8"
-                  :disabled="!props.canEdit || saving"
-                  @click="addPuzzlePiece">
-                  添加碎片
-                </Button>
-              </div>
-
-              <div class="space-y-2">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="text-sm font-medium">
-                    正确顺序
-                  </p>
-                  <p class="text-[11px] text-muted-foreground">
-                    用上下调整游客应拼合的先后
-                  </p>
-                </div>
-                <div class="space-y-1.5">
-                  <div
-                    v-for="(pieceId, index) in form.correctOrderIds"
-                    :key="`order-${pieceId}`"
-                    class="flex items-center gap-2 rounded-lg border border-border/60 bg-background/30 px-2.5 py-2">
-                    <span class="w-6 shrink-0 text-center text-xs text-muted-foreground">
+                    class="group relative min-h-0 min-w-0 touch-none select-none bg-white/[0.06] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]"
+                    :class="{
+                      'cursor-grab': props.canEdit && Boolean(piece.imageUrl) && !saving && !mediaUploading,
+                      'opacity-80 ring-1 ring-amber-300/50': pieceDragFrom === index,
+                      'ring-1 ring-amber-300/60 bg-amber-500/10': pieceDragOver === index && pieceDragFrom !== null && pieceDragFrom !== index,
+                      'bg-black/25': Boolean(piece.imageUrl),
+                    }"
+                    :data-puzzle-slot="index"
+                    :style="piece.imageUrl
+                      ? {
+                        backgroundImage: `url(${JSON.stringify(piece.imageUrl)})`,
+                        backgroundSize: '100% 100%',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                      }
+                      : undefined"
+                    @pointerdown="onPiecePointerDown(index, $event)"
+                    @pointermove="onPiecePointerMove"
+                    @pointerup="onPiecePointerUp"
+                    @pointercancel="onPiecePointerCancel">
+                    <span class="pointer-events-none absolute left-1 top-1 z-[1] rounded bg-black/55 px-1 py-px text-[10px] font-medium text-white/80">
                       {{ index + 1 }}
                     </span>
-                    <span class="min-w-0 flex-1 truncate text-sm">
-                      {{ pieceLabelById(pieceId) }}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
+
+                    <button
+                      v-if="!piece.imageUrl"
                       type="button"
-                      class="h-8 shrink-0 px-2"
-                      :disabled="!props.canEdit || saving || index === 0"
-                      @click="moveCorrectOrder(index, -1)">
-                      上移
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      type="button"
-                      class="h-8 shrink-0 px-2"
-                      :disabled="!props.canEdit || saving || index >= form.correctOrderIds.length - 1"
-                      @click="moveCorrectOrder(index, 1)">
-                      下移
-                    </Button>
+                      data-piece-action="upload"
+                      class="absolute inset-0 z-[1] flex flex-col items-center justify-center gap-0.5 bg-white/[0.04] text-[11px] text-muted-foreground transition hover:bg-white/[0.08] hover:text-foreground disabled:opacity-50"
+                      :disabled="!props.canEdit || saving || mediaUploading"
+                      @click="openPieceImagePicker(index)">
+                      <span>{{ mediaUploading && pieceUploadIndex === index ? '上传中…' : '上传碎片' }}</span>
+                    </button>
+
+                    <div
+                      v-if="piece.imageUrl && props.canEdit"
+                      class="absolute inset-x-0 bottom-0 z-[2] flex justify-center gap-1 bg-gradient-to-t from-black/75 to-transparent px-1 pb-1 pt-4 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        type="button"
+                        data-piece-action="replace"
+                        class="h-6 rounded border border-white/20 bg-black/50 px-1.5 text-[10px] text-white/90 hover:bg-black/70 disabled:opacity-40"
+                        :disabled="saving || mediaUploading"
+                        @click="openPieceImagePicker(index)">
+                        换图
+                      </button>
+                      <button
+                        type="button"
+                        data-piece-action="clear"
+                        class="h-6 rounded border border-white/20 bg-black/50 px-1.5 text-[10px] text-white/90 hover:bg-black/70 disabled:opacity-40"
+                        :disabled="saving || mediaUploading"
+                        @click="clearPieceImage(index)">
+                        删除
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

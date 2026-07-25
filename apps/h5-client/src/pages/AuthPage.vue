@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, shallowRef } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { Sparkles } from "lucide-vue-next"
 import { useToastStore } from "@path-seeker/client-state"
 import {
   ClientButton,
@@ -49,6 +48,23 @@ const redirectPath = computed(() => {
   return typeof redirect === "string" && redirect.startsWith("/") ? redirect : "/shell/hall"
 })
 
+const modeHint = computed(() => {
+  if (mode.value === "guest") return "无需注册，以游客身份浏览展厅路线。"
+  if (mode.value === "login") return "使用已有账号登录，进度将同步到本机。"
+  return "创建账号后可在多设备间同步进度。"
+})
+
+const primaryActionLabel = computed(() => {
+  if (authStore.pending) {
+    if (mode.value === "login") return "登录中…"
+    if (mode.value === "register") return "注册中…"
+    return "进入中…"
+  }
+  if (mode.value === "login") return "登录"
+  if (mode.value === "register") return "注册"
+  return "以游客进入"
+})
+
 async function backHome() {
   await router.replace(redirectPath.value)
 }
@@ -60,7 +76,7 @@ async function submitLogin() {
 
   const result = await authStore.login(loginForm.account, loginForm.password)
   if (result) {
-    toastStore.success("欢迎回来", "任务进度已恢复到当前设备。")
+    toastStore.success("登录成功", "进度已同步到本机。")
     await afterAuthSuccess()
     await backHome()
   }
@@ -81,7 +97,7 @@ async function submitRegister() {
   })
 
   if (result) {
-    toastStore.success("账号已创建", "已自动登录，可以开始探索。")
+    toastStore.success("注册成功", "账号已创建并登录。")
     await afterAuthSuccess()
     await backHome()
   }
@@ -90,137 +106,306 @@ async function submitRegister() {
 async function submitGuestLogin() {
   const result = await authStore.loginAsGuest()
   if (result) {
-    toastStore.success("出发！", "游客模式已就绪。")
+    toastStore.success("已进入", "当前为游客身份。")
     await afterAuthSuccess()
     await backHome()
   }
 }
 
+async function submitCurrentMode() {
+  if (mode.value === "guest") {
+    await submitGuestLogin()
+    return
+  }
+  if (mode.value === "login") {
+    await submitLogin()
+    return
+  }
+  await submitRegister()
+}
+
+const canSubmitCurrent = computed(() => {
+  if (authStore.pending) return false
+  if (mode.value === "guest") return true
+  if (mode.value === "login") return canSubmitLogin.value
+  return canSubmitRegister.value
+})
+
 function logout() {
   authStore.logout()
-  toastStore.info("已退出", "当前设备登录状态已清空。")
+  toastStore.info("已退出", "本机登录状态已清除。")
 }
 </script>
 
 <template>
   <div class="client-shell">
     <div class="client-frame">
-      <header class="mb-5 flex items-start justify-between gap-4">
-        <div class="space-y-1.5">
-          <p class="client-top-kicker">Path Seeker</p>
-          <h1 class="client-page-title">{{ authStore.isLoggedIn ? "我的" : "开始探索" }}</h1>
-        </div>
+      <header class="auth-header">
+        <p class="client-top-kicker">Path Seeker</p>
+        <h1 class="client-page-title">
+          {{ authStore.isLoggedIn ? "账号" : "登录" }}
+        </h1>
       </header>
 
-      <main class="client-surface">
-        <!-- 已登录 -->
-        <section v-if="authStore.isLoggedIn" class="space-y-5 pt-2 text-center">
-          <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-[1rem] border border-primary/30 bg-primary/10 text-primary">
-            <Sparkles class="h-6 w-6" />
+      <main class="auth-page">
+        <!-- 已登录：简洁账号面 -->
+        <section v-if="authStore.isLoggedIn" class="auth-session">
+          <div class="auth-session-meta">
+            <p class="auth-session-label">当前账号</p>
+            <h2 class="auth-session-name font-display">{{ authStore.displayName }}</h2>
+            <p class="auth-session-note">进度已同步到本机</p>
           </div>
-          <div class="space-y-1">
-            <h2 class="font-display text-2xl text-foreground">{{ authStore.displayName }}</h2>
-            <p class="client-page-copy">本机账号 · 进度已同步</p>
-          </div>
-          <div class="grid gap-3">
+
+          <div class="auth-actions">
             <ClientButton class="w-full" @click="backHome()">进入展厅</ClientButton>
-            <ClientButton variant="outline" class="w-full" @click="logout()">退出</ClientButton>
+            <ClientButton variant="outline" class="w-full" @click="logout()">退出登录</ClientButton>
           </div>
         </section>
 
+        <!-- 未登录：功能优先，无装饰印章 / 无游戏化开场 -->
         <template v-else>
-          <!-- 印章门页 -->
-          <section class="auth-gate" aria-hidden="false">
-            <div class="auth-seal-ring" aria-hidden="true" />
-            <div class="auth-seal" aria-hidden="true">
-              <Sparkles class="h-5 w-5" />
-            </div>
-            <div class="relative z-[1] space-y-2">
-              <span class="client-tag is-gold">馆内解谜</span>
-              <h2 class="font-display text-[1.7rem] leading-tight text-foreground">
-                找到展品<br />解开谜题
-              </h2>
-              <p class="text-sm text-muted-foreground">扫一扫 · 看短片 · 闯关</p>
-            </div>
+          <section class="auth-intro">
+            <p class="auth-lead">选择进入方式，浏览展厅路线与讲解内容。</p>
           </section>
 
-          <section class="space-y-4 pt-1">
-            <div class="flex flex-wrap gap-2">
+          <section class="auth-panel" aria-label="进入方式">
+            <div class="auth-tabs" role="tablist" aria-label="登录方式">
               <button
                 type="button"
-                class="auth-mode-chip"
+                role="tab"
+                class="auth-tab"
                 :class="{ 'is-active': mode === 'guest' }"
+                :aria-selected="mode === 'guest'"
                 @click="mode = 'guest'"
               >
                 游客
               </button>
               <button
                 type="button"
-                class="auth-mode-chip"
+                role="tab"
+                class="auth-tab"
                 :class="{ 'is-active': mode === 'login' }"
+                :aria-selected="mode === 'login'"
                 @click="mode = 'login'"
               >
-                账号
+                账号登录
               </button>
               <button
                 type="button"
-                class="auth-mode-chip"
+                role="tab"
+                class="auth-tab"
                 :class="{ 'is-active': mode === 'register' }"
+                :aria-selected="mode === 'register'"
                 @click="mode = 'register'"
               >
                 注册
               </button>
             </div>
 
-            <div v-if="mode === 'guest'" class="space-y-3">
-              <p class="client-page-copy">不创建账号，直接体验完整任务流。</p>
-              <ClientButton class="w-full" :disabled="authStore.pending" @click="submitGuestLogin()">
-                {{ authStore.pending ? "进入中..." : "开始探索" }}
-              </ClientButton>
-            </div>
+            <p class="auth-hint">{{ modeHint }}</p>
 
-            <div v-else-if="mode === 'login'" class="space-y-3">
-              <ClientInput v-model="loginForm.account" placeholder="用户名 / 手机号 / 邮箱" autocomplete="username" />
+            <div v-if="mode === 'login'" class="auth-form">
+              <ClientInput
+                v-model="loginForm.account"
+                placeholder="用户名 / 手机号 / 邮箱"
+                autocomplete="username"
+              />
               <ClientInput
                 v-model="loginForm.password"
                 type="password"
-                placeholder="请输入密码"
+                placeholder="密码"
                 autocomplete="current-password"
               />
-              <ClientButton
-                class="w-full"
-                :disabled="!canSubmitLogin || authStore.pending"
-                @click="submitLogin()"
-              >
-                {{ authStore.pending ? "登录中..." : "进入" }}
-              </ClientButton>
             </div>
 
-            <div v-else class="space-y-3">
-              <ClientInput v-model="registerForm.username" placeholder="用户名、手机号、邮箱至少填一项" />
-              <div class="grid gap-3 sm:grid-cols-2">
-                <ClientInput v-model="registerForm.phone" placeholder="手机号（可选）" />
-                <ClientInput v-model="registerForm.email" placeholder="邮箱（可选）" />
+            <div v-else-if="mode === 'register'" class="auth-form">
+              <ClientInput
+                v-model="registerForm.username"
+                placeholder="用户名、手机号、邮箱至少填一项"
+                autocomplete="username"
+              />
+              <div class="auth-form-row">
+                <ClientInput v-model="registerForm.phone" placeholder="手机号（可选）" autocomplete="tel" />
+                <ClientInput v-model="registerForm.email" placeholder="邮箱（可选）" autocomplete="email" />
               </div>
-              <ClientInput v-model="registerForm.nickname" placeholder="昵称（可选）" />
-              <ClientInput v-model="registerForm.password" type="password" placeholder="密码至少 6 位" />
-              <ClientButton
-                class="w-full"
-                :disabled="!canSubmitRegister || authStore.pending"
-                @click="submitRegister()"
-              >
-                {{ authStore.pending ? "注册中..." : "注册并进入" }}
-              </ClientButton>
+              <ClientInput
+                v-model="registerForm.nickname"
+                placeholder="昵称（可选）"
+                autocomplete="nickname"
+              />
+              <ClientInput
+                v-model="registerForm.password"
+                type="password"
+                placeholder="密码至少 6 位"
+                autocomplete="new-password"
+              />
             </div>
+
+            <ClientButton
+              class="w-full"
+              :disabled="!canSubmitCurrent"
+              @click="submitCurrentMode()"
+            >
+              {{ primaryActionLabel }}
+            </ClientButton>
           </section>
         </template>
 
         <ClientEmptyState
           v-if="authStore.error"
-          title="认证失败"
+          title="无法完成操作"
           :description="authStore.error"
         />
       </main>
     </div>
   </div>
 </template>
+
+<style scoped>
+.auth-header {
+  margin-bottom: 1.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.auth-intro {
+  padding: 0;
+}
+
+.auth-lead {
+  margin: 0;
+  max-width: 22rem;
+  color: rgba(168, 159, 144, 0.95);
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+/* 功能区：细顶线分隔，无卡片底板 */
+.auth-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid rgba(255, 248, 230, 0.08);
+}
+
+.auth-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-bottom: 1px solid rgba(255, 248, 230, 0.08);
+}
+
+.auth-tab {
+  position: relative;
+  margin: 0;
+  padding: 0.7rem 0.35rem;
+  border: 0;
+  background: transparent;
+  color: rgba(168, 159, 144, 0.92);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: color 0.16s ease;
+}
+
+.auth-tab::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -1px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: transparent;
+  transition: background 0.16s ease;
+}
+
+.auth-tab.is-active {
+  color: #f0dfb0;
+}
+
+.auth-tab.is-active::after {
+  background: rgba(209, 178, 111, 0.85);
+}
+
+.auth-hint {
+  margin: 0;
+  color: rgba(168, 159, 144, 0.88);
+  font-size: 0.8125rem;
+  line-height: 1.55;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 420px) {
+  .auth-form-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.auth-session {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  padding-top: 0.35rem;
+}
+
+.auth-session-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-bottom: 1.15rem;
+  border-bottom: 1px solid rgba(255, 248, 230, 0.08);
+}
+
+.auth-session-label {
+  margin: 0;
+  color: rgba(209, 178, 111, 0.78);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.auth-session-name {
+  margin: 0;
+  color: #f4ede1;
+  font-size: 1.55rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.auth-session-note {
+  margin: 0.15rem 0 0;
+  color: rgba(168, 159, 144, 0.92);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.auth-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+</style>

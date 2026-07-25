@@ -2,10 +2,12 @@
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { Position, VueFlow, type Edge, type Node } from '@vue-flow/core';
-import { Check, Pencil, X } from 'lucide-vue-next';
+import { Check, Pencil, Trash2, X } from 'lucide-vue-next';
 import {
   getInteractionTypeMeta,
+  // INTERACTION_TYPE_META, // 新增站点暂关
   parseStageConfig,
+  // SUPPORTED_INTERACTION_TYPES, // 新增站点暂关
   type GameplayPreviewNarration,
   type GameplayPreviewNarrationStatus,
   type GameplayPreviewStage,
@@ -22,9 +24,17 @@ import Input from '@/components/shadcn/input/Input.vue';
 import AdminStageSimulator from '@/components/routes/AdminStageSimulator.vue';
 import RouteEditChatPane from '@/components/routes/RouteEditChatPane.vue';
 import StageEditDialog from '@/components/routes/StageEditDialog.vue';
+import { useActionFeedback } from '@/composables/useActionFeedback';
 import type { RouteWorkflowActions } from '@/constants/routeWorkflow';
 import type { NarrationDetailResponse } from '@/types/narration';
-import type { RouteDetailResponse, RouteNodeResponse, RouteRecord, UpdateRouteTitlePayload } from '@/types/route';
+import type {
+  // CreateRouteStagePayload, // 新增站点暂关
+  DeleteRouteStagePayload,
+  RouteDetailResponse,
+  RouteNodeResponse,
+  RouteRecord,
+  UpdateRouteTitlePayload,
+} from '@/types/route';
 import RouteStatusBadge from '@/components/routes/RouteStatusBadge.vue';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
@@ -59,8 +69,19 @@ const emit = defineEmits<{
 }>();
 
 const { request } = useApiClient();
+const actionFeedback = useActionFeedback();
 const selectedStageId = shallowRef('');
 const stageEditOpen = shallowRef(false);
+// 新增站点暂关
+// const stageCreateOpen = shallowRef(false);
+// const creatingStage = shallowRef(false);
+// const createTitleDraft = shallowRef('');
+// const createInteractionType = shallowRef('1');
+// const createError = shallowRef('');
+const stageDeleteOpen = shallowRef(false);
+const deletingStage = shallowRef(false);
+const pendingDeleteStageId = shallowRef('');
+const pendingDeleteStageLabel = shallowRef('');
 const chatPaneRef = shallowRef<{
   resetSession: () => void;
   abortActiveRun: () => void;
@@ -76,9 +97,36 @@ let detailRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSilentRefresh = false;
 let narrationRequestSeq = 0;
 
+// 新增站点暂关
+// const interactionTypeOptions = SUPPORTED_INTERACTION_TYPES.map((type) => ({
+//   value: String(type),
+//   label: INTERACTION_TYPE_META[type]?.label || `类型 ${type}`,
+// }));
+
 const isOpen = computed({
   get: () => props.open,
   set: (value: boolean) => emit('update:open', value),
+});
+// 新增站点暂关
+// const stageCreateDialogOpen = computed({
+//   get: () => stageCreateOpen.value,
+//   set: (value: boolean) => {
+//     if (!value) {
+//       closeStageCreate();
+//       return;
+//     }
+//     stageCreateOpen.value = true;
+//   },
+// });
+const stageDeleteDialogOpen = computed({
+  get: () => stageDeleteOpen.value,
+  set: (value: boolean) => {
+    if (!value) {
+      closeStageDelete();
+      return;
+    }
+    stageDeleteOpen.value = true;
+  },
 });
 const sortedNodes = computed(() =>
   [...(props.detail?.nodes ?? [])].sort((left, right) => {
@@ -293,6 +341,121 @@ function openStageEditor() {
 function handleStageSaved() {
   flushSilentDetailRefresh();
 }
+
+/* 新增站点暂关 —— 恢复时一并解开模板「新增」按钮与弹窗
+function nextStageOrder() {
+  if (!sortedNodes.value.length) return 1;
+  return Math.max(
+    ...sortedNodes.value.map((node) => Number(node.sortOrder || node.stageNo || 0)),
+  ) + 1;
+}
+
+function openStageCreate() {
+  if (!props.canEdit || !routeId.value) return;
+  createTitleDraft.value = '';
+  createInteractionType.value = String(SUPPORTED_INTERACTION_TYPES[0] ?? 1);
+  createError.value = '';
+  stageCreateOpen.value = true;
+}
+
+function closeStageCreate() {
+  if (creatingStage.value) return;
+  stageCreateOpen.value = false;
+  createError.value = '';
+}
+
+async function submitStageCreate() {
+  const id = routeId.value;
+  if (!id || !props.canEdit) {
+    createError.value = '路线不可编辑，无法新增站点。';
+    return;
+  }
+
+  const title = createTitleDraft.value.trim() || '未命名站点';
+  const interactionType = Number(createInteractionType.value);
+  if (!SUPPORTED_INTERACTION_TYPES.includes(interactionType as (typeof SUPPORTED_INTERACTION_TYPES)[number])) {
+    createError.value = '请选择支持的玩法类型。';
+    return;
+  }
+
+  const order = nextStageOrder();
+  creatingStage.value = true;
+  createError.value = '';
+  try {
+    const createdId = await request<string | null>('/api/route/stage-create', {
+      method: 'POST',
+      body: {
+        routeId: id,
+        stageNo: order,
+        sortOrder: order,
+        title,
+        subtitle: null,
+        interactionType,
+        unlockRule: 1,
+        isRequired: 1,
+        score: 0,
+        config: null,
+        nextRule: null,
+        refPuzzleId: null,
+        refExhibitId: null,
+      } satisfies CreateRouteStagePayload,
+    });
+
+    stageCreateOpen.value = false;
+    const nextId = String(createdId ?? '').trim();
+    if (nextId) selectedStageId.value = nextId;
+    flushSilentDetailRefresh();
+    actionFeedback.success('站点已新增。');
+  } catch (error) {
+    createError.value = resolveRequestErrorMessage(error, '新增站点失败。');
+  } finally {
+    creatingStage.value = false;
+  }
+}
+*/
+
+function openStageDelete() {
+  if (!props.canEdit || !selectedNode.value || deletingStage.value) return;
+  const stageId = String(selectedNode.value.stageId || '').trim();
+  if (!stageId) return;
+
+  const order = selectedNode.value.sortOrder
+    || sortedNodes.value.findIndex((item) => item.stageId === stageId) + 1;
+  const label = selectedNode.value.title || '未命名站点';
+  pendingDeleteStageId.value = stageId;
+  pendingDeleteStageLabel.value = `${order}. ${label}`;
+  stageDeleteOpen.value = true;
+}
+
+function closeStageDelete() {
+  if (deletingStage.value) return;
+  stageDeleteOpen.value = false;
+  pendingDeleteStageId.value = '';
+  pendingDeleteStageLabel.value = '';
+}
+
+async function confirmStageDelete() {
+  const stageId = pendingDeleteStageId.value.trim();
+  if (!props.canEdit || !stageId) return;
+
+  deletingStage.value = true;
+  try {
+    await request('/api/route/stage-delete', {
+      method: 'POST',
+      body: { id: stageId } satisfies DeleteRouteStagePayload,
+    });
+    if (selectedStageId.value === stageId) selectedStageId.value = '';
+    stageDeleteOpen.value = false;
+    pendingDeleteStageId.value = '';
+    pendingDeleteStageLabel.value = '';
+    flushSilentDetailRefresh();
+    actionFeedback.success('站点已删除。');
+  } catch (error) {
+    actionFeedback.errorFrom(error, '删除站点失败。');
+  } finally {
+    deletingStage.value = false;
+  }
+}
 /** 配图增删后立刻重拉解说 detail，模拟器封面同步 */
 function handleNarrationPreviewRefresh() {
   const id = String(previewNode.value?.stageId || '').trim();
@@ -390,15 +553,40 @@ async function saveRouteTitle() {
         <section class="flex min-h-0 min-w-0 flex-col">
           <div
             class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background/70">
-            <Button
+            <div
               v-if="props.canEdit"
-              type="button"
-              size="sm"
-              class="absolute right-3 top-3 z-10 h-8 px-3 text-xs"
-              :disabled="!selectedNode"
-              @click="openStageEditor">
-              编辑这一站
-            </Button>
+              class="absolute right-3 top-3 z-10 flex items-center gap-1.5">
+              <!-- 新增站点：暂注释，待完善创建字段后再开放
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                class="h-8 px-2.5 text-xs"
+                :disabled="creatingStage || deletingStage"
+                @click="openStageCreate">
+                <Plus class="mr-1 h-3.5 w-3.5" />
+                新增
+              </Button>
+              -->
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                class="h-8 px-2.5 text-xs text-rose-200 hover:bg-rose-500/10 hover:text-rose-100"
+                :disabled="!selectedNode || deletingStage"
+                @click="openStageDelete">
+                <Trash2 class="mr-1 h-3.5 w-3.5" />
+                删除
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                class="h-8 px-3 text-xs"
+                :disabled="!selectedNode || deletingStage"
+                @click="openStageEditor">
+                编辑
+              </Button>
+            </div>
             <VueFlow
               :nodes="flowNodes"
               :edges="flowEdges"
@@ -502,6 +690,104 @@ async function saveRouteTitle() {
     :can-edit="props.canEdit"
     @saved="handleStageSaved"
     @preview-refresh="handleNarrationPreviewRefresh" />
+
+  <!-- 新增站点弹窗：暂注释，待完善创建字段后再开放
+  <Dialog v-model:open="stageCreateDialogOpen">
+    <DialogContent class="max-w-[420px] overflow-hidden p-0">
+      <div class="border-b border-border/70 px-5 py-3">
+        <DialogHeader class="space-y-1 text-left">
+          <DialogTitle>新增站点</DialogTitle>
+          <DialogDescription>
+            选择玩法类型后创建，可再编辑具体内容。
+          </DialogDescription>
+        </DialogHeader>
+      </div>
+
+      <div class="space-y-3 px-5 py-4">
+        <label class="block space-y-1.5">
+          <span class="text-xs font-medium text-muted-foreground">站点标题</span>
+          <Input
+            v-model="createTitleDraft"
+            class="h-9"
+            placeholder="例如：青花瓷纹样观察"
+            :disabled="creatingStage"
+            @keyup.enter="submitStageCreate" />
+        </label>
+
+        <div class="space-y-1.5">
+          <span class="text-xs font-medium text-muted-foreground">玩法类型</span>
+          <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label="玩法类型">
+            <button
+              v-for="option in interactionTypeOptions"
+              :key="option.value"
+              type="button"
+              role="radio"
+              class="h-9 rounded-md border px-2.5 text-left text-sm transition-colors"
+              :class="createInteractionType === option.value
+                ? 'border-primary/60 bg-primary/10 text-foreground'
+                : 'border-border/70 bg-background text-muted-foreground hover:border-border hover:text-foreground'"
+              :aria-checked="createInteractionType === option.value"
+              :disabled="creatingStage"
+              @click="createInteractionType = option.value">
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <p v-if="createError" class="text-xs text-rose-300">
+          {{ createError }}
+        </p>
+      </div>
+
+      <DialogFooter class="border-t border-border/70 px-5 py-3">
+        <Button
+          variant="outline"
+          type="button"
+          class="h-8"
+          :disabled="creatingStage"
+          @click="closeStageCreate">
+          取消
+        </Button>
+        <Button
+          type="button"
+          class="h-8"
+          :disabled="creatingStage"
+          @click="submitStageCreate">
+          {{ creatingStage ? '创建中…' : '创建' }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+  -->
+
+  <Dialog v-model:open="stageDeleteDialogOpen">
+    <DialogContent class="max-w-[min(92vw,24rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
+      <DialogHeader class="space-y-2 px-5 pb-2 pt-4">
+        <DialogTitle>删除站点</DialogTitle>
+        <DialogDescription>
+          确认删除「{{ pendingDeleteStageLabel || '当前站点' }}」吗？删除后不可恢复。
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter class="px-5 pb-4 pt-3">
+        <Button
+          variant="outline"
+          type="button"
+          class="h-8"
+          :disabled="deletingStage"
+          @click="closeStageDelete">
+          取消
+        </Button>
+        <Button
+          variant="secondary"
+          type="button"
+          class="h-8"
+          :disabled="deletingStage || !pendingDeleteStageId"
+          @click="confirmStageDelete">
+          {{ deletingStage ? '删除中…' : '确认删除' }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <style scoped>

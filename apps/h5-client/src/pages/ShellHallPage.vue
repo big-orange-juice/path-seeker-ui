@@ -81,14 +81,11 @@ onMounted(() => {
 
 <template>
   <div class="hall-page">
+    <!-- 壳层已展示「展厅」标题；本区只保留在展数与筛选，避免重复说明 -->
     <header class="hall-top">
-      <div class="hall-intro">
-        <p class="hall-kicker">Gallery</p>
-        <h1 class="hall-title font-display">今日路线</h1>
-        <p class="hall-count">
-          {{ missionStore.coverageSummary.missionCount }} 条在展
-        </p>
-      </div>
+      <p class="hall-count">
+        {{ missionStore.coverageSummary.missionCount }} 条在展
+      </p>
       <button
         type="button"
         class="hall-filter-btn"
@@ -195,41 +192,16 @@ onMounted(() => {
 
 .hall-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   padding-bottom: 0.15rem;
 }
 
-.hall-intro {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.hall-kicker {
-  margin: 0;
-  color: rgba(209, 178, 111, 0.72);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-}
-
-.hall-title {
-  margin: 0;
-  color: #f4ede1;
-  font-size: 1.55rem;
-  font-weight: 650;
-  line-height: 1.15;
-  letter-spacing: 0.02em;
-}
-
 .hall-count {
-  margin: 0.15rem 0 0;
+  margin: 0;
   color: rgba(168, 159, 144, 0.92);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.04em;
 }
 

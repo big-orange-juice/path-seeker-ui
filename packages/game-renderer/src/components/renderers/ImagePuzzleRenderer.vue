@@ -2,7 +2,11 @@
 import { computed, nextTick, onUnmounted, shallowRef, watch } from "vue"
 import { gsap } from "gsap"
 import { useRendererMotion } from "../../composables/useRendererMotion"
-import type { ImagePuzzleDefinition, PuzzleAnswerDraft } from "../../contracts"
+import type {
+  ImagePuzzleDefinition,
+  ImagePuzzlePiece,
+  PuzzleAnswerDraft,
+} from "../../contracts"
 
 interface Props {
   puzzle: ImagePuzzleDefinition
@@ -135,19 +139,82 @@ watch(
 )
 
 
-const gridSize = computed(() => {
-  const configured = Number(props.puzzle.questionPayload.gridSize || 0)
-  if (configured >= 2) {
-    return Math.min(4, configured)
-  }
-  const count = props.puzzle.questionPayload.pieces.length
-  if (count >= 4) {
-    return Math.max(2, Math.min(4, Math.round(Math.sqrt(count))))
-  }
-  return 3
+/** 行列尺寸由适配层给出（支持 2×3 等非正方形） */
+const gridRows = computed(() => {
+  const rows = Number(props.puzzle.questionPayload.gridRows || 0)
+  return rows > 0 ? rows : 3
 })
 
-const hasImage = computed(() => Boolean(String(props.puzzle.questionPayload.imageUrl || "").trim()))
+const gridCols = computed(() => {
+  const cols = Number(props.puzzle.questionPayload.gridCols || 0)
+  return cols > 0 ? cols : 3
+})
+
+function pieceImageUrl(piece: ImagePuzzlePiece | undefined) {
+  return String(piece?.imageUrl || "").trim()
+}
+
+function findPiece(pieceId: string) {
+  return props.puzzle.questionPayload.pieces.find((item) => item.id === pieceId)
+}
+
+/** 仅认 piece 自带已裁切图；无图则空着，方便直接看出配置错误 */
+function tileHasImage(pieceId: string) {
+  return Boolean(pieceImageUrl(findPiece(pieceId)))
+}
+
+/**
+ * 棋盘宽高比：按碎片原图像素 × 行列推算，避免强制正方形把非方图拉变形。
+ * 探测失败时退回 cols / rows。
+ */
+const boardAspectRatio = shallowRef(`${gridCols.value} / ${gridRows.value}`)
+let aspectProbeToken = 0
+
+function probeBoardAspectRatio() {
+  const token = ++aspectProbeToken
+  const fallback = `${gridCols.value} / ${gridRows.value}`
+  boardAspectRatio.value = fallback
+
+  const sampleUrl = props.puzzle.questionPayload.pieces
+    .map((piece) => pieceImageUrl(piece))
+    .find(Boolean)
+  if (!sampleUrl) {
+    return
+  }
+
+  const img = new Image()
+  img.onload = () => {
+    if (token !== aspectProbeToken) {
+      return
+    }
+    const pieceW = img.naturalWidth
+    const pieceH = img.naturalHeight
+    if (pieceW <= 0 || pieceH <= 0) {
+      return
+    }
+    boardAspectRatio.value = `${pieceW * gridCols.value} / ${pieceH * gridRows.value}`
+  }
+  img.onerror = () => {
+    if (token !== aspectProbeToken) {
+      return
+    }
+    boardAspectRatio.value = fallback
+  }
+  img.src = sampleUrl
+}
+
+watch(
+  () => [
+    props.puzzle.id,
+    gridRows.value,
+    gridCols.value,
+    props.puzzle.questionPayload.pieces.map((piece) => pieceImageUrl(piece)).join("|"),
+  ] as const,
+  () => {
+    probeBoardAspectRatio()
+  },
+  { immediate: true },
+)
 
 const isSolved = computed(() => {
   const correct = correctIds.value
@@ -168,15 +235,10 @@ const hintText = computed(() =>
 )
 
 
-/** 拼块背景：编号块用 piece 在正确序中的行列切图 */
+/** 拼块背景：只铺 piece 已裁切图；无图则留空 */
 function tileFaceStyle(pieceId: string) {
-  const correctIndex = correctIds.value.indexOf(pieceId)
-  const total = gridSize.value
-  const safeIndex = correctIndex >= 0 ? correctIndex : 0
-  const row = Math.floor(safeIndex / total)
-  const col = safeIndex % total
-
-  if (!hasImage.value) {
+  const url = pieceImageUrl(findPiece(pieceId))
+  if (!url) {
     return {
       backgroundImage: "none",
       backgroundColor: "rgba(255, 255, 255, 0.055)",
@@ -184,9 +246,9 @@ function tileFaceStyle(pieceId: string) {
   }
 
   return {
-    backgroundImage: `url(${props.puzzle.questionPayload.imageUrl})`,
-    backgroundSize: `${total * 100}% ${total * 100}%`,
-    backgroundPosition: `${total > 1 ? (col / (total - 1)) * 100 : 0}% ${total > 1 ? (row / (total - 1)) * 100 : 0}%`,
+    backgroundImage: `url("${url}")`,
+    backgroundSize: "100% 100%",
+    backgroundPosition: "center",
     backgroundColor: "rgba(0, 0, 0, 0.2)",
   }
 }
@@ -320,7 +382,11 @@ onUnmounted(() => {
       ref="boardRef"
       class="puzzle-grid"
       :class="{ 'is-solved': isSolved }"
-      :style="{ gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))` }"
+      :style="{
+        gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${gridRows}, minmax(0, 1fr))`,
+        aspectRatio: boardAspectRatio,
+      }"
     >
       <button
         v-for="(pieceId, index) in currentOrder"
@@ -331,7 +397,7 @@ onUnmounted(() => {
           'is-dragging': draggingFrom === index,
           'is-target': hoverTo === index && draggingFrom !== null && draggingFrom !== index,
           'is-readonly': readonlyMode || isSolved,
-          'has-image': hasImage,
+          'has-image': tileHasImage(pieceId),
         }"
         :data-slot="index"
         :data-piece-id="pieceId"
@@ -342,7 +408,7 @@ onUnmounted(() => {
         @pointerup="onPointerUp"
         @pointercancel="onPointerCancel"
       >
-        <span v-if="!hasImage" class="tile-number">{{ pieceNumber(pieceId) }}</span>
+        <span v-if="!tileHasImage(pieceId)" class="tile-number">{{ pieceNumber(pieceId) }}</span>
       </button>
     </div>
 
@@ -398,6 +464,7 @@ onUnmounted(() => {
   display: grid;
   gap: 2px;
   width: 100%;
+  /* 默认按行列；有碎片图时由内联 aspect-ratio 按原图像素覆盖 */
   aspect-ratio: 1;
   padding: 0;
   overflow: hidden;

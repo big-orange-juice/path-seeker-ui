@@ -34,6 +34,28 @@ export interface UpdateRouteTitlePayload {
   title: string;
 }
 
+/** 手动新增路线节点；对齐 CreateRouteStageRequest */
+export interface CreateRouteStagePayload {
+  routeId: string;
+  stageNo?: number;
+  sortOrder?: number;
+  title?: string | null;
+  subtitle?: string | null;
+  interactionType?: number;
+  refPuzzleId?: string | null;
+  refExhibitId?: string | null;
+  unlockRule?: number;
+  isRequired?: number;
+  score?: number;
+  config?: string | null;
+  nextRule?: string | null;
+}
+
+/** 软删除路线节点；对齐 IdRequest */
+export interface DeleteRouteStagePayload {
+  id: string;
+}
+
 export interface RouteCardResponse {
   id: string | null;
   title: string | null;

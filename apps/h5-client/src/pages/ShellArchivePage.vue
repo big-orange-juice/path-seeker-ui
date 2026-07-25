@@ -34,13 +34,8 @@ onMounted(() => {
 </script>
 
 <template>
+  <!-- 壳层已展示「游玩历史」标题，本页不再重复 kicker/标题/说明 -->
   <div class="client-surface">
-    <header class="client-surface-block space-y-1">
-      <p class="client-top-kicker">History</p>
-      <h1 class="client-page-title">游玩历史</h1>
-      <p class="client-page-copy">已完成路线与足迹由服务端同步，可回看结算。</p>
-    </header>
-
     <div v-if="loading" class="space-y-3">
       <ClientSkeleton class="h-20 w-full rounded-[1rem]" />
       <ClientSkeleton class="h-20 w-full rounded-[1rem]" />

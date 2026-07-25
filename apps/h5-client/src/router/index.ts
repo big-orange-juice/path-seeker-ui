@@ -25,7 +25,7 @@ const router = createRouter({
       name: "auth",
       component: AuthPage,
       meta: {
-        title: "开始探索",
+        title: "登录",
         public: true,
       },
     },

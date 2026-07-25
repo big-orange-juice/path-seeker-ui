@@ -92,8 +92,10 @@ const playStage = computed<GameplayPreviewStage | null>(() => {
   if (puzzle?.templateType === "image_puzzle") {
     const payload = puzzle.questionPayload
     config.content = payload.prompt || puzzle.prompt
+    config.base_image_url = payload.imageUrl
     config.image_url = payload.imageUrl
-    config.grid_size = payload.gridSize
+    config.grid_rows = payload.gridRows
+    config.grid_cols = payload.gridCols
     config.pieces = payload.pieces
     config.correct_order = payload.correctOrder
   }

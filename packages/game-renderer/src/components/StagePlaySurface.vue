@@ -174,33 +174,37 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 
 <template>
   <div v-if="props.stage" class="stage-play" :class="`is-${stageKind || 'unknown'}`">
-    <!-- 1 / 6：与 H5 brief 题面卡一致 -->
+    <!-- 1 线性答题 / 6 纹样拼图：去 card，题面直接贴壳层 -->
     <section
       v-if="stageKind === 'observe_choice' || stageKind === 'image_puzzle'"
-      class="play-panel">
-      <div class="play-panel__inner">
-        <div class="play-meta-row">
-          <span class="play-tag">{{ typeLabel }}</span>
-        </div>
+      class="play-shell"
+      :class="`play-shell--${stageKind}`">
+      <div class="play-meta-row">
+        <span class="play-tag">{{ typeLabel }}</span>
+        <p v-if="stageKind === 'observe_choice'" class="play-kicker play-kicker--inline">
+          {{ stageKicker }}
+        </p>
+      </div>
 
-        <div class="play-heading">
-          <p class="play-kicker">{{ stageKicker }}</p>
-          <h2 class="play-title">{{ puzzleHeading }}</h2>
-        </div>
+      <div class="play-heading">
+        <p v-if="stageKind !== 'observe_choice'" class="play-kicker">{{ stageKicker }}</p>
+        <h2 class="play-title">{{ puzzleHeading }}</h2>
+      </div>
 
-        <div class="play-body">
-          <PuzzleRendererHost
-            v-if="adaptedPuzzle && draft"
-            :puzzle="adaptedPuzzle"
-            :model-value="draft"
-            @update:model-value="handleDraftUpdate" />
-        </div>
+      <div class="play-shell__body">
+        <PuzzleRendererHost
+          v-if="adaptedPuzzle && draft"
+          :puzzle="adaptedPuzzle"
+          :model-value="draft"
+          @update:model-value="handleDraftUpdate" />
+      </div>
 
-        <div v-if="canSubmit" class="play-actions">
-          <button type="button" class="play-btn is-primary" @click="emit('submit')">
-            提交
-          </button>
-        </div>
+      <div v-if="canSubmit" class="play-actions">
+        <button type="button" class="play-btn is-primary" @click="emit('submit')">
+          提交
+        </button>
+      </div>
+      <div class="play-shell__actions">
         <slot name="actions" />
       </div>
     </section>
@@ -352,6 +356,12 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   letter-spacing: 0.01em;
 }
 
+.play-kicker--inline {
+  margin: 0;
+  letter-spacing: 0.14em;
+  opacity: 0.88;
+}
+
 .play-body {
   border-radius: 1rem;
   background: rgba(10, 9, 8, 0.45);
@@ -388,6 +398,68 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   font-size: 0.875rem;
   line-height: 1.5;
   text-align: center;
+}
+
+/* 线性答题 / 拼图去 card：无边框/无底色，题面直接贴壳层 */
+.play-shell {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.play-shell__body {
+  min-height: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.play-shell__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* 线性答题：题面更克制，选项区拉开呼吸 */
+.play-shell--observe_choice {
+  gap: 1.35rem;
+}
+
+.play-shell--observe_choice .play-meta-row {
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.play-shell--observe_choice .play-heading {
+  gap: 0;
+  padding-bottom: 1.15rem;
+  border-bottom: 1px solid rgba(209, 178, 111, 0.14);
+}
+
+.play-shell--observe_choice .play-title {
+  font-size: clamp(1.05rem, 4.2vw, 1.22rem);
+  font-weight: 600;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  color: #f7efdd;
+}
+
+.play-shell--observe_choice .play-shell__body {
+  padding-top: 0.15rem;
+}
+
+.play-shell--observe_choice .play-shell__actions {
+  margin-top: 0.35rem;
+  gap: 0.7rem;
+  padding-top: 0.35rem;
 }
 
 /* 去 card：撑满宿主高度，内容内部分段贴底 */

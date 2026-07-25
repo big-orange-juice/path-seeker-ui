@@ -193,13 +193,86 @@ function resolveContent(input: StageAdaptInput, config: Record<string, any>) {
   ))
 }
 
+function readItemNumber(item: any, ...keys: string[]): number | null {
+  for (const key of keys) {
+    const value = item?.[key]
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value
+    }
+    if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
+      return Number(value)
+    }
+  }
+  return null
+}
+
 function makeImagePieces(config: Record<string, any>): ImagePuzzlePiece[] {
   return asArray(config.pieces ?? config.items ?? config.fragments ?? config.options).map((item: any, index) => ({
     id: readItemText(item, "id", "Id", "key", "Key", "value", "Value") || `piece-${index + 1}`,
     label: readItemText(item, "label", "Label", "text", "Text", "title", "Title", "name", "Name") || `碎片 ${index + 1}`,
     hint: normalizeText(item?.hint ?? item?.description) || null,
     imageUrl: pickValue(item ?? {}, "image_url", "imageUrl", "ImageUrl", "url", "Url") ?? null,
+    correctRow: readItemNumber(item, "correct_row", "correctRow", "row", "Row"),
+    correctCol: readItemNumber(item, "correct_col", "correctCol", "col", "Col"),
   }))
+}
+
+/**
+ * 正解序：优先 config.correct_order；否则由 pieces 的 correct_row/correct_col
+ * 按行优先还原（后端当前只下发行列，不下发顺序数组）。
+ */
+function resolveCorrectOrder(
+  explicitOrder: string[],
+  pieces: ImagePuzzlePiece[],
+  gridCols: number,
+): string[] {
+  if (explicitOrder.length) {
+    return explicitOrder
+  }
+
+  const positioned = pieces.filter(
+    (piece) => piece.correctRow != null && piece.correctCol != null,
+  )
+  if (!positioned.length) {
+    return pieces.map((piece) => piece.id)
+  }
+
+  const cols = Math.max(1, gridCols)
+  return [...positioned]
+    .sort(
+      (left, right) =>
+        (Number(left.correctRow) * cols + Number(left.correctCol))
+        - (Number(right.correctRow) * cols + Number(right.correctCol)),
+    )
+    .map((piece) => piece.id)
+}
+
+/** 行列尺寸：优先显式行列，否则用碎片数还原（含非正方形） */
+function resolveGridShape(config: Record<string, any>, pieceCount: number) {
+  const rows = Number(pickValue(config, "grid_rows", "gridRows")) || 0
+  const cols = Number(pickValue(config, "grid_cols", "gridCols")) || 0
+  if (rows > 0 && cols > 0) {
+    return { rows, cols }
+  }
+
+  const size = Number(pickValue(config, "grid_size", "gridSize")) || 0
+  if (size > 0) {
+    return { rows: size, cols: size }
+  }
+
+  if (rows > 0 && pieceCount > 0) {
+    return { rows, cols: Math.max(1, Math.ceil(pieceCount / rows)) }
+  }
+  if (cols > 0 && pieceCount > 0) {
+    return { rows: Math.max(1, Math.ceil(pieceCount / cols)), cols }
+  }
+
+  const square = pieceCount > 0 ? Math.round(Math.sqrt(pieceCount)) : 0
+  if (square > 0 && square * square === pieceCount) {
+    return { rows: square, cols: square }
+  }
+
+  return { rows: 3, cols: 3 }
 }
 
 export function adaptStageToPuzzle(input: StageAdaptInput): PuzzleDefinition | null {
@@ -235,20 +308,26 @@ export function adaptStageToPuzzle(input: StageAdaptInput): PuzzleDefinition | n
   }
 
   const pieces = makeImagePieces(config)
-  const correctOrder = asArray<string>(
+  const { rows, cols } = resolveGridShape(config, pieces.length)
+  const explicitOrder = asArray<string>(
     pickValue(answerExtra, "correct_order", "correctOrder", "answer")
     ?? pickValue(config, "correct_order", "correctOrder", "answer"),
   ).map((value) => String(value))
+  const correctOrder = resolveCorrectOrder(explicitOrder, pieces, cols)
+  // 底图：后端下发 base_image_url；normalizeText 会剥 HTML，URL 走原样裁剪
+  const imageUrl = String(
+    pickValue(config, "base_image_url", "baseImageUrl", "BaseImageUrl", "image_url", "imageUrl", "ImageUrl") ?? "",
+  ).trim()
 
   return {
     ...base,
     templateType,
     questionPayload: {
       prompt: content,
-      imageUrl: normalizeText(pickValue(config, "image_url", "imageUrl", "ImageUrl")) || null,
-      gridSize: Math.max(1, Number(pickValue(config, "grid_size", "gridSize") ?? 3)),
-      gridRows: Number(pickValue(config, "grid_rows", "gridRows")) || undefined,
-      gridCols: Number(pickValue(config, "grid_cols", "gridCols")) || undefined,
+      imageUrl: imageUrl || null,
+      gridSize: Math.max(rows, cols),
+      gridRows: rows,
+      gridCols: cols,
       pieces,
       correctOrder,
       revealTitle: normalizeText(pickValue(config, "reveal_title", "revealTitle")) || null,
