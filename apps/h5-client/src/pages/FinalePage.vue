@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue"
+import { computed, shallowRef, watch } from "vue"
+import { Share2 } from "lucide-vue-next"
 import { useRoute, useRouter } from "vue-router"
 import { useToastStore } from "@path-seeker/client-state"
 import { ClientBadge, ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import ShareCardDialog from "@/components/finale/ShareCardDialog.vue"
 import { formatDurationSec, formatHistoryTime } from "@/adapters/gameplayMissionAdapter"
 import { useMissionStore } from "@/stores/useMissionStore"
 
@@ -10,6 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const missionStore = useMissionStore()
 const toastStore = useToastStore()
+const shareCardOpen = shallowRef(false)
 
 const routeId = computed(() => String(route.params.routeId || ""))
 
@@ -29,6 +32,11 @@ const canShow = computed(() => Boolean(result.value))
 const loading = computed(
   () => missionStore.routeResultPending && !result.value,
 )
+const coverImageUrl = computed(() => {
+  const mission = missionStore.getMission(routeId.value)
+  const card = missionStore.routeCards.find((item) => item.id === routeId.value)
+  return mission?.coverImageUrl || card?.coverImageUrl || ""
+})
 
 async function ensureFinaleData() {
   if (!routeId.value) {
@@ -61,27 +69,19 @@ async function replayMission() {
   await router.push(`/missions/${targetId}/map`)
 }
 
-async function copyShareCode() {
-  const code = result.value?.shareCard?.shareCode
-  if (!code) {
+async function openShareCard() {
+  if (!result.value?.shareCard) {
     return
   }
 
-  try {
-    await navigator.clipboard.writeText(code)
-    toastStore.success("已复制分享码", code)
-  } catch {
-    toastStore.info("分享码", code)
+  if (!coverImageUrl.value) {
+    await missionStore.loadMissionDetail(routeId.value)
   }
+  shareCardOpen.value = true
 }
 
-onMounted(() => {
-  void ensureFinaleData()
-})
+watch(routeId, () => void ensureFinaleData(), { immediate: true })
 
-watch(routeId, () => {
-  void ensureFinaleData()
-})
 </script>
 
 <template>
@@ -127,20 +127,8 @@ watch(routeId, () => {
             {{ durationLabel || "—" }}
           </p>
         </div>
-        <div class="client-stat-cell">
-          <p class="text-xs text-muted-foreground">线索</p>
-          <p class="mt-2 text-xl font-semibold text-foreground">
-            {{ result.usedClueCount }}
-          </p>
-        </div>
       </div>
 
-      <div
-        v-if="result.noCluePerfect"
-        class="rounded-[1rem] border border-primary/30 bg-primary/10 px-4 py-3 text-center text-sm text-primary"
-      >
-        无线索完美通关
-      </div>
 
       <div v-if="result.badges.length" class="client-surface-block space-y-3">
         <p class="text-sm font-semibold text-foreground">获得徽章</p>
@@ -174,27 +162,10 @@ watch(routeId, () => {
           </ClientBadge>
         </div>
       </div>
-
-      <div
-        v-if="result.shareCard?.shareCode || result.shareCard?.routeTitle"
-        class="client-surface-block space-y-2"
-      >
-        <p class="text-xs text-muted-foreground">分享</p>
-        <p v-if="result.shareCard?.shareCode" class="font-mono text-sm text-foreground">
-          {{ result.shareCard.shareCode }}
-        </p>
-        <p v-else-if="result.shareCard?.routeTitle" class="text-sm text-foreground">
-          {{ result.shareCard.routeTitle }}
-        </p>
-        <ClientButton
-          v-if="result.shareCard?.shareCode"
-          variant="outline"
-          class="w-full"
-          @click="copyShareCode()"
-        >
-          复制分享码
-        </ClientButton>
-      </div>
+      <ClientButton v-if="result.shareCard" variant="outline" class="w-full" @click="openShareCard()">
+        <Share2 :size="17" aria-hidden="true" />
+        分享
+      </ClientButton>
 
       <div class="space-y-3 pt-1">
         <ClientButton variant="outline" class="w-full" @click="backToHistory()">
@@ -202,6 +173,14 @@ watch(routeId, () => {
         </ClientButton>
         <ClientButton class="w-full" @click="replayMission()">重新开始</ClientButton>
       </div>
+
+      <ShareCardDialog
+        v-model:open="shareCardOpen"
+        :card="result.shareCard"
+        :cover-image-url="coverImageUrl"
+        @exported="toastStore.success('分享卡已保存', '可发送给朋友或保存到相册。')"
+        @export-error="toastStore.error('截图生成失败', '请确认图片资源可访问后重试。')"
+      />
     </template>
 
     <ClientEmptyState

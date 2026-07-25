@@ -351,6 +351,24 @@ const refreshRouteDetail = async (options?: { silent?: boolean }) => {
   }
 };
 
+const handleRouteTitleSaved = async (title: string) => {
+  const record = detailRecord.value;
+  if (!record) return;
+
+  detailRecord.value = { ...record, title };
+  if (routeDetail.value?.route) {
+    routeDetail.value = {
+      ...routeDetail.value,
+      route: { ...routeDetail.value.route, title },
+    };
+  }
+
+  try {
+    await refresh();
+  } catch (caughtError) {
+    actionFeedback.errorFrom(caughtError, '路线标题已保存，但列表刷新失败。');
+  }
+};
 const assertWorkflowAction = (
   record: RouteRecord,
   key: 'canPublish' | 'canUnpublish' | 'canSubmitAudit' | 'canAudit' | 'canDelete' | 'canEditContent',
@@ -631,6 +649,7 @@ const detailActions = computed(() => {
       :actions="detailActions"
       @update:open="onDetailDialogOpenChange"
       @refresh-silent="refreshRouteDetail({ silent: true })"
+      @title-saved="handleRouteTitleSaved"
       @publish="detailRecord && handlePublish(detailRecord)"
       @unpublish="detailRecord && handleUnpublish(detailRecord)"
       @submit-audit="detailRecord && handleSubmitAudit(detailRecord)"

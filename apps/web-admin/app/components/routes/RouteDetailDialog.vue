@@ -2,6 +2,7 @@
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { Position, VueFlow, type Edge, type Node } from '@vue-flow/core';
+import { Check, Pencil, X } from 'lucide-vue-next';
 import {
   getInteractionTypeMeta,
   parseStageConfig,
@@ -17,13 +18,13 @@ import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue'
 import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
-import AppIcon from '@/components/ui/AppIcon.vue';
+import Input from '@/components/shadcn/input/Input.vue';
 import AdminStageSimulator from '@/components/routes/AdminStageSimulator.vue';
 import RouteEditChatPane from '@/components/routes/RouteEditChatPane.vue';
 import StageEditDialog from '@/components/routes/StageEditDialog.vue';
 import type { RouteWorkflowActions } from '@/constants/routeWorkflow';
 import type { NarrationDetailResponse } from '@/types/narration';
-import type { RouteDetailResponse, RouteNodeResponse, RouteRecord } from '@/types/route';
+import type { RouteDetailResponse, RouteNodeResponse, RouteRecord, UpdateRouteTitlePayload } from '@/types/route';
 import RouteStatusBadge from '@/components/routes/RouteStatusBadge.vue';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
@@ -54,6 +55,7 @@ const emit = defineEmits<{
   unpublish: [];
   submitAudit: [];
   audit: [];
+  'title-saved': [title: string];
 }>();
 
 const { request } = useApiClient();
@@ -66,6 +68,10 @@ const chatPaneRef = shallowRef<{
 const narrationDetail = shallowRef<NarrationDetailResponse | null>(null);
 const narrationStatus = shallowRef<GameplayPreviewNarrationStatus>('idle');
 const narrationErrorMessage = shallowRef('');
+const editingRouteTitle = shallowRef(false);
+const routeTitleDraft = shallowRef('');
+const savingRouteTitle = shallowRef(false);
+const routeTitleError = shallowRef('');
 let detailRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSilentRefresh = false;
 let narrationRequestSeq = 0;
@@ -197,6 +203,7 @@ watch(narrationWatchKey, (stageId) => {
 
 const routeId = computed(() => String(props.detail?.route?.id ?? '').trim());
 const routeTitle = computed(() => props.detail?.route?.title || '路线详情');
+const routeCode = computed(() => String(props.record?.routeCode || '').trim());
 const routeMeta = computed(() => {
   const route = props.detail?.route;
   if (!route) {
@@ -299,6 +306,41 @@ function getInteractionTypeName(interactionType: number) {
 function closeDialog() {
   isOpen.value = false;
 }
+function startRouteTitleEdit() {
+  routeTitleDraft.value = routeTitle.value;
+  routeTitleError.value = '';
+  editingRouteTitle.value = true;
+}
+function cancelRouteTitleEdit() {
+  editingRouteTitle.value = false;
+  routeTitleError.value = '';
+}
+async function saveRouteTitle() {
+  const id = routeId.value;
+  const title = routeTitleDraft.value.trim();
+  if (!title) {
+    routeTitleError.value = '请输入路线标题。';
+    return;
+  }
+  if (!id || !routeCode.value) {
+    routeTitleError.value = '路线信息不完整，暂不能保存标题。';
+    return;
+  }
+  savingRouteTitle.value = true;
+  routeTitleError.value = '';
+  try {
+    await request('/api/route/update', {
+      method: 'POST',
+      body: { id, routeCode: routeCode.value, title } satisfies UpdateRouteTitlePayload,
+    });
+    editingRouteTitle.value = false;
+    emit('title-saved', title);
+  } catch (error) {
+    routeTitleError.value = resolveRequestErrorMessage(error, '路线标题保存失败。');
+  } finally {
+    savingRouteTitle.value = false;
+  }
+}
 </script>
 <template>
   <Dialog v-model:open="isOpen">
@@ -307,9 +349,16 @@ function closeDialog() {
       <div class="flex shrink-0 items-start border-b border-border/70 px-5 py-3 pr-12">
         <DialogHeader class="min-w-0 space-y-1.5 text-left">
           <div class="flex min-w-0 flex-wrap items-center gap-2">
-            <DialogTitle class="truncate">
+            <DialogTitle v-if="!editingRouteTitle" class="truncate">
               {{ routeTitle }}
             </DialogTitle>
+            <div v-else class="flex min-w-0 items-center gap-1.5">
+              <Input v-model="routeTitleDraft" class="h-8 min-w-[220px] max-w-[420px]" aria-label="路线标题" :disabled="savingRouteTitle" @keyup.enter="saveRouteTitle" />
+              <Button type="button" size="icon" class="h-8 w-8 shrink-0" :disabled="savingRouteTitle" aria-label="保存路线标题" title="保存路线标题" @click="saveRouteTitle"><Check class="h-4 w-4" /></Button>
+              <Button variant="ghost" type="button" size="icon" class="h-8 w-8 shrink-0" :disabled="savingRouteTitle" aria-label="取消编辑路线标题" title="取消编辑" @click="cancelRouteTitleEdit"><X class="h-4 w-4" /></Button>
+            </div>
+            <Button v-if="props.canEdit && !editingRouteTitle" variant="ghost" type="button" size="icon" class="h-7 w-7 shrink-0" aria-label="编辑路线标题" title="编辑路线标题" @click="startRouteTitleEdit"><Pencil class="h-3.5 w-3.5" /></Button>
+            <p v-if="routeTitleError" class="text-xs text-rose-300">{{ routeTitleError }}</p>
             <RouteStatusBadge v-if="props.record" :record="props.record" />
           </div>
           <DialogDescription>
