@@ -1128,7 +1128,10 @@ export const useMissionStore = defineStore(
         })
 
         if (!response.success) {
-          return buildMissionSubmitResult(false, response.message || puzzle.failureCopy, null)
+          // 答错：写入 gameplayError，供页内文案与 toast 共用（D1）
+          const failMessage = response.message || puzzle.failureCopy || "答案错误，再想想看"
+          gameplayError.value = failMessage
+          return buildMissionSubmitResult(false, failMessage, null)
         }
 
         // 答对后同步进度；分数仅服务端字段，前端不展示

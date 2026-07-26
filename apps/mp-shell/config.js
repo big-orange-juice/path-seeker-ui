@@ -7,6 +7,5 @@
 module.exports = {
   env: 'development',
   /** h5-client 本地地址（微信开发者工具需关闭域名校验） */
-  h5BaseUrl: 'http://localhost:5174/'
-  // h5BaseUrl: 'http://43.142.248.191:8101/'
+  h5BaseUrl: 'http://localhost:5174/path-seeker/client/'
 };

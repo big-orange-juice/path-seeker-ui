@@ -10,10 +10,10 @@
     "routes": "瓷器 2080972944426799104（type11/6/1）；宋朝文物巡礼04450；青铜 type11 多条；产品已无 type5/type10 测试项",
     "conclusion": "有条件通过",
     "p0": 0,
-    "p1": 4,
-    "p2": 2,
+    "p1": 3,
+    "p2": 1,
     "blockers": "按条件生成易卡在生成中导致新建上架失败",
-    "risks": "Ask SSE 超时；答错无反馈；生成中路线无法上架；导游资料保存 500"
+    "risks": "Ask SSE 超时；生成中路线无法上架；导游资料保存 500"
   },
   "cases": {
     "1.1.1": { "result": "通过", "actual": "未登录访问 shell 跳转 /auth", "note": "" },
@@ -28,7 +28,7 @@
     "1.2.2": { "result": "通过", "actual": "需在 map 点进入本站才建立可玩会话", "note": "" },
     "1.2.3": { "result": "通过", "actual": "退出游客后登录 testuser0726，账号为测0726，进度独立（瓷器 1/9）", "note": "不串用游客会话" },
     "2.1.1": { "result": "通过", "actual": "展示已发布路线（4~5 条）", "note": "" },
-    "2.1.2": { "result": "失败", "actual": "偶发先显示「0 条在展」再刷出列表", "defect": "D3", "note": "" },
+    "2.1.2": { "result": "通过", "actual": "加载中显示「加载中…」与骨架，不再闪「0 条在展」", "defect": "D3", "note": "前端已修" },
     "2.1.3": { "result": "通过", "actual": "筛选无匹配时「0 条在展」+ 空态文案", "note": "用关键词制造空列表" },
     "2.1.4": { "result": "通过", "actual": "标题关键词「瓷器」收窄为 1 条；可重置", "note": "" },
     "2.1.5": { "result": "通过", "actual": "点击卡片进入 map 预览", "note": "" },
@@ -60,7 +60,7 @@
     "3.2.6": { "result": "跳过", "actual": "本轮未进入播片阶段", "note": "" },
     "3.2.7": { "result": "跳过", "actual": "本轮未进入播片阶段", "note": "" },
     "3.2.8": { "result": "通过", "actual": "type1 选正确项 Submit→result", "note": "" },
-    "3.2.9": { "result": "失败", "actual": "Submit 返回「答案错误，再想想看」但页面无文案/toast", "defect": "D1", "note": "" },
+    "3.2.9": { "result": "通过", "actual": "答错展示页内文案 + toast（服务端 message）", "defect": "D1", "note": "前端已修" },
     "3.2.11": { "result": "跳过", "actual": "本轮未制造 Submit 接口失败", "note": "" },
     "3.2.12": { "result": "通过", "actual": "闯关「跳过本站」/解说「跳过解说」→result→map，进度递增", "note": "瓷器线站2 跳过解说后 2/9" },
     "3.2.13": { "result": "通过", "actual": "拼图站点「提示」展示文案且标已用提示，不破坏进度", "note": "站6" },
@@ -101,7 +101,7 @@
     "5.2.4": { "result": "通过", "actual": "390 宽度主要页面可用", "note": "" },
     "5.3.1": { "result": "跳过", "actual": "本轮未制造列表超时", "note": "" },
     "5.3.2": { "result": "跳过", "actual": "本轮未制造 Detail/Stages 失败", "note": "" },
-    "5.3.3": { "result": "失败", "actual": "答错 Submit 失败时页面未展示服务端文案", "defect": "D1", "note": "与 3.2.9 同根因" },
+    "5.3.3": { "result": "通过", "actual": "答错展示服务端文案，可重试", "defect": "D1", "note": "与 3.2.9 同修" },
     "5.3.4": { "result": "跳过", "actual": "本轮未单独验证 RecordActivity 失败静默", "note": "" },
     "6.1.1": { "result": "通过", "actual": "未登录 console 跳转登录", "note": "" },
     "6.1.2": { "result": "通过", "actual": "admin 登录进入控制台", "note": "" },
@@ -193,10 +193,10 @@
       "case": "3.2.9 / S3",
       "steps": "type1 提交错误答案",
       "expected": "展示服务端错误文案，可重试",
-      "actual": "POST /Gameplay/Submit 返回 message=答案错误，再想想看，页面无 toast/文案",
+      "actual": "页内提示 + toast 展示服务端 message",
       "severity": "P1",
-      "status": "待修",
-      "note": "正确项可通关"
+      "status": "已修",
+      "note": "gameplayError + 页内 alert + toast z-index"
     },
     {
       "id": "D2",
@@ -215,9 +215,9 @@
       "case": "2.1.2",
       "steps": "进入/刷新展厅列表",
       "expected": "加载中骨架/loading，不闪空",
-      "actual": "偶发先显示「0 条在展」再变为实际条数",
+      "actual": "pending 且无列表时显示「加载中…」",
       "severity": "P2",
-      "status": "待修",
+      "status": "已修",
       "note": ""
     },
     {

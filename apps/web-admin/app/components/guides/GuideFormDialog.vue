@@ -15,6 +15,8 @@ import type { GuideDraft, TtsVoiceResponse } from '@/types/guide'
 
 /** 声音样本体积上限：20MB */
 const MAX_VOICE_MATERIAL_BYTES = 20 * 1024 * 1024
+/** 单次最多上传样本数 */
+const MAX_VOICE_MATERIAL_COUNT = 8
 
 interface Props {
   open: boolean
@@ -44,13 +46,11 @@ const form = reactive<GuideDraft>({ ...props.initialValue })
 const avatarPreviewUrl = shallowRef('')
 const avatarInputRef = useTemplateRef<HTMLInputElement>('avatarInput')
 const materialInputRef = useTemplateRef<HTMLInputElement>('materialInput')
-const txtMaterialInputRef = useTemplateRef<HTMLInputElement>('txtMaterialInput')
 const avatarUploading = shallowRef(false)
 const avatarError = shallowRef('')
 const materialError = shallowRef('')
-const txtMaterialError = shallowRef('')
 
-/** 声音样本：mp3 / mp4 → multipart `material` */
+/** 声音样本：mp3 / mp4 → multipart `material`（可多份） */
 const isVoiceMaterialFile = (file: File) => {
   const name = file.name.toLowerCase()
   const type = (file.type || '').toLowerCase()
@@ -63,13 +63,6 @@ const isVoiceMaterialFile = (file: File) => {
   )
 }
 
-/** 讲解文风示例：txt → multipart `txtmaterial` */
-const isTxtMaterialFile = (file: File) => {
-  const name = file.name.toLowerCase()
-  const type = (file.type || '').toLowerCase()
-  return name.endsWith('.txt') || type === 'text/plain'
-}
-
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) {
     return `${bytes} B`
@@ -79,6 +72,19 @@ const formatFileSize = (bytes: number) => {
   }
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
+
+const materialFiles = computed(() => form.materialFiles ?? [])
+
+const materialSummary = computed(() => {
+  const files = materialFiles.value
+  if (!files.length) {
+    return ''
+  }
+  if (files.length === 1) {
+    return files[0]?.name || '1 个样本'
+  }
+  return `已选 ${files.length} 个样本`
+})
 
 watch(
   () => [props.open, props.initialValue] as const,
@@ -90,11 +96,11 @@ watch(
       ...props.initialValue,
       materialFile: null,
       materialFileName: '',
+      materialFiles: [],
       txtMaterialFile: null,
       txtMaterialFileName: '',
     })
     materialError.value = ''
-    txtMaterialError.value = ''
     avatarError.value = ''
     avatarUploading.value = false
     avatarPreviewUrl.value = String(props.initialValue.avatarPreviewUrl || '').trim()
@@ -195,90 +201,82 @@ const openMaterialPicker = () => {
   materialInputRef.value?.click()
 }
 
-const openTxtMaterialPicker = () => {
-  txtMaterialInputRef.value?.click()
-}
-
 const handleMaterialChange = (event: Event) => {
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0] ?? null
+  const picked = Array.from(input.files || [])
   materialError.value = ''
-
-  if (!file) {
-    form.materialFile = null
-    form.materialFileName = ''
-    input.value = ''
-    return
-  }
-
-  if (!isVoiceMaterialFile(file)) {
-    materialError.value = '声音样本仅支持 MP3 / MP4。'
-    form.materialFile = null
-    form.materialFileName = ''
-    input.value = ''
-    return
-  }
-
-  if (file.size > MAX_VOICE_MATERIAL_BYTES) {
-    materialError.value = `声音样本需在 20MB 以内（当前 ${formatFileSize(file.size)}）。`
-    form.materialFile = null
-    form.materialFileName = ''
-    input.value = ''
-    return
-  }
-
-  form.materialFile = file
-  form.materialFileName = file.name
   input.value = ''
+
+  if (!picked.length) {
+    return
+  }
+
+  const next = [...(form.materialFiles || [])]
+  const errors: string[] = []
+
+  for (const file of picked) {
+    if (next.length >= MAX_VOICE_MATERIAL_COUNT) {
+      errors.push(`最多上传 ${MAX_VOICE_MATERIAL_COUNT} 个声音样本。`)
+      break
+    }
+    if (!isVoiceMaterialFile(file)) {
+      errors.push(`「${file.name}」格式不支持，仅 MP3 / MP4。`)
+      continue
+    }
+    if (file.size > MAX_VOICE_MATERIAL_BYTES) {
+      errors.push(`「${file.name}」超过 20MB（${formatFileSize(file.size)}）。`)
+      continue
+    }
+    const dup = next.some(
+      (item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified,
+    )
+    if (dup) {
+      continue
+    }
+    next.push(file)
+  }
+
+  form.materialFiles = next
+  // 兼容旧单文件字段：取首个
+  form.materialFile = next[0] ?? null
+  form.materialFileName = next[0]?.name || ''
+  // 不再上传文风
+  form.txtMaterialFile = null
+  form.txtMaterialFileName = ''
+
+  if (errors.length) {
+    materialError.value = errors[0] || ''
+  }
 }
 
-const handleTxtMaterialChange = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0] ?? null
-  txtMaterialError.value = ''
-
-  if (!file) {
-    form.txtMaterialFile = null
-    form.txtMaterialFileName = ''
-    input.value = ''
-    return
-  }
-
-  if (!isTxtMaterialFile(file)) {
-    txtMaterialError.value = '讲解文风示例仅支持 TXT 文本。'
-    form.txtMaterialFile = null
-    form.txtMaterialFileName = ''
-    input.value = ''
-    return
-  }
-
-  form.txtMaterialFile = file
-  form.txtMaterialFileName = file.name
-  input.value = ''
+const removeMaterialAt = (index: number) => {
+  const next = (form.materialFiles || []).filter((_, i) => i !== index)
+  form.materialFiles = next
+  form.materialFile = next[0] ?? null
+  form.materialFileName = next[0]?.name || ''
+  materialError.value = ''
 }
 
-const clearMaterial = () => {
+const clearMaterials = () => {
+  form.materialFiles = []
   form.materialFile = null
   form.materialFileName = ''
   materialError.value = ''
-}
-
-const clearTxtMaterial = () => {
-  form.txtMaterialFile = null
-  form.txtMaterialFileName = ''
-  txtMaterialError.value = ''
 }
 
 const handleSubmit = () => {
   if (!canSubmit.value) {
     return
   }
+  const files = form.materialFiles || []
   emit('submit', {
     ...form,
-    materialFile: form.materialFile ?? null,
-    materialFileName: form.materialFileName || '',
-    txtMaterialFile: form.txtMaterialFile ?? null,
-    txtMaterialFileName: form.txtMaterialFileName || '',
+    materialFile: files[0] ?? null,
+    materialFileName: files[0]?.name || '',
+    materialFiles: files,
+    // 文风改为服务端处理，前端不再上传
+    txtMaterialFile: null,
+    txtMaterialFileName: '',
   })
 }
 </script>
@@ -329,7 +327,6 @@ const handleSubmit = () => {
                   {{ avatarUploading ? '上传中…' : '点击上传' }}
                 </span>
               </div>
-              <!-- 已有图时悬停提示更换 -->
               <div
                 v-if="avatarPreviewUrl && !avatarUploading"
                 class="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100"
@@ -380,7 +377,7 @@ const handleSubmit = () => {
           </div>
         </section>
 
-        <!-- ② 声音：内置音色优先，样本为补充 -->
+        <!-- ② 声音：内置音色优先，样本可多份 -->
         <section class="space-y-3 border-t border-border/60 pt-5">
           <p class="form-label text-sm font-medium">
             声音
@@ -411,22 +408,25 @@ const handleSubmit = () => {
             </Select>
           </label>
           <p class="text-xs text-muted-foreground">
-            优先使用内置音色；若无法满足再上传自定义样本。
+            优先使用内置音色；若无法满足再上传自定义样本（可多选）。
           </p>
 
           <div class="space-y-1.5 border-t border-border/40 pt-3">
             <div class="flex items-center justify-between gap-2">
               <span class="form-label text-sm font-medium">自定义声音样本</span>
-              <span class="text-[11px] text-muted-foreground">可选 · MP3 / MP4 · ≤20MB</span>
+              <span class="text-[11px] text-muted-foreground">
+                可选 · 多选 · MP3 / MP4 · ≤20MB
+              </span>
             </div>
             <p class="text-xs text-muted-foreground">
-              仅在内置音色不够用时上传，用于生成专属声线
+              仅在内置音色不够用时上传，可一次选择多个样本
             </p>
             <input
               ref="materialInput"
               type="file"
               accept=".mp3,.mp4,audio/mpeg,audio/mp3,video/mp4"
               class="hidden"
+              multiple
               @change="handleMaterialChange"
             >
             <button
@@ -437,32 +437,54 @@ const handleSubmit = () => {
             >
               <AppIcon name="image-up" class="h-5 w-5 text-primary/80" />
               <span class="text-sm font-medium text-foreground">
-                {{ form.materialFileName ? '重新选择样本' : '点击上传声音样本' }}
+                {{ materialFiles.length ? '继续添加样本' : '点击上传声音样本' }}
               </span>
               <span
-                v-if="form.materialFileName"
+                v-if="materialSummary"
                 class="form-value max-w-full truncate px-2 text-xs"
               >
-                {{ form.materialFileName }}
-                <template v-if="form.materialFile">
-                  · {{ formatFileSize(form.materialFile.size) }}
-                </template>
+                {{ materialSummary }}
               </span>
               <span
                 v-else
                 class="text-xs text-muted-foreground"
               >
-                支持 MP3 / MP4，不超过 20MB
+                支持 MP3 / MP4，单文件不超过 20MB，最多 {{ MAX_VOICE_MATERIAL_COUNT }} 个
               </span>
             </button>
+
+            <ul
+              v-if="materialFiles.length"
+              class="space-y-1.5 rounded-lg border border-border/50 bg-background/30 px-3 py-2"
+            >
+              <li
+                v-for="(file, index) in materialFiles"
+                :key="`${file.name}-${file.size}-${file.lastModified}`"
+                class="flex items-center justify-between gap-2 text-xs"
+              >
+                <span class="min-w-0 truncate text-foreground" :title="file.name">
+                  {{ file.name }}
+                  <span class="text-muted-foreground">· {{ formatFileSize(file.size) }}</span>
+                </span>
+                <button
+                  type="button"
+                  class="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  :disabled="submitting"
+                  @click="removeMaterialAt(index)"
+                >
+                  移除
+                </button>
+              </li>
+            </ul>
+
             <button
-              v-if="form.materialFileName"
+              v-if="materialFiles.length"
               type="button"
               class="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
               :disabled="submitting"
-              @click="clearMaterial"
+              @click="clearMaterials"
             >
-              移除样本
+              清空全部样本
             </button>
             <p
               v-if="materialError"
@@ -471,62 +493,6 @@ const handleSubmit = () => {
               {{ materialError }}
             </p>
           </div>
-        </section>
-
-        <!-- ③ 讲解文风：独立分区 -->
-        <section class="space-y-2 border-t border-border/60 pt-5">
-          <div class="flex items-center justify-between gap-2">
-            <span class="form-label text-sm font-medium">讲解文风</span>
-            <span class="text-[11px] text-muted-foreground">TXT 文本</span>
-          </div>
-          <p class="text-xs text-muted-foreground">
-            上传文风示例，用于生成语气与用词风格（可选）
-          </p>
-          <input
-            ref="txtMaterialInput"
-            type="file"
-            accept=".txt,text/plain"
-            class="hidden"
-            @change="handleTxtMaterialChange"
-          >
-          <button
-            type="button"
-            class="flex w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-primary/35 bg-secondary/20 px-3 py-5 text-center transition hover:border-primary/55 hover:bg-secondary/35 disabled:cursor-not-allowed disabled:opacity-60"
-            :disabled="submitting"
-            @click="openTxtMaterialPicker"
-          >
-            <AppIcon name="image-up" class="h-5 w-5 text-primary/80" />
-            <span class="text-sm font-medium text-foreground">
-              {{ form.txtMaterialFileName ? '重新选择文风示例' : '点击上传文风示例' }}
-            </span>
-            <span
-              v-if="form.txtMaterialFileName"
-              class="form-value max-w-full truncate px-2 text-xs"
-            >
-              {{ form.txtMaterialFileName }}
-            </span>
-            <span
-              v-else
-              class="text-xs text-muted-foreground"
-            >
-              支持 TXT 文本
-            </span>
-          </button>
-          <button
-            v-if="form.txtMaterialFileName"
-            type="button"
-            class="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
-            :disabled="submitting"
-            @click="clearTxtMaterial"
-          >
-            移除文风示例
-          </button>
-          <p
-            v-if="txtMaterialError"
-            class="text-xs text-rose-300"
-          >
-            {{ txtMaterialError }}
-          </p>
         </section>
       </div>
 

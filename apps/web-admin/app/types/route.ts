@@ -157,6 +157,7 @@ export interface RouteRecord {
   museumId: string | null;
   title: string;
   theme: string;
+  coverImageUrl: string | null;
   scaleType: number;
   difficultyLevel: number;
   ageGroup: number;

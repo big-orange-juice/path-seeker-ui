@@ -142,7 +142,7 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
       const record = row.original
       const acting = isActing(record.id)
 
-      // 未完成生成：仅刷新（同路线列表）
+      // 未完成生成：刷新 + 删除（与主题路线一致，避免卡死）
       if (record.isGenerating) {
         return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
           h(
@@ -162,6 +162,17 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
               }),
               h('span', '刷新'),
             ],
+          ),
+          h(
+            Button,
+            {
+              variant: 'secondary',
+              size: 'sm',
+              class: 'h-7 px-2.5 text-xs',
+              disabled: acting,
+              onClick: () => emit('remove', record),
+            },
+            () => '删除',
           ),
         ])
       }

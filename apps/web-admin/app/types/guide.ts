@@ -153,7 +153,7 @@ export interface GuideRecord {
   sortOrder: number
   version: number
   updatedAt: string | null
-  /** 语义生成未完成（同路线 isGenerating：列表仅刷新） */
+  /** 语义生成未完成（同路线 isGenerating：列表刷新+删除） */
   isGenerating: boolean
 }
 
@@ -175,12 +175,15 @@ export type GuideDraft = Omit<
   /**
    * 音色材料本地文件（mp3 / mp4），multipart 字段名 `material`
    * 对齐 create-with-material / update-with-material
+   * @deprecated 请用 materialFiles；保留首个文件兼容旧逻辑
    */
   materialFile?: File | null
   materialFileName?: string
+  /** 多份声音样本（同一字段名 `material` 多次 append） */
+  materialFiles?: File[]
   /**
    * 语义/语料资料本地文件（txt），multipart 字段名 `txtmaterial`
-   * 对齐 create-with-material / update-with-material
+   * 前端已不再上传文风；字段保留兼容旧调用
    */
   txtMaterialFile?: File | null
   txtMaterialFileName?: string
@@ -230,6 +233,6 @@ export const getGuideGenerationStatusMeta = (status: number) => {
   return { label: '未开始', className: 'bg-slate-500/10 text-slate-300' }
 }
 
-/** 未完成生成：列表仅允许刷新（对齐路线 isGenerating） */
+/** 未完成生成：列表展示生成中态（可刷新/删除） */
 export const isGuideGenerationIncomplete = (status: number | null | undefined) =>
   Number(status ?? GUIDE_GENERATION_STATUS.NotStarted) !== GUIDE_GENERATION_STATUS.Completed

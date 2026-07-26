@@ -23,10 +23,40 @@ import { createSseParser } from "@/utils/sse"
 /** 问一问交互模式：默认文字；语音模式仍打字输入，叠加 TTS 播报 */
 export type AskInteractionMode = "text" | "voice"
 
+/** 站点快捷问答上下文（以附件形式挂在输入区，可取消） */
+export interface AskStageContext {
+  routeId: string
+  stageId: string
+}
+
 /** @deprecated 使用 AskUiMessage */
 export type AskMessage = {
   role: "user" | "bot" | "assistant"
   text: string
+}
+
+/** 将站点上下文与用户问题拼成发给后端的完整提示词 */
+export function buildAskMessageWithStageContext(
+  userText: string,
+  context: AskStageContext | null | undefined,
+) {
+  const instruction = userText.trim()
+  if (!context) {
+    return instruction
+  }
+  const routeId = String(context.routeId || "").trim()
+  const stageId = String(context.stageId || "").trim()
+  if (!routeId && !stageId) {
+    return instruction
+  }
+  return [
+    "【上下文】",
+    `routeId: ${routeId || "—"}`,
+    `stageId: ${stageId || "—"}`,
+    "",
+    "【用户指令】",
+    instruction,
+  ].join("\n")
 }
 
 function createLocalMessage(
@@ -63,6 +93,8 @@ export const useAskStore = defineStore("ask", () => {
   const lastEventId = shallowRef("")
   const errorMessage = shallowRef("")
   const historyPending = shallowRef(false)
+  /** 站点快捷问答附件上下文，可取消 */
+  const stageContext = shallowRef<AskStageContext | null>(null)
 
   let abortController: AbortController | null = null
   let activeAssistantId = ""
@@ -70,15 +102,41 @@ export const useAskStore = defineStore("ask", () => {
   const hasMessages = computed(() => messages.value.length > 0)
   const isRunning = computed(() => typing.value)
   const isVoiceMode = computed(() => interactionMode.value === "voice")
+  const hasStageContext = computed(() => {
+    const ctx = stageContext.value
+    if (!ctx) return false
+    return Boolean(String(ctx.routeId || "").trim() || String(ctx.stageId || "").trim())
+  })
 
   function setInteractionMode(mode: AskInteractionMode) {
     interactionMode.value = mode === "voice" ? "voice" : "text"
+  }
+
+  function setStageContext(context: AskStageContext | null) {
+    if (!context) {
+      stageContext.value = null
+      return
+    }
+    stageContext.value = {
+      routeId: String(context.routeId || "").trim(),
+      stageId: String(context.stageId || "").trim(),
+    }
+  }
+
+  function clearStageContext() {
+    stageContext.value = null
   }
 
   /** 打开问一问浮层 */
   function openAsk() {
     open.value = true
     void ensureSession()
+  }
+
+  /** 从站点页打开，并挂上 routeId/stageId 附件上下文 */
+  function openAskWithStageContext(context: AskStageContext) {
+    setStageContext(context)
+    openAsk()
   }
 
   function closeAsk() {
@@ -297,6 +355,9 @@ export const useAskStore = defineStore("ask", () => {
       return
     }
 
+    // UI 展示用户原文；发给后端时拼上站点上下文
+    const payloadMessage = buildAskMessageWithStageContext(trimmed, stageContext.value)
+
     errorMessage.value = ""
     typing.value = true
 
@@ -316,7 +377,7 @@ export const useAskStore = defineStore("ask", () => {
         body: JSON.stringify({
           sessionId: ensuredSessionId,
           clientMessageId,
-          message: trimmed,
+          message: payloadMessage,
         }),
         signal: abortController.signal,
       })
@@ -409,11 +470,16 @@ export const useAskStore = defineStore("ask", () => {
     sessionId,
     errorMessage,
     historyPending,
+    stageContext,
+    hasStageContext,
     hasMessages,
     isRunning,
     isVoiceMode,
     setInteractionMode,
+    setStageContext,
+    clearStageContext,
     openAsk,
+    openAskWithStageContext,
     closeAsk,
     ensureSession,
     loadHistory,

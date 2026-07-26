@@ -100,6 +100,37 @@ const renderStatus = (record: RouteRecord) => {
 
 const columns = computed<ColumnDef<RouteRecord>[]>(() => [
   {
+    id: 'coverImageUrl',
+    header: () =>
+      h(
+        'span',
+        {
+          class:
+            'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground'
+        },
+        '封面'
+      ),
+    cell: ({ row }) => {
+      const url = String(row.original.coverImageUrl || '').trim();
+      if (!url) {
+        return h(
+          'div',
+          {
+            class:
+              'flex h-12 w-9 items-center justify-center rounded-md border border-border/50 bg-secondary/30 text-[10px] text-muted-foreground'
+          },
+          '无'
+        );
+      }
+      return h('img', {
+        src: url,
+        alt: '',
+        class: 'h-12 w-9 rounded-md border border-border/50 object-cover',
+        loading: 'lazy'
+      });
+    }
+  },
+  {
     accessorKey: 'title',
     header: renderHeader('路线', 'title'),
     cell: ({ row }) => {
@@ -160,6 +191,19 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
       )
   },
   {
+    accessorKey: 'routeType',
+    header: renderHeader('类型', 'routeType'),
+    cell: ({ row }) =>
+      h(
+        'span',
+        {
+          class: 'text-sm text-muted-foreground',
+          title: 'routeType'
+        },
+        String(row.original.routeType ?? '—')
+      )
+  },
+  {
     accessorKey: 'puzzleCount',
     header: () =>
       h(
@@ -169,10 +213,10 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
           class:
             'inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground',
           onClick: () => emit('sort', 'puzzleCount'),
-          title: '本路线包含的关卡/站点数量，点击排序'
+          title: '本路线包含的站点数量，点击排序'
         },
         [
-          h('span', '谜题数'),
+          h('span', '站点数'),
           h(AppIcon, {
             name: getSortIconName('puzzleCount'),
             class: 'h-3.5 w-3.5 text-muted-foreground/80',
@@ -185,21 +229,9 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
         'span',
         {
           class: 'text-sm text-muted-foreground',
-          title: '本路线包含的关卡/站点数量'
+          title: '本路线包含的站点数量'
         },
         String(row.original.puzzleCount)
-      )
-  },
-  {
-    accessorKey: 'estimatedMinutes',
-    header: renderHeader('时长', 'estimatedMinutes'),
-    cell: ({ row }) =>
-      h(
-        'span',
-        { class: 'text-sm text-muted-foreground' },
-        row.original.estimatedMinutes === null
-          ? '未设置'
-          : `${row.original.estimatedMinutes} 分钟`
       )
   },
   {

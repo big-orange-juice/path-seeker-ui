@@ -94,6 +94,7 @@ export const useRouteLibrary = (
       museumId: normalizeText(item.museumId) || null,
       title: normalizeText(item.title),
       theme: normalizeText(item.theme),
+      coverImageUrl: normalizeText(item.coverImageUrl) || null,
       scaleType: item.scaleType ?? 0,
       difficultyLevel: item.difficultyLevel ?? 0,
       ageGroup: item.ageGroup ?? 0,

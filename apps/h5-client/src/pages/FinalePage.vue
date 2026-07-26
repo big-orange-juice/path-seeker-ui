@@ -116,12 +116,6 @@ watch(routeId, () => void ensureFinaleData(), { immediate: true })
           </p>
         </div>
         <div class="client-stat-cell">
-          <p class="text-xs text-muted-foreground">积分</p>
-          <p class="mt-2 text-xl font-semibold text-foreground">
-            {{ result.totalScore }}
-          </p>
-        </div>
-        <div class="client-stat-cell">
           <p class="text-xs text-muted-foreground">用时</p>
           <p class="mt-2 text-xl font-semibold text-foreground">
             {{ durationLabel || "—" }}

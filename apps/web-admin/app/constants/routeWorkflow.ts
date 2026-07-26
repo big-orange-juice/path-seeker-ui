@@ -309,9 +309,9 @@ export const getRouteWorkflowActions = (
     && (admin || owner);
 
   // 删除：未上架；本人非待审可删；管理员可删任意未上架（含导游待审）
+  // 生成中也允许删除，避免卡死在「仅刷新」
   const canDelete =
-    !generating
-    && publish === PUBLISH_DRAFT
+    publish === PUBLISH_DRAFT
     && (admin || (owner && audit !== AUDIT_PENDING));
 
   // 列表主入口：可审合并为「审核」（打开只读详情，底部再审）；否则编辑/查看

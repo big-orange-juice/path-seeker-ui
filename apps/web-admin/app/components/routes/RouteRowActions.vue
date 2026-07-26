@@ -117,6 +117,16 @@ const toggleMenu = () => {
         <AppIcon name="refresh-cw" class="h-3.5 w-3.5" :stroke-width="1.8" />
         刷新
       </Button>
+      <Button
+        v-if="actions.canDelete"
+        variant="secondary"
+        size="sm"
+        class="h-7 px-2.5 text-xs"
+        :disabled="acting"
+        @click="emit('remove')"
+      >
+        删除
+      </Button>
     </template>
 
     <template v-else>

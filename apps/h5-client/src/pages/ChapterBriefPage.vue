@@ -5,6 +5,7 @@
  */
 import { computed, onMounted, onUnmounted, shallowRef, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
+import { MessageCircle } from "lucide-vue-next"
 import {
   StagePlaySurface,
   type GameplayPreviewStage,
@@ -15,12 +16,14 @@ import { useToastStore } from "@path-seeker/client-state"
 import { ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { isPlayableMediaUrl } from "@/adapters/gameplayMissionAdapter"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
+import { useAskStore } from "@/stores/useAskStore"
 import { useCinemaStore } from "@/stores/useCinemaStore"
 import type { MissionAnswerDraft } from "@/types/mission"
 
 const route = useRoute()
 const router = useRouter()
 const toastStore = useToastStore()
+const askStore = useAskStore()
 const cinemaStore = useCinemaStore()
 const { missionStore, ensureMissionChapter } = useMissionChapterReady()
 
@@ -221,7 +224,9 @@ async function submitAnswer() {
   if (!draft.value) return
   const result = await missionStore.submitCurrentDraft(draft.value)
   if (!result.isCorrect) {
-    toastStore.warning("再想想", result.message || "答案还差一点。")
+    const failText = result.message || missionStore.gameplayError || "答案还差一点。"
+    // 页内文案 + toast 双通道，避免过场/遮罩时 toast 不可见（D1）
+    toastStore.warning("再想想", failText, 4000)
     return
   }
   toastStore.success(
@@ -234,6 +239,18 @@ async function submitAnswer() {
 
 function handleDraftUpdate(value: PuzzleAnswerDraft | null) {
   draft.value = value as MissionAnswerDraft | null
+  // 改选答案后收起上次答错提示
+  if (missionStore.gameplayError) {
+    missionStore.gameplayError = ""
+  }
+}
+
+function openStageAsk() {
+  if (!routeId.value || !chapterId.value) return
+  askStore.openAskWithStageContext({
+    routeId: routeId.value,
+    stageId: chapterId.value,
+  })
 }
 
 watch(
@@ -253,7 +270,19 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="relative space-y-4">
+    <button
+      v-if="ready && chapter"
+      type="button"
+      class="stage-ask-fab"
+      title="快捷问答"
+      aria-label="快捷问答"
+      @click="openStageAsk()"
+    >
+      <MessageCircle class="h-4 w-4" />
+      <span>问答</span>
+    </button>
+
     <template v-if="ready && chapter && playStage">
       <StagePlaySurface
         :stage="playStage"
@@ -279,6 +308,17 @@ onUnmounted(() => {
               <p class="mt-2 text-sm leading-6 text-muted-foreground">{{ missionStore.currentHintText }}</p>
             </div>
 
+            <div
+              v-if="missionStore.gameplayError"
+              class="rounded-[1rem] border border-amber-500/30 bg-amber-500/10 p-4"
+              role="alert"
+            >
+              <p class="text-sm font-semibold text-amber-50">再想想</p>
+              <p class="mt-1.5 text-sm leading-6 text-amber-50/85">
+                {{ missionStore.gameplayError }}
+              </p>
+            </div>
+
             <div class="grid grid-cols-2 gap-3">
               <ClientButton variant="outline" class="w-full" :disabled="!canUseHint" @click="useHint()">
                 {{ missionStore.currentHintText ? "已用提示" : "提示" }}
@@ -298,9 +338,6 @@ onUnmounted(() => {
             <ClientButton variant="outline" class="w-full" @click="router.push(`/missions/${routeId}/map`)">
               返回路线
             </ClientButton>
-            <p v-if="missionStore.gameplayError" class="text-sm leading-6 text-destructive">
-              {{ missionStore.gameplayError }}
-            </p>
           </template>
 
           <template v-else-if="interactionType === 10">
@@ -336,3 +373,30 @@ onUnmounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.stage-ask-fab {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid rgba(209, 178, 111, 0.35);
+  border-radius: 999px;
+  background: rgba(18, 16, 12, 0.78);
+  padding: 0.35rem 0.7rem;
+  color: #efd391;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+.stage-ask-fab:active {
+  transform: scale(0.98);
+  opacity: 0.92;
+}
+</style>

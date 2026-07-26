@@ -29,8 +29,16 @@ const props = withDefaults(defineProps<Props>(), {
 const router = useRouter()
 const toastStore = useToastStore()
 const askStore = useAskStore()
-const { open, typing, messages, errorMessage, historyPending, interactionMode } =
-  storeToRefs(askStore)
+const {
+  open,
+  typing,
+  messages,
+  errorMessage,
+  historyPending,
+  interactionMode,
+  stageContext,
+  hasStageContext,
+} = storeToRefs(askStore)
 
 const speech = useAskSpeech()
 const msgsRef = useTemplateRef<HTMLElement>("msgsEl")
@@ -407,6 +415,27 @@ function handleSuggestion(text: string) {
       </div>
 
       <form class="ask-composer" @submit="handleSubmit">
+        <div
+          v-if="hasStageContext && stageContext"
+          class="ask-context-chip"
+        >
+          <div class="ask-context-chip-body">
+            <span class="ask-context-chip-label">附件</span>
+            <span class="ask-context-chip-text">
+              站点上下文 · routeId / stageId
+            </span>
+          </div>
+          <button
+            type="button"
+            class="ask-context-chip-remove"
+            title="取消附件"
+            aria-label="取消站点上下文附件"
+            :disabled="typing"
+            @click="askStore.clearStageContext()"
+          >
+            <X class="h-3.5 w-3.5" />
+          </button>
+        </div>
         <div class="ask-composer-inner">
           <input
             ref="draftEl"

@@ -84,7 +84,12 @@ onMounted(() => {
     <!-- 壳层已展示「展厅」标题；本区只保留在展数与筛选，避免重复说明 -->
     <header class="hall-top">
       <p class="hall-count">
-        {{ missionStore.coverageSummary.missionCount }} 条在展
+        <template v-if="missionStore.routeListPending && !hasRoutes">
+          加载中…
+        </template>
+        <template v-else>
+          {{ missionStore.coverageSummary.missionCount }} 条在展
+        </template>
       </p>
       <button
         type="button"

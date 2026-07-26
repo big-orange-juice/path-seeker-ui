@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef } from "vue"
 import { useRoute, useRouter } from "vue-router"
+import { MessageCircle } from "lucide-vue-next"
 import {
   NARRATION_AUDIO_STATUS,
   StagePlaySurface,
@@ -10,10 +11,12 @@ import { useToastStore } from "@path-seeker/client-state"
 import { ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
 import { fetchNarrationDetail, type NarrationDetailResponse } from "@/services/gameplay"
+import { useAskStore } from "@/stores/useAskStore"
 
 const route = useRoute()
 const router = useRouter()
 const toastStore = useToastStore()
+const askStore = useAskStore()
 const { missionStore, ensureMissionChapter } = useMissionChapterReady()
 
 const routeId = computed(() => String(route.params.routeId || ""))
@@ -132,6 +135,14 @@ async function bootstrap() {
   await loadDetail()
 }
 
+function openStageAsk() {
+  if (!routeId.value || !chapterId.value) return
+  askStore.openAskWithStageContext({
+    routeId: routeId.value,
+    stageId: chapterId.value,
+  })
+}
+
 onMounted(() => {
   void bootstrap()
 })
@@ -139,6 +150,18 @@ onMounted(() => {
 
 <template>
   <div class="narration-page">
+    <button
+      v-if="ready && chapter"
+      type="button"
+      class="stage-ask-fab"
+      title="快捷问答"
+      aria-label="快捷问答"
+      @click="openStageAsk()"
+    >
+      <MessageCircle class="h-4 w-4" />
+      <span>问答</span>
+    </button>
+
     <StagePlaySurface
       v-if="ready && chapter && playStage"
       :stage="playStage"
@@ -179,6 +202,7 @@ onMounted(() => {
 
 <style scoped>
 .narration-page {
+  position: relative;
   display: flex;
   min-height: 0;
   flex: 1 1 auto;
@@ -186,6 +210,31 @@ onMounted(() => {
   /* 吃满 main 剩余高度，让底部按钮贴底 */
   height: 100%;
   min-height: 100%;
+}
+
+.stage-ask-fab {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid rgba(209, 178, 111, 0.35);
+  border-radius: 999px;
+  background: rgba(18, 16, 12, 0.78);
+  padding: 0.35rem 0.7rem;
+  color: #efd391;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+.stage-ask-fab:active {
+  transform: scale(0.98);
+  opacity: 0.92;
 }
 
 .narration-page :deep(.stage-play) {

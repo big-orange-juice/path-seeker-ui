@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, shallowRef } from 'vue';
+import Button from '@/components/shadcn/button/Button.vue';
+import Dialog from '@/components/shadcn/dialog/Dialog.vue';
+import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
+import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue';
+import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
+import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
+import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import { useAdminNavigation } from '@/composables/useAdminNavigation';
 import { useAdminAuthStore } from '@/stores/adminAuth';
 
@@ -7,13 +14,29 @@ const route = useRoute();
 const authStore = useAdminAuthStore();
 const { navItems } = useAdminNavigation();
 
+const logoutConfirmOpen = shallowRef(false);
+const loggingOut = shallowRef(false);
+
 const currentPage = computed(() => {
   return navItems.value.find((item) => item.to === route.path) ?? navItems.value[0]!;
 });
 
+const openLogoutConfirm = () => {
+  logoutConfirmOpen.value = true;
+};
+
 const handleLogout = async () => {
-  authStore.logout();
-  await navigateTo('/');
+  if (loggingOut.value) {
+    return;
+  }
+  loggingOut.value = true;
+  try {
+    logoutConfirmOpen.value = false;
+    authStore.logout();
+    await navigateTo('/');
+  } finally {
+    loggingOut.value = false;
+  }
 };
 </script>
 
@@ -39,10 +62,31 @@ const handleLogout = async () => {
           <p class="font-medium">{{ authStore.displayName }}</p>
           <p class="text-xs text-muted-foreground">{{ authStore.profile?.role || '管理员控制台' }}</p>
         </div>
-        <UiButton variant="ghost" size="sm" @click="handleLogout">
+        <UiButton variant="ghost" size="sm" @click="openLogoutConfirm">
           退出
         </UiButton>
       </div>
     </div>
   </header>
+
+  <Dialog v-model:open="logoutConfirmOpen">
+    <DialogContent class="max-w-[min(92vw,24rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
+      <DialogHeader class="space-y-2 px-5 pb-2 pt-4">
+        <DialogTitle class="text-base font-semibold text-foreground">
+          确认退出
+        </DialogTitle>
+        <DialogDescription class="text-sm leading-6 text-muted-foreground">
+          退出后需重新登录才能进入控制台。确定要退出当前账号吗？
+        </DialogDescription>
+      </DialogHeader>
+      <DialogFooter class="gap-2 px-5 pb-4 pt-3">
+        <Button variant="outline" type="button" :disabled="loggingOut" @click="logoutConfirmOpen = false">
+          取消
+        </Button>
+        <Button type="button" :disabled="loggingOut" @click="handleLogout">
+          {{ loggingOut ? '退出中…' : '确认退出' }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>

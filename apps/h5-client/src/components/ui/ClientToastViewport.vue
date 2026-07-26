@@ -44,7 +44,7 @@ const items = computed(() => toastStore.items)
   <Teleport to="body">
     <div
       v-if="items.length"
-      class="pointer-events-none fixed inset-x-0 top-4 z-[90] mx-auto flex w-full max-w-[30rem] flex-col gap-3 px-4"
+      class="pointer-events-none fixed inset-x-0 top-4 z-[200] mx-auto flex w-full max-w-[30rem] flex-col gap-3 px-4"
     >
       <TransitionGroup name="toast-stack" tag="div" class="flex flex-col gap-3">
         <div
