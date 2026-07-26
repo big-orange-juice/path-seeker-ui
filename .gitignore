@@ -21,3 +21,5 @@ apps/admin-web/node_modules
 .env.*.local
 **/.env.local
 **/.env.*.local
+
+.playwright-mcp
