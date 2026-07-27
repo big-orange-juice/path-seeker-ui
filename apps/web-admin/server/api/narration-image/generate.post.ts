@@ -7,7 +7,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
 
 /**
  * 提交解说配图 AI 生成任务。
- * 成功后附件会自动绑定到节点；前端轮询 detail.images 同步列表。
+ * 成功后附件会自动绑定到节点；前端手动刷新 detail.images 同步列表。
  */
 export default defineEventHandler(async (event): Promise<GenerateRouteStageNarrationImageResponse | null> => {
   const body = await readBody<GenerateRouteStageNarrationImageRequest>(event)

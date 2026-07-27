@@ -27,6 +27,10 @@ export type AskInteractionMode = "text" | "voice"
 export interface AskStageContext {
   routeId: string
   stageId: string
+  /** 仅 UI 展示；发送仍用 routeId */
+  routeTitle?: string
+  /** 仅 UI 展示；发送仍用 stageId */
+  stageTitle?: string
 }
 
 /** @deprecated 使用 AskUiMessage */
@@ -35,7 +39,19 @@ export type AskMessage = {
   text: string
 }
 
-/** 将站点上下文与用户问题拼成发给后端的完整提示词 */
+/** 输入区附件芯片文案：路线名 · 站点名（不展示原始 id） */
+export function formatStageContextChipLabel(context: AskStageContext | null | undefined) {
+  if (!context) return ""
+  const routeTitle = String(context.routeTitle || "").trim()
+  const stageTitle = String(context.stageTitle || "").trim()
+  if (routeTitle && stageTitle) return `${routeTitle} · ${stageTitle}`
+  if (routeTitle) return routeTitle
+  if (stageTitle) return stageTitle
+  // 无标题时仍不直出 id，用中性占位
+  return "当前站点"
+}
+
+/** 将站点上下文与用户问题拼成发给后端的完整提示词（仍传 id） */
 export function buildAskMessageWithStageContext(
   userText: string,
   context: AskStageContext | null | undefined,
@@ -120,6 +136,8 @@ export const useAskStore = defineStore("ask", () => {
     stageContext.value = {
       routeId: String(context.routeId || "").trim(),
       stageId: String(context.stageId || "").trim(),
+      routeTitle: String(context.routeTitle || "").trim() || undefined,
+      stageTitle: String(context.stageTitle || "").trim() || undefined,
     }
   }
 

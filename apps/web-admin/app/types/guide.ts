@@ -18,6 +18,7 @@ export interface GuideResponse {
   avatarAttachmentId?: string | null
   avatarUrl?: string | null
   description?: string | null
+  tagIds?: string[] | null
   semanticProfile?: string | null
   styleProfileJson?: string | null
   voiceStyle?: string | null
@@ -65,6 +66,7 @@ export interface SaveGuideRequest {
   name: string
   avatarAttachmentId?: string | null
   description?: string | null
+  tagIds?: string[] | null
   semanticProfile?: string | null
   voiceStyle?: string | null
   voiceProvider?: string | null
@@ -131,6 +133,7 @@ export interface GuideRecord {
   avatarAttachmentId: string | null
   avatarUrl: string | null
   description: string
+  tagIds: string[]
   semanticProfile: string
   voiceStyle: string
   voiceProvider: string

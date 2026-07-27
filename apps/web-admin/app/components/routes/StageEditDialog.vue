@@ -17,6 +17,7 @@ import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue'
 import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue'
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue'
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue'
+import { IMAGE_LIGHTBOX_Z_INDEX } from '@/components/shadcn/dialog/layer'
 import Input from '@/components/shadcn/input/Input.vue'
 import Textarea from '@/components/shadcn/textarea/Textarea.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -99,37 +100,32 @@ const { uploadAttachment } = useUploadAttachment()
 
 const saving = ref(false)
 const generatingAudio = ref(false)
-/** 生成音频任务轮询中（提交成功后轮询 detail.audioStatus） */
-const audioPolling = ref(false)
+/** 手动刷新音频状态中 */
+const refreshingAudio = ref(false)
 const imageBusy = ref(false)
 /** 配图来源：手动上传 / AI 生成（二选一交互） */
 const imageSourceMode = ref<'upload' | 'generate'>('upload')
 /** AI 配图：画面描述 */
 const imageGenPrompt = ref('')
-/** AI 配图：已选参考图 URL 列表（最多 5，仅存有效地址） */
+/** AI 配图：上传得到的参考图 URL（最多 5，与下方已有配图勾选合计） */
 const imageGenRefUrls = ref<string[]>([])
-/** 外链粘贴草稿 */
-const imageGenRefDraft = ref('')
+/** AI 配图：从已有配图勾选的参考 URL（不写入上方上传列表，避免重复） */
+const imageGenSelectedExistingUrls = ref<string[]>([])
 /** 大图预览（参考图 / 已有配图） */
 const imageLightboxUrl = ref('')
 const generatingImage = ref(false)
-/** AI 配图任务轮询中（提交后刷新 detail.images） */
-const imageGenPolling = ref(false)
+/** 手动刷新配图列表中 */
+const refreshingImages = ref(false)
 const errorMessage = ref('')
 const infoMessage = ref('')
 const narrationDetail = ref<NarrationDetailResponse | null>(null)
-let audioPollTimer: ReturnType<typeof setInterval> | null = null
-let audioPollAttempts = 0
-const AUDIO_POLL_INTERVAL_MS = 2500
-const AUDIO_POLL_MAX_ATTEMPTS = 48
-let imageGenPollTimer: ReturnType<typeof setInterval> | null = null
-let imageGenPollAttempts = 0
-const IMAGE_GEN_POLL_INTERVAL_MS = 2500
-const IMAGE_GEN_POLL_MAX_ATTEMPTS = 48
 const IMAGE_GEN_REF_MAX = 5
+/** 音频 / AI 配图已提交、等待用户手动刷新时的提示 */
+const PENDING_GEN_TIP = '已提交生成，完成后请点击刷新查看。'
 /** 解说配图本地列表；与 detail.images 同步，增删走 NarrationImage API */
 const narrationImages = shallowRef<RouteStageNarrationImageResponse[]>([])
 const imageInputRef = useTemplateRef<HTMLInputElement>('imageInput')
+const imageGenRefInputRef = useTemplateRef<HTMLInputElement>('imageGenRefInput')
 const pieceImageInputRef = useTemplateRef<HTMLInputElement>('pieceImageInput')
 const videoInputRef = useTemplateRef<HTMLInputElement>('videoInput')
 const baseConfig = ref<Record<string, unknown>>({})
@@ -251,7 +247,7 @@ const canGenerateAudio = computed(() => Boolean(
   && form.narrationText.trim()
   && !generatingAudio.value
   && !saving.value
-  && !audioPolling.value,
+  && !refreshingAudio.value,
 ))
 const isAudioPendingStatus = (status: number) =>
   status === NARRATION_AUDIO_STATUS.Queued
@@ -263,8 +259,8 @@ const canGenerateImage = computed(() => Boolean(
   && stageId.value
   && imageGenPrompt.value.trim()
   && !generatingImage.value
-  && !imageGenPolling.value
   && !imageBusy.value
+  && !refreshingImages.value
   && !saving.value,
 ))
 
@@ -574,7 +570,7 @@ const resetForm = () => {
   imageSourceMode.value = 'upload'
   imageGenPrompt.value = ''
   imageGenRefUrls.value = []
-  imageGenRefDraft.value = ''
+  imageGenSelectedExistingUrls.value = []
   imageLightboxUrl.value = ''
   errorMessage.value = ''
   infoMessage.value = ''
@@ -766,89 +762,65 @@ const loadNarrationDetail = async () => {
   resetForm()
 }
 
-const stopAudioPoll = () => {
-  if (audioPollTimer) {
-    clearInterval(audioPollTimer)
-    audioPollTimer = null
-  }
-  audioPollAttempts = 0
-  audioPolling.value = false
-}
-
 /** 仅刷新音频相关字段，避免冲掉表单未保存编辑 */
 const refreshNarrationAudioMeta = async () => {
   if (!stageId.value) return
-  try {
-    const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
-      method: 'GET',
-      query: { stageId: stageId.value },
-    })
-    if (!detail) return
-    const draftText = form.narrationText.trim()
-    narrationDetail.value = {
-      ...(narrationDetail.value ?? {}),
-      ...detail,
-      // 表单正文优先，避免轮询冲掉未保存编辑
-      narrationText: draftText || detail.narrationText,
-    }
-  } catch {
-    // 状态刷新失败不阻断主流程
+  const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
+    method: 'GET',
+    query: { stageId: stageId.value },
+  })
+  if (!detail) return
+  const draftText = form.narrationText.trim()
+  narrationDetail.value = {
+    ...(narrationDetail.value ?? {}),
+    ...detail,
+    // 表单正文优先，避免刷新冲掉未保存编辑
+    narrationText: draftText || detail.narrationText,
   }
 }
 
-const finishAudioPollByStatus = (status: number) => {
+/** 根据最新 audioStatus 给出反馈；已有可播放音频时不叠「等待生成」提示 */
+const applyAudioStatusFeedback = () => {
+  const status = audioStatus.value
   if (status === NARRATION_AUDIO_STATUS.Completed) {
-    infoMessage.value = '音频已生成，可在下方试听。'
     errorMessage.value = ''
-    stopAudioPoll()
-    emit('preview-refresh')
-    return true
+    if (infoMessage.value === PENDING_GEN_TIP) {
+      infoMessage.value = ''
+    }
+    return
   }
   if (status === NARRATION_AUDIO_STATUS.Failed) {
     errorMessage.value = '音频生成失败，请稍后重试。'
     infoMessage.value = ''
-    stopAudioPoll()
-    emit('preview-refresh')
-    return true
+    return
   }
   if (status === NARRATION_AUDIO_STATUS.Stale) {
     infoMessage.value = '解说词已变更，请重新生成音频。'
-    stopAudioPoll()
-    emit('preview-refresh')
-    return true
+    return
   }
-  return false
+  if (isAudioPendingStatus(status) && !audioUrl.value) {
+    infoMessage.value = PENDING_GEN_TIP
+  }
 }
 
-/** 轮询 detail.audioStatus，直到完成 / 失败 / 超时（约 2 分钟） */
-const startAudioPoll = () => {
-  stopAudioPoll()
-  audioPolling.value = true
-  audioPollAttempts = 0
-  infoMessage.value = '音频生成中，正在同步状态…'
-
-  const tick = async () => {
-    audioPollAttempts += 1
+/** 手动刷新音频状态（不轮询） */
+const handleRefreshAudio = async () => {
+  if (!stageId.value || refreshingAudio.value || generatingAudio.value) return
+  refreshingAudio.value = true
+  errorMessage.value = ''
+  try {
     await refreshNarrationAudioMeta()
+    applyAudioStatusFeedback()
     emit('preview-refresh')
-
-    const status = audioStatus.value
-    if (finishAudioPollByStatus(status)) return
-
-    if (audioPollAttempts >= AUDIO_POLL_MAX_ATTEMPTS) {
-      infoMessage.value = '音频仍在生成，可稍后重新打开节点查看。'
-      stopAudioPoll()
-    }
+  } catch (error) {
+    errorMessage.value = resolveError(error, '刷新音频状态失败。')
+  } finally {
+    refreshingAudio.value = false
   }
-
-  void tick()
-  audioPollTimer = setInterval(() => {
-    void tick()
-  }, AUDIO_POLL_INTERVAL_MS)
 }
 
 const openImagePicker = () => {
-  if (!props.canEdit || imageBusy.value || saving.value || generatingImage.value || imageGenPolling.value) return
+  if (!props.canEdit || imageBusy.value || saving.value || generatingImage.value) return
   imageInputRef.value?.click()
 }
 
@@ -858,79 +830,56 @@ const collectAttachmentIds = () =>
     .map((item) => String(item.attachmentId ?? '').trim())
     .filter(Boolean)
 
-const stopImageGenPoll = () => {
-  if (imageGenPollTimer) {
-    clearInterval(imageGenPollTimer)
-    imageGenPollTimer = null
-  }
-  imageGenPollAttempts = 0
-  imageGenPolling.value = false
-}
-
 /** 仅刷新配图列表，保留表单未保存正文 */
 const refreshNarrationImagesMeta = async () => {
   if (!stageId.value) return
-  try {
-    const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
-      method: 'GET',
-      query: { stageId: stageId.value },
-    })
-    if (!detail) return
-    const draftText = form.narrationText.trim()
-    narrationDetail.value = {
-      ...(narrationDetail.value ?? {}),
-      ...detail,
-      narrationText: draftText || detail.narrationText,
-    }
-    syncNarrationImages(detail)
-  } catch {
-    // 状态刷新失败不阻断主流程
+  const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
+    method: 'GET',
+    query: { stageId: stageId.value },
+  })
+  if (!detail) return
+  const draftText = form.narrationText.trim()
+  narrationDetail.value = {
+    ...(narrationDetail.value ?? {}),
+    ...detail,
+    narrationText: draftText || detail.narrationText,
+  }
+  syncNarrationImages(detail)
+  if (narrationImages.value.length > 0 && infoMessage.value === PENDING_GEN_TIP) {
+    infoMessage.value = ''
   }
 }
 
-/**
- * 轮询 detail.images：任务成功后自动绑定，检测到新附件即结束。
- */
-const startImageGenPoll = (baselineAttachmentIds: Set<string>) => {
-  stopImageGenPoll()
-  imageGenPolling.value = true
-  imageGenPollAttempts = 0
-  infoMessage.value = '配图生成中，完成后将自动加入列表…'
-
-  const tick = async () => {
-    imageGenPollAttempts += 1
+/** 手动刷新配图（AI 生成不轮询） */
+const handleRefreshNarrationImages = async () => {
+  if (!stageId.value || refreshingImages.value || generatingImage.value || imageBusy.value) return
+  refreshingImages.value = true
+  errorMessage.value = ''
+  try {
     await refreshNarrationImagesMeta()
     emit('preview-refresh')
-
-    const hasNew = collectAttachmentIds().some((id) => !baselineAttachmentIds.has(id))
-    if (hasNew) {
-      infoMessage.value = '配图已生成并加入列表。'
-      errorMessage.value = ''
-      stopImageGenPoll()
-      return
-    }
-
-    if (imageGenPollAttempts >= IMAGE_GEN_POLL_MAX_ATTEMPTS) {
-      infoMessage.value = '配图仍在生成，可稍后重新打开节点查看。'
-      stopImageGenPoll()
-    }
+  } catch (error) {
+    errorMessage.value = resolveError(error, '刷新配图失败。')
+  } finally {
+    refreshingImages.value = false
   }
-
-  void tick()
-  imageGenPollTimer = setInterval(() => {
-    void tick()
-  }, IMAGE_GEN_POLL_INTERVAL_MS)
 }
 
 const normalizeImageUrl = (value: string) => value.trim()
 
+/** 上传参考 + 已有配图勾选合计数量 */
+const imageGenRefTotalCount = computed(
+  () => imageGenRefUrls.value.length + imageGenSelectedExistingUrls.value.length,
+)
+
 const isImageGenRefSelected = (url: string) => {
   const target = normalizeImageUrl(url)
   if (!target) return false
-  return imageGenRefUrls.value.some((item) => normalizeImageUrl(item) === target)
+  return imageGenSelectedExistingUrls.value.some((item) => normalizeImageUrl(item) === target)
+    || imageGenRefUrls.value.some((item) => normalizeImageUrl(item) === target)
 }
 
-/** 写入参考图；满员 / 重复时给出提示，返回是否成功 */
+/** 写入上传参考图；满员 / 重复时提示 */
 const pushImageGenRef = (url: string, options?: { silent?: boolean }) => {
   const nextUrl = normalizeImageUrl(url)
   if (!nextUrl || !isPreviewableImageUrl(nextUrl)) {
@@ -939,11 +888,10 @@ const pushImageGenRef = (url: string, options?: { silent?: boolean }) => {
     }
     return false
   }
-  if (isImageGenRefSelected(nextUrl)) {
-    // 重复加入静默忽略，靠「已参考」标记即可
+  if (imageGenRefUrls.value.some((item) => normalizeImageUrl(item) === nextUrl)) {
     return false
   }
-  if (imageGenRefUrls.value.length >= IMAGE_GEN_REF_MAX) {
+  if (imageGenRefTotalCount.value >= IMAGE_GEN_REF_MAX) {
     if (!options?.silent) {
       errorMessage.value = `参考图最多 ${IMAGE_GEN_REF_MAX} 张。`
     }
@@ -954,23 +902,51 @@ const pushImageGenRef = (url: string, options?: { silent?: boolean }) => {
   return true
 }
 
-/** 粘贴外链加入参考（成功不弹全局提示，卡片本身即反馈） */
-const addImageGenRefFromDraft = () => {
-  if (!props.canEdit || generatingImage.value || imageGenPolling.value) return
-  if (pushImageGenRef(imageGenRefDraft.value)) {
-    imageGenRefDraft.value = ''
+const openImageGenRefPicker = () => imageGenRefInputRef.value?.click()
+
+const handleImageGenRefUpload = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files ?? [])
+  input.value = ''
+  if (!files.length || generatingImage.value) return
+
+  try {
+    for (const file of files) {
+      if (imageGenRefTotalCount.value >= IMAGE_GEN_REF_MAX) {
+        errorMessage.value = `参考图最多 ${IMAGE_GEN_REF_MAX} 张。`
+        break
+      }
+      const uploaded = await uploadAttachment(file, 'image')
+      pushImageGenRef(String(uploaded?.fileUrl ?? ''))
+    }
+  } catch (error) {
+    errorMessage.value = resolveError(error, '参考图上传失败。')
   }
 }
 
-/** 从已有配图点击加入参考（成功静默，仅「已参考」标记反馈） */
-const addImageGenRefFromExisting = (image: RouteStageNarrationImageResponse) => {
-  if (!props.canEdit || generatingImage.value || imageGenPolling.value) return
-  const url = String(image.imageUrl ?? '').trim()
+/** 已有配图：只在图库勾选（边框反馈），不写入上方上传列表 */
+const toggleImageGenRefFromExisting = (image: RouteStageNarrationImageResponse) => {
+  if (!props.canEdit || generatingImage.value) return
+  const url = normalizeImageUrl(String(image.imageUrl ?? ''))
   if (!url) {
-    errorMessage.value = '该配图暂无可用地址，无法加入参考。'
+    errorMessage.value = '该配图暂无可用地址，无法作为参考。'
     return
   }
-  pushImageGenRef(url, { silent: true })
+  if (isImageGenRefSelected(url) && imageGenSelectedExistingUrls.value.some((item) => normalizeImageUrl(item) === url)) {
+    imageGenSelectedExistingUrls.value = imageGenSelectedExistingUrls.value
+      .filter((item) => normalizeImageUrl(item) !== url)
+    return
+  }
+  // 已在上传列表中的同一 URL，不再重复勾选
+  if (imageGenRefUrls.value.some((item) => normalizeImageUrl(item) === url)) {
+    return
+  }
+  if (imageGenRefTotalCount.value >= IMAGE_GEN_REF_MAX) {
+    errorMessage.value = `参考图最多 ${IMAGE_GEN_REF_MAX} 张。`
+    return
+  }
+  imageGenSelectedExistingUrls.value = [...imageGenSelectedExistingUrls.value, url]
+  errorMessage.value = ''
 }
 
 const removeImageGenRef = (index: number) => {
@@ -1020,9 +996,10 @@ const handleGenerateImages = async () => {
     return
   }
 
-  const referenceImageUrls = imageGenRefUrls.value
+  const referenceImageUrls = [...imageGenRefUrls.value, ...imageGenSelectedExistingUrls.value]
     .map((item) => normalizeImageUrl(item))
-    .filter(Boolean)
+    .filter((item, index, list) => Boolean(item) && list.indexOf(item) === index)
+    .slice(0, IMAGE_GEN_REF_MAX)
 
   const invalidRef = referenceImageUrls.find((url) => !isPreviewableImageUrl(url))
   if (invalidRef) {
@@ -1033,7 +1010,6 @@ const handleGenerateImages = async () => {
   generatingImage.value = true
   errorMessage.value = ''
   infoMessage.value = ''
-  const baseline = new Set(collectAttachmentIds())
 
   try {
     await request<GenerateRouteStageNarrationImageResponse | null>('/api/narration-image/generate', {
@@ -1045,7 +1021,8 @@ const handleGenerateImages = async () => {
         ...(referenceImageUrls.length ? { referenceImageUrls } : {}),
       },
     })
-    startImageGenPoll(baseline)
+    // 不轮询：提交后提示用户手动刷新配图列表
+    infoMessage.value = PENDING_GEN_TIP
   } catch (error) {
     errorMessage.value = resolveError(error, '配图生成提交失败。')
   } finally {
@@ -1166,15 +1143,8 @@ const removeNarrationImage = async (image: RouteStageNarrationImageResponse) => 
 watch(
   () => [props.open, stageId.value, props.node?.config, props.node?.title, props.node?.subtitle],
   () => {
-    stopAudioPoll()
-    stopImageGenPoll()
     if (isNarration.value && props.open) {
-      void loadNarrationDetail().then(() => {
-        // 打开时若任务已在排队/生成中，自动接上轮询
-        if (props.open && isNarration.value && isAudioPendingStatus(audioStatus.value)) {
-          startAudioPoll()
-        }
-      })
+      void loadNarrationDetail()
       return
     }
     narrationDetail.value = null
@@ -1430,13 +1400,24 @@ const handleGenerateAudio = async () => {
       method: 'POST',
       body: { stageId: stageId.value },
     })
-    // 提交后进入轮询，直到 Completed / Failed / 超时
-    await refreshNarrationAudioMeta()
-    emit('preview-refresh')
-    if (finishAudioPollByStatus(audioStatus.value)) return
-    startAudioPoll()
+    // 不轮询：提交后提示用户手动刷新音频状态
+    try {
+      await refreshNarrationAudioMeta()
+      emit('preview-refresh')
+    } catch {
+      // 状态刷新失败不阻断；仍提示手动刷新
+    }
+    if (audioStatus.value === NARRATION_AUDIO_STATUS.Completed) {
+      infoMessage.value = ''
+    } else if (audioStatus.value === NARRATION_AUDIO_STATUS.Failed) {
+      errorMessage.value = '音频生成失败，请稍后重试。'
+      infoMessage.value = ''
+    } else if (audioStatus.value === NARRATION_AUDIO_STATUS.Stale) {
+      infoMessage.value = '解说词已变更，请重新生成音频。'
+    } else {
+      infoMessage.value = PENDING_GEN_TIP
+    }
   } catch (error) {
-    stopAudioPoll()
     errorMessage.value = resolveError(error, '音频生成任务提交失败。')
   } finally {
     generatingAudio.value = false
@@ -1445,15 +1426,11 @@ const handleGenerateAudio = async () => {
 
 const closeDialog = () => {
   if (saving.value || generatingAudio.value || imageBusy.value || generatingImage.value) return
-  stopAudioPoll()
-  stopImageGenPoll()
   closeImageLightbox()
   isOpen.value = false
 }
 
 onBeforeUnmount(() => {
-  stopAudioPoll()
-  stopImageGenPoll()
   closeImageLightbox()
 })
 
@@ -1818,16 +1795,36 @@ const handleSave = async () => {
                           {{ audioStatusLabel }}
                         </p>
                       </div>
-                      <Button
-                        variant="outline"
-                        type="button"
-                        size="sm"
-                        class="h-7 shrink-0 px-2.5 text-xs"
-                        :disabled="!canGenerateAudio"
-                        @click="handleGenerateAudio">
-                        {{ generatingAudio ? '提交中…' : audioPolling ? '同步中…' : '生成' }}
-                      </Button>
+                      <div class="flex shrink-0 items-center gap-1.5">
+                        <Button
+                          variant="ghost"
+                          type="button"
+                          size="sm"
+                          class="h-7 px-2 text-xs"
+                          :disabled="!stageId || refreshingAudio || generatingAudio"
+                          @click="handleRefreshAudio">
+                          <AppIcon
+                            name="refresh-cw"
+                            class="mr-1 h-3.5 w-3.5"
+                            :class="refreshingAudio ? 'animate-spin' : ''" />
+                          刷新
+                        </Button>
+                        <Button
+                          variant="outline"
+                          type="button"
+                          size="sm"
+                          class="h-7 shrink-0 px-2.5 text-xs"
+                          :disabled="!canGenerateAudio"
+                          @click="handleGenerateAudio">
+                          {{ generatingAudio ? '提交中…' : '生成' }}
+                        </Button>
+                      </div>
                     </div>
+                    <p
+                      v-if="infoMessage === PENDING_GEN_TIP && !audioUrl"
+                      class="text-xs text-sky-200/90">
+                      {{ infoMessage }}
+                    </p>
                     <audio
                       v-if="audioUrl"
                       :src="audioUrl"
@@ -1841,7 +1838,22 @@ const handleSave = async () => {
               <!-- 配图：单层区块，顶栏 + 内容 + 图库 -->
               <div class="space-y-3 border-t border-border/60 pt-5">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                  <span class="form-label text-sm font-medium">配图</span>
+                  <div class="flex items-center gap-2">
+                    <span class="form-label text-sm font-medium">配图</span>
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      size="sm"
+                      class="h-7 px-2 text-xs"
+                      :disabled="!stageId || refreshingImages || generatingImage || imageBusy"
+                      @click="handleRefreshNarrationImages">
+                      <AppIcon
+                        name="refresh-cw"
+                        class="mr-1 h-3.5 w-3.5"
+                        :class="refreshingImages ? 'animate-spin' : ''" />
+                      刷新
+                    </Button>
+                  </div>
                   <div
                     class="inline-flex rounded-md border border-border/70 p-0.5"
                     role="tablist"
@@ -1854,7 +1866,7 @@ const handleSave = async () => {
                         ? 'bg-primary text-primary-foreground'
                         : 'text-muted-foreground hover:text-foreground'"
                       :aria-selected="imageSourceMode === 'upload'"
-                      :disabled="!props.canEdit || generatingImage || imageGenPolling"
+                      :disabled="!props.canEdit || generatingImage"
                       @click="imageSourceMode = 'upload'">
                       上传
                     </button>
@@ -1879,7 +1891,7 @@ const handleSave = async () => {
                     type="button"
                     size="sm"
                     class="h-8"
-                    :disabled="!props.canEdit || saving || imageBusy || generatingImage || imageGenPolling || !stageId"
+                    :disabled="!props.canEdit || saving || imageBusy || generatingImage || !stageId"
                     @click="openImagePicker">
                     <AppIcon name="image-up" class="mr-1.5 h-3.5 w-3.5" />
                     {{ imageBusy ? '处理中…' : '选择图片' }}
@@ -1900,7 +1912,7 @@ const handleSave = async () => {
                       v-model="imageGenPrompt"
                       class="min-h-[72px] resize-y text-sm"
                       placeholder="描述希望生成的画面…"
-                      :disabled="!props.canEdit || saving || generatingImage || imageGenPolling"
+                      :disabled="!props.canEdit || saving || generatingImage"
                       maxlength="4000" />
                   </label>
 
@@ -1909,7 +1921,7 @@ const handleSave = async () => {
                       <span class="text-sm font-medium">
                         参考图
                         <span class="font-normal text-muted-foreground">
-                          {{ imageGenRefUrls.length }}/{{ IMAGE_GEN_REF_MAX }}
+                          {{ imageGenRefTotalCount }}/{{ IMAGE_GEN_REF_MAX }}
                         </span>
                       </span>
                       <Button
@@ -1918,25 +1930,30 @@ const handleSave = async () => {
                         class="h-8"
                         :disabled="!canGenerateImage"
                         @click="handleGenerateImages">
-                        {{ generatingImage ? '提交中…' : imageGenPolling ? '生成中…' : '开始生成' }}
+                        {{ generatingImage ? '提交中…' : '开始生成' }}
                       </Button>
                     </div>
-                    <div class="flex gap-2">
-                      <Input
-                        v-model="imageGenRefDraft"
-                        class="h-8 min-w-0 flex-1 text-sm"
-                        placeholder="粘贴参考图链接"
-                        :disabled="!props.canEdit || saving || generatingImage || imageGenPolling || imageGenRefUrls.length >= IMAGE_GEN_REF_MAX"
-                        @keydown.enter.prevent="addImageGenRefFromDraft" />
+                    <div class="flex flex-wrap items-center gap-2">
                       <Button
                         variant="outline"
                         type="button"
                         size="sm"
-                        class="h-8 shrink-0"
-                        :disabled="!props.canEdit || !imageGenRefDraft.trim() || imageGenRefUrls.length >= IMAGE_GEN_REF_MAX || generatingImage || imageGenPolling"
-                        @click="addImageGenRefFromDraft">
-                        加入
+                        class="h-8"
+                        :disabled="!props.canEdit || saving || generatingImage || imageGenRefTotalCount >= IMAGE_GEN_REF_MAX"
+                        @click="openImageGenRefPicker">
+                        <AppIcon name="image-up" class="mr-1.5 h-3.5 w-3.5" />
+                        上传参考图
                       </Button>
+                      <input
+                        ref="imageGenRefInput"
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        class="hidden"
+                        @change="handleImageGenRefUpload">
+                      <span class="text-xs text-muted-foreground">
+                        也可在下方已有配图中勾选
+                      </span>
                     </div>
                     <div
                       v-if="imageGenRefUrls.length"
@@ -1945,19 +1962,20 @@ const handleSave = async () => {
                         v-for="(refUrl, refIndex) in imageGenRefUrls"
                         :key="`ref-${refIndex}-${refUrl}`"
                         class="relative aspect-square overflow-hidden rounded-md border border-border/60 bg-muted/20">
+                        <img :src="refUrl" alt="" class="h-full w-full object-cover">
                         <button
                           type="button"
-                          class="absolute inset-0 block h-full w-full cursor-zoom-in"
-                          title="放大"
+                          class="absolute left-0.5 top-0.5 z-10 flex h-5 w-5 items-center justify-center rounded bg-black/70 text-white"
+                          title="查看大图"
                           @click="openImageLightbox(refUrl)">
-                          <img :src="refUrl" alt="" class="h-full w-full object-cover">
+                          <AppIcon name="zoom-in" class="h-3 w-3" />
                         </button>
                         <button
                           v-if="props.canEdit"
                           type="button"
                           class="absolute right-0.5 top-0.5 z-10 flex h-5 w-5 items-center justify-center rounded bg-black/70 text-white"
                           title="移除"
-                          :disabled="generatingImage || imageGenPolling"
+                          :disabled="generatingImage"
                           @click.stop="removeImageGenRef(refIndex)">
                           <AppIcon name="x" class="h-3 w-3" />
                         </button>
@@ -1973,26 +1991,21 @@ const handleSave = async () => {
                   <div
                     v-for="(image, index) in narrationImages"
                     :key="String(image.id || image.attachmentId || image.imageUrl || index)"
-                    class="group relative aspect-square overflow-hidden rounded-md border border-border/60 bg-muted/20"
+                    class="group relative aspect-square overflow-hidden rounded-md border bg-muted/20"
                     :class="imageSourceMode === 'generate' && isImageGenRefSelected(String(image.imageUrl ?? ''))
-                      ? 'ring-2 ring-primary/60'
-                      : ''">
+                      ? 'border-primary ring-2 ring-primary/50'
+                      : 'border-border/60'">
                     <button
                       v-if="imageSourceMode === 'generate' && image.imageUrl"
                       type="button"
                       class="absolute inset-0 block h-full w-full"
-                      :disabled="!props.canEdit || generatingImage || imageGenPolling"
-                      :title="isImageGenRefSelected(String(image.imageUrl)) ? '已参考' : '加入参考'"
-                      @click="addImageGenRefFromExisting(image)">
+                      :disabled="!props.canEdit || generatingImage"
+                      :title="isImageGenRefSelected(String(image.imageUrl)) ? '取消选择' : '选为参考'"
+                      @click="toggleImageGenRefFromExisting(image)">
                       <img
                         :src="String(image.imageUrl)"
                         :alt="`配图 ${index + 1}`"
                         class="h-full w-full object-cover">
-                      <span
-                        v-if="isImageGenRefSelected(String(image.imageUrl))"
-                        class="absolute left-1 top-1 rounded bg-primary/90 px-1 py-0.5 text-[10px] text-primary-foreground">
-                        参考
-                      </span>
                     </button>
                     <template v-else>
                       <img
@@ -2010,8 +2023,8 @@ const handleSave = async () => {
                     <button
                       v-if="image.imageUrl"
                       type="button"
-                      class="absolute right-0.5 top-0.5 z-20 flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white opacity-0 transition-opacity group-hover:opacity-100"
-                      title="放大"
+                      class="absolute right-0.5 top-0.5 z-20 flex h-5 w-5 items-center justify-center rounded bg-black/65 text-white opacity-90 transition-opacity hover:bg-black/80"
+                      title="查看大图"
                       @click.stop.prevent="openImageLightbox(String(image.imageUrl))">
                       <AppIcon name="zoom-in" class="h-3 w-3" />
                     </button>
@@ -2024,7 +2037,7 @@ const handleSave = async () => {
                         v-if="props.canEdit"
                         type="button"
                         class="text-[10px] text-white/90 hover:text-white disabled:opacity-40"
-                        :disabled="imageBusy || generatingImage || imageGenPolling"
+                        :disabled="imageBusy || generatingImage"
                         @click.stop="removeNarrationImage(image)">
                         删
                       </button>
@@ -2056,7 +2069,15 @@ const handleSave = async () => {
         <p v-if="errorMessage" class="shrink-0 text-sm text-destructive">
           {{ errorMessage }}
         </p>
-        <p v-else-if="infoMessage" class="shrink-0 text-sm text-muted-foreground">
+        <!-- 等待生成提示在音频/配图区块内展示；其它 info 放底部 -->
+        <p
+          v-else-if="infoMessage && infoMessage !== PENDING_GEN_TIP"
+          class="shrink-0 text-sm text-muted-foreground">
+          {{ infoMessage }}
+        </p>
+        <p
+          v-else-if="infoMessage === PENDING_GEN_TIP && imageSourceMode === 'generate' && narrationImages.length === 0"
+          class="shrink-0 text-sm text-sky-200/90">
           {{ infoMessage }}
         </p>
       </div>
@@ -2090,13 +2111,13 @@ const handleSave = async () => {
     @select="selectGuide"
     @search="loadGuides" />
 
-  <!-- 配图大图预览：z 须高于 Dialog 栈（基线 1000） -->
+  <!-- 配图大图预览：z 须高于 Dialog 栈 -->
   <Teleport to="body">
     <div
       v-if="imageLightboxUrl"
       data-image-lightbox
       class="fixed inset-0 flex items-center justify-center bg-black/85 p-4"
-      style="z-index: 5000"
+      :style="{ zIndex: IMAGE_LIGHTBOX_Z_INDEX }"
       role="dialog"
       aria-modal="true"
       aria-label="图片预览"

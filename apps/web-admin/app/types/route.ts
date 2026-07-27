@@ -144,6 +144,7 @@ export interface RouteAdminResponse {
   auditRequired?: boolean | null;
   /** 路线归属的后台账号 ID */
   ownerId?: string | null;
+  ownerName?: string | null;
   /** 当前操作者是否可以编辑该路线 */
   canEdit?: boolean | null;
   sortOrder: number;
@@ -174,6 +175,7 @@ export interface RouteRecord {
   auditRemark: string;
   auditRequired: boolean;
   ownerId: string | null;
+  ownerName: string;
   canEdit: boolean | null;
   sortOrder: number;
   isGenerating: boolean;

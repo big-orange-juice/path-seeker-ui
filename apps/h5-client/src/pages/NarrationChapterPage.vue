@@ -137,9 +137,20 @@ async function bootstrap() {
 
 function openStageAsk() {
   if (!routeId.value || !chapterId.value) return
+  const mission = missionStore.activeMission
+  const current = chapter.value
   askStore.openAskWithStageContext({
     routeId: routeId.value,
     stageId: chapterId.value,
+    routeTitle:
+      mission?.title
+      || missionStore.activeSession?.routeTitle
+      || "",
+    stageTitle:
+      current?.title
+      || current?.artifact?.title
+      || current?.puzzle?.title
+      || "",
   })
 }
 

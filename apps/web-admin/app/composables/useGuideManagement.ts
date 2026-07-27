@@ -137,6 +137,9 @@ export const mapGuideResponse = (item: GuideResponse): GuideRecord => {
     avatarAttachmentId: item.avatarAttachmentId ? String(item.avatarAttachmentId) : null,
     avatarUrl: item.avatarUrl ?? null,
     description: item.description ?? '',
+    tagIds: Array.isArray(item.tagIds)
+      ? item.tagIds.map((tagId) => String(tagId ?? '').trim()).filter(Boolean)
+      : [],
     semanticProfile: item.semanticProfile ?? '',
     voiceStyle: item.voiceStyle ?? '',
     voiceProvider: item.voiceProvider ?? '',
@@ -172,6 +175,7 @@ export const createEmptyGuideDraft = (): GuideDraft => ({
   avatarAttachmentId: null,
   avatarPreviewUrl: null,
   description: '',
+  tagIds: [],
   semanticProfile: '',
   voiceStyle: '',
   voiceProvider: '',
@@ -202,6 +206,7 @@ export const createGuideDraftFromRecord = (record: GuideRecord): GuideDraft => (
   avatarAttachmentId: record.avatarAttachmentId,
   avatarPreviewUrl: record.avatarUrl,
   description: record.description,
+  tagIds: [...(record.tagIds ?? [])],
   semanticProfile: record.semanticProfile,
   voiceStyle: record.voiceStyle,
   voiceProvider: record.voiceProvider,
@@ -238,6 +243,7 @@ const buildMaterialFormData = (draft: GuideDraft, mode: 'create' | 'edit') => {
   appendFormField(formData, 'Name', name)
   appendFormField(formData, 'AvatarAttachmentId', draft.avatarAttachmentId)
   appendFormField(formData, 'Description', draft.description)
+  ;(draft.tagIds ?? []).forEach((tagId) => appendFormField(formData, 'TagIds', String(tagId)))
   appendFormField(formData, 'SemanticProfile', draft.semanticProfile)
   appendFormField(formData, 'VoiceStyle', draft.voiceStyle)
   appendFormField(formData, 'VoiceProvider', draft.voiceProvider)

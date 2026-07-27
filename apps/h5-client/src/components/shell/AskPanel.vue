@@ -16,7 +16,11 @@ import { useToastStore } from "@path-seeker/client-state"
 import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskSpeech } from "@/composables/useAskSpeech"
 import { isMiniMaxTtsConfigured } from "@/services/minimaxTts"
-import { useAskStore, type AskInteractionMode } from "@/stores/useAskStore"
+import {
+  formatStageContextChipLabel,
+  useAskStore,
+  type AskInteractionMode,
+} from "@/stores/useAskStore"
 
 interface Props {
   fullPage?: boolean
@@ -422,7 +426,7 @@ function handleSuggestion(text: string) {
           <div class="ask-context-chip-body">
             <span class="ask-context-chip-label">附件</span>
             <span class="ask-context-chip-text">
-              站点上下文 · routeId / stageId
+              {{ formatStageContextChipLabel(stageContext) }}
             </span>
           </div>
           <button

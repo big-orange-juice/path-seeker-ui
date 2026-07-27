@@ -10,6 +10,11 @@ import { v4 as uuidv4 } from 'uuid';
  */
 export const DIALOG_BASE_Z_INDEX = 1000;
 export const DIALOG_Z_INDEX_STEP = 10;
+/**
+ * 大图预览层：须压过 Dialog 栈（基线 1000 + 步进），
+ * 且低于系统反馈/登录过期（10500 / 11000）。
+ */
+export const IMAGE_LIGHTBOX_Z_INDEX = 9000;
 
 interface DialogLayerEntry {
   id: string;

@@ -48,7 +48,7 @@ export interface UpdateRouteStageNarrationImageRequest {
 
 /**
  * POST /api/NarrationImage/generate — 异步生成配图。
- * 任务成功后附件自动绑定节点；前端轮询 detail.images 同步。
+ * 任务成功后附件自动绑定节点；前端手动刷新 detail.images 同步。
  * parameters 前端不传；priority 默认 10000 且 UI 不展示。
  */
 export interface GenerateRouteStageNarrationImageRequest {

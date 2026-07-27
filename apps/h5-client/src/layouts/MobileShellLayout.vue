@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { RouterLink, RouterView, useRoute } from "vue-router"
+import { RouterLink, RouterView, useRoute, useRouter } from "vue-router"
 import { useAuthStore } from "@/stores/useAuthStore"
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 
 const title = computed(() => String(route.meta.title || "Path Seeker"))
@@ -13,6 +14,8 @@ const hideChromeHeader = computed(() => {
 })
 /** 任务流：底栏留白更紧，内容与按钮更贴底 */
 const isMissionFlow = computed(() => route.path.startsWith("/missions/"))
+const showBack = computed(() => route.meta.showTabBar === false && !route.path.startsWith("/missions/") && !route.path.startsWith("/shell/ask") && !route.path.startsWith("/shell/guides/"))
+const goBack = () => { if (window.history.length > 1) { void router.back() } else { void router.replace("/shell/hall") } }
 const frameClass = computed(() =>
   isMissionFlow.value
     ? "client-frame client-frame-mission"
@@ -29,6 +32,7 @@ const frameClass = computed(() =>
         :class="isMissionFlow ? 'mb-3' : 'mb-5'"
       >
         <div class="min-w-0 space-y-1.5">
+          <button v-if="showBack" type="button" class="mb-2 text-xs text-muted-foreground hover:text-foreground" @click="goBack">← 返回</button>
           <p class="client-top-kicker">Path Seeker</p>
           <h1
             class="client-page-title"

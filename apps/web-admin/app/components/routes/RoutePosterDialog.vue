@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * 路线海报管理：从节点图库选参考图 / 贴外链，提交 AI 生成，轮询列表同步。
+ * 路线海报管理：上传参考图 / 勾选节点图，提交 AI 生成；结果靠手动刷新同步。
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
@@ -14,9 +14,10 @@ import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue'
 import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue'
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue'
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue'
-import Input from '@/components/shadcn/input/Input.vue'
 import Textarea from '@/components/shadcn/textarea/Textarea.vue'
+import { IMAGE_LIGHTBOX_Z_INDEX } from '@/components/shadcn/dialog/layer'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import UiImageUpload from '@/components/ui/ImageUpload.vue'
 import type {
   GenerateRoutePosterResponse,
   RoutePosterCandidateImage,
@@ -38,18 +39,18 @@ const emit = defineEmits<{
 const { request } = useApiClient()
 
 const REF_MAX = 5
-const POLL_INTERVAL_MS = 2500
-const POLL_MAX_ATTEMPTS = 48
+/** 生成已提交、等待用户手动刷新时的提示（有海报列表时不展示） */
+const PENDING_GENERATE_TIP = '已提交生成，完成后请点击刷新查看。'
 
 const bootstrapping = ref(false)
 const loadingNodeImages = ref(false)
 const generating = ref(false)
-const polling = ref(false)
+const refreshingPosters = ref(false)
 const errorMessage = ref('')
 const infoMessage = ref('')
 const prompt = ref('')
-const refDraft = ref('')
 const refUrls = ref<string[]>([])
+const selectedCandidateUrls = ref<string[]>([])
 /** 是否启用节点可用图：默认关闭，勾选后再拉取当前路线 nodes 图片 */
 const useNodeImages = ref(false)
 const candidates = ref<RoutePosterCandidateImage[]>([])
@@ -58,8 +59,6 @@ const lightboxUrl = ref('')
 /** 缓存详情，避免反复勾选时重复请求路线详情 */
 const cachedDetail = ref<RouteDetailResponse | null>(null)
 
-let pollTimer: ReturnType<typeof setInterval> | null = null
-let pollAttempts = 0
 let lightboxEscHandler: ((event: KeyboardEvent) => void) | null = null
 
 const routeId = computed(() => String(props.record?.id ?? '').trim())
@@ -72,7 +71,12 @@ const canGenerate = computed(
     && Boolean(prompt.value.trim())
     && !bootstrapping.value
     && !generating.value
-    && !polling.value,
+    && !refreshingPosters.value,
+)
+
+/** 生成提示与已生成海报互斥：有海报时只看列表 */
+const showGenerateTip = computed(
+  () => Boolean(infoMessage.value) && posters.value.length === 0,
 )
 
 const isPreviewableImageUrl = (value: string) => {
@@ -98,52 +102,39 @@ const resolveError = (error: unknown, fallback: string) => {
   return fallback
 }
 
-const isRefSelected = (url: string) => {
-  const target = normalizeUrl(url)
-  if (!target) return false
-  return refUrls.value.some((item) => normalizeUrl(item) === target)
-}
-
-const pushRef = (url: string, options?: { silent?: boolean }) => {
-  const nextUrl = normalizeUrl(url)
-  if (!nextUrl || !isPreviewableImageUrl(nextUrl)) {
-    if (!options?.silent) {
-      errorMessage.value = '请使用可公开访问的图片地址。'
+/** 与上传组件双向同步，始终钳制在上限内（不走外链粘贴） */
+const onRefUrlsUpdate = (urls: string[]) => {
+  const next: string[] = []
+  const seen = new Set<string>()
+  let hitLimit = false
+  for (const raw of urls) {
+    const url = normalizeUrl(raw)
+    if (!url || seen.has(url) || !isPreviewableImageUrl(url)) continue
+    if (next.length >= REF_MAX) {
+      hitLimit = true
+      break
     }
-    return false
+    seen.add(url)
+    next.push(url)
   }
-  if (isRefSelected(nextUrl)) return false
-  if (refUrls.value.length >= REF_MAX) {
-    if (!options?.silent) {
-      errorMessage.value = `参考图最多 ${REF_MAX} 张。`
-    }
-    return false
-  }
-  refUrls.value = [...refUrls.value, nextUrl]
-  errorMessage.value = ''
-  return true
-}
-
-const addRefFromDraft = () => {
-  if (generating.value || polling.value) return
-  if (pushRef(refDraft.value)) {
-    refDraft.value = ''
+  refUrls.value = next
+  if (hitLimit) {
+    errorMessage.value = `参考图最多 ${REF_MAX} 张。`
+  } else if (errorMessage.value.startsWith('参考图最多')) {
+    errorMessage.value = ''
   }
 }
 
-const addRefFromCandidate = (item: RoutePosterCandidateImage) => {
-  if (generating.value || polling.value) return
-  pushRef(item.url, { silent: true })
-}
+const isCandidateSelected = (url: string) => selectedCandidateUrls.value.includes(normalizeUrl(url))
 
-const removeRef = (index: number) => {
-  refUrls.value = refUrls.value.filter((_, i) => i !== index)
+const toggleCandidate = (item: RoutePosterCandidateImage) => {
+  if (generating.value) return
+  const url = normalizeUrl(item.url)
+  // 节点图只在候选区勾选，不写入上方参考图列表，避免重复
+  selectedCandidateUrls.value = isCandidateSelected(url)
+    ? selectedCandidateUrls.value.filter((value) => value !== url)
+    : [...selectedCandidateUrls.value, url]
 }
-
-const collectPosterIds = () =>
-  posters.value
-    .map((item) => String(item.id ?? item.attachmentId ?? item.imageUrl ?? '').trim())
-    .filter(Boolean)
 
 const readConfigText = (config: Record<string, unknown>, ...keys: string[]) => {
   for (const key of keys) {
@@ -237,59 +228,40 @@ const collectNarrationCandidates = async (
   return list
 }
 
-const loadPosters = async () => {
+const loadPosters = async (options?: { silent?: boolean }) => {
   if (!routeId.value) {
     posters.value = []
     return
   }
-  const list = await request<RoutePosterResponse[]>('/api/poster/list', {
-    method: 'GET',
-    query: { routeId: routeId.value },
-  })
-  posters.value = Array.isArray(list) ? list : []
-}
-
-const stopPoll = () => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
+  if (!options?.silent) {
+    refreshingPosters.value = true
   }
-  pollAttempts = 0
-  polling.value = false
-}
-
-const startPoll = (baselineIds: Set<string>) => {
-  stopPoll()
-  polling.value = true
-  pollAttempts = 0
-  infoMessage.value = '海报生成中，完成后将自动加入列表…'
-
-  const tick = async () => {
-    pollAttempts += 1
-    try {
-      await loadPosters()
-    } catch {
-      // 轮询失败不中断，继续尝试
+  try {
+    const list = await request<RoutePosterResponse[]>('/api/poster/list', {
+      method: 'GET',
+      query: { routeId: routeId.value },
+    })
+    const posterList = Array.isArray(list) ? list : []
+    const details = await Promise.all(
+      posterList.map(async (poster) => {
+        const id = String(poster.id ?? '').trim()
+        if (!id) return poster
+        return await request<RoutePosterResponse | null>('/api/poster/get', {
+          method: 'GET',
+          query: { id },
+        }) ?? poster
+      }),
+    )
+    posters.value = details
+    // 有海报时清掉「等待生成」提示，避免与列表同时出现
+    if (details.length > 0 && infoMessage.value === PENDING_GENERATE_TIP) {
+      infoMessage.value = ''
     }
-
-    const hasNew = collectPosterIds().some((id) => !baselineIds.has(id))
-    if (hasNew) {
-      infoMessage.value = '海报已生成并加入列表。'
-      errorMessage.value = ''
-      stopPoll()
-      return
-    }
-
-    if (pollAttempts >= POLL_MAX_ATTEMPTS) {
-      infoMessage.value = '海报仍在生成，可稍后重新打开查看。'
-      stopPoll()
+  } finally {
+    if (!options?.silent) {
+      refreshingPosters.value = false
     }
   }
-
-  void tick()
-  pollTimer = setInterval(() => {
-    void tick()
-  }, POLL_INTERVAL_MS)
 }
 
 /** 打开弹窗时只拉已生成海报；节点图按勾选再取 */
@@ -301,11 +273,11 @@ const bootstrap = async () => {
   infoMessage.value = ''
   useNodeImages.value = false
   candidates.value = []
+  selectedCandidateUrls.value = []
   cachedDetail.value = null
-  stopPoll()
 
   try {
-    await loadPosters()
+    await loadPosters({ silent: true })
   } catch (error) {
     errorMessage.value = resolveError(error, '加载海报列表失败。')
     posters.value = []
@@ -350,6 +322,7 @@ const loadNodeCandidates = async () => {
       merged.push(item)
     })
     candidates.value = merged
+    selectedCandidateUrls.value = merged.map((item) => item.url)
   } catch (error) {
     errorMessage.value = resolveError(error, '加载节点图片失败。')
     candidates.value = []
@@ -363,6 +336,7 @@ const onUseNodeImagesChange = (event: Event) => {
   useNodeImages.value = checked
   if (!checked) {
     candidates.value = []
+    selectedCandidateUrls.value = []
     return
   }
   void loadNodeCandidates()
@@ -377,7 +351,11 @@ const handleGenerate = async () => {
     return
   }
 
-  const referenceImageUrls = refUrls.value.map((item) => normalizeUrl(item)).filter(Boolean)
+  // 上传参考 + 节点勾选合计，去重后截断到接口上限
+  const referenceImageUrls = [...refUrls.value, ...selectedCandidateUrls.value]
+    .map((item) => normalizeUrl(item))
+    .filter((item, index, list) => Boolean(item) && list.indexOf(item) === index)
+    .slice(0, REF_MAX)
   const invalidRef = referenceImageUrls.find((url) => !isPreviewableImageUrl(url))
   if (invalidRef) {
     errorMessage.value = '参考图请使用可公开访问的链接。'
@@ -387,7 +365,6 @@ const handleGenerate = async () => {
   generating.value = true
   errorMessage.value = ''
   infoMessage.value = ''
-  const baseline = new Set(collectPosterIds())
 
   try {
     await request<GenerateRoutePosterResponse | null>('/api/poster/generate', {
@@ -398,7 +375,8 @@ const handleGenerate = async () => {
         ...(referenceImageUrls.length ? { referenceImageUrls } : {}),
       },
     })
-    startPoll(baseline)
+    // 不轮询：有海报时提示不展示，空列表时提示用户手动刷新
+    infoMessage.value = PENDING_GENERATE_TIP
   } catch (error) {
     errorMessage.value = resolveError(error, '海报生成提交失败。')
   } finally {
@@ -436,16 +414,16 @@ const closeLightbox = () => {
 }
 
 const resetState = () => {
-  stopPoll()
   closeLightbox()
   bootstrapping.value = false
   loadingNodeImages.value = false
   generating.value = false
+  refreshingPosters.value = false
   errorMessage.value = ''
   infoMessage.value = ''
   prompt.value = ''
-  refDraft.value = ''
   refUrls.value = []
+  selectedCandidateUrls.value = []
   useNodeImages.value = false
   candidates.value = []
   posters.value = []
@@ -459,16 +437,27 @@ const onOpenChange = (value: boolean) => {
   }
 }
 
+const handleRefreshPosters = async () => {
+  if (bootstrapping.value || generating.value || refreshingPosters.value) return
+  errorMessage.value = ''
+  try {
+    await loadPosters()
+  } catch (error) {
+    errorMessage.value = resolveError(error, '刷新海报失败。')
+  }
+}
+
+// v-if 挂载时 open 已为 true，必须 immediate，否则不会拉现有海报
 watch(
   () => [props.open, routeId.value] as const,
   ([open]) => {
-    if (!open) return
+    if (!open || !routeId.value) return
     void bootstrap()
   },
+  { immediate: true },
 )
 
 onBeforeUnmount(() => {
-  stopPoll()
   unbindLightboxEsc()
 })
 </script>
@@ -481,7 +470,7 @@ onBeforeUnmount(() => {
       <DialogHeader class="shrink-0 space-y-1.5 border-b border-border/60 px-5 py-4">
         <DialogTitle>海报管理</DialogTitle>
         <DialogDescription>
-          {{ routeTitle }} · 可粘贴外链参考；需要时再启用节点图片
+          {{ routeTitle }} · 上传参考图；需要时再启用节点图片
         </DialogDescription>
       </DialogHeader>
 
@@ -500,12 +489,12 @@ onBeforeUnmount(() => {
               v-model="prompt"
               class="min-h-[80px] resize-y text-sm"
               placeholder="描述希望生成的海报画面…"
-              :disabled="generating || polling"
+              :disabled="generating"
               maxlength="4000"
             />
           </label>
 
-          <div class="space-y-1.5">
+          <div class="space-y-2">
             <div class="flex items-center justify-between gap-2">
               <span class="text-sm font-medium">
                 参考图
@@ -520,58 +509,25 @@ onBeforeUnmount(() => {
                 :disabled="!canGenerate"
                 @click="handleGenerate"
               >
-                {{ generating ? '提交中…' : polling ? '生成中…' : '开始生成' }}
+                {{ generating ? '提交中…' : '开始生成' }}
               </Button>
             </div>
 
-            <div class="flex gap-2">
-              <Input
-                v-model="refDraft"
-                class="h-8 min-w-0 flex-1 text-sm"
-                placeholder="粘贴参考图外链"
-                :disabled="generating || polling || refUrls.length >= REF_MAX"
-                @keydown.enter.prevent="addRefFromDraft"
-              />
-              <Button
-                variant="outline"
-                type="button"
-                size="sm"
-                class="h-8 shrink-0"
-                :disabled="!refDraft.trim() || refUrls.length >= REF_MAX || generating || polling"
-                @click="addRefFromDraft"
-              >
-                加入
-              </Button>
-            </div>
-
-            <div
-              v-if="refUrls.length"
-              class="grid grid-cols-5 gap-2 sm:grid-cols-6"
-            >
-              <div
-                v-for="(refUrl, refIndex) in refUrls"
-                :key="`ref-${refIndex}-${refUrl}`"
-                class="relative aspect-square overflow-hidden rounded-md border border-border/60 bg-muted/20"
-              >
-                <button
-                  type="button"
-                  class="absolute inset-0 block h-full w-full cursor-zoom-in"
-                  title="放大"
-                  @click="openLightbox(refUrl)"
-                >
-                  <img :src="refUrl" alt="" class="h-full w-full object-cover">
-                </button>
-                <button
-                  type="button"
-                  class="absolute right-0.5 top-0.5 z-10 flex h-5 w-5 items-center justify-center rounded bg-black/70 text-white"
-                  title="移除"
-                  :disabled="generating || polling"
-                  @click.stop="removeRef(refIndex)"
-                >
-                  <AppIcon name="x" class="h-3 w-3" />
-                </button>
-              </div>
-            </div>
+            <UiImageUpload
+              :model-value="refUrls"
+              label="上传参考图"
+              hint="通过图片上传添加参考，最多 5 张；节点图请在下方单独勾选。"
+              button-text="选择图片"
+              button-subtext="支持多图"
+              item-label="参考图"
+              primary-hint="将作为参考"
+              secondary-hint="将作为参考"
+              set-primary-text="置顶"
+              remove-text="移除"
+              :multiple="true"
+              upload-target="image"
+              @update:model-value="onRefUrlsUpdate"
+            />
           </div>
 
           <div class="space-y-1.5">
@@ -580,11 +536,11 @@ onBeforeUnmount(() => {
                 type="checkbox"
                 class="h-3.5 w-3.5 rounded border-border accent-primary"
                 :checked="useNodeImages"
-                :disabled="generating || polling || loadingNodeImages"
+                :disabled="generating || loadingNodeImages"
                 @change="onUseNodeImagesChange"
               >
               <span>启用节点可用图</span>
-              <span class="font-normal text-muted-foreground">勾选后加载本路线节点图片</span>
+              <span class="font-normal text-muted-foreground">勾选后加载并默认全选</span>
             </label>
 
             <div
@@ -598,36 +554,44 @@ onBeforeUnmount(() => {
               v-else-if="useNodeImages && candidates.length"
               class="grid grid-cols-4 gap-2 sm:grid-cols-5"
             >
-              <button
+              <div
                 v-for="item in candidates"
                 :key="`${item.source}-${item.url}`"
-                type="button"
-                class="group relative aspect-square overflow-hidden rounded-md border border-border/60 bg-muted/20 text-left"
-                :class="isRefSelected(item.url) ? 'ring-2 ring-primary/60' : ''"
-                :disabled="generating || polling"
-                :title="isRefSelected(item.url) ? '已参考' : item.label"
-                @click="addRefFromCandidate(item)"
+                class="group relative aspect-square overflow-hidden rounded-md border bg-muted/20"
+                :class="isCandidateSelected(item.url)
+                  ? 'border-primary ring-2 ring-primary/50'
+                  : 'border-border/60'"
               >
-                <img :src="item.url" :alt="item.label" class="h-full w-full object-cover">
-                <span
-                  class="absolute inset-x-0 bottom-0 truncate bg-black/65 px-1 py-0.5 text-[10px] text-white"
+                <button
+                  type="button"
+                  class="absolute inset-0 block h-full w-full text-left"
+                  :disabled="generating"
+                  :title="isCandidateSelected(item.url) ? '取消选择' : `选择 · ${item.label}`"
+                  @click="toggleCandidate(item)"
                 >
-                  {{ item.label }}
-                </span>
-                <span
-                  v-if="isRefSelected(item.url)"
-                  class="absolute left-1 top-1 rounded bg-primary/90 px-1 py-0.5 text-[10px] text-primary-foreground"
+                  <img :src="item.url" :alt="item.label" class="h-full w-full object-cover">
+                  <span
+                    class="absolute inset-x-0 bottom-0 truncate bg-black/65 px-1 py-0.5 text-[10px] text-white"
+                  >
+                    {{ item.label }}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-black/65 text-white opacity-90 transition hover:bg-black/80"
+                  title="查看大图"
+                  @click.stop="openLightbox(item.url)"
                 >
-                  参考
-                </span>
-              </button>
+                  <AppIcon name="zoom-in" class="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
 
             <p
               v-else-if="useNodeImages && !loadingNodeImages"
               class="rounded-lg border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground"
             >
-              当前路线节点暂无可用图片，可粘贴外链作参考。
+              当前路线节点暂无可用图片，可上传参考图。
             </p>
           </div>
 
@@ -639,10 +603,14 @@ onBeforeUnmount(() => {
                 type="button"
                 size="sm"
                 class="h-7 px-2 text-xs"
-                :disabled="bootstrapping || generating"
-                @click="loadPosters()"
+                :disabled="bootstrapping || generating || refreshingPosters"
+                @click="handleRefreshPosters"
               >
-                <AppIcon name="refresh-cw" class="mr-1 h-3.5 w-3.5" :class="polling ? 'animate-spin' : ''" />
+                <AppIcon
+                  name="refresh-cw"
+                  class="mr-1 h-3.5 w-3.5"
+                  :class="refreshingPosters ? 'animate-spin' : ''"
+                />
                 刷新
               </Button>
             </div>
@@ -650,13 +618,10 @@ onBeforeUnmount(() => {
               v-if="posters.length"
               class="grid grid-cols-3 gap-2 sm:grid-cols-4"
             >
-              <button
+              <div
                 v-for="(poster, index) in posters"
                 :key="String(poster.id || poster.attachmentId || poster.imageUrl || index)"
-                type="button"
-                class="relative aspect-[3/4] overflow-hidden rounded-md border border-border/60 bg-muted/20"
-                title="放大预览"
-                @click="poster.imageUrl && openLightbox(String(poster.imageUrl))"
+                class="group relative aspect-[3/4] overflow-hidden rounded-md border border-border/60 bg-muted/20"
               >
                 <img
                   v-if="poster.imageUrl"
@@ -670,8 +635,23 @@ onBeforeUnmount(() => {
                 >
                   无预览
                 </div>
-              </button>
+                <button
+                  v-if="poster.imageUrl"
+                  type="button"
+                  class="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-md bg-black/65 text-white opacity-90 transition hover:bg-black/80"
+                  title="查看大图"
+                  @click="openLightbox(String(poster.imageUrl))"
+                >
+                  <AppIcon name="zoom-in" class="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
+            <p
+              v-else-if="showGenerateTip"
+              class="rounded-lg border border-dashed border-sky-500/30 bg-sky-500/5 px-3 py-4 text-center text-xs text-sky-200/90"
+            >
+              {{ infoMessage }}
+            </p>
             <p
               v-else
               class="rounded-lg border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground"
@@ -680,9 +660,6 @@ onBeforeUnmount(() => {
             </p>
           </div>
 
-          <p v-if="infoMessage" class="text-xs text-sky-200/90">
-            {{ infoMessage }}
-          </p>
           <p v-if="errorMessage" class="text-xs text-destructive">
             {{ errorMessage }}
           </p>
@@ -697,13 +674,16 @@ onBeforeUnmount(() => {
     </DialogContent>
   </Dialog>
 
-  <!-- 大图预览 -->
+  <!-- 大图预览：须压过 Dialog 栈 -->
   <Teleport to="body">
     <div
       v-if="lightboxUrl"
-      class="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4"
+      data-image-lightbox
+      class="fixed inset-0 flex items-center justify-center bg-black/80 p-4"
+      :style="{ zIndex: IMAGE_LIGHTBOX_Z_INDEX }"
       role="dialog"
       aria-modal="true"
+      aria-label="图片预览"
       @click.self="closeLightbox"
     >
       <button
@@ -718,6 +698,7 @@ onBeforeUnmount(() => {
         :src="lightboxUrl"
         alt=""
         class="max-h-[90vh] max-w-[min(96vw,48rem)] rounded-lg object-contain shadow-2xl"
+        @click.stop
       >
     </div>
   </Teleport>

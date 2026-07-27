@@ -36,7 +36,14 @@ async function exportCard() {
 
 <template>
   <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-    <DialogContent :show-close="false" class="share-dialog-content border-0 bg-transparent p-0 shadow-none sm:max-w-md">
+    <!--
+      DialogContent 把 class 声明为 prop（非透传），父级 scoped 样式无法作用到弹层根节点。
+      宽度约束必须写在这里的 utility class 里，否则会落到默认 w-full max-w-lg，手机两侧贴边被裁。
+    -->
+    <DialogContent
+      :show-close="false"
+      class="border-0 bg-transparent p-0 shadow-none w-[min(calc(100vw-2.75rem),21.5rem)] max-w-[min(calc(100vw-2.75rem),21.5rem)] box-border"
+    >
       <div class="share-dialog-shell">
         <article ref="card" class="share-card" :style="coverStyle">
           <div class="share-card-cover" /><div class="share-card-grain" />
@@ -54,12 +61,6 @@ async function exportCard() {
 </template>
 
 <style scoped>
-.share-dialog-content {
-  width: min(calc(100vw - 2rem), 25rem);
-  max-width: calc(100vw - 2rem);
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
 .share-dialog-shell {
   position: relative;
   display: grid;
@@ -82,7 +83,7 @@ async function exportCard() {
   background-color: #17130f;
   background-position: center;
   background-size: cover;
-  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.48);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
 }
 .share-card-cover,
 .share-card-grain {
@@ -108,7 +109,7 @@ async function exportCard() {
   min-width: 0;
   flex-direction: column;
   box-sizing: border-box;
-  padding: 1.2rem 1.2rem 1rem;
+  padding: 1.05rem 1.05rem 0.9rem;
   color: #fff6df;
   text-shadow: 0 1px 8px rgba(0, 0, 0, 0.7);
   overflow: hidden;
@@ -124,14 +125,14 @@ async function exportCard() {
 .share-card-masthead {
   padding-bottom: 0.55rem;
   border-bottom: 1px solid rgba(255, 246, 223, 0.58);
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.12em;
 }
 .share-card-issue {
   margin-top: 0.52rem;
   color: rgba(255, 246, 223, 0.76);
-  font-size: 0.58rem;
+  font-size: 0.56rem;
   font-weight: 700;
   letter-spacing: 0.09em;
 }
@@ -139,7 +140,7 @@ async function exportCard() {
   margin-top: auto;
   min-width: 0;
   max-width: 100%;
-  padding-top: 5.25rem;
+  padding-top: 4.5rem;
   overflow: hidden;
 }
 .share-card-theme,
@@ -152,7 +153,7 @@ async function exportCard() {
 }
 .share-card-theme {
   color: #efd391;
-  font-size: 0.74rem;
+  font-size: 0.7rem;
   font-weight: 800;
   letter-spacing: 0.1em;
 }
@@ -160,9 +161,9 @@ async function exportCard() {
   margin: 0.38rem 0 0;
   max-width: 100%;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.55rem, 7.2vw, 2.55rem);
+  font-size: clamp(1.35rem, 6.2vw, 2.05rem);
   font-weight: 700;
-  line-height: 1.05;
+  line-height: 1.08;
   letter-spacing: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -173,25 +174,25 @@ async function exportCard() {
   max-width: 100%;
   color: #f6dfaa;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.03rem;
+  font-size: 0.95rem;
   font-style: italic;
   line-height: 1.3;
 }
 .share-card-footer {
-  margin-top: 1.25rem;
+  margin-top: 1.1rem;
   min-width: 0;
-  padding-top: 0.75rem;
+  padding-top: 0.7rem;
   border-top: 1px solid rgba(255, 246, 223, 0.52);
 }
 .share-card-byline {
-  font-size: 0.73rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
 .share-card-stats {
   margin-top: 0.42rem;
   color: rgba(255, 246, 223, 0.74);
-  font-size: 0.62rem;
+  font-size: 0.6rem;
   font-weight: 650;
   letter-spacing: 0.04em;
 }
@@ -200,10 +201,10 @@ async function exportCard() {
 }
 @media (max-width: 380px) {
   .share-card-content {
-    padding: 1rem;
+    padding: 0.9rem;
   }
   .share-card-title {
-    font-size: 1.55rem;
+    font-size: 1.35rem;
   }
 }
 </style>

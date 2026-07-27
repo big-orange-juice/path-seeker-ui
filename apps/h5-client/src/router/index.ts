@@ -9,8 +9,11 @@ import FinalePage from "@/pages/FinalePage.vue"
 import NarrationChapterPage from "@/pages/NarrationChapterPage.vue"
 import ShellArchivePage from "@/pages/ShellArchivePage.vue"
 import ShellAskPage from "@/pages/ShellAskPage.vue"
+import ShellGuideDetailPage from "@/pages/ShellGuideDetailPage.vue"
+import ShellGuidesPage from "@/pages/ShellGuidesPage.vue"
 import ShellHallPage from "@/pages/ShellHallPage.vue"
 import ShellPlayingPage from "@/pages/ShellPlayingPage.vue"
+import ShellMePage from "@/pages/ShellMePage.vue"
 
 const router = createRouter({
   // 与 vite.config base 对齐，否则访问 /path-seeker/client/ 会报 No match found
@@ -68,6 +71,36 @@ const router = createRouter({
                 shellTab: "archive",
                 title: "游玩历史",
                 showTabBar: true,
+              },
+            },
+            {
+              path: "me",
+              name: "shell-me",
+              component: ShellMePage,
+              meta: {
+                shellTab: "me",
+                title: "我的",
+                showTabBar: true,
+              },
+            },
+            {
+              path: "guides",
+              name: "shell-guides",
+              component: ShellGuidesPage,
+              meta: {
+                shellTab: "guides",
+                title: "导游",
+                showTabBar: false,
+              },
+            },
+            {
+              path: "guides/:guideId",
+              name: "shell-guide-detail",
+              component: ShellGuideDetailPage,
+              meta: {
+                shellTab: "guides",
+                title: "导游详情",
+                showTabBar: false,
               },
             },
             {

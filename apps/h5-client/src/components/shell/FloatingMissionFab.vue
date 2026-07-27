@@ -11,7 +11,7 @@ import {
 import type { CSSProperties } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { gsap } from 'gsap';
-import { Compass, History, Map, MessageCircle, Play } from 'lucide-vue-next';
+import { Compass, Map, MessageCircle, Play, User, Users } from 'lucide-vue-next';
 import { useAskStore } from '@/stores/useAskStore';
 import { useMissionStore } from '@/stores/useMissionStore';
 import type { ShellTab } from '@/types/mission';
@@ -26,7 +26,7 @@ interface FabActionItem {
 }
 
 /** 收缩态与展开态每个 item 同宽，避免展开动画宽度抖动 */
-const ITEM_WIDTH = 86;
+const ITEM_WIDTH = 78;
 const ITEM_HEIGHT = 36;
 const ITEM_GAP = 6;
 const CONTAINER_PADDING = 5;
@@ -48,8 +48,8 @@ const shellItems: Array<{
   icon: typeof Compass;
 }> = [
   { label: '展厅', value: 'hall', to: '/shell/hall', icon: Compass },
-  { label: '探索', value: 'playing', to: '/shell/playing', icon: Play },
-  { label: '历史', value: 'archive', to: '/shell/archive', icon: History }
+  { label: '导游', value: 'guides', to: '/shell/guides', icon: Users },
+  { label: '我的', value: 'me', to: '/shell/me', icon: User }
 ];
 
 const routeId = computed(() => String(route.params.routeId || ''));
@@ -64,6 +64,7 @@ const activeChapterMapPath = computed(() =>
     ? `/missions/${missionStore.activeSession.routeId}/map`
     : '/shell/playing'
 );
+const onGuidesRoute = computed(() => route.path.startsWith('/shell/guides'));
 
 const askAction = computed<FabActionItem>(() => ({
   key: 'ask',
@@ -71,6 +72,14 @@ const askAction = computed<FabActionItem>(() => ({
   icon: MessageCircle,
   action: 'ask',
   active: askStore.open || route.path.startsWith('/shell/ask')
+}));
+
+const guidesAction = computed<FabActionItem>(() => ({
+  key: 'guides',
+  label: '导游',
+  icon: Users,
+  to: '/shell/guides',
+  active: onGuidesRoute.value && !askStore.open
 }));
 
 const actions = computed<FabActionItem[]>(() => {
@@ -120,6 +129,7 @@ const actions = computed<FabActionItem[]>(() => {
         to: '/shell/hall',
         active: false
       },
+      guidesAction.value,
       askAction.value
     ];
   }
@@ -131,9 +141,12 @@ const showFab = computed(() => actions.value.length > 0);
 const displayedKey = shallowRef('');
 const pendingKey = shallowRef('');
 const isExpanded = shallowRef(false);
-const expandedProgress = shallowRef(0);
 const isRouteSwitching = shallowRef(false);
+/** 动画中标志：一次开合只翻两次，不参与逐帧，故可留在响应式里 */
+const isAnimating = shallowRef(false);
+/** 展开进度只存普通对象：gsap 每帧写 CSS 变量，不进 Vue 响应式，避免逐帧重渲染 */
 const tweenState = { progress: 0 };
+const islandEl = useTemplateRef<HTMLElement>('islandEl');
 
 let expandTween: gsap.core.Tween | null = null;
 let selectionDelayCall: gsap.core.Tween | null = null;
@@ -163,48 +176,50 @@ const expandedWidth = computed(
     CONTAINER_PADDING * 2
 );
 
-const islandStyle = computed<CSSProperties>(() => {
-  const width =
-    COLLAPSED_WIDTH +
-    (expandedWidth.value - COLLAPSED_WIDTH) * expandedProgress.value;
+/**
+ * 静态几何量只算一次；宽度交给 CSS 用 --fab-progress 插值，
+ * 这样展开动画期间 Vue 完全不参与，不会逐帧 patch。
+ */
+const islandStyle = computed<CSSProperties>(() => ({
+  height: `${ISLAND_HEIGHT}px`,
+  '--fab-collapsed-width': `${COLLAPSED_WIDTH}px`,
+  '--fab-expanded-width': `${expandedWidth.value}px`,
+  '--fab-item-width': `${ITEM_WIDTH}px`,
+  '--fab-item-height': `${ITEM_HEIGHT}px`,
+  '--fab-gap': `${ITEM_GAP}px`,
+  '--fab-padding': `${CONTAINER_PADDING}px`
+}));
 
-  return {
-    width: `${width}px`,
-    height: `${ISLAND_HEIGHT}px`,
-    '--fab-item-width': `${ITEM_WIDTH}px`,
-    '--fab-item-height': `${ITEM_HEIGHT}px`,
-    '--fab-gap': `${ITEM_GAP}px`,
-    '--fab-padding': `${CONTAINER_PADDING}px`
-  };
-});
+const indicatorStyle = computed<CSSProperties>(() => ({
+  width: `${ITEM_WIDTH}px`,
+  height: `${ITEM_HEIGHT}px`,
+  transform: `translate3d(${
+    CONTAINER_PADDING + activeIndex.value * (ITEM_WIDTH + ITEM_GAP)
+  }px, 0, 0)`
+}));
 
-const showCollapsed = computed(() => expandedProgress.value < 0.08);
-const showRail = computed(() => expandedProgress.value > 0.08);
-
-const indicatorStyle = computed<CSSProperties>(() => {
-  const x = CONTAINER_PADDING + activeIndex.value * (ITEM_WIDTH + ITEM_GAP);
-
-  return {
-    width: `${ITEM_WIDTH}px`,
-    height: `${ITEM_HEIGHT}px`,
-    opacity: Math.min(1, expandedProgress.value * 1.2),
-    transform: `translateX(${x}px)`
-  };
-});
+function writeProgress(value: number) {
+  islandEl.value?.style.setProperty('--fab-progress', String(value));
+}
 
 function animateProgress(target: number, onComplete?: () => void) {
   expandTween?.kill();
+
+  // 动画期间关掉 backdrop-filter：模糊 + 每帧变宽是移动端掉帧主因
+  isAnimating.value = true;
+
   expandTween = gsap.to(tweenState, {
     progress: target,
     duration: 0.24,
     ease: target ? 'power2.out' : 'power2.inOut',
     overwrite: true,
     onUpdate: () => {
-      expandedProgress.value = tweenState.progress;
+      writeProgress(tweenState.progress);
     },
     onComplete: () => {
-      expandedProgress.value = target;
       tweenState.progress = target;
+      writeProgress(target);
+      isAnimating.value = false;
       onComplete?.();
     }
   });
@@ -330,7 +345,7 @@ function playEnterIfNeeded() {
 }
 
 function softCollapse() {
-  if (!isExpanded.value && expandedProgress.value <= 0) {
+  if (!isExpanded.value && tweenState.progress <= 0) {
     return;
   }
   expandTween?.kill();
@@ -377,6 +392,7 @@ watch(
 );
 
 onMounted(() => {
+  writeProgress(0);
   if (showFab.value) {
     playEnterIfNeeded();
   }
@@ -400,27 +416,33 @@ onUnmounted(() => {
       <!-- 根节点 pointer-events:none 不挡页面；岛本体重新开启点击 -->
       <div class="fab-shell">
         <div
+          ref="islandEl"
           class="fab-island"
-          :class="{ 'fab-island-expanded': isExpanded }"
+          :class="{
+            'fab-island-expanded': isExpanded,
+            'fab-island-animating': isAnimating
+          }"
           :style="islandStyle"
           role="toolbar"
           aria-label="快捷导航">
           <button
-            v-if="activeItem && showCollapsed"
             type="button"
             class="fab-collapsed"
+            :tabindex="isExpanded ? -1 : 0"
+            :aria-hidden="isExpanded"
             @click="handleCollapsedClick()">
             <span class="fab-collapsed-item">
               <span class="fab-icon fab-icon-primary">
                 <component
+                  v-if="activeItem"
                   :is="activeItem.icon"
                   class="h-[0.95rem] w-[0.95rem]" />
               </span>
-              <span class="fab-label">{{ activeItem.label }}</span>
+              <span class="fab-label">{{ activeItem?.label }}</span>
             </span>
           </button>
 
-          <div v-if="showRail" class="fab-rail">
+          <div class="fab-rail" :aria-hidden="!isExpanded">
             <div class="fab-indicator" :style="indicatorStyle" />
             <button
               v-for="item in actions"
@@ -428,6 +450,7 @@ onUnmounted(() => {
               type="button"
               class="fab-item"
               :class="{ 'fab-item-active': displayedKey === item.key }"
+              :tabindex="isExpanded ? 0 : -1"
               @click="handleActionClick(item)">
               <span
                 class="fab-icon"
@@ -455,15 +478,16 @@ onUnmounted(() => {
 }
 
 /* 必须在 none 的祖先下显式 auto，否则按钮点不到 */
+/* 注意：.fab-item 不在此列，它需要跟随 .fab-rail 的开合状态 */
 .fab-shell,
 .fab-island,
-.fab-collapsed,
-.fab-item {
+.fab-collapsed {
   pointer-events: auto;
 }
 
 
 .fab-island {
+  --fab-progress: 0;
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(232, 198, 128, 0.48);
@@ -477,8 +501,26 @@ onUnmounted(() => {
     0 0 20px rgba(209, 178, 111, 0.26),
     0 12px 24px rgba(0, 0, 0, 0.22);
   white-space: nowrap;
-  /* 宽度由 JS 插值控制，避免内容撑开导致抖动 */
   box-sizing: border-box;
+  /* 宽度由 --fab-progress 插值：gsap 只写变量，Vue 不参与逐帧 */
+  width: calc(
+    var(--fab-collapsed-width) +
+      (var(--fab-expanded-width) - var(--fab-collapsed-width)) *
+      var(--fab-progress)
+  );
+  /* 宽度每帧变，隔断祖先重排；paint 交给 overflow: hidden，避免裁掉外发光 */
+  contain: layout;
+}
+
+/**
+ * 展开动画期间：backdrop-filter 与每帧变化的宽度叠加会逐帧重采样模糊，
+ * 是移动端掉帧主因。动画时换成不透明底，动画结束再恢复毛玻璃。
+ */
+.fab-island-animating {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(10, 11, 14, 0.9);
+  will-change: width;
 }
 
 .fab-island::before {
@@ -506,6 +548,13 @@ onUnmounted(() => {
   border: 0;
   background: transparent;
   color: #fff8ea;
+  /* 与 rail 交叉淡出，纯 CSS 变量插值 */
+  opacity: calc(1 - var(--fab-progress) * 2.4);
+}
+
+/* 展开后收缩层不可点；class 只在开合各翻一次 */
+.fab-island-expanded .fab-collapsed {
+  pointer-events: none;
 }
 
 .fab-collapsed-item {
@@ -538,6 +587,13 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--fab-gap);
   padding: var(--fab-padding);
+  opacity: var(--fab-progress);
+  /* 收缩态整条 rail 不可点，但 DOM 常驻，避免开合时挂载/卸载 */
+  pointer-events: none;
+}
+
+.fab-island-expanded .fab-rail {
+  pointer-events: auto;
 }
 
 .fab-indicator {
@@ -549,9 +605,8 @@ onUnmounted(() => {
     rgba(88, 70, 36, 0.94),
     rgba(209, 178, 111, 0.2)
   );
-  transition:
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 0.18s ease;
+  opacity: var(--fab-progress);
+  transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow:
     inset 0 0 0 1px rgba(243, 217, 157, 0.14),
     0 0 16px rgba(209, 178, 111, 0.14);

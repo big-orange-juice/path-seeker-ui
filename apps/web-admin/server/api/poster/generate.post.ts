@@ -8,7 +8,7 @@ import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
 /**
  * 提交路线海报 AI 生成任务。
  * modelName / referenceAttachmentIds / parameters 不传；
- * priority 固定 10000；成功后自动写入海报表，前端轮询列表同步。
+ * priority 固定 10000；成功后自动写入海报表，前端手动刷新列表同步。
  */
 export default defineEventHandler(async (event): Promise<GenerateRoutePosterResponse | null> => {
   const body = await readBody<GenerateRoutePosterRequest>(event)

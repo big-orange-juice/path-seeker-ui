@@ -17,7 +17,7 @@ export type { AgeBand, DifficultyLevel, ScaleTypeCode }
 /** @deprecated 规模请用 ScaleTypeCode；保留兼容旧存档字段 */
 export type TaskKind = "family_adventure" | "story_detective" | "deep_reasoning"
 
-export type ShellTab = "hall" | "playing" | "archive"
+export type ShellTab = "hall" | "playing" | "archive" | "guides" | "me"
 
 export interface SchemaMappedOption<TValue extends string> {
   label: string

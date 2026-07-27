@@ -1,6 +1,6 @@
 ﻿<script setup lang="ts">
 import { shallowRef, watch } from 'vue'
-import { useDebounceFn } from '@vueuse/core'
+// useDebounceFn 由 @vueuse/nuxt 自动导入；@vueuse/core 非直接依赖，显式 import 解析不到
 import GuideDataTable from '@/components/guides/GuideDataTable.vue'
 import GuideDetailDialog from '@/components/guides/GuideDetailDialog.vue'
 import GuideFormDialog from '@/components/guides/GuideFormDialog.vue'

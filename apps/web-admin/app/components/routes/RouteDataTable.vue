@@ -191,16 +191,13 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
       )
   },
   {
-    accessorKey: 'routeType',
-    header: renderHeader('类型', 'routeType'),
+    accessorKey: 'ownerName',
+    header: renderHeader('创建人', 'ownerName'),
     cell: ({ row }) =>
       h(
         'span',
-        {
-          class: 'text-sm text-muted-foreground',
-          title: 'routeType'
-        },
-        String(row.original.routeType ?? '—')
+        { class: 'text-sm text-muted-foreground' },
+        row.original.ownerName || '—'
       )
   },
   {
@@ -266,7 +263,7 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
         onUnpublish: () => emit('unpublish', record),
         onSubmitAudit: () => emit('submitAudit', record),
         onRefreshRow: () => emit('refreshRow', record),
-        onRemove: () => emit('remove', record),
+        onRemove: () => emit('remove', record)
       });
     }
   }

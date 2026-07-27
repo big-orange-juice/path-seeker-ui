@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
 import RouteAuditDialog from '@/components/routes/RouteAuditDialog.vue';
 import RouteCreateDialog from '@/components/routes/RouteCreateDialog.vue';
@@ -52,6 +52,8 @@ const routeDetail = shallowRef<RouteDetailResponse | null>(null);
 const auditDialogOpen = shallowRef(false);
 const auditRecord = shallowRef<RouteRecord | null>(null);
 const auditSubmitting = shallowRef(false);
+const publishAfterAuditOpen = shallowRef(false);
+const publishAfterAuditRecord = shallowRef<RouteRecord | null>(null);
 const posterDialogOpen = shallowRef(false);
 const posterRecord = shallowRef<RouteRecord | null>(null);
 
@@ -491,6 +493,10 @@ const submitAuditDecision = async (payload: { pass: boolean; remark: string }) =
     );
     auditDialogOpen.value = false;
     auditRecord.value = null;
+    if (payload.pass) {
+      publishAfterAuditRecord.value = record;
+      publishAfterAuditOpen.value = true;
+    }
 
     // 详情仍开着时同步列表最新态（收起底部「审核」）
     if (detailRecord.value?.id === record.id) {
@@ -508,6 +514,27 @@ const submitAuditDecision = async (payload: { pass: boolean; remark: string }) =
   }
 };
 
+const publishApprovedRoute = async () => {
+  const record = publishAfterAuditRecord.value
+  if (!record) return
+
+  startRowAction(record.id)
+  try {
+    await publishRoute({ id: record.id, publishStatus: PUBLISH_ONLINE })
+    actionFeedback.success(`已上架「${record.title || record.routeCode || record.id}」。`)
+    publishAfterAuditOpen.value = false
+    publishAfterAuditRecord.value = null
+  } catch (caughtError) {
+    actionFeedback.errorFrom(caughtError, '主题路线上架失败。')
+  } finally {
+    finishRowAction(record.id)
+  }
+}
+
+const closePublishAfterAuditDialog = () => {
+  publishAfterAuditOpen.value = false
+  publishAfterAuditRecord.value = null
+}
 const detailCanEdit = computed(() => {
   const record = detailRecord.value;
   if (!record) {
@@ -664,6 +691,18 @@ const detailActions = computed(() => {
       @update:open="onAuditDialogOpenChange"
       @confirm="submitAuditDecision" />
 
+    <Dialog :open="publishAfterAuditOpen" @update:open="(open) => !open && closePublishAfterAuditDialog()">
+      <DialogContent class="max-w-[min(92vw,24rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
+        <DialogHeader class="space-y-2 px-5 pb-2 pt-4">
+          <DialogTitle>审核已通过</DialogTitle>
+          <DialogDescription>该路线已满足上架条件，是否现在上架？</DialogDescription>
+        </DialogHeader>
+        <DialogFooter class="px-5 pb-4 pt-3">
+          <Button variant="outline" type="button" @click="closePublishAfterAuditDialog">稍后</Button>
+          <Button type="button" :disabled="!publishAfterAuditRecord || actionPendingIds.includes(publishAfterAuditRecord.id)" @click="publishApprovedRoute">立即上架</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
     <RoutePosterDialog
       v-if="posterDialogOpen"
       :key="posterRecord?.id || 'route-poster'"

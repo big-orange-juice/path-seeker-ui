@@ -112,6 +112,7 @@ export const useRouteLibrary = (
       // 缺省按需审展示；管理员免审路线后端会回 false
       auditRequired: typeof item.auditRequired === 'boolean' ? item.auditRequired : true,
       ownerId: normalizeText(item.ownerId) || null,
+      ownerName: normalizeText(item.ownerName),
       canEdit: typeof item.canEdit === 'boolean' ? item.canEdit : null,
       sortOrder: item.sortOrder ?? 0,
       isGenerating: Boolean(item.isGenerating),

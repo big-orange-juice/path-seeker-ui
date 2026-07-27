@@ -10,6 +10,7 @@ import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue'
 import Input from '@/components/shadcn/input/Input.vue'
 import Select from '@/components/shadcn/select/Select.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import GuideTagDialog from '@/components/guides/GuideTagDialog.vue'
 import { useUploadAttachment } from '@/composables/useUploadAttachment'
 import type { GuideDraft, TtsVoiceResponse } from '@/types/guide'
 
@@ -42,13 +43,17 @@ const emit = defineEmits<{
 
 const { uploadAttachment } = useUploadAttachment()
 
-const form = reactive<GuideDraft>({ ...props.initialValue })
+const form = reactive<GuideDraft>({
+  ...props.initialValue,
+  tagIds: [...(props.initialValue.tagIds ?? [])],
+})
 const avatarPreviewUrl = shallowRef('')
 const avatarInputRef = useTemplateRef<HTMLInputElement>('avatarInput')
 const materialInputRef = useTemplateRef<HTMLInputElement>('materialInput')
 const avatarUploading = shallowRef(false)
 const avatarError = shallowRef('')
 const materialError = shallowRef('')
+const tagDialogOpen = shallowRef(false)
 
 /** 声音样本：mp3 / mp4 → multipart `material`（可多份） */
 const isVoiceMaterialFile = (file: File) => {
@@ -75,6 +80,31 @@ const formatFileSize = (bytes: number) => {
 
 const materialFiles = computed(() => form.materialFiles ?? [])
 
+/** 标签名称缓存：仅用于表单回显，key 为 tagId */
+const tagNameMap = shallowRef<Record<string, string>>({})
+
+/** 后端可能不返回 tagIds，模板一律读这里避免 undefined.length */
+const selectedTagIds = computed(() => form.tagIds ?? [])
+
+const selectedTagChips = computed(() =>
+  selectedTagIds.value.map((tagId) => ({
+    id: tagId,
+    name: tagNameMap.value[tagId] || '未命名标签',
+  })),
+)
+
+const handleTagIdsChange = (next: string[]) => {
+  form.tagIds = [...next]
+}
+
+const handleTagsChange = (tags: Array<{ id: string, name: string }>) => {
+  const next = { ...tagNameMap.value }
+  for (const tag of tags) {
+    next[tag.id] = tag.name
+  }
+  tagNameMap.value = next
+}
+
 const materialSummary = computed(() => {
   const files = materialFiles.value
   if (!files.length) {
@@ -94,6 +124,7 @@ watch(
     }
     Object.assign(form, {
       ...props.initialValue,
+      tagIds: [...(props.initialValue.tagIds ?? [])],
       materialFile: null,
       materialFileName: '',
       materialFiles: [],
@@ -271,6 +302,7 @@ const handleSubmit = () => {
   const files = form.materialFiles || []
   emit('submit', {
     ...form,
+    tagIds: [...selectedTagIds.value],
     materialFile: files[0] ?? null,
     materialFileName: files[0]?.name || '',
     materialFiles: files,
@@ -375,6 +407,34 @@ const handleSubmit = () => {
               />
             </label>
           </div>
+        </section>
+
+        <section class="space-y-2 border-t border-border/60 pt-4">
+          <div class="flex items-center justify-between gap-2">
+            <span class="form-label text-sm font-medium">标签</span>
+            <Button
+              variant="outline"
+              type="button"
+              size="sm"
+              class="h-8"
+              :disabled="submitting"
+              @click="tagDialogOpen = true"
+            >
+              选择标签
+            </Button>
+          </div>
+          <div v-if="selectedTagIds.length" class="flex flex-wrap gap-1">
+            <span
+              v-for="tag in selectedTagChips"
+              :key="tag.id"
+              class="rounded bg-secondary px-2 py-1 text-xs"
+            >
+              {{ tag.name }}
+            </span>
+          </div>
+          <p v-else class="text-xs text-muted-foreground">
+            可选择或新建导游标签
+          </p>
         </section>
 
         <!-- ② 声音：内置音色优先，样本可多份 -->
@@ -515,4 +575,11 @@ const handleSubmit = () => {
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <GuideTagDialog
+    v-model:open="tagDialogOpen"
+    :model-value="selectedTagIds"
+    @update:model-value="handleTagIdsChange"
+    @update:tags="handleTagsChange"
+  />
 </template>

@@ -4421,7 +4421,7 @@
     "/api/Guide/create-with-material": {
       "post": {
         "tags": ["Guide"],
-        "summary": "创建 Guide 并上传用于音色或语料风格分析的 MP3、MP4 或 TXT 材料。",
+        "summary": "创建 Guide，并上传用于逐文件 ASR、语料风格分析和音色克隆的 MP3 列表。",
         "requestBody": {
           "content": {
             "multipart/form-data": {
@@ -4440,6 +4440,13 @@
                   },
                   "Description": {
                     "type": "string"
+                  },
+                  "TagIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "导游关联的标签 ID 列表，创建和更新时覆盖保存"
                   },
                   "SemanticProfile": {
                     "maxLength": 8000,
@@ -4502,8 +4509,11 @@
                     "type": "string"
                   },
                   "material": {
-                    "type": "string",
-                    "format": "binary"
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
                   },
                   "txtmaterial": {
                     "type": "string",
@@ -4522,6 +4532,9 @@
                   "style": "form"
                 },
                 "Description": {
+                  "style": "form"
+                },
+                "TagIds": {
                   "style": "form"
                 },
                 "SemanticProfile": {
@@ -4649,7 +4662,7 @@
     "/api/Guide/voice-preview": {
       "get": {
         "tags": ["Guide"],
-        "summary": "Redirects the Guide owner to a short-lived URL for the private generated preview.",
+        "summary": "跳转到导游试听音频的短时效地址。可见性沿用导游规则：管理员可试听全部，\n策展人可试听管理员创建的导游和自己创建的导游。",
         "parameters": [
           {
             "name": "guideId",
@@ -4790,6 +4803,13 @@
                   "Description": {
                     "type": "string"
                   },
+                  "TagIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "导游关联的标签 ID 列表，创建和更新时覆盖保存"
+                  },
                   "SemanticProfile": {
                     "maxLength": 8000,
                     "type": "string"
@@ -4851,8 +4871,11 @@
                     "type": "string"
                   },
                   "material": {
-                    "type": "string",
-                    "format": "binary"
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
                   },
                   "txtmaterial": {
                     "type": "string",
@@ -4877,6 +4900,9 @@
                   "style": "form"
                 },
                 "Description": {
+                  "style": "form"
+                },
+                "TagIds": {
                   "style": "form"
                 },
                 "SemanticProfile": {
@@ -6681,6 +6707,44 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RoutePosterResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Poster/ListByRouteId": {
+      "get": {
+        "tags": ["Poster"],
+        "summary": "根据路线 ID 获取海报列表。",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePosterResponseListApiResponse"
                 }
               }
             }
@@ -12748,6 +12812,11 @@
             "description": "交互类型：1~9=互动玩法 10=拍照识别 11=AI 语音解说。",
             "format": "int32"
           },
+          "guideId": {
+            "type": "string",
+            "description": "解说导游 ID；仅 interaction_type=11 使用，不再存储在 config 中。",
+            "nullable": true
+          },
           "refPuzzleId": {
             "type": "string",
             "description": "关联谜题 ID（答题型节点复用现有 puzzle）",
@@ -14474,7 +14543,7 @@
         "additionalProperties": false
       },
       "GenerateRoutePosterRequest": {
-        "required": ["prompt", "routeId"],
+        "required": ["routeId"],
         "type": "object",
         "properties": {
           "routeId": {
@@ -14483,24 +14552,11 @@
           },
           "prompt": {
             "maxLength": 4000,
-            "minLength": 1,
-            "type": "string"
-          },
-          "modelName": {
-            "maxLength": 128,
             "type": "string",
             "nullable": true
           },
-          "referenceAttachmentIds": {
-            "maxItems": 5,
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "nullable": true
-          },
           "referenceImageUrls": {
-            "maxItems": 5,
+            "maxItems": 10,
             "type": "array",
             "items": {
               "type": "string"
@@ -15194,6 +15250,13 @@
             "type": "string",
             "nullable": true
           },
+          "materialIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
           "runId": {
             "type": "string",
             "nullable": true
@@ -15431,6 +15494,13 @@
           },
           "description": {
             "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagResponse"
+            },
             "nullable": true
           },
           "semanticProfile": {
@@ -17133,6 +17203,11 @@
             "description": "路线归属的后台账号 ID",
             "nullable": true
           },
+          "ownerName": {
+            "type": "string",
+            "description": "路线归属的后台账号名称，优先真实姓名，未设置时返回用户名",
+            "nullable": true
+          },
           "canEdit": {
             "type": "boolean",
             "description": "当前操作者是否可以编辑该路线"
@@ -17661,6 +17736,11 @@
             "format": "int32",
             "nullable": true
           },
+          "ownerName": {
+            "type": "string",
+            "description": "路线所有人姓名模糊搜索，匹配后台账号真实姓名或用户名",
+            "nullable": true
+          },
           "keyword": {
             "type": "string",
             "description": "关键字搜索",
@@ -18021,6 +18101,25 @@
             "type": "integer",
             "format": "int32"
           },
+          "interactionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "exhibitName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hasPuzzle": {
+            "type": "boolean"
+          },
+          "hasNarration": {
+            "type": "boolean"
+          },
+          "narrationTextStatus": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
           "refPuzzleId": {
             "type": "string",
             "nullable": true
@@ -18242,6 +18341,9 @@
           "keyword": {
             "type": "string",
             "nullable": true
+          },
+          "includeConfig": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -18355,6 +18457,14 @@
             "type": "string",
             "nullable": true
           },
+          "tagIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "导游关联的标签 ID 列表，创建和更新时覆盖保存",
+            "nullable": true
+          },
           "semanticProfile": {
             "maxLength": 8000,
             "type": "string",
@@ -18434,7 +18544,7 @@
         "properties": {
           "targetType": {
             "type": "integer",
-            "description": "关联目标类型：1=展品 2=路线 3=谜题",
+            "description": "关联目标类型：1=展品 2=路线 3=谜题 4=导游",
             "format": "int32"
           },
           "targetId": {
@@ -18671,6 +18781,11 @@
             "type": "integer",
             "description": "交互类型：1~9=互动玩法 10=拍照识别 11=AI 语音解说。",
             "format": "int32"
+          },
+          "guideId": {
+            "type": "string",
+            "description": "解说导游 ID；仅 interaction_type=11 使用，不再存储在 config 中。",
+            "nullable": true
           },
           "refPuzzleId": {
             "type": "string",
@@ -20312,6 +20427,14 @@
             "type": "string",
             "nullable": true
           },
+          "tagIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "导游关联的标签 ID 列表，创建和更新时覆盖保存",
+            "nullable": true
+          },
           "semanticProfile": {
             "maxLength": 8000,
             "type": "string",
@@ -20884,6 +21007,11 @@
             "type": "integer",
             "description": "交互类型：1~9=互动玩法 10=拍照识别 11=AI 语音解说。",
             "format": "int32"
+          },
+          "guideId": {
+            "type": "string",
+            "description": "解说导游 ID；仅 interaction_type=11 使用，不再存储在 config 中。",
+            "nullable": true
           },
           "refPuzzleId": {
             "type": "string",
