@@ -3,7 +3,6 @@ import { computed, h } from 'vue'
 import type { ColumnDef } from '@tanstack/vue-table'
 import CollectionDataTable from '@/components/collections/CollectionDataTable.vue'
 import Button from '@/components/shadcn/button/Button.vue'
-import AppIcon from '@/components/ui/AppIcon.vue'
 import {
   getGuideGenerationStatusMeta,
   type GuideRecord,
@@ -24,7 +23,6 @@ const emit = defineEmits<{
   detail: [record: GuideRecord]
   edit: [record: GuideRecord]
   remove: [record: GuideRecord]
-  refreshRow: [record: GuideRecord]
 }>()
 
 const statusMap: Record<number, { label: string; className: string }> = {
@@ -121,6 +119,18 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
     },
   },
   {
+    accessorKey: 'ownerAdminName',
+    header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '创建人'),
+    cell: ({ row }) => h(
+      'span',
+      {
+        class: 'block max-w-32 truncate text-sm text-muted-foreground',
+        title: row.original.ownerAdminName || '—',
+      },
+      row.original.ownerAdminName || '—',
+    ),
+  },
+  {
     id: 'statusSummary',
     header: () => h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '状态'),
     cell: ({ row }) => {
@@ -141,41 +151,6 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
     cell: ({ row }) => {
       const record = row.original
       const acting = isActing(record.id)
-
-      // 未完成生成：刷新 + 删除（与主题路线一致，避免卡死）
-      if (record.isGenerating) {
-        return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
-          h(
-            Button,
-            {
-              variant: 'ghost',
-              size: 'sm',
-              class: 'h-7 px-2.5 text-xs',
-              disabled: acting,
-              onClick: () => emit('refreshRow', record),
-            },
-            () => [
-              h(AppIcon, {
-                name: 'refresh-cw',
-                class: 'h-3.5 w-3.5',
-                strokeWidth: 1.8,
-              }),
-              h('span', '刷新'),
-            ],
-          ),
-          h(
-            Button,
-            {
-              variant: 'secondary',
-              size: 'sm',
-              class: 'h-7 px-2.5 text-xs',
-              disabled: acting,
-              onClick: () => emit('remove', record),
-            },
-            () => '删除',
-          ),
-        ])
-      }
 
       return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
         h(

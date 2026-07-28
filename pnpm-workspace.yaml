@@ -5,6 +5,7 @@ allowBuilds:
   '@parcel/watcher': true
   core-js: true
   esbuild: true
+  ffmpeg-static: true
   sharp: true
   unrs-resolver: true
   vue-demi: true

@@ -1,8 +1,17 @@
 /**
  * 导游音色 multipart 预处理（BFF）。
- * 视频抽音已改到浏览器 @ffmpeg/ffmpeg；此处仅校验并透传音频。
+ * 视频由 Nuxt BFF 临时落盘后转换为 mp3，再透传给后端。
  */
+import { execFile, execFileSync } from 'node:child_process'
+import { accessSync, chmodSync, constants as fsConstants } from 'node:fs'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, extname, join } from 'node:path'
+import { promisify } from 'node:util'
 import { createError } from 'h3'
+import ffmpegStaticPath from 'ffmpeg-static'
+
+const execFileAsync = promisify(execFile)
 
 /** multipart 字段名：音色材料 */
 export const GUIDE_VOICE_MATERIAL_FIELD = 'material'
@@ -30,9 +39,90 @@ const VIDEO_EXTENSIONS = new Set([
 ])
 
 function normalizeExt(name: string) {
-  const dot = name.lastIndexOf('.')
-  if (dot < 0) return ''
-  return name.slice(dot).toLowerCase()
+  return extname(name || '').toLowerCase()
+}
+
+function canExecute(binaryPath: string) {
+  try {
+    accessSync(binaryPath, fsConstants.X_OK)
+    return true
+  } catch {
+    try {
+      chmodSync(binaryPath, 0o755)
+      accessSync(binaryPath, fsConstants.X_OK)
+      return true
+    } catch {
+      return false
+    }
+  }
+}
+
+function resolveFfmpegBinary() {
+  const candidates = [
+    String(process.env.FFMPEG_PATH || process.env.FFMPEG_BIN || '').trim(),
+    typeof ffmpegStaticPath === 'string' ? ffmpegStaticPath : '',
+  ]
+
+  try {
+    const command = process.platform === 'win32' ? 'where' : 'which'
+    const output = execFileSync(command, ['ffmpeg'], { encoding: 'utf8', timeout: 3_000 }).trim()
+    candidates.push(output.split(/\r?\n/)[0] || '')
+  } catch {
+    // 系统 PATH 未配置 ffmpeg 时继续检查 npm 依赖和环境变量。
+  }
+
+  const seen = new Set<string>()
+  for (const candidate of candidates) {
+    const binaryPath = String(candidate || '').trim()
+    if (!binaryPath || seen.has(binaryPath)) continue
+    seen.add(binaryPath)
+    if (!canExecute(binaryPath)) continue
+    try {
+      execFileSync(binaryPath, ['-version'], { timeout: 8_000, stdio: 'ignore' })
+      return binaryPath
+    } catch {
+      // 当前候选不可执行，继续尝试下一项。
+    }
+  }
+
+  throw createError({
+    statusCode: 500,
+    statusMessage: '未找到可用的 ffmpeg，无法从视频提取声音样本。',
+  })
+}
+
+function audioOutputName(originalName: string) {
+  const base = basename(originalName || 'sample', extname(originalName || ''))
+  const safe = (base || 'sample').replace(/[^\w\u4e00-\u9fff.-]+/g, '_').slice(0, 80)
+  return `${safe || 'sample'}.mp3`
+}
+
+async function extractAudioMp3FromVideo(file: File): Promise<File> {
+  const workDir = await mkdtemp(join(tmpdir(), 'guide-voice-'))
+  const inputPath = join(workDir, `input${normalizeExt(file.name) || '.mp4'}`)
+  const outputPath = join(workDir, 'output.mp3')
+
+  try {
+    await writeFile(inputPath, Buffer.from(await file.arrayBuffer()))
+    try {
+      await execFileAsync(resolveFfmpegBinary(), [
+        '-y', '-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-q:a', '2',
+        '-ar', '44100', '-ac', '1', outputPath,
+      ], { timeout: 120_000, maxBuffer: 8 * 1024 * 1024 })
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : '未知错误'
+      throw createError({ statusCode: 400, statusMessage: `视频「${file.name}」提取音频失败：${detail}` })
+    }
+
+    const audioBuffer = await readFile(outputPath)
+    if (!audioBuffer.byteLength) {
+      throw createError({ statusCode: 400, statusMessage: `视频「${file.name}」未提取到有效音频。` })
+    }
+    return new File([audioBuffer], audioOutputName(file.name), { type: 'audio/mpeg', lastModified: Date.now() })
+  } finally {
+    // 视频与转换结果只存在于请求专属临时目录，处理结束后立即删除。
+    await rm(workDir, { recursive: true, force: true }).catch(() => undefined)
+  }
 }
 
 function isVideoMaterial(file: File) {
@@ -53,7 +143,7 @@ function isAudioMaterial(file: File) {
 /**
  * 透传 multipart：
  * - 音频原样保留
- * - 若仍收到视频（客户端未抽音），直接拒绝，不在服务端转码
+ * - 视频临时转换为 mp3 后透传
  */
 export async function prepareGuideMaterialFormData(source: FormData): Promise<FormData> {
   const next = new FormData()
@@ -71,11 +161,9 @@ export async function prepareGuideMaterialFormData(source: FormData): Promise<Fo
 
   for (const file of materialEntries) {
     if (isVideoMaterial(file)) {
-      throw createError({
-        statusCode: 400,
-        statusMessage:
-          `「${file.name}」仍是视频。请在浏览器完成音频提取后再提交，服务端不再处理视频。`,
-      })
+      const audio = await extractAudioMp3FromVideo(file)
+      next.append(GUIDE_VOICE_MATERIAL_FIELD, audio, audio.name)
+      continue
     }
     if (isAudioMaterial(file) || file.size > 0) {
       next.append(GUIDE_VOICE_MATERIAL_FIELD, file, file.name || 'material.mp3')

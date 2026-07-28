@@ -10,8 +10,14 @@ const authStore = useAuthStore()
 
 const title = computed(() => String(route.meta.title || "Path Seeker"))
 const returnGuideId = computed(() => String(route.query.guideId || "").trim())
+const cameFromGuideDetail = computed(() => {
+  if (typeof window === "undefined") return false
+  const backPath = String(window.history.state?.back || "")
+  return /\/shell\/guides\/[^/?#]+(?:[/?#]|$)/.test(backPath)
+})
 const isGuideRouteReturn = computed(() =>
-  route.query.fromGuide === "1" && Boolean(returnGuideId.value),
+  (route.query.fromGuide === "1" && Boolean(returnGuideId.value))
+  || cameFromGuideDetail.value,
 )
 const hideChromeHeader = computed(() => {
   // 播片 / 问一问全页自带顶栏
@@ -65,17 +71,7 @@ const frameClass = computed(() =>
         class="relative z-20 flex shrink-0 items-start justify-between gap-4"
         :class="isMissionFlow ? 'mb-3' : 'mb-5'"
       >
-        <div class="min-w-0 space-y-1.5">
-          <button
-            v-if="showBack"
-            type="button"
-            class="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            aria-label="返回"
-            @click="goBack"
-          >
-            <ArrowLeft class="h-4 w-4" :stroke-width="1.8" />
-            <span v-if="!isGuideRouteReturn">返回</span>
-          </button>
+        <div class="min-w-0">
           <p class="client-top-kicker">Path Seeker</p>
           <h1
             class="client-page-title"
@@ -83,6 +79,16 @@ const frameClass = computed(() =>
           >
             {{ title }}
           </h1>
+          <button
+            v-if="showBack"
+            type="button"
+            class="mt-3 inline-flex items-center gap-1.5 text-[0.82rem] text-[var(--gold-bright)] hover:text-[var(--gold)]"
+            aria-label="返回"
+            @click="goBack"
+          >
+            <ArrowLeft class="h-4 w-4" :stroke-width="1.8" />
+            <span>返回</span>
+          </button>
         </div>
         <RouterLink to="/auth" class="client-user-pill shrink-0">
           {{ authStore.isLoggedIn ? authStore.displayName || "探索者" : "登录" }}

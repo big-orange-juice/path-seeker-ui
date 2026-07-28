@@ -15,6 +15,7 @@ export interface GuideResponse {
   id?: string | null
   guideCode?: string | null
   name?: string | null
+  ownerAdminName?: string | null
   avatarAttachmentId?: string | null
   avatarUrl?: string | null
   description?: string | null
@@ -130,6 +131,7 @@ export interface GuideRecord {
   id: string
   guideCode: string
   name: string
+  ownerAdminName: string
   avatarAttachmentId: string | null
   avatarUrl: string | null
   description: string
@@ -164,7 +166,7 @@ export type GuideDraft = Omit<
   GuideRecord,
   | 'id'
   | 'avatarUrl'
-  | 'voiceSampleUrl'
+  | 'ownerAdminName'
   | 'updatedAt'
   | 'generationRunId'
   | 'generationStatus'
@@ -176,14 +178,14 @@ export type GuideDraft = Omit<
   /** 表单预览用头像 URL（不提交） */
   avatarPreviewUrl?: string | null
   /**
-   * 音色材料本地文件（仅音频），multipart 字段名 `material`。
-   * 视频在选文件时由浏览器 @ffmpeg/ffmpeg 抽成 mp3 后再入表。
+   * 音色材料本地文件，multipart 字段名 `material`。
+   * 视频会随表单交给 BFF 临时转换成 mp3，浏览器不参与转码。
    * 对齐 create-with-material / update-with-material
    * @deprecated 请用 materialFiles；保留首个文件兼容旧逻辑
    */
   materialFile?: File | null
   materialFileName?: string
-  /** 多份声音样本（同一字段名 `material` 多次 append；提交时已是音频） */
+  /** 多份声音样本（同一字段名 `material` 多次 append；视频由 BFF 转为音频） */
   materialFiles?: File[]
   /**
    * 语义/语料资料本地文件（txt），multipart 字段名 `txtmaterial`

@@ -61,6 +61,8 @@ const formSubmitting = shallowRef(false)
 const formError = shallowRef('')
 const voiceOptions = shallowRef<TtsVoiceResponse[]>([])
 const voiceLoading = shallowRef(false)
+const activeFormRecord = shallowRef<GuideRecord | null>(null)
+const voiceStatusRefreshing = shallowRef(false)
 
 const detailOpen = shallowRef(false)
 const detailPending = shallowRef(false)
@@ -99,27 +101,47 @@ watch(formOpen, (open) => {
 const startCreate = () => {
   formMode.value = 'create'
   formDraft.value = createEmptyGuideDraft()
+  activeFormRecord.value = null
   formError.value = ''
   formOpen.value = true
 }
 
 const startEdit = async (record: GuideRecord) => {
-  if (record.isGenerating) {
-    return
-  }
-
   formMode.value = 'edit'
   formError.value = ''
   formDraft.value = createGuideDraftFromRecord(record)
+  activeFormRecord.value = record
   formOpen.value = true
 
   try {
     const detail = await fetchGuideDetail(record.id)
     if (detail) {
       formDraft.value = createGuideDraftFromRecord(detail)
+      activeFormRecord.value = detail
     }
   } catch {
     // 列表数据可继续编辑
+  }
+}
+
+const refreshVoiceStatus = async () => {
+  const record = activeFormRecord.value
+  if (!record || voiceStatusRefreshing.value) {
+    return
+  }
+
+  voiceStatusRefreshing.value = true
+  try {
+    const detail = await fetchGuideDetail(record.id)
+    if (detail) {
+      formDraft.value = createGuideDraftFromRecord(detail)
+      activeFormRecord.value = detail
+    }
+    await refresh()
+  } catch (caughtError) {
+    actionFeedback.errorFrom(caughtError, '音色状态刷新失败。')
+  } finally {
+    voiceStatusRefreshing.value = false
   }
 }
 
@@ -159,23 +181,6 @@ const handleFormSubmit = async (draft: GuideDraft) => {
     actionFeedback.error(message, '保存失败')
   } finally {
     formSubmitting.value = false
-  }
-}
-
-const refreshGuideRow = async (record: GuideRecord) => {
-  if (actionPendingIds.value.includes(record.id)) {
-    return
-  }
-
-  actionPendingIds.value = [...actionPendingIds.value, record.id]
-
-  try {
-    // 行内刷新只更新列表，不弹成功 dialog
-    await refresh()
-  } catch (caughtError) {
-    actionFeedback.errorFrom(caughtError, '导游列表刷新失败。')
-  } finally {
-    actionPendingIds.value = actionPendingIds.value.filter((item) => item !== record.id)
   }
 }
 
@@ -317,7 +322,6 @@ const handleDetailEdit = (record: GuideRecord) => {
         @detail="openDetail"
         @edit="startEdit"
         @remove="askRemove"
-        @refresh-row="refreshGuideRow"
       />
     </section>
 
@@ -328,8 +332,12 @@ const handleDetailEdit = (record: GuideRecord) => {
       :submitting="formSubmitting"
       :voice-options="voiceOptions"
       :voice-loading="voiceLoading"
+      :voice-generation-status="activeFormRecord?.generationStatus"
+      :voice-generation-error="activeFormRecord?.generationError"
+      :voice-refreshing="voiceStatusRefreshing"
       @submit="handleFormSubmit"
       @search-voice="searchVoiceOptions"
+      @refresh-voice-status="refreshVoiceStatus"
     />
 
     <GuideDetailDialog

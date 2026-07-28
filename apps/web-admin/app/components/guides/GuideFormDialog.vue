@@ -13,28 +13,19 @@ import AppIcon from '@/components/ui/AppIcon.vue'
 import GuideTagDialog from '@/components/guides/GuideTagDialog.vue'
 import { useUploadAttachment } from '@/composables/useUploadAttachment'
 import type { GuideDraft, TtsVoiceResponse } from '@/types/guide'
-import {
-  extractAudioMp3FromVideo,
-  isAudioVoiceMaterial,
-  isVideoVoiceMaterial,
-} from '@/utils/extractVoiceAudioClient'
 
-/** 声音样本体积上限：20MB（视频按原文件计，抽音后通常更小） */
+/** 声音样本体积上限：20MB */
 const MAX_VOICE_MATERIAL_BYTES = 20 * 1024 * 1024
 /** 单次最多上传样本数 */
 const MAX_VOICE_MATERIAL_COUNT = 8
 
-/** 列表展示用：含视频抽音中的条目 */
 interface MaterialListItem {
   key: string
-  /** 就绪后为音频 File；转换中为 null */
-  file: File | null
+  file: File
   label: string
   sizeText: string
-  status: 'ready' | 'converting' | 'failed'
+  status: 'ready'
   fromVideo: boolean
-  progress?: number
-  error?: string
 }
 
 interface Props {
@@ -44,12 +35,18 @@ interface Props {
   submitting?: boolean
   voiceOptions?: TtsVoiceResponse[]
   voiceLoading?: boolean
+  voiceGenerationStatus?: number
+  voiceGenerationError?: string | null
+  voiceRefreshing?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   submitting: false,
   voiceOptions: () => [],
   voiceLoading: false,
+  voiceGenerationStatus: 0,
+  voiceGenerationError: null,
+  voiceRefreshing: false,
 })
 
 const emit = defineEmits<{
@@ -57,6 +54,7 @@ const emit = defineEmits<{
   submit: [draft: GuideDraft]
   /** 音色关键词搜索（远端） */
   'search-voice': [keyword: string]
+  refreshVoiceStatus: []
 }>()
 
 const { uploadAttachment } = useUploadAttachment()
@@ -72,11 +70,20 @@ const avatarUploading = shallowRef(false)
 const avatarError = shallowRef('')
 const materialError = shallowRef('')
 const tagDialogOpen = shallowRef(false)
-/** 样本列表（含转换态）；就绪项同步进 form.materialFiles */
+/** 样本列表；视频原文件会同步到 form.materialFiles，交由 BFF 转码。 */
 const materialItems = shallowRef<MaterialListItem[]>([])
 
-const isVoiceMaterialFile = (file: File) =>
-  isAudioVoiceMaterial(file) || isVideoVoiceMaterial(file)
+const isVideoVoiceMaterial = (file: File) => {
+  const type = String(file.type || '').toLowerCase()
+  const name = file.name.toLowerCase()
+  return type.startsWith('video/') || /\.(mp4|m4v|mov|webm|avi|mkv|mpeg|mpg)$/.test(name)
+}
+
+const isVoiceMaterialFile = (file: File) => {
+  const type = String(file.type || '').toLowerCase()
+  const name = file.name.toLowerCase()
+  return type.startsWith('audio/') || isVideoVoiceMaterial(file) || /\.(mp3|wav|m4a|aac|ogg|flac|mpga)$/.test(name)
+}
 
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) {
@@ -89,19 +96,13 @@ const formatFileSize = (bytes: number) => {
 }
 
 const syncMaterialFilesToForm = () => {
-  const ready = materialItems.value
-    .filter((item) => item.status === 'ready' && item.file)
-    .map((item) => item.file as File)
+  const ready = materialItems.value.map((item) => item.file)
   form.materialFiles = ready
   form.materialFile = ready[0] ?? null
   form.materialFileName = ready[0]?.name || ''
   form.txtMaterialFile = null
   form.txtMaterialFileName = ''
 }
-
-const materialConverting = computed(() =>
-  materialItems.value.some((item) => item.status === 'converting'),
-)
 
 /** 标签名称缓存：仅用于表单回显，key 为 tagId */
 const tagNameMap = shallowRef<Record<string, string>>({})
@@ -132,11 +133,6 @@ const materialSummary = computed(() => {
   const items = materialItems.value
   if (!items.length) {
     return ''
-  }
-  const converting = items.filter((item) => item.status === 'converting').length
-  const ready = items.filter((item) => item.status === 'ready').length
-  if (converting > 0) {
-    return `抽取音频中…（${ready}/${items.length} 就绪）`
   }
   if (items.length === 1) {
     return items[0]?.label || '1 个样本'
@@ -175,11 +171,23 @@ const isOpen = computed({
 
 const title = computed(() => (props.mode === 'edit' ? '编辑导游' : '新增导游'))
 
+const voiceGenerationMeta = computed(() => {
+  if (props.voiceGenerationStatus === 1) {
+    return { text: '音色生成中，稍后可刷新状态。', className: 'text-sky-200' }
+  }
+  if (props.voiceGenerationStatus === 3) {
+    return {
+      text: props.voiceGenerationError || '音色生成失败，请检查样本后重试。',
+      className: 'text-rose-300',
+    }
+  }
+  return null
+})
+
 const canSubmit = computed(() =>
   Boolean(String(form.name || '').trim())
   && !props.submitting
   && !avatarUploading.value
-  && !materialConverting.value,
 )
 
 const voiceSelectOptions = computed(() => {
@@ -261,46 +269,10 @@ const clearAvatar = (event: Event) => {
 }
 
 const openMaterialPicker = () => {
-  if (materialConverting.value || props.submitting) {
+  if (props.submitting) {
     return
   }
   materialInputRef.value?.click()
-}
-
-const patchMaterialItem = (key: string, patch: Partial<MaterialListItem>) => {
-  materialItems.value = materialItems.value.map((item) =>
-    item.key === key ? { ...item, ...patch } : item,
-  )
-  syncMaterialFilesToForm()
-}
-
-/** 视频选中后立即在浏览器抽成 mp3 */
-const convertVideoItem = async (key: string, source: File) => {
-  try {
-    const audio = await extractAudioMp3FromVideo(source, {
-      onProgress: (progress) => patchMaterialItem(key, { progress }),
-    })
-    patchMaterialItem(key, {
-      file: audio,
-      label: audio.name,
-      sizeText: formatFileSize(audio.size),
-      status: 'ready',
-      fromVideo: true,
-      progress: undefined,
-      error: undefined,
-    })
-  } catch (error) {
-    const message = error instanceof Error && error.message
-      ? error.message
-      : `「${source.name}」提取音频失败。`
-    patchMaterialItem(key, {
-      file: null,
-      status: 'failed',
-      progress: undefined,
-      error: message,
-    })
-    materialError.value = message
-  }
 }
 
 const handleMaterialChange = (event: Event) => {
@@ -315,7 +287,6 @@ const handleMaterialChange = (event: Event) => {
 
   const next = [...materialItems.value]
   const errors: string[] = []
-  const pendingConvert: Array<{ key: string, file: File }> = []
 
   for (const file of picked) {
     if (next.length >= MAX_VOICE_MATERIAL_COUNT) {
@@ -343,26 +314,14 @@ const handleMaterialChange = (event: Event) => {
     }
 
     const key = `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    if (isVideoVoiceMaterial(file)) {
-      next.push({
-        key,
-        file: null,
-        label: file.name,
-        sizeText: formatFileSize(file.size),
-        status: 'converting',
-        fromVideo: true,
-      })
-      pendingConvert.push({ key, file })
-    } else {
-      next.push({
-        key,
-        file,
-        label: file.name,
-        sizeText: formatFileSize(file.size),
-        status: 'ready',
-        fromVideo: false,
-      })
-    }
+    next.push({
+      key,
+      file,
+      label: file.name,
+      sizeText: formatFileSize(file.size),
+      status: 'ready',
+      fromVideo: isVideoVoiceMaterial(file),
+    })
   }
 
   materialItems.value = next
@@ -372,9 +331,6 @@ const handleMaterialChange = (event: Event) => {
     materialError.value = errors[0] || ''
   }
 
-  for (const item of pendingConvert) {
-    void convertVideoItem(item.key, item.file)
-  }
 }
 
 const removeMaterialAt = (index: number) => {
@@ -391,10 +347,6 @@ const clearMaterials = () => {
 
 const handleSubmit = () => {
   if (!canSubmit.value) {
-    return
-  }
-  if (materialItems.value.some((item) => item.status === 'failed')) {
-    materialError.value = '请移除提取失败的样本后再保存。'
     return
   }
   const files = form.materialFiles || []
@@ -536,8 +488,29 @@ const handleSubmit = () => {
 
         <!-- ② 声音：内置音色优先，样本可多份 -->
         <section class="space-y-3 border-t border-border/60 pt-5">
-          <p class="form-label text-sm font-medium">
-            声音
+          <div class="flex items-center justify-between gap-3">
+            <p class="form-label text-sm font-medium">
+              声音
+            </p>
+            <Button
+              v-if="mode === 'edit'"
+              variant="ghost"
+              type="button"
+              size="sm"
+              class="h-7 px-2 text-xs"
+              :disabled="submitting || voiceRefreshing"
+              @click="emit('refreshVoiceStatus')"
+            >
+              <AppIcon name="refresh-cw" class="h-3.5 w-3.5" />
+              {{ voiceRefreshing ? '刷新中…' : '刷新音色状态' }}
+            </Button>
+          </div>
+          <p
+            v-if="voiceGenerationMeta"
+            class="text-xs"
+            :class="voiceGenerationMeta.className"
+          >
+            {{ voiceGenerationMeta.text }}
           </p>
 
           <label class="block space-y-1.5 text-sm font-medium">
@@ -568,6 +541,24 @@ const handleSubmit = () => {
             优先使用内置音色；若无法满足再上传自定义样本（可多选）。
           </p>
 
+          <div
+            v-if="mode === 'edit' && form.voiceSampleUrl"
+            class="space-y-1.5 rounded-lg border border-border/60 bg-secondary/15 px-3 py-2.5"
+          >
+            <p class="form-label text-sm font-medium">
+              试听音色
+            </p>
+            <audio
+              class="h-9 w-full"
+              controls
+              controlsList="nodownload"
+              preload="metadata"
+              :src="form.voiceSampleUrl"
+            >
+              当前浏览器不支持音频播放
+            </audio>
+          </div>
+
           <div class="space-y-1.5 border-t border-border/40 pt-3">
             <div class="flex items-center justify-between gap-2">
               <span class="form-label text-sm font-medium">自定义声音样本</span>
@@ -576,7 +567,7 @@ const handleSubmit = () => {
               </span>
             </div>
             <p class="text-xs text-muted-foreground">
-              仅在内置音色不够用时上传；选中视频后会在本机立即抽成音频再提交
+              仅在内置音色不够用时上传；视频会在提交后由服务端转换为音频
             </p>
             <input
               ref="materialInput"
@@ -589,7 +580,7 @@ const handleSubmit = () => {
             <button
               type="button"
               class="flex w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-primary/35 bg-secondary/20 px-3 py-5 text-center transition hover:border-primary/55 hover:bg-secondary/35 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="submitting || materialConverting"
+              :disabled="submitting"
               @click="openMaterialPicker"
             >
               <AppIcon name="image-up" class="h-5 w-5 text-primary/80" />
@@ -623,17 +614,9 @@ const handleSubmit = () => {
                   {{ item.label }}
                   <span class="text-muted-foreground">· {{ item.sizeText }}</span>
                   <span
-                    v-if="item.status === 'converting'"
-                    class="ml-1 text-amber-200/90"
-                  >{{ item.progress == null ? '抽取音频中…' : `正在处理… ${item.progress}%` }}</span>
-                  <span
-                    v-else-if="item.status === 'failed'"
-                    class="ml-1 text-rose-300"
-                  >提取失败</span>
-                  <span
-                    v-else-if="item.fromVideo"
+                    v-if="item.fromVideo"
                     class="ml-1 text-emerald-300/90"
-                  >已抽为音频</span>
+                  >提交后转为音频</span>
                 </span>
                 <button
                   type="button"
@@ -650,7 +633,7 @@ const handleSubmit = () => {
               v-if="materialItems.length"
               type="button"
               class="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
-              :disabled="submitting || materialConverting"
+              :disabled="submitting"
               @click="clearMaterials"
             >
               清空全部样本
