@@ -311,6 +311,10 @@ export interface MissionFilters {
   scaleType: ScaleTypeCode | "all"
   /** 标题关键字 */
   keyword: string
+  /** 导游名称模糊（展厅筛选） */
+  guideName: string
+  /** 导游 ID 精确（一般由导游详情页独立请求，展厅不设） */
+  guideId: string
   /** @deprecated 请用 scaleType */
   taskKind?: TaskKind | "all"
 }

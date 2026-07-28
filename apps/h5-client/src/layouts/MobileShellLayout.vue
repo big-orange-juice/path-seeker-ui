@@ -14,8 +14,33 @@ const hideChromeHeader = computed(() => {
 })
 /** 任务流：底栏留白更紧，内容与按钮更贴底 */
 const isMissionFlow = computed(() => route.path.startsWith("/missions/"))
-const showBack = computed(() => route.meta.showTabBar === false && !route.path.startsWith("/missions/") && !route.path.startsWith("/shell/ask") && !route.path.startsWith("/shell/guides/"))
-const goBack = () => { if (window.history.length > 1) { void router.back() } else { void router.replace("/shell/hall") } }
+/**
+ * 壳层返回：非 FAB 主 Tab、且页内未自带返回时展示。
+ * 排除 missions（页内业务返回）、ask（面板关闭）、导游详情（页内返回）。
+ * playing / archive 虽曾 showTabBar，但从「我的」进入需可回上一页。
+ */
+const showBack = computed(() => {
+  const path = route.path
+  if (path.startsWith("/missions/")) return false
+  if (path.startsWith("/shell/ask")) return false
+  if (path.startsWith("/shell/guides/")) return false
+  // FAB 三主入口：展厅 / 导游列表 / 我的
+  if (path === "/shell/hall" || path === "/shell/guides" || path === "/shell/me") return false
+  // 探索中 / 探索记录：从我的进入，需要返回
+  if (path === "/shell/playing" || path === "/shell/archive") return true
+  return route.meta.showTabBar === false
+})
+const goBack = () => {
+  if (window.history.length > 1) {
+    void router.back()
+    return
+  }
+  if (route.path === "/shell/playing" || route.path === "/shell/archive") {
+    void router.replace("/shell/me")
+    return
+  }
+  void router.replace("/shell/hall")
+}
 const frameClass = computed(() =>
   isMissionFlow.value
     ? "client-frame client-frame-mission"

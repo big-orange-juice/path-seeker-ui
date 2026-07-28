@@ -69,6 +69,22 @@ async function backHome() {
   await router.replace(redirectPath.value)
 }
 
+/** 有历史栈或带 redirect 时允许返回上一页 */
+function goBack() {
+  if (window.history.length > 1) {
+    void router.back()
+    return
+  }
+  void router.replace("/shell/hall")
+}
+
+const canGoBack = computed(() => {
+  if (typeof route.query.redirect === "string" && route.query.redirect.startsWith("/")) {
+    return true
+  }
+  return typeof window !== "undefined" && window.history.length > 1
+})
+
 async function submitLogin() {
   if (!canSubmitLogin.value) {
     return
@@ -141,6 +157,15 @@ function logout() {
   <div class="client-shell">
     <div class="client-frame">
       <header class="auth-header">
+        <button
+          v-if="canGoBack"
+          type="button"
+          class="auth-back"
+          aria-label="返回"
+          @click="goBack"
+        >
+          ← 返回
+        </button>
         <p class="client-top-kicker">Path Seeker</p>
         <h1 class="client-page-title">
           {{ authStore.isLoggedIn ? "账号" : "登录" }}
@@ -162,7 +187,7 @@ function logout() {
           </div>
         </section>
 
-        <!-- 未登录：功能优先，无装饰印章 / 无游戏化开场 -->
+        <!-- 未登录：功能优先，无装饰印章 / 无装饰开场 -->
         <template v-else>
           <section class="auth-intro">
             <p class="auth-lead">选择进入方式，浏览展厅路线与讲解内容。</p>
@@ -267,6 +292,16 @@ function logout() {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+}
+
+.auth-back {
+  align-self: flex-start;
+  margin: 0 0 0.15rem;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 0.78rem;
+  color: var(--gold-bright, #e8c98a);
 }
 
 .auth-page {

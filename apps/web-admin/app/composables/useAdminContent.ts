@@ -59,7 +59,7 @@ const businessModelRows: InfoRow[] = [
 
 const conceptRows: InfoRow[] = [
   { name: '内容资产化', description: '文物资料、故事、题目、路线都沉淀为可复用资产' },
-  { name: '路线游戏化', description: '参观路径不只是导航，而是任务推进路径' },
+  { name: '路线任务化', description: '参观路径不只是导航，而是任务推进路径' },
   { name: '年龄适配', description: '同一文物支持不同年龄难度题目' },
   { name: '低打扰沉浸', description: '轻量 UI 服务于线下观展，不喧宾夺主' },
   { name: '运营可持续', description: '节日、临展、馆校活动都能快速组合新主题' },
@@ -74,28 +74,28 @@ const bModuleColumns: TableColumn[] = [
 const bModules: Array<Record<string, string>> = [
   { module: '基础数据管理', description: '维护博物馆、展馆楼层、展厅、展柜、标签和主题分类', value: '打通内容基础设施' },
   { module: '馆藏内容管理', description: '维护文物图文、音频、年代、材质、作者、故事和位置', value: '建立高质量内容底座' },
-  { module: '主题剧本编排', description: '按主题、路线、时长将多个谜题组合成完整游戏', value: '形成 C 端可玩产品' },
+  { module: '主题剧本编排', description: '按主题、路线、时长将多个谜题组合成完整探索路线', value: '形成 C 端可探索产品' },
   { module: '审核与发布', description: '支持未上架、审核、上架、下线与版本管理', value: '控制内容质量' },
 ];
 
 const cModuleColumns: TableColumn[] = [
   { key: 'module', label: '模块' },
   { key: 'description', label: '功能说明' },
-  { key: 'gameplay', label: '游戏感体现' },
+  { key: 'gameplay', label: '体验感体现' },
 ];
 
 const cModules: Array<Record<string, string>> = [
-  { module: '首页世界观入口', description: '展示主题任务、限时活动与推荐路线', gameplay: '像进入冒险大厅' },
+  { module: '首页世界观入口', description: '展示主题任务、限时活动与推荐路线', gameplay: '像进入探索大厅' },
   { module: '故事引导页', description: '通过开场动画、旁白与目标说明建立代入', gameplay: '进入剧情状态' },
-  { module: '章节地图', description: '呈现当前展厅、已解锁线索和下一目标提示', gameplay: '像闯关地图' },
+  { module: '章节地图', description: '呈现当前展厅、已解锁线索和下一目标提示', gameplay: '像路线地图' },
   { module: '收集与成就系统', description: '印章、碎片、徽章、角色卡和称号解锁', gameplay: '建立持续动力' },
 ];
 
 const flowStages: MilestoneStage[] = [
   { title: '1. 内容准备', target: '录入馆藏、展厅、标签与媒体资源', details: '让每条路线都有可复用内容底座。' },
   { title: '2. 出题设计', target: '为单件文物创建多年龄层谜题', details: '围绕观察、排序、推理与剧情判断扩展题型。' },
-  { title: '3. 主题编排', target: '组合剧情线、章节、奖励与终局', details: '把分散谜题整合成完整的任务副本。' },
-  { title: '4. 发布上线', target: '审核并发布为可玩游戏', details: '控制内容质量与版本节奏。' },
+  { title: '3. 主题编排', target: '组合剧情线、章节、奖励与终局', details: '把分散谜题整合成完整的探索路线。' },
+  { title: '4. 发布上线', target: '审核并发布为可探索路线', details: '控制内容质量与版本节奏。' },
   { title: '5. 复盘运营', target: '分析卡点并持续调整路线', details: '形成节日活动与馆校合作的长期机制。' },
 ];
 

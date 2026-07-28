@@ -579,6 +579,10 @@ const detailActions = computed(() => {
           <label class="text-sm font-medium">关键词</label>
           <Input v-model="filters.keyword" placeholder="搜索路线标题、编码、主题" />
         </div>
+        <div class="w-[160px] space-y-1.5">
+          <label class="text-sm font-medium">创建人</label>
+          <Input v-model="filters.ownerName" placeholder="导游姓名/用户名" />
+        </div>
         <div class="w-[130px] space-y-1.5">
           <label class="text-sm font-medium">发布状态</label>
           <Select :model-value="String(filters.publishStatus)" @update:model-value="filters.publishStatus = Number($event)">

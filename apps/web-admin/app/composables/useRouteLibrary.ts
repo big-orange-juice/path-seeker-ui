@@ -38,6 +38,7 @@ export const useRouteLibrary = (
 
   const filters = reactive({
     keyword: '',
+    ownerName: '',
     publishStatus: -1,
     auditStatus: -1,
   });
@@ -52,6 +53,7 @@ export const useRouteLibrary = (
     museumId: museumId.value || null,
     publishStatus: filters.publishStatus < 0 ? null : filters.publishStatus,
     auditStatus: filters.auditStatus < 0 ? null : filters.auditStatus,
+    ownerName: filters.ownerName.trim() || null,
     keyword: filters.keyword.trim() || null,
   }));
 
@@ -153,6 +155,7 @@ export const useRouteLibrary = (
 
   const resetFilters = () => {
     filters.keyword = '';
+    filters.ownerName = '';
     filters.publishStatus = -1;
     filters.auditStatus = -1;
     pageIndex.value = 1;

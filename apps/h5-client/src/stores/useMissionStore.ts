@@ -80,6 +80,8 @@ function defaultFilters(): MissionFilters {
     difficulty: "all",
     scaleType: "all",
     keyword: "",
+    guideName: "",
+    guideId: "",
   }
 }
 
@@ -260,6 +262,12 @@ export const useMissionStore = defineStore(
       if (payload.keyword !== undefined) {
         filters.keyword = String(payload.keyword ?? "")
       }
+      if (payload.guideName !== undefined) {
+        filters.guideName = String(payload.guideName ?? "")
+      }
+      if (payload.guideId !== undefined) {
+        filters.guideId = String(payload.guideId ?? "")
+      }
       // 兼容旧 taskKind 筛选：映射为 scaleType
       if (payload.taskKind && payload.taskKind !== "all") {
         const legacy: Record<string, 1 | 2 | 3> = {
@@ -281,6 +289,8 @@ export const useMissionStore = defineStore(
         difficulty: filters.difficulty ?? "all",
         scaleType: filters.scaleType ?? "all",
         keyword: filters.keyword || "",
+        guideName: filters.guideName || "",
+        guideId: filters.guideId || "",
       })
     }
 
@@ -328,8 +338,14 @@ export const useMissionStore = defineStore(
           if (filters.keyword === undefined || filters.keyword === null) {
             filters.keyword = ""
           }
+          if (filters.guideName === undefined || filters.guideName === null) {
+            filters.guideName = ""
+          }
+          if (filters.guideId === undefined || filters.guideId === null) {
+            filters.guideId = ""
+          }
 
-          // 难度/规模已从 UI 移除，列表查询固定不传筛选
+          // 难度/规模已从 UI 移除；导游：guideId 精确 / guideName 模糊
           const response = await fetchPublishedRoutes(
             buildRoutePageQuery({
               museumId: DEFAULT_MUSEUM_ID,
@@ -337,6 +353,8 @@ export const useMissionStore = defineStore(
               difficulty: "all",
               scaleType: "all",
               keyword: filters.keyword || null,
+              guideId: filters.guideId || null,
+              guideName: filters.guideName || null,
             }),
           )
 
@@ -808,7 +826,7 @@ export const useMissionStore = defineStore(
           footprints: footprintHistory.value,
         }
       } catch (error) {
-        playHistoryError.value = resolveRequestErrorMessage(error, "游玩历史加载失败")
+        playHistoryError.value = resolveRequestErrorMessage(error, "探索记录加载失败")
         return {
           completed: completedHistory.value,
           footprints: footprintHistory.value,

@@ -12,7 +12,7 @@ import type { MissionRouteHistoryItem } from "@/types/mission"
 
 interface Props {
   item: MissionRouteHistoryItem
-  /** map：继续游玩；finale：查看结算 */
+  /** map：继续探索；finale：查看结算 */
   mode?: "map" | "finale"
 }
 

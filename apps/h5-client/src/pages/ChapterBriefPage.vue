@@ -310,7 +310,7 @@ onUnmounted(() => {
         <template #actions>
           <template v-if="interactionType === 1 || interactionType === 6">
             <div v-if="missionStore.currentChapterSolved" class="rounded-[1rem] bg-background/70 p-4">
-              <p class="text-sm font-semibold text-foreground">此站已完成，可再玩一次</p>
+              <p class="text-sm font-semibold text-foreground">此站已完成，可再走一次</p>
               <p class="mt-2 text-sm leading-6 text-muted-foreground">重新作答或返回路线继续其他站点。</p>
             </div>
 

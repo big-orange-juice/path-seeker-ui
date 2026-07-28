@@ -7,6 +7,8 @@ export interface RoutePageRequest {
   ageGroup?: number | null;
   publishStatus?: number | null;
   auditStatus?: number | null;
+  /** 路线创建人姓名/用户名模糊搜索（导游账号归属） */
+  ownerName?: string | null;
   keyword?: string | null;
 }
 

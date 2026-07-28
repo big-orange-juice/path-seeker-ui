@@ -112,6 +112,10 @@ export function buildRoutePageQuery(input: {
   difficulty: DifficultyLevel | "all"
   scaleType: ScaleTypeCode | "all"
   keyword?: string | null
+  /** 导游 ID 精确；与 guideName 通常二选一 */
+  guideId?: string | null
+  /** 导游名称模糊 */
+  guideName?: string | null
   pageIndex?: number
   pageSize?: number
 }): PublishedRouteQueryRequest {
@@ -124,6 +128,8 @@ export function buildRoutePageQuery(input: {
       input.difficulty === "all" ? null : difficultyLevelKeyToCode(input.difficulty),
     ageGroup: input.ageBand === "all" ? null : AGE_GROUP_FILTER_MAP[input.ageBand],
     keyword: input.keyword?.trim() || null,
+    guideId: input.guideId?.trim() || null,
+    guideName: input.guideName?.trim() || null,
   }
 }
 

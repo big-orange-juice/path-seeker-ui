@@ -34,7 +34,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <!-- 壳层已展示「游玩历史」标题，本页不再重复 kicker/标题/说明 -->
+  <!-- 壳层已展示「探索记录」标题，本页不再重复 kicker/标题/说明 -->
   <div class="client-surface">
     <div v-if="loading" class="space-y-3">
       <ClientSkeleton class="h-20 w-full rounded-[1rem]" />
@@ -74,7 +74,7 @@ onMounted(() => {
           <ClientEmptyState
             v-else
             title="暂无已完成路线"
-            description="通关后会出现在这里，可回看终局结算。"
+            description="完成路线后会出现在这里，可回看结算。"
             action-text="去展厅"
             @action="router.push('/shell/hall')"
           />
@@ -102,7 +102,7 @@ onMounted(() => {
 
     <ClientEmptyState
       v-else
-      title="游玩历史加载失败"
+      title="探索记录加载失败"
       :description="missionStore.playHistoryError || '请检查网络后重试。'"
       action-text="重新加载"
       @action="refresh(true)"

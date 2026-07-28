@@ -111,35 +111,17 @@
     opacity: 0.85;
   }
 
-  /* ----- App view + route fx ----- */
+  /* ----- App view（页面跳转过渡已关闭，不再 dim / rise） ----- */
   .client-view {
     position: relative;
     z-index: 1;
     min-height: 100dvh;
-    transition:
-      opacity 0.55s var(--ease-museum),
-      transform 0.65s var(--ease-museum);
-    will-change: opacity, transform;
   }
 
-  .client-view.fx-dim {
-    opacity: 0;
-    transform: scale(0.985);
-  }
-
+  .client-view.fx-dim,
   .client-view.fx-rise {
-    animation: fx-rise 0.7s var(--ease-museum) both;
-  }
-
-  @keyframes fx-rise {
-    from {
-      opacity: 0;
-      transform: scale(1.012);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
+    opacity: 1;
+    transform: none;
   }
 
   /* Cinema veil：过场 + loading 共用 */

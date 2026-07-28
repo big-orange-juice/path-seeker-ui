@@ -74,14 +74,14 @@ const stationList = computed(() => {
 
     let stateLabel = "待探索"
     if (solved) {
-      // 已完成仍可再进，文案提示可重玩
-      stateLabel = "可再玩"
+      // 已完成仍可再进
+      stateLabel = "可再走"
     } else if (active) {
       stateLabel = "当前"
     } else if (type === 11) {
       stateLabel = "待收听"
     } else if (progress.videoWatched) {
-      stateLabel = type === 10 ? "待完成" : "待闯关"
+      stateLabel = type === 10 ? "待完成" : "待解答"
     } else if (progress.recognized) {
       stateLabel = "待播片"
     } else if (type === 10) {
@@ -109,7 +109,7 @@ const currentStepLabel = computed(() => {
   return `${missionStore.activeSession.solvedChapterIds.length}/${displayMission.value.chapterCount}`
 })
 
-/** 路线已通关：可重复游玩，终局页仅主动进入 */
+/** 路线已完成：各站可再走，终局页仅主动进入 */
 const isRouteCompleted = computed(
   () => missionStore.activeSession?.status === "completed",
 )
@@ -284,7 +284,7 @@ onMounted(() => {
           class="w-full"
           @click="openFinale()"
         >
-          查看通关结果
+          查看完成结果
         </ClientButton>
         <ClientButton variant="outline" class="w-full" @click="goBackToHall()">
           返回展厅

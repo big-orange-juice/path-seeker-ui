@@ -148,7 +148,7 @@ onMounted(() => {
         @click="router.push('/shell/archive')"
       >
         <History class="h-4 w-4 text-primary" />
-        <span class="flex-1 font-medium">游玩历史</span>
+        <span class="flex-1 font-medium">探索记录</span>
         <span class="text-xs text-muted-foreground">
           {{ completed.length ? `全部 ${completed.length}` : "" }}
         </span>
@@ -165,7 +165,7 @@ onMounted(() => {
         />
       </template>
       <p v-else class="text-xs text-muted-foreground">
-        还没有通关记录，完成路线后会留在这里。
+        还没有完成记录，走完路线后会留在这里。
       </p>
     </section>
   </div>

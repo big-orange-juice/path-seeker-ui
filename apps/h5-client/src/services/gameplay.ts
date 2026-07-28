@@ -30,8 +30,9 @@ export interface RouteCardResponse {
 }
 
 /**
- * C 端已发布路线查询（对齐 schema PublishedRouteQueryRequest）。
+ * C 端已发布路线查询（对齐 schema PublishedRouteQueryRequest + 已约定导游字段）。
  * 不含 publishStatus / auditStatus，服务端固定返回已发布列表。
+ * guideId：从导游详情精确筛选；guideName：展厅首页模糊筛选。
  */
 export interface PublishedRouteQueryRequest {
   pageIndex: number
@@ -41,6 +42,10 @@ export interface PublishedRouteQueryRequest {
   difficultyLevel?: number | null
   ageGroup?: number | null
   keyword?: string | null
+  /** 导游 ID 精确匹配（导游详情反向路线） */
+  guideId?: string | null
+  /** 导游名称模糊匹配（展厅筛选） */
+  guideName?: string | null
 }
 
 /** @deprecated 请用 PublishedRouteQueryRequest；保留别名避免零散引用报错 */

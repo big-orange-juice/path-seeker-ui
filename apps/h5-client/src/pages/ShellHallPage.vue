@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef, watch } from "vue"
-import { Filter, Search } from "lucide-vue-next"
+import { Filter, Search, UserRound } from "lucide-vue-next"
 import {
   ClientButton,
   ClientEmptyState,
@@ -18,6 +18,7 @@ import { useMissionStore } from "@/stores/useMissionStore"
 const missionStore = useMissionStore()
 const filterSheetOpen = shallowRef(false)
 const keywordDraft = ref(missionStore.filters.keyword || "")
+const guideNameDraft = ref(missionStore.filters.guideName || "")
 
 const hasRoutes = computed(() => missionStore.filteredRoutes.length > 0)
 const listFailed = computed(() => Boolean(missionStore.routeListError) && !hasRoutes.value)
@@ -26,15 +27,22 @@ const emptyTitle = computed(() => (listFailed.value ? "路线加载失败" : "�
 const emptyText = computed(() =>
   listFailed.value
     ? missionStore.routeListError || "请检查网络后重试。"
-    : "没有匹配路线，换个标题关键词再试试。",
+    : "没有匹配路线，换个标题或导游名再试试。",
 )
 
-const filterOn = computed(() => Boolean(String(missionStore.filters.keyword || "").trim()))
+const filterOn = computed(
+  () =>
+    Boolean(String(missionStore.filters.keyword || "").trim())
+    || Boolean(String(missionStore.filters.guideName || "").trim()),
+)
 
 const filterSummary = computed(() =>
   [
     String(missionStore.filters.keyword || "").trim()
-      ? `「${String(missionStore.filters.keyword).trim()}」`
+      ? `标题「${String(missionStore.filters.keyword).trim()}」`
+      : "",
+    String(missionStore.filters.guideName || "").trim()
+      ? `导游「${String(missionStore.filters.guideName).trim()}」`
       : "",
   ].filter(Boolean),
 )
@@ -49,17 +57,23 @@ function closeFilterSheet() {
   filterSheetOpen.value = false
 }
 
-function applyKeyword() {
-  missionStore.setFilters({ keyword: keywordDraft.value.trim() })
+function applyFilters() {
+  // 展厅用导游名模糊；清空 guideId，避免与详情精确筛选串扰
+  missionStore.setFilters({
+    keyword: keywordDraft.value.trim(),
+    guideName: guideNameDraft.value.trim(),
+    guideId: "",
+  })
 }
 
 function resetFilters() {
   keywordDraft.value = ""
+  guideNameDraft.value = ""
   missionStore.resetFilters()
 }
 
 function confirmFilters() {
-  applyKeyword()
+  applyFilters()
   closeFilterSheet()
 }
 
@@ -74,7 +88,18 @@ watch(
   },
 )
 
+watch(
+  () => missionStore.filters.guideName,
+  (value) => {
+    guideNameDraft.value = value || ""
+  },
+)
+
 onMounted(() => {
+  // 进入展厅时清掉可能残留的 guideId 精确条件
+  if (missionStore.filters.guideId) {
+    missionStore.setFilters({ guideId: "" })
+  }
   void refreshRoutes(false)
 })
 </script>
@@ -149,13 +174,13 @@ onMounted(() => {
       @action="refreshRoutes(true)"
     />
 
-    <!-- 底部筛选：仅标题关键词 -->
+    <!-- 底部筛选：标题关键词 + 导游名模糊 -->
     <ClientSheet v-model="filterSheetOpen">
       <ClientSheetContent side="bottom" class="hall-picker">
         <ClientSheetHeader>
           <ClientSheetTitle>筛选路线</ClientSheetTitle>
           <ClientSheetDescription>
-            按标题关键词收窄列表。
+            按标题关键词或导游名称收窄列表。
           </ClientSheetDescription>
         </ClientSheetHeader>
 
@@ -168,6 +193,19 @@ onMounted(() => {
                 v-model="keywordDraft"
                 class="pl-9"
                 placeholder="搜索路线标题"
+                @keydown.enter.prevent="confirmFilters"
+              />
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-muted-foreground">导游</label>
+            <div class="relative">
+              <UserRound class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <ClientInput
+                v-model="guideNameDraft"
+                class="pl-9"
+                placeholder="按导游名称搜索"
                 @keydown.enter.prevent="confirmFilters"
               />
             </div>

@@ -149,7 +149,12 @@ function minifyToSheet() {
 
 function close() {
   if (props.fullPage) {
-    void router.push("/shell/hall")
+    // 优先回上一页（如从路线 map 最大化进入），无历史再回展厅
+    if (window.history.length > 1) {
+      void router.back()
+      return
+    }
+    void router.replace("/shell/hall")
     return
   }
   askStore.closeAsk()

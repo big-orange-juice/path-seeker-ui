@@ -3,17 +3,31 @@ import { computed, onMounted, onUnmounted, shallowRef, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { ArrowLeft, Pause, Play, UserRound } from "lucide-vue-next"
 import { ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import MissionPreviewCard from "@/components/shell/MissionPreviewCard.vue"
+import {
+  adaptRemoteRouteCard,
+  buildRoutePageQuery,
+  resolveRouteList,
+} from "@/adapters/missionGameplayAdapter"
 import { fetchGuideClientList } from "@/services/guide"
+import { fetchPublishedRoutes } from "@/services/gameplay"
 import { resolveRequestErrorMessage } from "@/services/http"
 import type { GuideClientItem } from "@/types/guide"
+import type { MissionRouteCard } from "@/types/mission"
 
 const route = useRoute()
 const router = useRouter()
 
+/** 与展厅列表同一馆；未配置 env 时回落默认馆 */
+const museumId = String(import.meta.env.VITE_MUSEUM_ID || "345536575083515904").trim()
+
 const guideId = computed(() => String(route.params.guideId || "").trim())
 const guide = shallowRef<GuideClientItem | null>(null)
+const routes = shallowRef<MissionRouteCard[]>([])
 const pending = shallowRef(false)
+const routesPending = shallowRef(false)
 const errorMessage = shallowRef("")
+const routesError = shallowRef("")
 const isPlaying = shallowRef(false)
 const audioError = shallowRef("")
 
@@ -21,6 +35,7 @@ let audioEl: HTMLAudioElement | null = null
 
 const loading = computed(() => pending.value && !guide.value)
 const sampleUrl = computed(() => String(guide.value?.voiceSampleUrl || "").trim())
+const hasRoutes = computed(() => routes.value.length > 0)
 
 function stopSample() {
   if (!audioEl) return
@@ -78,10 +93,36 @@ async function toggleSample() {
   }
 }
 
+/** 导游详情：用 guideId 精确拉已发布路线（与展厅瀑布流同卡） */
+async function loadGuideRoutes(id: string) {
+  routesPending.value = true
+  routesError.value = ""
+  try {
+    const response = await fetchPublishedRoutes(
+      buildRoutePageQuery({
+        museumId,
+        ageBand: "all",
+        difficulty: "all",
+        scaleType: "all",
+        guideId: id,
+      }),
+    )
+    routes.value = resolveRouteList(response)
+      .map(adaptRemoteRouteCard)
+      .filter((item): item is MissionRouteCard => Boolean(item))
+  } catch (error) {
+    routes.value = []
+    routesError.value = resolveRequestErrorMessage(error, "关联路线加载失败。")
+  } finally {
+    routesPending.value = false
+  }
+}
+
 async function loadGuide() {
   const id = guideId.value
   if (!id) {
     guide.value = null
+    routes.value = []
     errorMessage.value = "缺少导游标识。"
     return
   }
@@ -94,9 +135,13 @@ async function loadGuide() {
     guide.value = list.find((item) => item.id === id) || null
     if (!guide.value) {
       errorMessage.value = "未找到该导游。"
+      routes.value = []
+      return
     }
+    void loadGuideRoutes(id)
   } catch (error) {
     guide.value = null
+    routes.value = []
     errorMessage.value = resolveRequestErrorMessage(error, "导游详情加载失败。")
   } finally {
     pending.value = false
@@ -109,6 +154,11 @@ function goBack() {
     return
   }
   void router.replace("/shell/guides")
+}
+
+function skeletonHeightTone(index: number): "tall" | "mid" | "short" {
+  const pattern = ["tall", "mid", "short", "mid"] as const
+  return pattern[index % pattern.length] ?? "mid"
 }
 
 watch(guideId, () => {
@@ -237,6 +287,60 @@ onUnmounted(() => {
           暂无试听音频。
         </p>
       </section>
+
+      <!-- 反向路线：布局同展厅瀑布流，guideId 精确查询 -->
+      <section class="guide-detail__section guide-detail__routes">
+        <div class="guide-detail__routes-head">
+          <h3 class="guide-detail__label">
+            讲解路线
+          </h3>
+          <p
+            v-if="!routesPending && hasRoutes"
+            class="guide-detail__routes-count"
+          >
+            {{ routes.length }} 条
+          </p>
+        </div>
+
+        <p
+          v-if="routesError && hasRoutes"
+          class="text-xs text-muted-foreground"
+        >
+          路线刷新失败，仍显示上次结果。
+          <button
+            type="button"
+            class="text-primary underline-offset-2 hover:underline"
+            @click="loadGuideRoutes(guideId)"
+          >
+            重试
+          </button>
+        </p>
+
+        <div v-if="hasRoutes" class="hall-waterfall">
+          <MissionPreviewCard
+            v-for="mission in routes"
+            :key="mission.id"
+            :mission="mission"
+          />
+        </div>
+
+        <div v-else-if="routesPending" class="hall-waterfall">
+          <div
+            v-for="n in 4"
+            :key="n"
+            class="hall-skeleton"
+            :class="`is-${skeletonHeightTone(n - 1)}`"
+          />
+        </div>
+
+        <ClientEmptyState
+          v-else
+          title="暂无关联路线"
+          :description="routesError || '该导游暂未挂到已发布路线。'"
+          :action-text="routesError ? '重新加载' : undefined"
+          @action="routesError ? loadGuideRoutes(guideId) : undefined"
+        />
+      </section>
     </template>
 
     <ClientEmptyState
@@ -352,5 +456,69 @@ onUnmounted(() => {
   margin: 0.55rem 0 0;
   font-size: 0.78rem;
   color: var(--bad);
+}
+
+.guide-detail__routes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.guide-detail__routes-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.guide-detail__routes-head .guide-detail__label {
+  margin-bottom: 0;
+}
+
+.guide-detail__routes-count {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--fg-dim);
+}
+
+.hall-waterfall {
+  column-count: 2;
+  column-gap: 0.75rem;
+}
+
+.hall-skeleton {
+  break-inside: avoid;
+  margin-bottom: 0.85rem;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 248, 230, 0.055) 0%,
+      rgba(255, 248, 230, 0.03) 55%,
+      transparent 100%
+    );
+  -webkit-mask-image: linear-gradient(
+    180deg,
+    #000 0%,
+    #000 70%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    180deg,
+    #000 0%,
+    #000 70%,
+    transparent 100%
+  );
+}
+
+.hall-skeleton.is-tall {
+  height: 15.2rem;
+}
+
+.hall-skeleton.is-mid {
+  height: 13rem;
+}
+
+.hall-skeleton.is-short {
+  height: 11rem;
 }
 </style>

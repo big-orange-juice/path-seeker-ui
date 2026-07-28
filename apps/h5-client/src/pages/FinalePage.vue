@@ -48,7 +48,6 @@ async function ensureFinaleData() {
 }
 
 async function backToHistory() {
-  toastStore.info("已进入游玩历史", "完成记录已由服务端同步。")
   await router.push("/shell/archive")
 }
 
@@ -58,14 +57,15 @@ async function replayMission() {
     return
   }
 
+  // 再走一遍 = 重新 Join 该路线，进度从零计；无额外「特殊操作」
   missionStore.clearRouteResult()
   const nextSession = await missionStore.replayMission(targetId)
   if (!nextSession) {
-    toastStore.error("重新开始失败", missionStore.gameplayError || "请稍后重试。")
+    toastStore.error("无法再走一遍", missionStore.gameplayError || "请稍后重试。")
     return
   }
 
-  toastStore.success("已重新开始路线", "新的任务会话已经创建。")
+  toastStore.success("已从头开始", "可再走一遍这条路线。")
   await router.push(`/missions/${targetId}/map`)
 }
 
@@ -97,7 +97,7 @@ watch(routeId, () => void ensureFinaleData(), { immediate: true })
           {{ result.rewardTitle }}
         </p>
         <p v-else class="text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-          通关
+          完成
         </p>
         <h2 class="font-display text-3xl leading-tight text-foreground">
           {{ result.routeTitle || "探索完成" }}
@@ -163,9 +163,9 @@ watch(routeId, () => void ensureFinaleData(), { immediate: true })
 
       <div class="space-y-3 pt-1">
         <ClientButton variant="outline" class="w-full" @click="backToHistory()">
-          查看游玩历史
+          查看探索记录
         </ClientButton>
-        <ClientButton class="w-full" @click="replayMission()">重新开始</ClientButton>
+        <ClientButton class="w-full" @click="replayMission()">再走一遍</ClientButton>
       </div>
 
       <ShareCardDialog

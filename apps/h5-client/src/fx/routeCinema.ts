@@ -50,7 +50,7 @@ export function resolveRouteCinemaLabel(to: RouteLocationNormalized): string {
     return "进入本站"
   }
   if (to.path.includes("/map")) return "展开路线"
-  if (to.path.includes("/finale")) return "通关结算"
+  if (to.path.includes("/finale")) return "完成结算"
   if (to.path.includes("/result")) return "本站完成"
   return ""
 }
