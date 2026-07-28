@@ -69,6 +69,10 @@ export interface MissionRouteCard {
   badgeLabel?: string
   coverImageUrl?: string
   persona?: MissionPersona | null
+  /** 列表卡：第一个有效导游名称 */
+  guideName?: string
+  /** 列表卡：该导游标签名 */
+  guideTags?: string[]
   taglines?: string[]
   schemaMeta: MissionSchemaMeta
 }

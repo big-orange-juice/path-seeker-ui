@@ -159,6 +159,12 @@ export function adaptRemoteRouteCard(route: RouteCardResponse): MissionRouteCard
   const hallId = normalizeText(route.museumId) || undefined
   const routeCode = normalizeText(route.routeCode) || undefined
   const coverImageUrl = normalizeText(route.coverImageUrl) || undefined
+  const guideName = normalizeText(route.guideName) || undefined
+  const guideTags = Array.isArray(route.guideTags)
+    ? route.guideTags
+        .map((tag) => normalizeText(tag))
+        .filter((tag): tag is string => Boolean(tag))
+    : []
 
   return {
     id,
@@ -191,6 +197,8 @@ export function adaptRemoteRouteCard(route: RouteCardResponse): MissionRouteCard
         voiceStyle: normalizeText(route.persona?.voiceStyle) || undefined,
       }
       : null,
+    guideName,
+    guideTags: guideTags.length ? guideTags : undefined,
     taglines: buildRouteTaglines(route),
     schemaMeta,
   }

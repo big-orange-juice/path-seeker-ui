@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, shallowRef, watch } from "vue"
+import { computed, onMounted, shallowRef, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { ArrowLeft, Pause, Play, UserRound } from "lucide-vue-next"
-import { ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
+import { ArrowLeft, UserRound } from "lucide-vue-next"
+import { ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import MissionPreviewCard from "@/components/shell/MissionPreviewCard.vue"
+import VoiceSamplePlayer from "@/components/shell/VoiceSamplePlayer.vue"
 import {
   adaptRemoteRouteCard,
   buildRoutePageQuery,
@@ -28,70 +29,33 @@ const pending = shallowRef(false)
 const routesPending = shallowRef(false)
 const errorMessage = shallowRef("")
 const routesError = shallowRef("")
-const isPlaying = shallowRef(false)
-const audioError = shallowRef("")
-
-let audioEl: HTMLAudioElement | null = null
 
 const loading = computed(() => pending.value && !guide.value)
 const sampleUrl = computed(() => String(guide.value?.voiceSampleUrl || "").trim())
 const hasRoutes = computed(() => routes.value.length > 0)
-
-function stopSample() {
-  if (!audioEl) return
-  audioEl.pause()
-  audioEl.currentTime = 0
-  isPlaying.value = false
-}
-
-function disposeAudio() {
-  stopSample()
-  if (audioEl) {
-    audioEl.onended = null
-    audioEl.onerror = null
-    audioEl.onpause = null
-    audioEl.onplay = null
-    audioEl = null
+/** 已拉到列表用实际条数；否则用 client-list 的 routeCount */
+const resolvedRouteCount = computed(() => {
+  if (hasRoutes.value) return routes.value.length
+  return Number(guide.value?.routeCount || 0)
+})
+const routeCountChip = computed(() => {
+  const n = resolvedRouteCount.value
+  if (n > 0) return `${n} 条路线`
+  if (routesPending.value) return "路线加载中"
+  return "暂无路线"
+})
+const routeCountSection = computed(() => {
+  if (routesPending.value && !hasRoutes.value) {
+    const listed = Number(guide.value?.routeCount || 0)
+    return listed > 0 ? `${listed} 条` : "…"
   }
-}
-
-function ensureAudio() {
-  if (audioEl) return audioEl
-  if (!sampleUrl.value) return null
-  audioEl = new Audio(sampleUrl.value)
-  audioEl.preload = "metadata"
-  audioEl.onended = () => {
-    isPlaying.value = false
-  }
-  audioEl.onerror = () => {
-    isPlaying.value = false
-    audioError.value = "试听加载失败，请稍后重试。"
-  }
-  audioEl.onplay = () => {
-    isPlaying.value = true
-  }
-  audioEl.onpause = () => {
-    isPlaying.value = false
-  }
-  return audioEl
-}
-
-async function toggleSample() {
-  audioError.value = ""
-  if (!sampleUrl.value) return
-  const el = ensureAudio()
-  if (!el) return
-  if (isPlaying.value) {
-    el.pause()
-    return
-  }
-  try {
-    await el.play()
-  } catch {
-    audioError.value = "无法播放试听，请检查网络或设备设置。"
-    isPlaying.value = false
-  }
-}
+  return `${resolvedRouteCount.value} 条`
+})
+const shortDesc = computed(() => {
+  const raw = String(guide.value?.description || "").trim()
+  if (!raw) return ""
+  return raw.length > 96 ? `${raw.slice(0, 96).trim()}…` : raw
+})
 
 /** 导游详情：用 guideId 精确拉已发布路线（与展厅瀑布流同卡） */
 async function loadGuideRoutes(id: string) {
@@ -129,7 +93,6 @@ async function loadGuide() {
 
   pending.value = true
   errorMessage.value = ""
-  disposeAudio()
   try {
     const list = await fetchGuideClientList()
     guide.value = list.find((item) => item.id === id) || null
@@ -168,10 +131,6 @@ watch(guideId, () => {
 onMounted(() => {
   void loadGuide()
 })
-
-onUnmounted(() => {
-  disposeAudio()
-})
 </script>
 
 <template>
@@ -188,18 +147,19 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <div v-if="loading" class="space-y-4">
+    <div v-if="loading" class="space-y-3">
       <div class="flex items-center gap-3">
-        <ClientSkeleton class="h-16 w-16 rounded-full" />
+        <ClientSkeleton class="h-12 w-12 rounded-full" />
         <div class="min-w-0 flex-1 space-y-2">
-          <ClientSkeleton class="h-5 w-36 rounded-md" />
-          <ClientSkeleton class="h-4 w-24 rounded-md" />
+          <ClientSkeleton class="h-4 w-32 rounded-md" />
+          <ClientSkeleton class="h-3 w-24 rounded-md" />
         </div>
       </div>
-      <ClientSkeleton class="h-28 w-full rounded-[1rem]" />
+      <ClientSkeleton class="h-10 w-full rounded-full" />
     </div>
 
     <template v-else-if="guide">
+      <!-- 紧凑头区：头像 + 身份一行，简介与试听压扁，把纵向空间留给路线 -->
       <header class="guide-detail__hero">
         <div class="guide-detail__avatar">
           <img
@@ -209,14 +169,28 @@ onUnmounted(() => {
           >
           <UserRound
             v-else
-            class="h-8 w-8 text-[var(--gold)] opacity-85"
+            class="h-5 w-5 text-[var(--gold)] opacity-85"
             :stroke-width="1.5"
           />
         </div>
-        <div class="min-w-0 flex-1">
-          <h2 class="guide-detail__name font-display">
-            {{ guide.name }}
-          </h2>
+        <div class="guide-detail__identity">
+          <div class="guide-detail__name-row">
+            <h2 class="guide-detail__name font-display">
+              {{ guide.name }}
+            </h2>
+            <span
+              class="guide-detail__route-count"
+              :class="{ 'is-empty': resolvedRouteCount <= 0 && !routesPending }"
+            >
+              {{ routeCountChip }}
+            </span>
+          </div>
+          <p
+            v-if="guide.voiceStyle"
+            class="guide-detail__voice"
+          >
+            {{ guide.voiceStyle }}
+          </p>
           <div
             v-if="guide.tags.length"
             class="guide-detail__tags"
@@ -233,72 +207,27 @@ onUnmounted(() => {
         </div>
       </header>
 
-      <section class="guide-detail__section">
-        <h3 class="guide-detail__label">
-          简介
-        </h3>
-        <p class="guide-detail__copy">
-          {{ guide.description || "暂无描述。" }}
-        </p>
-      </section>
+      <p
+        v-if="shortDesc"
+        class="guide-detail__desc"
+      >
+        {{ shortDesc }}
+      </p>
 
-      <section class="guide-detail__section">
-        <h3 class="guide-detail__label">
-          声音风格
-        </h3>
-        <p class="guide-detail__copy">
-          {{ guide.voiceStyle || "暂未设置声音风格。" }}
-        </p>
-      </section>
+      <VoiceSamplePlayer
+        class="guide-detail__player"
+        :src="sampleUrl"
+        empty-text="暂无试听音频"
+      />
 
-      <section class="guide-detail__section">
-        <h3 class="guide-detail__label">
-          声音试听
-        </h3>
-        <template v-if="sampleUrl">
-          <ClientButton
-            variant="outline"
-            class="guide-detail__play"
-            @click="toggleSample"
-          >
-            <Pause
-              v-if="isPlaying"
-              class="mr-1.5 h-4 w-4"
-              :stroke-width="1.8"
-            />
-            <Play
-              v-else
-              class="mr-1.5 h-4 w-4"
-              :stroke-width="1.8"
-            />
-            {{ isPlaying ? "暂停试听" : "播放试听" }}
-          </ClientButton>
-          <p
-            v-if="audioError"
-            class="guide-detail__error"
-          >
-            {{ audioError }}
-          </p>
-        </template>
-        <p
-          v-else
-          class="guide-detail__copy"
-        >
-          暂无试听音频。
-        </p>
-      </section>
-
-      <!-- 反向路线：布局同展厅瀑布流，guideId 精确查询 -->
-      <section class="guide-detail__section guide-detail__routes">
+      <!-- 反向路线：主内容，尽早上屏 -->
+      <section class="guide-detail__routes">
         <div class="guide-detail__routes-head">
           <h3 class="guide-detail__label">
             讲解路线
           </h3>
-          <p
-            v-if="!routesPending && hasRoutes"
-            class="guide-detail__routes-count"
-          >
-            {{ routes.length }} 条
+          <p class="guide-detail__routes-count">
+            {{ routeCountSection }}
           </p>
         </div>
 
@@ -355,7 +284,7 @@ onUnmounted(() => {
 
 <style scoped>
 .guide-detail {
-  gap: 1.15rem;
+  gap: 0.75rem;
   padding-bottom: 0.5rem;
 }
 
@@ -370,21 +299,21 @@ onUnmounted(() => {
   gap: 0.35rem;
   border: none;
   background: transparent;
-  padding: 0.15rem 0;
+  padding: 0.1rem 0;
   font-size: 0.82rem;
   color: var(--gold-bright);
 }
 
 .guide-detail__hero {
   display: flex;
-  align-items: center;
-  gap: 0.95rem;
+  align-items: flex-start;
+  gap: 0.75rem;
 }
 
 .guide-detail__avatar {
   display: flex;
-  height: 4.25rem;
-  width: 4.25rem;
+  height: 3.15rem;
+  width: 3.15rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -400,18 +329,67 @@ onUnmounted(() => {
   object-fit: cover;
 }
 
+.guide-detail__identity {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+  padding-top: 0.05rem;
+}
+
+.guide-detail__name-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+
 .guide-detail__name {
   margin: 0;
-  font-size: 1.45rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.22rem;
   line-height: 1.2;
   color: var(--fg);
+}
+
+.guide-detail__route-count {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(209, 178, 111, 0.34);
+  background: rgba(209, 178, 111, 0.12);
+  padding: 0.1rem 0.48rem;
+  color: var(--gold-bright);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.guide-detail__route-count.is-empty {
+  border-color: rgba(255, 248, 230, 0.12);
+  background: rgba(12, 10, 8, 0.28);
+  color: var(--fg-dim);
+  font-weight: 500;
+}
+
+.guide-detail__voice {
+  margin: 0;
+  color: var(--fg-dim);
+  font-size: 0.78rem;
+  font-style: italic;
+  line-height: 1.4;
 }
 
 .guide-detail__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.5rem;
+  gap: 0.28rem;
+  margin-top: 0.1rem;
 }
 
 .guide-tag {
@@ -420,48 +398,34 @@ onUnmounted(() => {
   border-radius: 999px;
   border: 1px solid rgba(209, 178, 111, 0.32);
   background: rgba(209, 178, 111, 0.08);
-  padding: 0.12rem 0.5rem;
-  font-size: 0.68rem;
+  padding: 0.08rem 0.42rem;
+  font-size: 0.64rem;
   line-height: 1.3;
   color: var(--gold-bright);
 }
 
-.guide-detail__section {
-  border-top: 1px solid rgba(255, 248, 230, 0.06);
-  padding-top: 1rem;
-}
-
-.guide-detail__label {
-  margin: 0 0 0.45rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--gold);
-  text-transform: uppercase;
-}
-
-.guide-detail__copy {
+.guide-detail__desc {
   margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.65;
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: var(--fg-dim);
-  white-space: pre-wrap;
+  font-size: 0.82rem;
+  line-height: 1.5;
 }
 
-.guide-detail__play {
-  margin-top: 0.15rem;
-}
-
-.guide-detail__error {
-  margin: 0.55rem 0 0;
-  font-size: 0.78rem;
-  color: var(--bad);
+.guide-detail__player {
+  margin-top: 0.1rem;
 }
 
 .guide-detail__routes {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.7rem;
+  margin-top: 0.15rem;
+  border-top: 1px solid rgba(255, 248, 230, 0.06);
+  padding-top: 0.85rem;
 }
 
 .guide-detail__routes-head {
@@ -471,8 +435,13 @@ onUnmounted(() => {
   gap: 0.75rem;
 }
 
-.guide-detail__routes-head .guide-detail__label {
-  margin-bottom: 0;
+.guide-detail__label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  text-transform: uppercase;
 }
 
 .guide-detail__routes-count {

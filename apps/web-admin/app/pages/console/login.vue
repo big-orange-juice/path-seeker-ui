@@ -9,6 +9,10 @@ definePageMeta({
   middleware: 'admin-auth',
 });
 
+useHead({
+  title: '登录',
+});
+
 const route = useRoute();
 const { request } = useApiClient();
 const authStore = useAdminAuthStore();

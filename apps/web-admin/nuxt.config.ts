@@ -48,7 +48,17 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-06-26',
   devtools: { enabled: true },
   app: {
-    baseURL: '/path-seeker/admin/'
+    baseURL: '/path-seeker/admin/',
+    head: {
+      // 浏览器标签默认标题；页面级 title 由 app.vue titleTemplate 拼接
+      title: 'Path Seeker 秘径寻踪',
+      meta: [
+        {
+          name: 'description',
+          content: 'Path Seeker 秘径寻踪 · 博物馆探索管理后台',
+        },
+      ],
+    },
   },
   runtimeConfig: {
     // 私有：仅服务端；可用环境变量 NUXT_BACKEND_BASE_URL 覆盖
@@ -82,5 +92,14 @@ export default defineNuxtConfig({
   image: {
     provider: 'ipx',
     format: ['webp', 'avif']
-  }
+  },
+  /**
+   * ffmpeg-static 含平台二进制，勿打进 Nitro bundle；
+   * 运行时从 node_modules 解析，视频抽音走 server/utils/extractGuideVoiceMaterial。
+   */
+  nitro: {
+    externals: {
+      external: ['ffmpeg-static'],
+    },
+  },
 })

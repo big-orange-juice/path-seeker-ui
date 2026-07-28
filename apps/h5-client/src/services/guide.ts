@@ -17,6 +17,8 @@ interface GuideResponseRaw {
   voiceSampleUrl?: string | null
   sortOrder?: number | null
   status?: number | null
+  /** 已发布可探索路线数 */
+  routeCount?: number | null
 }
 
 function mapTag(raw: NonNullable<GuideResponseRaw["tags"]>[number]): GuideTag | null {
@@ -35,6 +37,7 @@ function mapGuide(raw: GuideResponseRaw): GuideClientItem | null {
   const tags = Array.isArray(raw.tags)
     ? raw.tags.map(mapTag).filter((item): item is GuideTag => Boolean(item))
     : []
+  const routeCountRaw = Number(raw.routeCount)
   return {
     id,
     name: String(raw.name ?? "").trim() || "未命名导游",
@@ -44,6 +47,9 @@ function mapGuide(raw: GuideResponseRaw): GuideClientItem | null {
     voiceStyle: String(raw.voiceStyle ?? "").trim() || null,
     voiceSampleUrl: String(raw.voiceSampleUrl ?? "").trim() || null,
     sortOrder: typeof raw.sortOrder === "number" ? raw.sortOrder : 0,
+    routeCount: Number.isFinite(routeCountRaw) && routeCountRaw > 0
+      ? Math.floor(routeCountRaw)
+      : 0,
   }
 }
 

@@ -31,11 +31,13 @@ function openDetail(guide: GuideClientItem) {
   void router.push(`/shell/guides/${encodeURIComponent(guide.id)}`)
 }
 
-/** 视觉权重档：越靠前越大，无名次数字 */
-function weightTone(index: number): "lead" | "mid" | "soft" {
-  if (index === 0) return "lead"
-  if (index === 1 || index === 2) return "mid"
-  return "soft"
+function tagSlice(guide: GuideClientItem, max = 2) {
+  return (guide.tags || []).slice(0, max)
+}
+
+function routeCountLabel(count: number) {
+  if (count <= 0) return "暂无路线"
+  return `${count} 条路线`
 }
 
 onMounted(() => {
@@ -46,9 +48,11 @@ onMounted(() => {
 <template>
   <div class="client-surface guides-page">
     <div v-if="loading" class="guide-stack">
-      <ClientSkeleton class="h-[7.5rem] w-full rounded-[1.25rem]" />
-      <ClientSkeleton class="h-[6.2rem] w-full rounded-[1.15rem]" />
-      <ClientSkeleton class="h-[5.4rem] w-full rounded-[1.05rem]" />
+      <ClientSkeleton
+        v-for="n in 5"
+        :key="n"
+        class="h-[4.4rem] w-full rounded-[1rem]"
+      />
     </div>
 
     <template v-else-if="items.length">
@@ -66,17 +70,18 @@ onMounted(() => {
         </button>
       </p>
 
-      <!-- 去排名：无序号/奖牌，仅视觉自高向低收敛 -->
+      <!--
+        紧凑横排人物条：一屏多条，仍用展签/金边气质，避免大立像占屏。
+      -->
       <div class="guide-stack">
         <button
-          v-for="(guide, index) in items"
+          v-for="guide in items"
           :key="guide.id"
           type="button"
-          class="guide-plate"
-          :class="`is-${weightTone(index)}`"
+          class="guide-row"
           @click="openDetail(guide)"
         >
-          <div class="guide-plate__avatar">
+          <div class="guide-row__avatar">
             <img
               v-if="guide.avatarUrl"
               :src="guide.avatarUrl"
@@ -85,39 +90,44 @@ onMounted(() => {
             >
             <UserRound
               v-else
-              class="guide-plate__avatar-icon"
+              class="guide-row__avatar-icon"
               :stroke-width="1.5"
             />
           </div>
-          <div class="guide-plate__body">
-            <h3 class="guide-plate__name font-display">
-              {{ guide.name }}
-            </h3>
+
+          <div class="guide-row__body">
+            <div class="guide-row__top">
+              <h3 class="guide-row__name font-display">
+                {{ guide.name }}
+              </h3>
+              <span
+                class="guide-row__count"
+                :class="{ 'is-empty': guide.routeCount <= 0 }"
+              >
+                {{ routeCountLabel(guide.routeCount) }}
+              </span>
+            </div>
+
             <p
-              v-if="guide.description"
-              class="guide-plate__desc"
+              v-if="guide.voiceStyle"
+              class="guide-row__voice"
             >
-              {{ guide.description }}
+              {{ guide.voiceStyle }}
             </p>
+
             <div
-              v-if="guide.tags.length"
-              class="guide-plate__tags"
+              v-if="tagSlice(guide).length"
+              class="guide-row__tags"
             >
               <span
-                v-for="tag in guide.tags"
+                v-for="tag in tagSlice(guide)"
                 :key="tag.id"
-                class="guide-tag"
+                class="guide-chip"
                 :style="tag.color ? { borderColor: tag.color, color: tag.color } : undefined"
               >
                 {{ tag.name }}
               </span>
             </div>
-            <p
-              v-else-if="!guide.description"
-              class="guide-plate__empty"
-            >
-              暂无简介
-            </p>
           </div>
         </button>
       </div>
@@ -139,169 +149,146 @@ onMounted(() => {
 
 <style scoped>
 .guides-page {
-  gap: 0.85rem;
+  gap: 0.7rem;
 }
 
 .guide-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 
-/* 展墙式人物卡：自上而下视觉权重递减，无名次 */
-.guide-plate {
+/* 横排紧凑条：头像 + 身份，一屏可见多位 */
+.guide-row {
   display: flex;
-  align-items: flex-start;
-  gap: 0.95rem;
+  align-items: center;
+  gap: 0.75rem;
   width: 100%;
-  border: 1px solid rgba(255, 248, 230, 0.08);
-  border-radius: 1.2rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(255, 248, 230, 0.1);
+  border-radius: 1rem;
   background:
     linear-gradient(
-      145deg,
-      rgba(209, 178, 111, 0.1) 0%,
-      rgba(12, 10, 8, 0.5) 42%,
-      rgba(12, 10, 8, 0.38) 100%
+      120deg,
+      rgba(209, 178, 111, 0.09) 0%,
+      rgba(12, 10, 8, 0.48) 42%,
+      rgba(12, 10, 8, 0.36) 100%
     );
   text-align: left;
   color: inherit;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
-}
-
-.guide-plate:active {
-  border-color: rgba(209, 178, 111, 0.34);
-}
-
-.guide-plate.is-lead {
-  padding: 1.15rem 1.05rem;
-  border-color: rgba(209, 178, 111, 0.28);
-  box-shadow:
-    0 14px 36px rgba(0, 0, 0, 0.28),
-    0 0 0 1px rgba(209, 178, 111, 0.08);
-}
-
-.guide-plate.is-mid {
-  padding: 0.95rem 0.95rem;
-  opacity: 0.96;
-}
-
-.guide-plate.is-soft {
-  padding: 0.8rem 0.9rem;
-  opacity: 0.9;
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
-  background: rgba(12, 10, 8, 0.42);
 }
 
-.guide-plate__avatar {
+.guide-row:active {
+  border-color: rgba(209, 178, 111, 0.36);
+}
+
+.guide-row__avatar {
   display: flex;
+  height: 3.15rem;
+  width: 3.15rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   border-radius: 999px;
-  border: 1px solid rgba(209, 178, 111, 0.3);
-  background: rgba(209, 178, 111, 0.08);
+  border: 1px solid rgba(209, 178, 111, 0.32);
+  background: rgba(209, 178, 111, 0.1);
 }
 
-.guide-plate.is-lead .guide-plate__avatar {
-  height: 4.4rem;
-  width: 4.4rem;
-}
-
-.guide-plate.is-mid .guide-plate__avatar {
-  height: 3.5rem;
-  width: 3.5rem;
-}
-
-.guide-plate.is-soft .guide-plate__avatar {
-  height: 3rem;
-  width: 3rem;
-}
-
-.guide-plate__avatar img {
+.guide-row__avatar img {
   height: 100%;
   width: 100%;
   object-fit: cover;
+  object-position: center 18%;
+  filter: saturate(0.92) brightness(0.92) contrast(1.04);
 }
 
-.guide-plate__avatar-icon {
+.guide-row__avatar-icon {
+  height: 1.25rem;
+  width: 1.25rem;
   color: var(--gold);
   opacity: 0.85;
 }
 
-.guide-plate.is-lead .guide-plate__avatar-icon {
-  height: 1.85rem;
-  width: 1.85rem;
-}
-
-.guide-plate.is-mid .guide-plate__avatar-icon,
-.guide-plate.is-soft .guide-plate__avatar-icon {
-  height: 1.35rem;
-  width: 1.35rem;
-}
-
-.guide-plate__body {
+.guide-row__body {
   min-width: 0;
   flex: 1;
-  padding-top: 0.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
 }
 
-.guide-plate__name {
+.guide-row__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.guide-row__name {
   margin: 0;
-  line-height: 1.2;
-  color: var(--fg);
-}
-
-.guide-plate.is-lead .guide-plate__name {
-  font-size: 1.28rem;
-}
-
-.guide-plate.is-mid .guide-plate__name {
-  font-size: 1.08rem;
-}
-
-.guide-plate.is-soft .guide-plate__name {
-  font-size: 0.98rem;
-}
-
-.guide-plate__desc {
-  display: -webkit-box;
-  margin: 0.4rem 0 0;
+  min-width: 0;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.guide-row__count {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(209, 178, 111, 0.34);
+  background: rgba(209, 178, 111, 0.12);
+  padding: 0.1rem 0.45rem;
+  color: var(--gold-bright);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.guide-row__count.is-empty {
+  border-color: rgba(255, 248, 230, 0.12);
+  background: rgba(12, 10, 8, 0.28);
   color: var(--fg-dim);
-  font-size: 0.78rem;
-  line-height: 1.5;
+  font-weight: 500;
 }
 
-.guide-plate.is-soft .guide-plate__desc {
-  -webkit-line-clamp: 1;
+.guide-row__voice {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-dim);
   font-size: 0.72rem;
+  font-style: italic;
+  line-height: 1.35;
 }
 
-.guide-plate__tags {
+.guide-row__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.32rem;
-  margin-top: 0.5rem;
+  gap: 0.25rem;
+  margin-top: 0.08rem;
 }
 
-.guide-tag {
+.guide-chip {
   display: inline-flex;
   align-items: center;
+  max-width: 6.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-radius: 999px;
-  border: 1px solid rgba(209, 178, 111, 0.32);
+  border: 1px solid rgba(209, 178, 111, 0.28);
   background: rgba(209, 178, 111, 0.08);
-  padding: 0.1rem 0.48rem;
-  font-size: 0.66rem;
-  line-height: 1.3;
+  padding: 0.06rem 0.4rem;
   color: var(--gold-bright);
-}
-
-.guide-plate__empty {
-  margin: 0.35rem 0 0;
-  font-size: 0.72rem;
-  color: var(--fg-dim);
+  font-size: 0.62rem;
+  line-height: 1.25;
 }
 </style>

@@ -315,8 +315,8 @@ const refreshRouteRow = async (record: RouteRecord) => {
   startRowAction(record.id);
 
   try {
+    // 行内刷新只更新列表，不弹成功 dialog
     await refresh();
-    actionFeedback.success(`已刷新「${record.title || record.routeCode || record.id}」。`);
   } catch (caughtError) {
     actionFeedback.errorFrom(caughtError, '主题路线刷新失败。');
   } finally {

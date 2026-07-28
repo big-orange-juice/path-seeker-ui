@@ -55,16 +55,43 @@ const avatarError = shallowRef('')
 const materialError = shallowRef('')
 const tagDialogOpen = shallowRef(false)
 
-/** 声音样本：mp3 / mp4 → multipart `material`（可多份） */
+/**
+ * 声音样本：音频直接上传；视频由服务端 ffmpeg 抽音后再转发。
+ * multipart 字段名仍为 `material`（可多份）。
+ */
 const isVoiceMaterialFile = (file: File) => {
   const name = file.name.toLowerCase()
   const type = (file.type || '').toLowerCase()
+  if (type.startsWith('audio/') || type.startsWith('video/')) {
+    return true
+  }
   return (
     name.endsWith('.mp3')
+    || name.endsWith('.wav')
+    || name.endsWith('.m4a')
+    || name.endsWith('.aac')
+    || name.endsWith('.ogg')
+    || name.endsWith('.flac')
     || name.endsWith('.mp4')
-    || type === 'audio/mpeg'
-    || type === 'audio/mp3'
-    || type === 'video/mp4'
+    || name.endsWith('.m4v')
+    || name.endsWith('.mov')
+    || name.endsWith('.webm')
+    || name.endsWith('.avi')
+    || name.endsWith('.mkv')
+  )
+}
+
+const isVideoMaterialFile = (file: File) => {
+  const name = file.name.toLowerCase()
+  const type = (file.type || '').toLowerCase()
+  if (type.startsWith('video/')) return true
+  return (
+    name.endsWith('.mp4')
+    || name.endsWith('.m4v')
+    || name.endsWith('.mov')
+    || name.endsWith('.webm')
+    || name.endsWith('.avi')
+    || name.endsWith('.mkv')
   )
 }
 
@@ -251,7 +278,7 @@ const handleMaterialChange = (event: Event) => {
       break
     }
     if (!isVoiceMaterialFile(file)) {
-      errors.push(`「${file.name}」格式不支持，仅 MP3 / MP4。`)
+      errors.push(`「${file.name}」格式不支持，请上传音频或常见视频。`)
       continue
     }
     if (file.size > MAX_VOICE_MATERIAL_BYTES) {
@@ -475,16 +502,16 @@ const handleSubmit = () => {
             <div class="flex items-center justify-between gap-2">
               <span class="form-label text-sm font-medium">自定义声音样本</span>
               <span class="text-[11px] text-muted-foreground">
-                可选 · 多选 · MP3 / MP4 · ≤20MB
+                可选 · 多选 · 音/视频 · ≤20MB
               </span>
             </div>
             <p class="text-xs text-muted-foreground">
-              仅在内置音色不够用时上传，可一次选择多个样本
+              仅在内置音色不够用时上传；视频会在提交时自动提取音频
             </p>
             <input
               ref="materialInput"
               type="file"
-              accept=".mp3,.mp4,audio/mpeg,audio/mp3,video/mp4"
+              accept=".mp3,.wav,.m4a,.aac,.ogg,.flac,.mp4,.m4v,.mov,.webm,.avi,.mkv,audio/*,video/*"
               class="hidden"
               multiple
               @change="handleMaterialChange"
@@ -509,7 +536,7 @@ const handleSubmit = () => {
                 v-else
                 class="text-xs text-muted-foreground"
               >
-                支持 MP3 / MP4，单文件不超过 20MB，最多 {{ MAX_VOICE_MATERIAL_COUNT }} 个
+                支持音频与常见视频，单文件不超过 20MB，最多 {{ MAX_VOICE_MATERIAL_COUNT }} 个
               </span>
             </button>
 
@@ -525,6 +552,10 @@ const handleSubmit = () => {
                 <span class="min-w-0 truncate text-foreground" :title="file.name">
                   {{ file.name }}
                   <span class="text-muted-foreground">· {{ formatFileSize(file.size) }}</span>
+                  <span
+                    v-if="isVideoMaterialFile(file)"
+                    class="ml-1 text-amber-200/90"
+                  >视频·将提取音频</span>
                 </span>
                 <button
                   type="button"

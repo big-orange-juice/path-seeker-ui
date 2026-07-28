@@ -15,4 +15,6 @@ export interface GuideClientItem {
   voiceStyle: string | null
   voiceSampleUrl: string | null
   sortOrder: number
+  /** 该导游已发布、可探索的路线数（client-list 已返回） */
+  routeCount: number
 }

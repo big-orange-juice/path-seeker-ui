@@ -27,6 +27,10 @@ export interface RouteCardResponse {
   intro?: string | null
   rewardTitle?: string | null
   personaId?: string | null
+  /** 路线顺序节点中第一个有效导游名称 */
+  guideName?: string | null
+  /** 该导游标签名列表 */
+  guideTags?: string[] | null
 }
 
 /**

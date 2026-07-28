@@ -42,6 +42,15 @@ const caption = computed(() => {
   if (theme) return theme
   return String(props.mission.summary || "").trim()
 })
+
+const guideName = computed(() => String(props.mission.guideName || "").trim())
+const guideTags = computed(() =>
+  (props.mission.guideTags || [])
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean)
+    .slice(0, 3),
+)
+const hasGuideMeta = computed(() => Boolean(guideName.value || guideTags.value.length))
 </script>
 
 <template>
@@ -76,6 +85,20 @@ const caption = computed(() => {
         </p>
         <h3 class="mission-plate__title font-display">{{ mission.title }}</h3>
         <p v-if="caption" class="mission-plate__caption">{{ caption }}</p>
+
+        <!-- 导游署名：名称 + 标签，压在海报底缘 -->
+        <div v-if="hasGuideMeta" class="mission-plate__guide">
+          <span v-if="guideName" class="mission-plate__guide-name">
+            {{ guideName }}
+          </span>
+          <span
+            v-for="tag in guideTags"
+            :key="tag"
+            class="mission-plate__guide-tag"
+          >
+            {{ tag }}
+          </span>
+        </div>
       </div>
     </div>
   </RouterLink>
@@ -256,5 +279,55 @@ const caption = computed(() => {
   font-size: 11px;
   line-height: 1.45;
   letter-spacing: 0.01em;
+}
+
+.mission-plate__guide {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem;
+  margin-top: 0.35rem;
+  max-width: 100%;
+}
+
+.mission-plate__guide-name {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(250, 244, 234, 0.92);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+}
+
+.mission-plate__guide-name::before {
+  content: "";
+  display: inline-block;
+  width: 0.55rem;
+  height: 1px;
+  margin-right: 0.32rem;
+  background: rgba(232, 201, 138, 0.55);
+  vertical-align: middle;
+}
+
+.mission-plate__guide-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid rgba(232, 201, 138, 0.28);
+  background: rgba(10, 9, 8, 0.35);
+  padding: 0.08rem 0.38rem;
+  color: rgba(232, 201, 138, 0.88);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
 }
 </style>

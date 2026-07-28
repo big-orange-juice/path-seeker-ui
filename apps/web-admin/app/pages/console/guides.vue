@@ -170,8 +170,8 @@ const refreshGuideRow = async (record: GuideRecord) => {
   actionPendingIds.value = [...actionPendingIds.value, record.id]
 
   try {
+    // 行内刷新只更新列表，不弹成功 dialog
     await refresh()
-    actionFeedback.success(`已刷新「${record.name || record.guideCode || record.id}」。`)
   } catch (caughtError) {
     actionFeedback.errorFrom(caughtError, '导游列表刷新失败。')
   } finally {

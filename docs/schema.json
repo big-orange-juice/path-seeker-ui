@@ -16664,6 +16664,16 @@
             "description": "每页条数，默认 10",
             "format": "int32"
           },
+          "guideId": {
+            "type": "string",
+            "description": "导游 ID 精确筛选，以路线顺序节点中的第一个有效导游为准",
+            "nullable": true
+          },
+          "guideName": {
+            "type": "string",
+            "description": "导游名称模糊筛选，以路线顺序节点中的第一个有效导游为准",
+            "nullable": true
+          },
           "museumId": {
             "type": "string",
             "description": "博物馆 ID 筛选",
@@ -17473,6 +17483,19 @@
           },
           "persona": {
             "$ref": "#/components/schemas/PersonaResponse"
+          },
+          "guideName": {
+            "type": "string",
+            "description": "路线顺序节点中的第一个有效导游名称",
+            "nullable": true
+          },
+          "guideTags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "路线顺序节点中的第一个有效导游标签",
+            "nullable": true
           }
         },
         "additionalProperties": false,

@@ -21,6 +21,11 @@ const currentPage = computed(() => {
   return navItems.value.find((item) => item.to === route.path) ?? navItems.value[0]!;
 });
 
+/** 页眉中文名同步到浏览器标签：与 titleTemplate 拼成「运营分析 · Path Seeker 秘径寻踪」 */
+useHead({
+  title: computed(() => String(currentPage.value?.label || '控制台').trim() || '控制台'),
+});
+
 const openLogoutConfirm = () => {
   logoutConfirmOpen.value = true;
 };

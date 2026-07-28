@@ -176,13 +176,14 @@ export type GuideDraft = Omit<
   /** 表单预览用头像 URL（不提交） */
   avatarPreviewUrl?: string | null
   /**
-   * 音色材料本地文件（mp3 / mp4），multipart 字段名 `material`
+   * 音色材料本地文件（音频或视频），multipart 字段名 `material`。
+   * 视频由 BFF 经 ffmpeg 抽成 mp3 后再转发后端。
    * 对齐 create-with-material / update-with-material
    * @deprecated 请用 materialFiles；保留首个文件兼容旧逻辑
    */
   materialFile?: File | null
   materialFileName?: string
-  /** 多份声音样本（同一字段名 `material` 多次 append） */
+  /** 多份声音样本（同一字段名 `material` 多次 append；视频提交时抽音） */
   materialFiles?: File[]
   /**
    * 语义/语料资料本地文件（txt），multipart 字段名 `txtmaterial`
