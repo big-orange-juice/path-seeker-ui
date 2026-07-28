@@ -3,13 +3,12 @@
  * 视频由 Nuxt BFF 临时落盘后转换为 mp3，再透传给后端。
  */
 import { execFile, execFileSync } from 'node:child_process'
-import { accessSync, chmodSync, constants as fsConstants } from 'node:fs'
+import { accessSync, constants as fsConstants } from 'node:fs'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, extname, join } from 'node:path'
 import { promisify } from 'node:util'
 import { createError } from 'h3'
-import ffmpegStaticPath from 'ffmpeg-static'
 
 const execFileAsync = promisify(execFile)
 
@@ -47,48 +46,35 @@ function canExecute(binaryPath: string) {
     accessSync(binaryPath, fsConstants.X_OK)
     return true
   } catch {
-    try {
-      chmodSync(binaryPath, 0o755)
-      accessSync(binaryPath, fsConstants.X_OK)
-      return true
-    } catch {
-      return false
-    }
+    return false
   }
 }
 
 function resolveFfmpegBinary() {
-  const candidates = [
-    String(process.env.FFMPEG_PATH || process.env.FFMPEG_BIN || '').trim(),
-    typeof ffmpegStaticPath === 'string' ? ffmpegStaticPath : '',
-  ]
+  const binaryPath = String(process.env.FFMPEG_PATH || '').trim()
+  if (!binaryPath) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: '未配置 FFMPEG_PATH，无法从视频提取声音样本。',
+    })
+  }
+
+  if (!canExecute(binaryPath)) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'FFMPEG_PATH 指向的 ffmpeg 不可执行，无法从视频提取声音样本。',
+    })
+  }
 
   try {
-    const command = process.platform === 'win32' ? 'where' : 'which'
-    const output = execFileSync(command, ['ffmpeg'], { encoding: 'utf8', timeout: 3_000 }).trim()
-    candidates.push(output.split(/\r?\n/)[0] || '')
+    execFileSync(binaryPath, ['-version'], { timeout: 8_000, stdio: 'ignore' })
+    return binaryPath
   } catch {
-    // 系统 PATH 未配置 ffmpeg 时继续检查 npm 依赖和环境变量。
+    throw createError({
+      statusCode: 500,
+      statusMessage: 'FFMPEG_PATH 指向的 ffmpeg 不可用，无法从视频提取声音样本。',
+    })
   }
-
-  const seen = new Set<string>()
-  for (const candidate of candidates) {
-    const binaryPath = String(candidate || '').trim()
-    if (!binaryPath || seen.has(binaryPath)) continue
-    seen.add(binaryPath)
-    if (!canExecute(binaryPath)) continue
-    try {
-      execFileSync(binaryPath, ['-version'], { timeout: 8_000, stdio: 'ignore' })
-      return binaryPath
-    } catch {
-      // 当前候选不可执行，继续尝试下一项。
-    }
-  }
-
-  throw createError({
-    statusCode: 500,
-    statusMessage: '未找到可用的 ffmpeg，无法从视频提取声音样本。',
-  })
 }
 
 function audioOutputName(originalName: string) {
