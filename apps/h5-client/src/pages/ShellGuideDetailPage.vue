@@ -250,6 +250,7 @@ onMounted(() => {
             v-for="mission in routes"
             :key="mission.id"
             :mission="mission"
+            :return-guide-id="guideId"
           />
         </div>
 

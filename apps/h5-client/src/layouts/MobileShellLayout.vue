@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router"
+import { ArrowLeft } from "lucide-vue-next"
 import { useAuthStore } from "@/stores/useAuthStore"
 
 const route = useRoute()
@@ -8,6 +9,10 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const title = computed(() => String(route.meta.title || "Path Seeker"))
+const returnGuideId = computed(() => String(route.query.guideId || "").trim())
+const isGuideRouteReturn = computed(() =>
+  route.query.fromGuide === "1" && Boolean(returnGuideId.value),
+)
 const hideChromeHeader = computed(() => {
   // 播片 / 问一问全页自带顶栏
   return route.path.includes("/video") || route.path.startsWith("/shell/ask")
@@ -21,7 +26,7 @@ const isMissionFlow = computed(() => route.path.startsWith("/missions/"))
  */
 const showBack = computed(() => {
   const path = route.path
-  if (path.startsWith("/missions/")) return false
+  if (path.startsWith("/missions/")) return isGuideRouteReturn.value
   if (path.startsWith("/shell/ask")) return false
   if (path.startsWith("/shell/guides/")) return false
   // FAB 三主入口：展厅 / 导游列表 / 我的
@@ -33,6 +38,10 @@ const showBack = computed(() => {
 const goBack = () => {
   if (window.history.length > 1) {
     void router.back()
+    return
+  }
+  if (isGuideRouteReturn.value) {
+    void router.replace(`/shell/guides/${encodeURIComponent(returnGuideId.value)}`)
     return
   }
   if (route.path === "/shell/playing" || route.path === "/shell/archive") {
@@ -57,7 +66,16 @@ const frameClass = computed(() =>
         :class="isMissionFlow ? 'mb-3' : 'mb-5'"
       >
         <div class="min-w-0 space-y-1.5">
-          <button v-if="showBack" type="button" class="mb-2 text-xs text-muted-foreground hover:text-foreground" @click="goBack">← 返回</button>
+          <button
+            v-if="showBack"
+            type="button"
+            class="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            aria-label="返回"
+            @click="goBack"
+          >
+            <ArrowLeft class="h-4 w-4" :stroke-width="1.8" />
+            <span v-if="!isGuideRouteReturn">返回</span>
+          </button>
           <p class="client-top-kicker">Path Seeker</p>
           <h1
             class="client-page-title"

@@ -10,10 +10,18 @@ import { fetchFile, toBlobURL } from '@ffmpeg/util'
 
 let shared: FFmpeg | null = null
 let loadPromise: Promise<FFmpeg> | null = null
+let extractionQueue = Promise.resolve()
+
+const AUDIO_EXTRACTION_TIMEOUT_MS = 2 * 60 * 1000
+const AUDIO_EXTRACTION_WATCHDOG_MS = AUDIO_EXTRACTION_TIMEOUT_MS + 5_000
+
+interface AudioExtractionOptions {
+  onProgress?: (progress: number) => void
+}
 
 /** 与 nuxt `app.baseURL` 对齐，例如 `/path-seeker/admin/ffmpeg` */
 function resolveFfmpegAssetBase() {
-  const base = String(import.meta.env.BASE_URL || '/').replace(/\/?$/, '/')
+  const base = String(useRuntimeConfig().app.baseURL || '/').replace(/\/?$/, '/')
   return `${base}ffmpeg`
 }
 
@@ -58,11 +66,19 @@ async function getFfmpeg(): Promise<FFmpeg> {
   }
 }
 
-/**
- * 从视频文件抽出单声道 mp3，供音色材料上传。
- * 首次调用会下载并缓存 WASM core。
- */
-export async function extractAudioMp3FromVideo(file: File): Promise<File> {
+export function extractAudioMp3FromVideo(
+  file: File,
+  options: AudioExtractionOptions = {},
+): Promise<File> {
+  const task = extractionQueue.then(() => extractAudioMp3(file, options))
+  extractionQueue = task.then(() => undefined, () => undefined)
+  return task
+}
+
+async function extractAudioMp3(
+  file: File,
+  options: AudioExtractionOptions,
+): Promise<File> {
   if (typeof window === 'undefined') {
     throw new Error('视频抽音仅支持浏览器环境。')
   }
@@ -70,10 +86,16 @@ export async function extractAudioMp3FromVideo(file: File): Promise<File> {
   const ffmpeg = await getFfmpeg()
   const inputName = `input${normalizeExt(file.name)}`
   const outputName = 'output.mp3'
+  const onProgress = ({ progress }: { progress: number }) => {
+    options.onProgress?.(Math.round(Math.min(Math.max(progress, 0), 1) * 100))
+  }
+
+  ffmpeg.on('progress', onProgress)
 
   try {
     await ffmpeg.writeFile(inputName, await fetchFile(file))
-    const code = await ffmpeg.exec([
+    let watchdog: number | undefined
+    const execution = ffmpeg.exec([
       '-i',
       inputName,
       '-vn',
@@ -86,10 +108,26 @@ export async function extractAudioMp3FromVideo(file: File): Promise<File> {
       '-ac',
       '1',
       outputName,
-    ])
+    ], AUDIO_EXTRACTION_TIMEOUT_MS)
+
+    const code = await Promise.race([
+      execution,
+      new Promise<never>((_, reject) => {
+        watchdog = window.setTimeout(() => {
+          ffmpeg.terminate()
+          shared = null
+          loadPromise = null
+          reject(new Error('抽取超过 2 分钟未完成，已停止本次处理。'))
+        }, AUDIO_EXTRACTION_WATCHDOG_MS)
+      }),
+    ]).finally(() => {
+      if (watchdog !== undefined) {
+        window.clearTimeout(watchdog)
+      }
+    })
 
     if (code !== 0) {
-      throw new Error(`ffmpeg 退出码 ${code}`)
+      throw new Error('抽取失败或处理超时，请更换视频后重试。')
     }
 
     const data = await ffmpeg.readFile(outputName)
@@ -113,6 +151,7 @@ export async function extractAudioMp3FromVideo(file: File): Promise<File> {
     const detail = error instanceof Error ? error.message : '未知错误'
     throw new Error(`视频「${file.name}」提取音频失败：${detail}`)
   } finally {
+    ffmpeg.off('progress', onProgress)
     try {
       await ffmpeg.deleteFile(inputName)
     } catch {

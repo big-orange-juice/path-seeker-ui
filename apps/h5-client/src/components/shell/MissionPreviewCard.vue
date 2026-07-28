@@ -6,6 +6,7 @@ import type { MissionRouteCard } from "@/types/mission"
 
 interface Props {
   mission: MissionRouteCard
+  returnGuideId?: string
 }
 
 const props = defineProps<Props>()
@@ -51,6 +52,12 @@ const guideTags = computed(() =>
     .slice(0, 3),
 )
 const hasGuideMeta = computed(() => Boolean(guideName.value || guideTags.value.length))
+const destination = computed(() => ({
+  path: `/missions/${encodeURIComponent(props.mission.id)}/map`,
+  query: props.returnGuideId
+    ? { fromGuide: "1", guideId: props.returnGuideId }
+    : undefined,
+}))
 </script>
 
 <template>
@@ -59,7 +66,7 @@ const hasGuideMeta = computed(() => Boolean(guideName.value || guideTags.value.l
     无卡片壳；底缘 mask 溶进星空底，像墙上的印刷品。
   -->
   <RouterLink
-    :to="`/missions/${mission.id}/map`"
+    :to="destination"
     class="mission-plate"
     :class="`is-${heightTone}`"
   >

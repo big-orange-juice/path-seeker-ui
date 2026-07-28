@@ -33,6 +33,7 @@ interface MaterialListItem {
   sizeText: string
   status: 'ready' | 'converting' | 'failed'
   fromVideo: boolean
+  progress?: number
   error?: string
 }
 
@@ -276,13 +277,16 @@ const patchMaterialItem = (key: string, patch: Partial<MaterialListItem>) => {
 /** 视频选中后立即在浏览器抽成 mp3 */
 const convertVideoItem = async (key: string, source: File) => {
   try {
-    const audio = await extractAudioMp3FromVideo(source)
+    const audio = await extractAudioMp3FromVideo(source, {
+      onProgress: (progress) => patchMaterialItem(key, { progress }),
+    })
     patchMaterialItem(key, {
       file: audio,
       label: audio.name,
       sizeText: formatFileSize(audio.size),
       status: 'ready',
       fromVideo: true,
+      progress: undefined,
       error: undefined,
     })
   } catch (error) {
@@ -292,6 +296,7 @@ const convertVideoItem = async (key: string, source: File) => {
     patchMaterialItem(key, {
       file: null,
       status: 'failed',
+      progress: undefined,
       error: message,
     })
     materialError.value = message
@@ -620,7 +625,7 @@ const handleSubmit = () => {
                   <span
                     v-if="item.status === 'converting'"
                     class="ml-1 text-amber-200/90"
-                  >抽取音频中…</span>
+                  >{{ item.progress == null ? '抽取音频中…' : `正在处理… ${item.progress}%` }}</span>
                   <span
                     v-else-if="item.status === 'failed'"
                     class="ml-1 text-rose-300"

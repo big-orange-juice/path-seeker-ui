@@ -42,7 +42,6 @@ const completedPreview = computed(() => completed.value.slice(0, PREVIEW_LIMIT))
 const stats = computed(() => [
   { label: "进行中", value: playing.value.length },
   { label: "已完成", value: completed.value.length },
-  { label: "积分", value: Number(profile.value?.totalPoints ?? 0) },
 ])
 
 const playingLoading = computed(
@@ -100,7 +99,7 @@ onMounted(() => {
       </button>
     </section>
 
-    <section class="grid grid-cols-3 gap-2">
+    <section class="grid grid-cols-2 gap-2">
       <div v-for="item in stats" :key="item.label" class="client-stat-cell">
         <p class="font-display text-lg leading-none">
           {{ item.value }}
