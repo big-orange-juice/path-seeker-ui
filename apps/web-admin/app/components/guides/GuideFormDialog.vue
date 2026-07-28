@@ -13,11 +13,28 @@ import AppIcon from '@/components/ui/AppIcon.vue'
 import GuideTagDialog from '@/components/guides/GuideTagDialog.vue'
 import { useUploadAttachment } from '@/composables/useUploadAttachment'
 import type { GuideDraft, TtsVoiceResponse } from '@/types/guide'
+import {
+  extractAudioMp3FromVideo,
+  isAudioVoiceMaterial,
+  isVideoVoiceMaterial,
+} from '@/utils/extractVoiceAudioClient'
 
-/** 声音样本体积上限：20MB */
+/** 声音样本体积上限：20MB（视频按原文件计，抽音后通常更小） */
 const MAX_VOICE_MATERIAL_BYTES = 20 * 1024 * 1024
 /** 单次最多上传样本数 */
 const MAX_VOICE_MATERIAL_COUNT = 8
+
+/** 列表展示用：含视频抽音中的条目 */
+interface MaterialListItem {
+  key: string
+  /** 就绪后为音频 File；转换中为 null */
+  file: File | null
+  label: string
+  sizeText: string
+  status: 'ready' | 'converting' | 'failed'
+  fromVideo: boolean
+  error?: string
+}
 
 interface Props {
   open: boolean
@@ -54,46 +71,11 @@ const avatarUploading = shallowRef(false)
 const avatarError = shallowRef('')
 const materialError = shallowRef('')
 const tagDialogOpen = shallowRef(false)
+/** 样本列表（含转换态）；就绪项同步进 form.materialFiles */
+const materialItems = shallowRef<MaterialListItem[]>([])
 
-/**
- * 声音样本：音频直接上传；视频由服务端 ffmpeg 抽音后再转发。
- * multipart 字段名仍为 `material`（可多份）。
- */
-const isVoiceMaterialFile = (file: File) => {
-  const name = file.name.toLowerCase()
-  const type = (file.type || '').toLowerCase()
-  if (type.startsWith('audio/') || type.startsWith('video/')) {
-    return true
-  }
-  return (
-    name.endsWith('.mp3')
-    || name.endsWith('.wav')
-    || name.endsWith('.m4a')
-    || name.endsWith('.aac')
-    || name.endsWith('.ogg')
-    || name.endsWith('.flac')
-    || name.endsWith('.mp4')
-    || name.endsWith('.m4v')
-    || name.endsWith('.mov')
-    || name.endsWith('.webm')
-    || name.endsWith('.avi')
-    || name.endsWith('.mkv')
-  )
-}
-
-const isVideoMaterialFile = (file: File) => {
-  const name = file.name.toLowerCase()
-  const type = (file.type || '').toLowerCase()
-  if (type.startsWith('video/')) return true
-  return (
-    name.endsWith('.mp4')
-    || name.endsWith('.m4v')
-    || name.endsWith('.mov')
-    || name.endsWith('.webm')
-    || name.endsWith('.avi')
-    || name.endsWith('.mkv')
-  )
-}
+const isVoiceMaterialFile = (file: File) =>
+  isAudioVoiceMaterial(file) || isVideoVoiceMaterial(file)
 
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) {
@@ -105,7 +87,20 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-const materialFiles = computed(() => form.materialFiles ?? [])
+const syncMaterialFilesToForm = () => {
+  const ready = materialItems.value
+    .filter((item) => item.status === 'ready' && item.file)
+    .map((item) => item.file as File)
+  form.materialFiles = ready
+  form.materialFile = ready[0] ?? null
+  form.materialFileName = ready[0]?.name || ''
+  form.txtMaterialFile = null
+  form.txtMaterialFileName = ''
+}
+
+const materialConverting = computed(() =>
+  materialItems.value.some((item) => item.status === 'converting'),
+)
 
 /** 标签名称缓存：仅用于表单回显，key 为 tagId */
 const tagNameMap = shallowRef<Record<string, string>>({})
@@ -133,14 +128,19 @@ const handleTagsChange = (tags: Array<{ id: string, name: string }>) => {
 }
 
 const materialSummary = computed(() => {
-  const files = materialFiles.value
-  if (!files.length) {
+  const items = materialItems.value
+  if (!items.length) {
     return ''
   }
-  if (files.length === 1) {
-    return files[0]?.name || '1 个样本'
+  const converting = items.filter((item) => item.status === 'converting').length
+  const ready = items.filter((item) => item.status === 'ready').length
+  if (converting > 0) {
+    return `抽取音频中…（${ready}/${items.length} 就绪）`
   }
-  return `已选 ${files.length} 个样本`
+  if (items.length === 1) {
+    return items[0]?.label || '1 个样本'
+  }
+  return `已选 ${items.length} 个样本`
 })
 
 watch(
@@ -158,6 +158,7 @@ watch(
       txtMaterialFile: null,
       txtMaterialFileName: '',
     })
+    materialItems.value = []
     materialError.value = ''
     avatarError.value = ''
     avatarUploading.value = false
@@ -174,7 +175,10 @@ const isOpen = computed({
 const title = computed(() => (props.mode === 'edit' ? '编辑导游' : '新增导游'))
 
 const canSubmit = computed(() =>
-  Boolean(String(form.name || '').trim()) && !props.submitting && !avatarUploading.value,
+  Boolean(String(form.name || '').trim())
+  && !props.submitting
+  && !avatarUploading.value
+  && !materialConverting.value,
 )
 
 const voiceSelectOptions = computed(() => {
@@ -256,7 +260,42 @@ const clearAvatar = (event: Event) => {
 }
 
 const openMaterialPicker = () => {
+  if (materialConverting.value || props.submitting) {
+    return
+  }
   materialInputRef.value?.click()
+}
+
+const patchMaterialItem = (key: string, patch: Partial<MaterialListItem>) => {
+  materialItems.value = materialItems.value.map((item) =>
+    item.key === key ? { ...item, ...patch } : item,
+  )
+  syncMaterialFilesToForm()
+}
+
+/** 视频选中后立即在浏览器抽成 mp3 */
+const convertVideoItem = async (key: string, source: File) => {
+  try {
+    const audio = await extractAudioMp3FromVideo(source)
+    patchMaterialItem(key, {
+      file: audio,
+      label: audio.name,
+      sizeText: formatFileSize(audio.size),
+      status: 'ready',
+      fromVideo: true,
+      error: undefined,
+    })
+  } catch (error) {
+    const message = error instanceof Error && error.message
+      ? error.message
+      : `「${source.name}」提取音频失败。`
+    patchMaterialItem(key, {
+      file: null,
+      status: 'failed',
+      error: message,
+    })
+    materialError.value = message
+  }
 }
 
 const handleMaterialChange = (event: Event) => {
@@ -269,8 +308,9 @@ const handleMaterialChange = (event: Event) => {
     return
   }
 
-  const next = [...(form.materialFiles || [])]
+  const next = [...materialItems.value]
   const errors: string[] = []
+  const pendingConvert: Array<{ key: string, file: File }> = []
 
   for (const file of picked) {
     if (next.length >= MAX_VOICE_MATERIAL_COUNT) {
@@ -286,44 +326,70 @@ const handleMaterialChange = (event: Event) => {
       continue
     }
     const dup = next.some(
-      (item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified,
+      (item) =>
+        item.label === file.name
+        || (item.file
+          && item.file.name === file.name
+          && item.file.size === file.size
+          && item.file.lastModified === file.lastModified),
     )
     if (dup) {
       continue
     }
-    next.push(file)
+
+    const key = `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    if (isVideoVoiceMaterial(file)) {
+      next.push({
+        key,
+        file: null,
+        label: file.name,
+        sizeText: formatFileSize(file.size),
+        status: 'converting',
+        fromVideo: true,
+      })
+      pendingConvert.push({ key, file })
+    } else {
+      next.push({
+        key,
+        file,
+        label: file.name,
+        sizeText: formatFileSize(file.size),
+        status: 'ready',
+        fromVideo: false,
+      })
+    }
   }
 
-  form.materialFiles = next
-  // 兼容旧单文件字段：取首个
-  form.materialFile = next[0] ?? null
-  form.materialFileName = next[0]?.name || ''
-  // 不再上传文风
-  form.txtMaterialFile = null
-  form.txtMaterialFileName = ''
+  materialItems.value = next
+  syncMaterialFilesToForm()
 
   if (errors.length) {
     materialError.value = errors[0] || ''
   }
+
+  for (const item of pendingConvert) {
+    void convertVideoItem(item.key, item.file)
+  }
 }
 
 const removeMaterialAt = (index: number) => {
-  const next = (form.materialFiles || []).filter((_, i) => i !== index)
-  form.materialFiles = next
-  form.materialFile = next[0] ?? null
-  form.materialFileName = next[0]?.name || ''
+  materialItems.value = materialItems.value.filter((_, i) => i !== index)
+  syncMaterialFilesToForm()
   materialError.value = ''
 }
 
 const clearMaterials = () => {
-  form.materialFiles = []
-  form.materialFile = null
-  form.materialFileName = ''
+  materialItems.value = []
+  syncMaterialFilesToForm()
   materialError.value = ''
 }
 
 const handleSubmit = () => {
   if (!canSubmit.value) {
+    return
+  }
+  if (materialItems.value.some((item) => item.status === 'failed')) {
+    materialError.value = '请移除提取失败的样本后再保存。'
     return
   }
   const files = form.materialFiles || []
@@ -333,7 +399,6 @@ const handleSubmit = () => {
     materialFile: files[0] ?? null,
     materialFileName: files[0]?.name || '',
     materialFiles: files,
-    // 文风改为服务端处理，前端不再上传
     txtMaterialFile: null,
     txtMaterialFileName: '',
   })
@@ -506,7 +571,7 @@ const handleSubmit = () => {
               </span>
             </div>
             <p class="text-xs text-muted-foreground">
-              仅在内置音色不够用时上传；视频会在提交时自动提取音频
+              仅在内置音色不够用时上传；选中视频后会在本机立即抽成音频再提交
             </p>
             <input
               ref="materialInput"
@@ -519,12 +584,12 @@ const handleSubmit = () => {
             <button
               type="button"
               class="flex w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-primary/35 bg-secondary/20 px-3 py-5 text-center transition hover:border-primary/55 hover:bg-secondary/35 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="submitting"
+              :disabled="submitting || materialConverting"
               @click="openMaterialPicker"
             >
               <AppIcon name="image-up" class="h-5 w-5 text-primary/80" />
               <span class="text-sm font-medium text-foreground">
-                {{ materialFiles.length ? '继续添加样本' : '点击上传声音样本' }}
+                {{ materialItems.length ? '继续添加样本' : '点击上传声音样本' }}
               </span>
               <span
                 v-if="materialSummary"
@@ -541,21 +606,29 @@ const handleSubmit = () => {
             </button>
 
             <ul
-              v-if="materialFiles.length"
+              v-if="materialItems.length"
               class="space-y-1.5 rounded-lg border border-border/50 bg-background/30 px-3 py-2"
             >
               <li
-                v-for="(file, index) in materialFiles"
-                :key="`${file.name}-${file.size}-${file.lastModified}`"
+                v-for="(item, index) in materialItems"
+                :key="item.key"
                 class="flex items-center justify-between gap-2 text-xs"
               >
-                <span class="min-w-0 truncate text-foreground" :title="file.name">
-                  {{ file.name }}
-                  <span class="text-muted-foreground">· {{ formatFileSize(file.size) }}</span>
+                <span class="min-w-0 truncate text-foreground" :title="item.label">
+                  {{ item.label }}
+                  <span class="text-muted-foreground">· {{ item.sizeText }}</span>
                   <span
-                    v-if="isVideoMaterialFile(file)"
+                    v-if="item.status === 'converting'"
                     class="ml-1 text-amber-200/90"
-                  >视频·将提取音频</span>
+                  >抽取音频中…</span>
+                  <span
+                    v-else-if="item.status === 'failed'"
+                    class="ml-1 text-rose-300"
+                  >提取失败</span>
+                  <span
+                    v-else-if="item.fromVideo"
+                    class="ml-1 text-emerald-300/90"
+                  >已抽为音频</span>
                 </span>
                 <button
                   type="button"
@@ -569,10 +642,10 @@ const handleSubmit = () => {
             </ul>
 
             <button
-              v-if="materialFiles.length"
+              v-if="materialItems.length"
               type="button"
               class="text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"
-              :disabled="submitting"
+              :disabled="submitting || materialConverting"
               @click="clearMaterials"
             >
               清空全部样本

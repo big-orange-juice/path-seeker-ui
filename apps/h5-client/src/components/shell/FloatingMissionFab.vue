@@ -25,10 +25,12 @@ interface FabActionItem {
   action?: 'ask';
 }
 
-/** 收缩态与展开态每个 item 同宽，避免展开动画宽度抖动 */
-const ITEM_WIDTH = 78;
+/**
+ * 收缩/展开 item 同宽。固定 4 项（约 320px），避免任务流再塞第 5 项超宽。
+ */
+const ITEM_WIDTH = 72;
 const ITEM_HEIGHT = 36;
-const ITEM_GAP = 6;
+const ITEM_GAP = 5;
 const CONTAINER_PADDING = 5;
 const SELECTION_SETTLE_DURATION = 0.18;
 /** 收缩 = 单 item + 左右 padding，与展开时一格一致 */
@@ -41,6 +43,7 @@ const missionStore = useMissionStore();
 const askStore = useAskStore();
 const fabRoot = useTemplateRef<HTMLElement>('fabRoot');
 
+/** 壳层固定四格：展厅 | 导游 | 我的 | 问 */
 const shellItems: Array<{
   label: string;
   value: ShellTab;
@@ -53,7 +56,6 @@ const shellItems: Array<{
 ];
 
 const routeId = computed(() => String(route.params.routeId || ''));
-const chapterId = computed(() => String(route.params.chapterId || ''));
 const onMissionRoute = computed(() => route.path.startsWith('/missions/'));
 const onShellRoute = computed(() => route.path.startsWith('/shell/'));
 const onAuthRoute = computed(() => route.path.startsWith('/auth'));
@@ -64,7 +66,6 @@ const activeChapterMapPath = computed(() =>
     ? `/missions/${missionStore.activeSession.routeId}/map`
     : '/shell/playing'
 );
-const onGuidesRoute = computed(() => route.path.startsWith('/shell/guides'));
 
 const askAction = computed<FabActionItem>(() => ({
   key: 'ask',
@@ -74,14 +75,11 @@ const askAction = computed<FabActionItem>(() => ({
   active: askStore.open || route.path.startsWith('/shell/ask')
 }));
 
-const guidesAction = computed<FabActionItem>(() => ({
-  key: 'guides',
-  label: '导游',
-  icon: Users,
-  to: '/shell/guides',
-  active: onGuidesRoute.value && !askStore.open
-}));
-
+/**
+ * 始终最多 4 项，防止展开超宽：
+ * - 壳层：展厅 / 导游 / 我的 / 问
+ * - 任务流：路线·继续（合一项上下文） / 展厅 / 导游 / 问（不含「我的」）
+ */
 const actions = computed<FabActionItem[]>(() => {
   if (onAuthRoute.value) {
     return [];
@@ -103,25 +101,35 @@ const actions = computed<FabActionItem[]>(() => {
   if (onMissionRoute.value) {
     const onMapPage = route.path.endsWith('/map');
     const onPuzzleFlowPage = route.path.includes('/chapters/');
-    const hasActiveChapter = Boolean(chapterId.value);
+    const mapPath = routeId.value
+      ? `/missions/${routeId.value}/map`
+      : activeChapterMapPath.value;
+    const resume = resumePath.value || activeChapterMapPath.value;
+
+    /**
+     * 任务流只保留 1 个上下文入口（不再「路线+继续」双开）：
+     * - 在地图 →「继续」进当前站
+     * - 在站点内 →「路线」回总览
+     * 再加 展厅 / 导游 / 问 = 固定 4 项
+     */
+    const missionNav: FabActionItem = onMapPage
+      ? {
+          key: 'resume',
+          label: '继续',
+          icon: Play,
+          to: resume,
+          active: false
+        }
+      : {
+          key: 'map',
+          label: '路线',
+          icon: Map,
+          to: mapPath,
+          active: onPuzzleFlowPage && !askStore.open
+        };
 
     return [
-      {
-        key: 'map',
-        label: '路线',
-        icon: Map,
-        to: routeId.value
-          ? `/missions/${routeId.value}/map`
-          : activeChapterMapPath.value,
-        active: onMapPage && !askStore.open
-      },
-      {
-        key: 'resume',
-        label: hasActiveChapter ? '当前' : '继续',
-        icon: Play,
-        to: resumePath.value || activeChapterMapPath.value,
-        active: !onMapPage && onPuzzleFlowPage && !askStore.open
-      },
+      missionNav,
       {
         key: 'hall',
         label: '展厅',
@@ -129,7 +137,13 @@ const actions = computed<FabActionItem[]>(() => {
         to: '/shell/hall',
         active: false
       },
-      guidesAction.value,
+      {
+        key: 'guides',
+        label: '导游',
+        icon: Users,
+        to: '/shell/guides',
+        active: false
+      },
       askAction.value
     ];
   }
@@ -667,11 +681,18 @@ onUnmounted(() => {
 @media (max-width: 380px) {
   .fab-island {
     transform-origin: center bottom;
-    transform: scale(0.94);
+    transform: scale(0.92);
   }
 
   .fab-label {
-    font-size: 0.58rem;
+    font-size: 0.56rem;
+  }
+}
+
+/* 极窄屏再压一点，确保 4 项不顶边 */
+@media (max-width: 340px) {
+  .fab-island {
+    transform: scale(0.88);
   }
 }
 </style>

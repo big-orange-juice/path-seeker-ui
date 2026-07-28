@@ -93,13 +93,4 @@ export default defineNuxtConfig({
     provider: 'ipx',
     format: ['webp', 'avif']
   },
-  /**
-   * ffmpeg-static 含平台二进制，勿打进 Nitro bundle；
-   * 运行时从 node_modules 解析，视频抽音走 server/utils/extractGuideVoiceMaterial。
-   */
-  nitro: {
-    externals: {
-      external: ['ffmpeg-static'],
-    },
-  },
 })
