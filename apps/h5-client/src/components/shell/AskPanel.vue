@@ -15,7 +15,6 @@ import { storeToRefs } from "pinia"
 import { useToastStore } from "@path-seeker/client-state"
 import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskSpeech } from "@/composables/useAskSpeech"
-import { isMiniMaxTtsConfigured } from "@/services/minimaxTts"
 import {
   extractAskUserInstruction,
   formatStageContextChipLabel,
@@ -129,10 +128,6 @@ function switchMode(mode: AskInteractionMode) {
     return
   }
   if (mode === "voice") {
-    if (!isMiniMaxTtsConfigured()) {
-      toastStore.warning("暂不可用", "未配置语音密钥，请检查本地环境变量。")
-      return
-    }
     speech.unlock()
   }
   askStore.setInteractionMode(mode)

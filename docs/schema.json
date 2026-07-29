@@ -2802,6 +2802,37 @@
         }
       }
     },
+    "/api/ExhibitChat/send-with-audio": {
+      "post": {
+        "tags": [
+          "ExhibitChat"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExhibitChatVoiceSendRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExhibitChatVoiceSendRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExhibitChatVoiceSendRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/Feedback/Create": {
       "post": {
         "tags": [
@@ -13911,6 +13942,40 @@
             "nullable": true
           },
           "imageUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitChatVoiceSendRequest": {
+        "required": [
+          "clientMessageId",
+          "message",
+          "sessionId"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "clientMessageId": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "enableAudio": {
+            "type": "boolean"
+          },
+          "voiceId": {
+            "maxLength": 256,
+            "minLength": 0,
             "type": "string",
             "nullable": true
           }

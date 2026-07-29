@@ -10,6 +10,17 @@ export interface ExhibitChatSendRequest {
   message: string
 }
 
+/** POST /ExhibitChat/send-with-audio — 对齐 schema ExhibitChatVoiceSendRequest */
+export interface ExhibitChatVoiceSendRequest {
+  sessionId: string
+  clientMessageId: string
+  message: string
+  /** true 时 SSE 额外下发 audio.* 事件 */
+  enableAudio: boolean
+  /** enableAudio=true 时必填：系统音色或账号可用音色 */
+  voiceId?: string | null
+}
+
 export interface ExhibitChatSource {
   exhibitId: string | null
   name: string | null
@@ -45,6 +56,10 @@ export type ExhibitChatEventType =
   | "suggestions"
   | "done"
   | "error"
+  | "audio.started"
+  | "audio.delta"
+  | "audio.done"
+  | "audio.error"
   | string
 
 export interface ExhibitChatEvent<T = unknown> {
@@ -72,6 +87,38 @@ export interface ExhibitChatDonePayload {
 }
 
 export interface ExhibitChatErrorPayload {
+  code?: string | null
+  message?: string | null
+}
+
+/** SSE audio.started：首段音频元数据 */
+export interface ExhibitChatAudioStartedPayload {
+  voiceId?: string | null
+  format?: string | null
+  encoding?: string | null
+  sampleRate?: number | null
+}
+
+/**
+ * SSE audio.delta：十六进制音频分片。
+ * isFinal=true 表示当前可朗读短句合成结束（不代表整轮 AI 结束）；此时 audio 可为空。
+ */
+export interface ExhibitChatAudioDeltaPayload {
+  audio?: string | null
+  encoding?: string | null
+  format?: string | null
+  sampleRate?: number | null
+  durationMs?: number | null
+  isFinal?: boolean | null
+}
+
+/** SSE audio.done：本轮全部语音分片已从服务端返回 */
+export interface ExhibitChatAudioDonePayload {
+  voiceId?: string | null
+}
+
+/** SSE audio.error：合成失败；文字问答仍会继续至 done/error */
+export interface ExhibitChatAudioErrorPayload {
   code?: string | null
   message?: string | null
 }

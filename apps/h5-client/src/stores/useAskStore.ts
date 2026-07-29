@@ -4,26 +4,37 @@ import { v4 as uuidv4 } from "uuid"
 import {
   buildExhibitChatSendHeaders,
   buildExhibitChatSendUrl,
+  buildExhibitChatSendWithAudioUrl,
   createExhibitChatSession,
   fetchExhibitChatHistory,
 } from "@/services/exhibitChat"
 import { resolveRequestErrorMessage } from "@/services/http"
+import { getDefaultAskVoiceId } from "@/utils/askVoice"
 import type {
   AskUiMessage,
+  ExhibitChatAudioDeltaPayload,
+  ExhibitChatAudioErrorPayload,
+  ExhibitChatAudioStartedPayload,
   ExhibitChatDonePayload,
   ExhibitChatErrorPayload,
   ExhibitChatEvent,
   ExhibitChatSource,
   ExhibitChatSuggestionsPayload,
   ExhibitChatTextDeltaPayload,
+  ExhibitChatVoiceSendRequest,
 } from "@/types/exhibitChat"
 import { parseExhibitChatEventData } from "@/utils/exhibitChatEvent"
+import { createSseAudioAssembler } from "@/utils/sseAudioAssembler"
 import { createSseParser } from "@/utils/sse"
+import {
+  getSharedStreamAudioQueue,
+  type StreamAudioQueueStatus,
+} from "@/utils/streamAudioQueue"
 
-/** 问一问交互模式：默认文字；语音模式仍打字输入，叠加 TTS 播报 */
+/** 问一问交互模式：默认语音；语音模式仍打字输入，音频由后端 SSE 下发 */
 export type AskInteractionMode = "text" | "voice"
 
-/** 本地持久化：仅用户选择的全局 TTS 音色 */
+/** 本地持久化：仅用户选择的全局助手音色 */
 export const ASK_PERSIST_KEY = "path-seeker:h5-client:ask"
 
 /** 站点快捷问答上下文（以附件形式挂在输入区，可取消） */
@@ -150,24 +161,77 @@ export const useAskStore = defineStore("ask", () => {
   /** 站点快捷问答附件上下文，可取消 */
   const stageContext = shallowRef<AskStageContext | null>(null)
   /**
-   * 用户选定的全局语音助手音色（MiniMax providerVoiceId）。
-   * 空字符串表示未设置，TTS 回落到 env VITE_MINIMAX_TTS_VOICE_ID。
+   * 用户选定的全局语音助手音色（导游 providerVoiceId）。
+   * 空字符串表示未设置，发送时回落到 env / 内置默认音色。
    * 仅此字段本地持久化；会话消息不落盘。
    */
   const voiceId = shallowRef("")
+  /** 本轮是否走 send-with-audio（语音模式） */
+  const sseAudioEnabled = shallowRef(false)
+  /** SSE 音频播放状态，供语音 UI 展示 */
+  const sseAudioStatus = shallowRef<StreamAudioQueueStatus>("idle")
+  const sseAudioError = shallowRef("")
+  /** 服务端 audio.error 文案（文字仍继续） */
+  const audioErrorMessage = shallowRef("")
 
   let abortController: AbortController | null = null
   let activeAssistantId = ""
+  /** 本轮 SSE 音频短句组装器；仅 enableAudio 时使用 */
+  let audioAssembler = createSseAudioAssembler()
+  const streamAudio = getSharedStreamAudioQueue()
+  let unsubscribeAudio: (() => void) | null = null
+
+  function syncStreamAudioUi() {
+    sseAudioStatus.value = streamAudio.getStatus()
+    sseAudioError.value = streamAudio.getErrorMessage()
+  }
+
+  if (!unsubscribeAudio) {
+    unsubscribeAudio = streamAudio.subscribe(syncStreamAudioUi)
+  }
 
   const hasMessages = computed(() => messages.value.length > 0)
   const isRunning = computed(() => typing.value)
   const isVoiceMode = computed(() => interactionMode.value === "voice")
   const hasCustomVoiceId = computed(() => Boolean(String(voiceId.value || "").trim()))
+  const isSseAudioBusy = computed(
+    () => sseAudioStatus.value === "loading" || sseAudioStatus.value === "speaking",
+  )
   const hasStageContext = computed(() => {
     const ctx = stageContext.value
     if (!ctx) return false
     return Boolean(String(ctx.routeId || "").trim() || String(ctx.stageId || "").trim())
   })
+
+  /** 最终发给 send-with-audio 的 voiceId：用户偏好 > env / 内置默认 */
+  function resolveSendVoiceId() {
+    const preferred = String(voiceId.value || "").trim()
+    if (preferred) {
+      return preferred
+    }
+    return getDefaultAskVoiceId()
+  }
+
+  function resetSseAudioPipeline(runKey?: string) {
+    audioAssembler = createSseAudioAssembler()
+    audioErrorMessage.value = ""
+    if (runKey) {
+      streamAudio.bindRun(runKey)
+    } else {
+      streamAudio.cancel()
+    }
+    syncStreamAudioUi()
+  }
+
+  function stopSseAudio() {
+    streamAudio.cancel()
+    audioAssembler = createSseAudioAssembler()
+    syncStreamAudioUi()
+  }
+
+  function unlockSseAudio() {
+    streamAudio.unlock()
+  }
 
   function setInteractionMode(mode: AskInteractionMode) {
     interactionMode.value = mode === "voice" ? "voice" : "text"
@@ -308,6 +372,46 @@ export const useAskStore = defineStore("ask", () => {
     }
   }
 
+  function handleAudioEvent(event: ExhibitChatEvent) {
+    const runKey = activeAssistantId || String(event.runId || "") || "local"
+
+    switch (event.type) {
+      case "audio.started": {
+        const payload = (event.payload ?? {}) as ExhibitChatAudioStartedPayload
+        // 新一轮短句流水线开始：清空组装缓冲，绑定播放 run
+        audioAssembler.reset(payload)
+        streamAudio.bindRun(runKey)
+        audioErrorMessage.value = ""
+        break
+      }
+
+      case "audio.delta": {
+        const payload = (event.payload ?? {}) as ExhibitChatAudioDeltaPayload
+        const blob = audioAssembler.pushDelta(payload)
+        if (blob) {
+          streamAudio.enqueueBlob(blob, runKey)
+        }
+        break
+      }
+
+      case "audio.done": {
+        // 本轮服务端合成结束；播放队列可能仍在播已入队短句
+        break
+      }
+
+      case "audio.error": {
+        const payload = (event.payload ?? {}) as ExhibitChatAudioErrorPayload
+        const detail = String(payload.message || "语音合成暂时不可用，文字回答不受影响")
+        audioErrorMessage.value = detail
+        // 文字继续；不中断 SSE
+        break
+      }
+
+      default:
+        break
+    }
+  }
+
   function handleEvent(event: ExhibitChatEvent) {
     if (event.eventId) {
       lastEventId.value = String(event.eventId)
@@ -324,6 +428,16 @@ export const useAskStore = defineStore("ask", () => {
         const content = String(payload?.content ?? "")
         if (content) {
           appendAssistantDelta(content)
+        }
+        break
+      }
+
+      case "audio.started":
+      case "audio.delta":
+      case "audio.done":
+      case "audio.error": {
+        if (sseAudioEnabled.value) {
+          handleAudioEvent(event)
         }
         break
       }
@@ -375,6 +489,7 @@ export const useAskStore = defineStore("ask", () => {
         }
         activeAssistantId = ""
         abortController = null
+        stopSseAudio()
         break
       }
 
@@ -431,6 +546,7 @@ export const useAskStore = defineStore("ask", () => {
         })
         activeAssistantId = ""
       }
+      stopSseAudio()
     }
   }
 
@@ -444,6 +560,7 @@ export const useAskStore = defineStore("ask", () => {
     const payloadMessage = buildAskMessageWithStageContext(trimmed, stageContext.value)
 
     errorMessage.value = ""
+    audioErrorMessage.value = ""
     typing.value = true
 
     const clientMessageId = uuidv4()
@@ -452,18 +569,42 @@ export const useAskStore = defineStore("ask", () => {
     activeAssistantId = assistantMessage.id
     messages.value = [...messages.value, userMessage, assistantMessage]
 
+    // 语音模式：走 send-with-audio，音频随 SSE 下发；文字模式仍用原 send
+    const useAudio = interactionMode.value === "voice"
+    sseAudioEnabled.value = useAudio
+    if (useAudio) {
+      resetSseAudioPipeline(assistantMessage.id)
+    } else {
+      stopSseAudio()
+    }
+
     abortController = new AbortController()
 
     try {
       const ensuredSessionId = await ensureSession(trimmed)
-      const response = await fetch(buildExhibitChatSendUrl(), {
+      const url = useAudio ? buildExhibitChatSendWithAudioUrl() : buildExhibitChatSendUrl()
+      const body: ExhibitChatVoiceSendRequest | {
+        sessionId: string
+        clientMessageId: string
+        message: string
+      } = useAudio
+        ? {
+            sessionId: ensuredSessionId,
+            clientMessageId,
+            message: payloadMessage,
+            enableAudio: true,
+            voiceId: resolveSendVoiceId(),
+          }
+        : {
+            sessionId: ensuredSessionId,
+            clientMessageId,
+            message: payloadMessage,
+          }
+
+      const response = await fetch(url, {
         method: "POST",
         headers: buildExhibitChatSendHeaders(lastEventId.value),
-        body: JSON.stringify({
-          sessionId: ensuredSessionId,
-          clientMessageId,
-          message: payloadMessage,
-        }),
+        body: JSON.stringify(body),
         signal: abortController.signal,
       })
 
@@ -495,6 +636,7 @@ export const useAskStore = defineStore("ask", () => {
           status: "failed",
           errorMessage: "已取消发送。",
         })
+        stopSseAudio()
         return
       }
 
@@ -505,11 +647,13 @@ export const useAskStore = defineStore("ask", () => {
         status: "failed",
         errorMessage: detail,
       })
+      stopSseAudio()
     } finally {
       abortController = null
       if (activeAssistantId === assistantMessage.id) {
         activeAssistantId = ""
       }
+      sseAudioEnabled.value = false
     }
   }
 
@@ -536,6 +680,8 @@ export const useAskStore = defineStore("ask", () => {
       })
       activeAssistantId = ""
     }
+    stopSseAudio()
+    sseAudioEnabled.value = false
   }
 
   function resetConversation() {
@@ -544,8 +690,11 @@ export const useAskStore = defineStore("ask", () => {
     messages.value = []
     lastEventId.value = ""
     errorMessage.value = ""
+    audioErrorMessage.value = ""
     typing.value = false
     activeAssistantId = ""
+    sseAudioEnabled.value = false
+    stopSseAudio()
   }
 
   return {
@@ -558,11 +707,16 @@ export const useAskStore = defineStore("ask", () => {
     historyPending,
     stageContext,
     voiceId,
+    sseAudioEnabled,
+    sseAudioStatus,
+    sseAudioError,
+    audioErrorMessage,
     hasStageContext,
     hasMessages,
     isRunning,
     isVoiceMode,
     hasCustomVoiceId,
+    isSseAudioBusy,
     setInteractionMode,
     setVoiceId,
     clearVoiceId,
@@ -578,6 +732,8 @@ export const useAskStore = defineStore("ask", () => {
     retryLastFailed,
     cancelRun,
     resetConversation,
+    unlockSseAudio,
+    stopSseAudio,
   }
 }, {
   persist: {

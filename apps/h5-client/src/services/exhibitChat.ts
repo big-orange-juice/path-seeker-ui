@@ -131,6 +131,11 @@ export function buildExhibitChatSendUrl() {
   return `${API_BASE_URL}/ExhibitChat/send`
 }
 
+/** POST /ExhibitChat/send-with-audio — 文字 + 可选 MiniMax 合成音频同一条 SSE */
+export function buildExhibitChatSendWithAudioUrl() {
+  return `${API_BASE_URL}/ExhibitChat/send-with-audio`
+}
+
 export function buildExhibitChatSendHeaders(lastEventId?: string) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
