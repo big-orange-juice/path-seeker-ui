@@ -14,6 +14,8 @@ interface GuideResponseRaw {
     sortOrder?: number
   }> | null
   voiceStyle?: string | null
+  /** MiniMax 等 TTS 平台音色 ID */
+  providerVoiceId?: string | null
   voiceSampleUrl?: string | null
   sortOrder?: number | null
   status?: number | null
@@ -45,6 +47,7 @@ function mapGuide(raw: GuideResponseRaw): GuideClientItem | null {
     description: String(raw.description ?? "").trim() || null,
     tags,
     voiceStyle: String(raw.voiceStyle ?? "").trim() || null,
+    providerVoiceId: String(raw.providerVoiceId ?? "").trim() || null,
     voiceSampleUrl: String(raw.voiceSampleUrl ?? "").trim() || null,
     sortOrder: typeof raw.sortOrder === "number" ? raw.sortOrder : 0,
     routeCount: Number.isFinite(routeCountRaw) && routeCountRaw > 0

@@ -23,6 +23,9 @@ import { createSseParser } from "@/utils/sse"
 /** 问一问交互模式：默认文字；语音模式仍打字输入，叠加 TTS 播报 */
 export type AskInteractionMode = "text" | "voice"
 
+/** 本地持久化：仅用户选择的全局 TTS 音色 */
+export const ASK_PERSIST_KEY = "path-seeker:h5-client:ask"
+
 /** 站点快捷问答上下文（以附件形式挂在输入区，可取消） */
 export interface AskStageContext {
   routeId: string
@@ -111,6 +114,12 @@ export const useAskStore = defineStore("ask", () => {
   const historyPending = shallowRef(false)
   /** 站点快捷问答附件上下文，可取消 */
   const stageContext = shallowRef<AskStageContext | null>(null)
+  /**
+   * 用户选定的全局语音助手音色（MiniMax providerVoiceId）。
+   * 空字符串表示未设置，TTS 回落到 env VITE_MINIMAX_TTS_VOICE_ID。
+   * 仅此字段本地持久化；会话消息不落盘。
+   */
+  const voiceId = shallowRef("")
 
   let abortController: AbortController | null = null
   let activeAssistantId = ""
@@ -118,6 +127,7 @@ export const useAskStore = defineStore("ask", () => {
   const hasMessages = computed(() => messages.value.length > 0)
   const isRunning = computed(() => typing.value)
   const isVoiceMode = computed(() => interactionMode.value === "voice")
+  const hasCustomVoiceId = computed(() => Boolean(String(voiceId.value || "").trim()))
   const hasStageContext = computed(() => {
     const ctx = stageContext.value
     if (!ctx) return false
@@ -126,6 +136,22 @@ export const useAskStore = defineStore("ask", () => {
 
   function setInteractionMode(mode: AskInteractionMode) {
     interactionMode.value = mode === "voice" ? "voice" : "text"
+  }
+
+  /** 写入用户全局助手音色；空值等价于清除 */
+  function setVoiceId(next: string | null | undefined) {
+    voiceId.value = String(next ?? "").trim()
+  }
+
+  function clearVoiceId() {
+    voiceId.value = ""
+  }
+
+  /** 当前音色是否等于给定 providerVoiceId（导游详情「已设为助手音色」） */
+  function isAssistantVoice(providerVoiceId: string | null | undefined) {
+    const target = String(providerVoiceId ?? "").trim()
+    if (!target) return false
+    return String(voiceId.value || "").trim() === target
   }
 
   function setStageContext(context: AskStageContext | null) {
@@ -489,11 +515,16 @@ export const useAskStore = defineStore("ask", () => {
     errorMessage,
     historyPending,
     stageContext,
+    voiceId,
     hasStageContext,
     hasMessages,
     isRunning,
     isVoiceMode,
+    hasCustomVoiceId,
     setInteractionMode,
+    setVoiceId,
+    clearVoiceId,
+    isAssistantVoice,
     setStageContext,
     clearStageContext,
     openAsk,
@@ -506,6 +537,11 @@ export const useAskStore = defineStore("ask", () => {
     cancelRun,
     resetConversation,
   }
+}, {
+  persist: {
+    key: ASK_PERSIST_KEY,
+    pick: ["voiceId"],
+  },
 })
 
 if (import.meta.hot) {

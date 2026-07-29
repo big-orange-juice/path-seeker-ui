@@ -1,6 +1,7 @@
 import { computed, onUnmounted, shallowRef } from "vue"
 import { v4 as uuidv4 } from "uuid"
 import { synthesizeSpeech } from "@/services/minimaxTts"
+import { useAskStore } from "@/stores/useAskStore"
 
 export type SpeakQueueStatus = "idle" | "loading" | "speaking"
 
@@ -21,6 +22,7 @@ interface SpeakQueueItem {
  * - 同 run 顺序播报；cancel / 换 run 清空队列并 abort 所有 in-flight
  */
 export function useSpeakQueue() {
+  const askStore = useAskStore()
   const status = shallowRef<SpeakQueueStatus>("idle")
   const errorMessage = shallowRef("")
   const currentText = shallowRef("")
@@ -120,9 +122,12 @@ export function useSpeakQueue() {
     const controller = new AbortController()
     item.synthAbort = controller
 
+    // 用户全局音色优先；未设置时 synthesizeSpeech 内回落 env VOICE_ID
+    const preferredVoiceId = String(askStore.voiceId || "").trim() || undefined
     item.synthPromise = synthesizeSpeech({
       text: item.text,
       signal: controller.signal,
+      voiceId: preferredVoiceId,
     })
       .then((blob) => {
         if (gen !== generation) {

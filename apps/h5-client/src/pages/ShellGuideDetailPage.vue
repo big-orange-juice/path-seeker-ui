@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, shallowRef, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
-import { ArrowLeft, UserRound } from "lucide-vue-next"
+import { ArrowLeft, Check, Mic, UserRound } from "lucide-vue-next"
+import { storeToRefs } from "pinia"
+import { useToastStore } from "@path-seeker/client-state"
 import { ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import MissionPreviewCard from "@/components/shell/MissionPreviewCard.vue"
 import VoiceSamplePlayer from "@/components/shell/VoiceSamplePlayer.vue"
@@ -13,11 +15,15 @@ import {
 import { fetchGuideClientList } from "@/services/guide"
 import { fetchPublishedRoutes } from "@/services/gameplay"
 import { resolveRequestErrorMessage } from "@/services/http"
+import { useAskStore } from "@/stores/useAskStore"
 import type { GuideClientItem } from "@/types/guide"
 import type { MissionRouteCard } from "@/types/mission"
 
 const route = useRoute()
 const router = useRouter()
+const toastStore = useToastStore()
+const askStore = useAskStore()
+const { voiceId: assistantVoiceId } = storeToRefs(askStore)
 
 /** 与展厅列表同一馆；未配置 env 时回落默认馆 */
 const museumId = String(import.meta.env.VITE_MUSEUM_ID || "345536575083515904").trim()
@@ -32,6 +38,14 @@ const routesError = shallowRef("")
 
 const loading = computed(() => pending.value && !guide.value)
 const sampleUrl = computed(() => String(guide.value?.voiceSampleUrl || "").trim())
+/** 有试听音频才展示「设为助手音色」；真正写入的是 providerVoiceId */
+const canSetAssistantVoice = computed(() => Boolean(sampleUrl.value))
+const guideProviderVoiceId = computed(() => String(guide.value?.providerVoiceId || "").trim())
+const isCurrentAssistantVoice = computed(() => {
+  const id = guideProviderVoiceId.value
+  if (!id) return false
+  return String(assistantVoiceId.value || "").trim() === id
+})
 const hasRoutes = computed(() => routes.value.length > 0)
 /** 已拉到列表用实际条数；否则用 client-list 的 routeCount */
 const resolvedRouteCount = computed(() => {
@@ -117,6 +131,23 @@ function goBack() {
     return
   }
   void router.replace("/shell/guides")
+}
+
+function handleSetAssistantVoice() {
+  if (!canSetAssistantVoice.value) {
+    return
+  }
+  const id = guideProviderVoiceId.value
+  if (!id) {
+    toastStore.warning("暂不可用", "该导游尚无可用音色 ID，无法设为助手音色。")
+    return
+  }
+  if (isCurrentAssistantVoice.value) {
+    toastStore.info("已是助手音色", "语音模式下会用该音色朗读回复。")
+    return
+  }
+  askStore.setVoiceId(id)
+  toastStore.success("已设为助手音色", "问一问语音模式将使用该导游音色。")
 }
 
 function skeletonHeightTone(index: number): "tall" | "mid" | "short" {
@@ -219,6 +250,29 @@ onMounted(() => {
         :src="sampleUrl"
         empty-text="暂无试听音频"
       />
+
+      <button
+        v-if="canSetAssistantVoice"
+        type="button"
+        class="guide-detail__voice-set"
+        :class="{ 'is-active': isCurrentAssistantVoice }"
+        :disabled="!guideProviderVoiceId"
+        @click="handleSetAssistantVoice"
+      >
+        <Check
+          v-if="isCurrentAssistantVoice"
+          class="h-3.5 w-3.5"
+          :stroke-width="2"
+        />
+        <Mic
+          v-else
+          class="h-3.5 w-3.5"
+          :stroke-width="1.8"
+        />
+        <span>
+          {{ isCurrentAssistantVoice ? "已设为语音助手音色" : "设为语音助手音色" }}
+        </span>
+      </button>
 
       <!-- 反向路线：主内容，尽早上屏 -->
       <section class="guide-detail__routes">
@@ -418,6 +472,40 @@ onMounted(() => {
 
 .guide-detail__player {
   margin-top: 0.1rem;
+}
+
+.guide-detail__voice-set {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  align-self: stretch;
+  width: 100%;
+  margin-top: 0.15rem;
+  border: 1px solid rgba(209, 178, 111, 0.34);
+  border-radius: 999px;
+  background: rgba(209, 178, 111, 0.1);
+  padding: 0.48rem 0.9rem;
+  color: var(--gold-bright);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+.guide-detail__voice-set:active:not(:disabled) {
+  background: rgba(209, 178, 111, 0.2);
+}
+
+.guide-detail__voice-set.is-active {
+  border-color: rgba(209, 178, 111, 0.55);
+  background: rgba(209, 178, 111, 0.18);
+  color: var(--gold);
+}
+
+.guide-detail__voice-set:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .guide-detail__routes {

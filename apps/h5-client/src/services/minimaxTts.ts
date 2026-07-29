@@ -52,6 +52,18 @@ export function getDefaultTtsVoiceId() {
   return String(import.meta.env.VITE_MINIMAX_TTS_VOICE_ID || "").trim() || DEFAULT_VOICE
 }
 
+/**
+ * 解析最终发给 MiniMax 的 voice_id：
+ * 显式传入 > 调用方已解析的用户偏好 > env / 内置兜底。
+ */
+export function resolveTtsVoiceId(preferred?: string | null) {
+  const explicit = String(preferred ?? "").trim()
+  if (explicit) {
+    return explicit
+  }
+  return getDefaultTtsVoiceId()
+}
+
 export function getDefaultTtsModel() {
   return String(import.meta.env.VITE_MINIMAX_TTS_MODEL || "").trim() || DEFAULT_MODEL
 }
@@ -72,7 +84,7 @@ export async function synthesizeSpeech(options: MiniMaxTtsOptions): Promise<Blob
   }
 
   const model = options.model || getDefaultTtsModel()
-  const voiceId = options.voiceId || getDefaultTtsVoiceId()
+  const voiceId = resolveTtsVoiceId(options.voiceId)
   const speed = typeof options.speed === "number" && Number.isFinite(options.speed) ? options.speed : 1
 
   const response = await fetch(resolveMiniMaxTtsUrl(), {
