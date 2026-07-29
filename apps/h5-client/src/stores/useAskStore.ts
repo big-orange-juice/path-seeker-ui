@@ -54,6 +54,9 @@ export function formatStageContextChipLabel(context: AskStageContext | null | un
   return "当前站点"
 }
 
+const ASK_CONTEXT_MARKER = "【上下文】"
+const ASK_INSTRUCTION_MARKER = "【用户指令】"
+
 /** 将站点上下文与用户问题拼成发给后端的完整提示词（仍传 id） */
 export function buildAskMessageWithStageContext(
   userText: string,
@@ -69,13 +72,45 @@ export function buildAskMessageWithStageContext(
     return instruction
   }
   return [
-    "【上下文】",
+    ASK_CONTEXT_MARKER,
     `routeId: ${routeId || "—"}`,
     `stageId: ${stageId || "—"}`,
     "",
-    "【用户指令】",
+    ASK_INSTRUCTION_MARKER,
     instruction,
   ].join("\n")
+}
+
+/**
+ * 从服务端落库的 user content 中取出「用户指令」原文，供 UI 展示。
+ * 发送链路：UI 只存 instruction；历史回读可能是整段带【上下文】的 payload。
+ */
+export function extractAskUserInstruction(content: string) {
+  const raw = String(content || "")
+  if (!raw.trim()) {
+    return ""
+  }
+
+  const instructionIdx = raw.indexOf(ASK_INSTRUCTION_MARKER)
+  if (instructionIdx >= 0) {
+    return raw.slice(instructionIdx + ASK_INSTRUCTION_MARKER.length).trim()
+  }
+
+  // 无指令标记但以【上下文】开头：尽量去掉上下文块，避免气泡泄露 id
+  const contextIdx = raw.indexOf(ASK_CONTEXT_MARKER)
+  if (contextIdx >= 0) {
+    const afterContext = raw.slice(contextIdx + ASK_CONTEXT_MARKER.length)
+    // 去掉 routeId/stageId 行后的剩余文本
+    const stripped = afterContext
+      .replace(/^\s*routeId\s*:\s*.+$/im, "")
+      .replace(/^\s*stageId\s*:\s*.+$/im, "")
+      .trim()
+    if (stripped) {
+      return stripped
+    }
+  }
+
+  return raw.trim()
 }
 
 function createLocalMessage(
@@ -247,10 +282,16 @@ export const useAskStore = defineStore("ask", () => {
         return
       }
 
-      messages.value = history.map((item) =>
-        createLocalMessage(
-          mapHistoryRole(item.role),
-          item.content,
+      messages.value = history.map((item) => {
+        const role = mapHistoryRole(item.role)
+        // 历史里 user 可能是带【上下文】的完整 payload；气泡只展示用户指令
+        const content =
+          role === "user"
+            ? extractAskUserInstruction(item.content)
+            : item.content
+        return createLocalMessage(
+          role,
+          content,
           "completed",
           {
             id: item.id,
@@ -258,8 +299,8 @@ export const useAskStore = defineStore("ask", () => {
             sources: item.sources,
             createdAt: item.createdAt ? Date.parse(item.createdAt) || Date.now() : Date.now(),
           },
-        ),
-      )
+        )
+      })
     } catch (error) {
       errorMessage.value = resolveRequestErrorMessage(error, "历史消息加载失败。")
     } finally {
@@ -481,7 +522,8 @@ export const useAskStore = defineStore("ask", () => {
 
     const dropIds = new Set([lastUser.id, lastAssistant.id])
     messages.value = messages.value.filter((item) => !dropIds.has(item.id))
-    await send(lastUser.content)
+    // 只用用户指令重发；若附件上下文仍在，send 内会再拼 payload
+    await send(extractAskUserInstruction(lastUser.content))
   }
 
   function cancelRun() {

@@ -2,7 +2,11 @@ import { computed, watch, type Ref, type WatchStopHandle } from "vue"
 import { storeToRefs } from "pinia"
 import { useSpeakQueue } from "@/composables/useSpeakQueue"
 import { isMiniMaxTtsConfigured } from "@/services/minimaxTts"
-import { useAskStore, type AskInteractionMode } from "@/stores/useAskStore"
+import {
+  extractAskUserInstruction,
+  useAskStore,
+  type AskInteractionMode,
+} from "@/stores/useAskStore"
 import { pullSpeakableSentences } from "@/utils/sentenceSplit"
 import type { AskUiMessage } from "@/types/exhibitChat"
 
@@ -42,7 +46,8 @@ export function useAskSpeech() {
     for (let i = messages.value.length - 1; i >= 0; i -= 1) {
       const msg = messages.value[i]
       if (msg?.role === "user" && msg.content) {
-        return msg.content
+        // 语音字幕同样不展示【上下文】/routeId
+        return extractAskUserInstruction(msg.content)
       }
     }
     return ""

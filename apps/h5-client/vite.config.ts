@@ -43,8 +43,17 @@ export default defineConfig({
       allow: [rootDir, fileURLToPath(new URL('../..', import.meta.url))]
     },
     // MiniMax T2A 浏览器直连会 CORS；开发期同源代理
+    // 路径须与 base（/path-seeker/client/）+ services/minimaxTts 一致
     // 业务接口由 VITE_API_BASE_URL 直连后端，不在此转发
     proxy: {
+      '/path-seeker/client/minimax-tts': {
+        target: 'https://api.minimaxi.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) =>
+          path.replace(/^\/path-seeker\/client\/minimax-tts/, '')
+      },
+      // 兼容旧根路径（若本地仍有硬编码 /minimax-tts）
       '/minimax-tts': {
         target: 'https://api.minimaxi.com',
         changeOrigin: true,
@@ -55,6 +64,13 @@ export default defineConfig({
   },
   preview: {
     proxy: {
+      '/path-seeker/client/minimax-tts': {
+        target: 'https://api.minimaxi.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) =>
+          path.replace(/^\/path-seeker\/client\/minimax-tts/, '')
+      },
       '/minimax-tts': {
         target: 'https://api.minimaxi.com',
         changeOrigin: true,

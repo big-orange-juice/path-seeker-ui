@@ -36,16 +36,20 @@ function resolveApiKey() {
 }
 
 /**
- * 开发默认走同源代理 `/minimax-tts`，避免浏览器 CORS。
- * 若配置了完整 `VITE_MINIMAX_TTS_BASE_URL` 则直连该地址。
+ * 开发 / 生产默认走「应用 base + minimax-tts」同源代理，避免浏览器 CORS。
+ * - 应用 base 为 `/path-seeker/client/` 时 → `/path-seeker/client/minimax-tts/v1/t2a_v2`
+ * - 若配置了 `VITE_MINIMAX_TTS_BASE_URL`（可相对可绝对，勿尾斜杠）则用该前缀
+ *
+ * 注意：不要用站点根 `/minimax-tts`——生产挂在子路径下会 404。
  */
 export function resolveMiniMaxTtsUrl() {
-  const base = String(import.meta.env.VITE_MINIMAX_TTS_BASE_URL || "").trim().replace(/\/$/, "")
-  if (base) {
-    return `${base}/v1/t2a_v2`
+  const configured = String(import.meta.env.VITE_MINIMAX_TTS_BASE_URL || "").trim().replace(/\/$/, "")
+  if (configured) {
+    return `${configured}/v1/t2a_v2`
   }
-  // Vite dev proxy（见 vite.config.ts）；生产构建若无反代需配置 base URL 或后端代理
-  return "/minimax-tts/v1/t2a_v2"
+  // 与 vite.config base 对齐（import.meta.env.BASE_URL 通常带尾斜杠）
+  const appBase = String(import.meta.env.BASE_URL || "/").replace(/\/?$/, "/")
+  return `${appBase}minimax-tts/v1/t2a_v2`
 }
 
 export function getDefaultTtsVoiceId() {

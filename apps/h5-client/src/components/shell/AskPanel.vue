@@ -17,6 +17,7 @@ import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskSpeech } from "@/composables/useAskSpeech"
 import { isMiniMaxTtsConfigured } from "@/services/minimaxTts"
 import {
+  extractAskUserInstruction,
   formatStageContextChipLabel,
   useAskStore,
   type AskInteractionMode,
@@ -349,7 +350,7 @@ function handleSuggestion(text: string) {
             }"
           >
             <template v-if="msg.role === 'user'">
-              {{ msg.content }}
+              {{ extractAskUserInstruction(msg.content) }}
             </template>
             <template v-else>
               <AskMarkdown
