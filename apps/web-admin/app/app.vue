@@ -1,8 +1,4 @@
-﻿<script setup lang="ts">
-const keepalive = {
-  max: 10,
-}
-
+<script setup lang="ts">
 /**
  * 浏览器标签模板。
  * 各页通过 useHead({ title }) 写入短名（页眉 / 登录页）；
@@ -21,13 +17,7 @@ useHead({
 
 <template>
   <NuxtLayout>
-    <NuxtPage v-slot="{ Component, route }">
-      <Transition name="page-fade" mode="out-in" appear>
-        <KeepAlive :max="keepalive.max">
-          <component :is="Component" :key="route.fullPath" />
-        </KeepAlive>
-      </Transition>
-    </NuxtPage>
+    <NuxtPage :keepalive="{ max: 10 }" />
   </NuxtLayout>
 
   <AdminAuthExpiredDialog />
