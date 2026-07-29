@@ -1,19 +1,19 @@
 {
   "meta": {
-    "date": "2026-07-28",
-    "tester": "清单增量（相对 67aaae7，待实跑）",
-    "branch": "main @ 67aaae7",
-    "backend": "联调 http://43.142.248.191:8199/api/",
-    "h5": "http://localhost:5174/path-seeker/client/",
-    "admin": "http://localhost:3000/path-seeker/admin/",
+    "date": "2026-07-29",
+    "tester": "清单增量（相对 e753797，待实跑）",
+    "branch": "main @ e753797",
+    "backend": "https://www.bigorange.site/path-seeker/api/",
+    "h5": "https://www.bigorange.site/path-seeker/client/",
+    "admin": "https://www.bigorange.site/path-seeker/admin/",
     "accounts": "游客；testuser0726/test123456；admin/admin123456；douzong/admin123456",
     "routes": "瓷器 2080972944426799104（type11/6/1）；宋朝文物巡礼04450；青铜 type11 多条；产品已无 type5/type10 测试项",
-    "conclusion": "有条件通过（导航/导游/标签/生成刷新待回归）",
+    "conclusion": "有条件通过（Ask 实时语音 / 助手音色 / 导游路线回跳 / 音色素材待实跑）",
     "p0": 0,
     "p1": 3,
     "p2": 1,
-    "blockers": "按条件生成易卡在生成中导致新建上架失败；增量用例未实跑",
-    "risks": "Ask SSE 超时；生成中路线无法上架；导游资料保存 500；Shell 导航与导游 C 端/标签/手动刷新未实跑"
+    "blockers": "按条件生成易卡在生成中导致新建上架失败；本轮增量用例未实跑",
+    "risks": "Ask SSE 曾超时；生成中路线无法上架；导游资料保存 500；语音依赖 MiniMax + FFMPEG；新环境 URL 需全量冒烟"
   },
   "cases": {
     "1.1.1": {
@@ -88,9 +88,9 @@
       "note": "用关键词制造空列表"
     },
     "2.1.4": {
-      "result": "通过",
-      "actual": "标题关键词「瓷器」收窄为 1 条；可重置",
-      "note": ""
+      "result": "未测",
+      "actual": "历史：标题关键词「瓷器」可收窄；本轮期望含导游名模糊，待新环境复测",
+      "note": "筛选已改为标题+导游名，难度/规模入口已移除"
     },
     "2.1.5": {
       "result": "通过",
