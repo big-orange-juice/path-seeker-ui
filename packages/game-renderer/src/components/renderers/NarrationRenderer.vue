@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * 解说导览：去 card 的博物馆音频播放器。
- * 媒体区图/播放器约 3:2；「文」正文只盖到播放器底，底栏仅遮罩防误点。
+ * 有图：媒体区图/播放器约 3:2；「文」正文只盖到播放器底，底栏仅遮罩防误点。
+ * 无图：解说文落在原图位（可略高、区内滚动），播放器按内容收缩，保证文+播放器+按钮同屏。
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue"
 import {
@@ -368,7 +369,14 @@ const remainingLabel = computed(() => {
 </script>
 
 <template>
-  <div class="nr" :class="{ 'is-playing': isPlaying, 'is-lyrics': lyricsOpen && hasImages }">
+  <div
+    class="nr"
+    :class="{
+      'is-playing': isPlaying,
+      'is-lyrics': lyricsOpen && hasImages,
+      'is-no-image': !hasImages,
+    }"
+  >
     <header class="nr-head">
       <p class="nr-kicker">Audio Guide</p>
       <h3 class="nr-title">{{ displayTitle }}</h3>
@@ -377,7 +385,7 @@ const remainingLabel = computed(() => {
 
     <!-- 主体：媒体 + 底栏；解说文正文只盖媒体区，底栏另做遮罩防误点 -->
     <div class="nr-main">
-      <div class="nr-media">
+      <div class="nr-media" :class="{ 'is-text-only': !hasImages }">
         <section class="nr-stage">
           <div v-if="hasImages" class="nr-stage-cover">
             <ImageCarousel
@@ -652,7 +660,7 @@ const remainingLabel = computed(() => {
   overflow: hidden;
 }
 
-/* 媒体栈：图 / 播放器高度约 3:2；sheet 相对此层，止于播放器底 */
+/* 媒体栈：有图时图/播放器约 3:2；sheet 相对此层，止于播放器底 */
 .nr-media {
   position: relative;
   display: grid;
@@ -660,6 +668,14 @@ const remainingLabel = computed(() => {
   flex: 1 1 auto;
   grid-template-rows: minmax(0, 2.85fr) minmax(0, 2.35fr);
   overflow: hidden;
+}
+
+/*
+ * 无配图：解说文占原图位（可略高），播放器按内容高度收缩，
+ * 避免 fr 均分把播放器撑成整屏空白，保证文 + 播放器 + 底栏同屏。
+ */
+.nr-media.is-text-only {
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .nr-stage {
@@ -681,6 +697,23 @@ const remainingLabel = computed(() => {
   gap: 0.45rem;
   padding: 0.35rem 0.05rem 0.15rem;
   overflow: hidden;
+}
+
+/* 无图解说文：区内滚动，不把整页顶开 */
+.nr-media.is-text-only .nr-lyrics-static {
+  padding: 0.2rem 0.05rem 0.1rem;
+}
+
+.nr-media.is-text-only .nr-script-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.15rem;
+  font-size: 1rem;
+  line-height: 1.78;
 }
 
 /* 解说文：仅盖媒体区（图+播放器），不叠到底栏文字区 */
@@ -811,7 +844,7 @@ const remainingLabel = computed(() => {
   color: #f0b4b4;
 }
 
-/* 播放区：略抬高占比；左右留白避免窄屏（模拟器）裁切 */
+/* 播放区：有图时略抬高占比并垂直居中；左右留白避免窄屏裁切 */
 .nr-player {
   display: flex;
   min-width: 0;
@@ -822,6 +855,15 @@ const remainingLabel = computed(() => {
   padding: 0.45rem 0.35rem 0.35rem;
   border-top: 1px solid rgb(255 248 230 / 8%);
   background: transparent;
+}
+
+/* 无图：播放器贴内容高度，去掉大块空白，紧挨解说文下方 */
+.nr-media.is-text-only .nr-player {
+  flex: 0 0 auto;
+  min-height: 0;
+  justify-content: flex-start;
+  gap: 0.22rem;
+  padding: 0.35rem 0.35rem 0.2rem;
 }
 
 .nr-audio-hidden {
@@ -936,6 +978,21 @@ const remainingLabel = computed(() => {
   align-items: center;
   column-gap: 0.25rem;
   padding: 0.3rem 0 0.15rem;
+}
+
+/* 无图：略收紧运输区，给解说文多留一点纵向空间 */
+.nr-media.is-text-only .am-transport {
+  padding: 0.12rem 0 0.05rem;
+}
+
+.nr-media.is-text-only .am-scrub {
+  padding-top: 0;
+}
+
+.nr-media.is-text-only .am-status {
+  min-height: 1rem;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .am-transport__side {
