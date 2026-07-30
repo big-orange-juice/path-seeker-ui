@@ -95,7 +95,10 @@ const frameClass = computed(() =>
         </RouterLink>
       </header>
 
-      <main class="flex min-h-0 flex-1 flex-col">
+      <main
+        class="flex min-h-0 flex-1 flex-col"
+        :class="isMissionFlow ? 'overflow-y-auto overscroll-y-contain' : ''"
+      >
         <RouterView />
       </main>
     </div>

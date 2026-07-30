@@ -219,9 +219,17 @@
     @apply pb-[calc(7rem+env(safe-area-inset-bottom))];
   }
 
-  /* 任务流（map / 站点）：FAB 仍在，底栏留白更紧，按钮更贴底 */
+  /*
+   * 任务流（map / 站点）：FAB 仍在，底栏留白更紧。
+   * 锁死 100dvh，让子页（尤其无图解说）拿到确定高度做区内滚动，
+   * 长列表页则在 main 内滚动，避免整页被文案撑开后无法滚动。
+   */
   .client-frame-mission {
     @apply pb-[calc(4.25rem+env(safe-area-inset-bottom))];
+    height: 100dvh;
+    max-height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .client-panel {

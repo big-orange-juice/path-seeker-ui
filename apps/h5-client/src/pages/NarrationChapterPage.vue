@@ -215,12 +215,13 @@ onMounted(() => {
 .narration-page {
   position: relative;
   display: flex;
-  min-height: 0;
-  flex: 1 1 auto;
+  /* basis 0：在已锁高的 mission frame 里吃满 main，不被长文撑开 */
+  flex: 1 1 0%;
   flex-direction: column;
-  /* 吃满 main 剩余高度，让底部按钮贴底 */
+  min-height: 0;
   height: 100%;
-  min-height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .stage-ask-fab {
@@ -249,16 +250,24 @@ onMounted(() => {
 }
 
 .narration-page :deep(.stage-play) {
-  flex: 1 1 auto;
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
   min-height: 0;
   height: 100%;
+  max-height: 100%;
+  overflow: hidden;
   background: transparent;
 }
 
 .narration-page :deep(.narration-shell) {
-  flex: 1 1 auto;
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
   min-height: 0;
   height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .narration-page__skeleton {

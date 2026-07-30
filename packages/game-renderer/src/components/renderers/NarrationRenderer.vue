@@ -607,12 +607,14 @@ const remainingLabel = computed(() => {
 <style scoped>
 .nr {
   display: flex;
-  height: 100%;
   min-width: 0;
   min-height: 0;
-  flex: 1 1 auto;
+  /* basis 0：高度由宿主限定，不被长文撑开 */
+  flex: 1 1 0%;
   flex-direction: column;
   gap: 0.55rem;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   color: #fff8ea;
 }
@@ -654,7 +656,7 @@ const remainingLabel = computed(() => {
 .nr-main {
   display: flex;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   flex-direction: column;
   gap: 0.55rem;
   overflow: hidden;
@@ -665,23 +667,30 @@ const remainingLabel = computed(() => {
   position: relative;
   display: grid;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   grid-template-rows: minmax(0, 2.85fr) minmax(0, 2.35fr);
   overflow: hidden;
 }
 
 /*
- * 无配图：解说文占原图位（可略高），播放器按内容高度收缩，
- * 避免 fr 均分把播放器撑成整屏空白，保证文 + 播放器 + 底栏同屏。
+ * 无配图：改用纵向 flex（比 grid fr 更稳）。
+ * stage 吃剩余高度并内部滚动；player 按内容收缩，保证文+播放器+底栏同屏。
  */
 .nr-media.is-text-only {
-  grid-template-rows: minmax(0, 1fr) auto;
+  display: flex;
+  flex-direction: column;
+  grid-template-rows: none;
 }
 
 .nr-stage {
   position: relative;
   min-height: 0;
   overflow: hidden;
+}
+
+.nr-media.is-text-only .nr-stage {
+  flex: 1 1 0%;
+  min-height: 0;
 }
 
 .nr-stage-cover {
@@ -699,21 +708,36 @@ const remainingLabel = computed(() => {
   overflow: hidden;
 }
 
-/* 无图解说文：区内滚动，不把整页顶开 */
+/* 无图：解说文绝对铺满 stage，正文成为唯一滚动容器 */
 .nr-media.is-text-only .nr-lyrics-static {
-  padding: 0.2rem 0.05rem 0.1rem;
+  position: absolute;
+  inset: 0;
+  height: auto;
+  gap: 0.35rem;
+  padding: 0.15rem 0.05rem 0.2rem;
+}
+
+.nr-media.is-text-only .nr-script-label {
+  flex-shrink: 0;
 }
 
 .nr-media.is-text-only .nr-script-body {
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  padding-right: 0.15rem;
-  font-size: 1rem;
-  line-height: 1.78;
+  touch-action: pan-y;
+  padding-right: 0.2rem;
+  font-size: 0.98rem;
+  line-height: 1.72;
+}
+
+.nr-media.is-text-only .nr-script-state {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 /* 解说文：仅盖媒体区（图+播放器），不叠到底栏文字区 */
@@ -860,10 +884,11 @@ const remainingLabel = computed(() => {
 /* 无图：播放器贴内容高度，去掉大块空白，紧挨解说文下方 */
 .nr-media.is-text-only .nr-player {
   flex: 0 0 auto;
+  flex-shrink: 0;
   min-height: 0;
   justify-content: flex-start;
-  gap: 0.22rem;
-  padding: 0.35rem 0.35rem 0.2rem;
+  gap: 0.18rem;
+  padding: 0.28rem 0.25rem 0.12rem;
 }
 
 .nr-audio-hidden {

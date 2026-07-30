@@ -278,10 +278,17 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 
   display: flex;
   min-height: 0;
-  flex: 1;
+  flex: 1 1 0%;
   flex-direction: column;
   color: var(--sp-fg);
   background: var(--sp-void);
+}
+
+/* 解说页：高度由宿主锁死，禁止被长文撑出视口 */
+.stage-play.is-narration {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .stage-play.is-empty {
@@ -466,9 +473,11 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 .narration-shell {
   display: flex;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   flex-direction: column;
   gap: 0.45rem;
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
   border: 0;
   border-radius: 0;
@@ -483,7 +492,9 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 }
 
 .narration-shell :deep(.nr) {
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-height: 0;
+  height: 100%;
+  max-height: 100%;
 }
 </style>
