@@ -15,6 +15,11 @@ const execFileAsync = promisify(execFile)
 /** multipart 字段名：音色材料 */
 export const GUIDE_VOICE_MATERIAL_FIELD = 'material'
 
+/** 音频样本体积上限 */
+export const MAX_VOICE_AUDIO_BYTES = 20 * 1024 * 1024
+/** 视频样本体积上限（选中后由服务端抽音频） */
+export const MAX_VOICE_VIDEO_BYTES = 400 * 1024 * 1024
+
 const AUDIO_EXTENSIONS = new Set([
   '.mp3',
   '.mpeg',
@@ -55,14 +60,14 @@ function resolveFfmpegBinary() {
   if (!binaryPath) {
     throw createError({
       statusCode: 500,
-      statusMessage: '未配置 FFMPEG_PATH，无法从视频提取声音样本。',
+      message: '未配置 FFMPEG_PATH，无法从视频提取声音样本。',
     })
   }
 
   if (!canExecute(binaryPath)) {
     throw createError({
       statusCode: 500,
-      statusMessage: 'FFMPEG_PATH 指向的 ffmpeg 不可执行，无法从视频提取声音样本。',
+      message: 'FFMPEG_PATH 指向的 ffmpeg 不可执行，无法从视频提取声音样本。',
     })
   }
 
@@ -72,7 +77,7 @@ function resolveFfmpegBinary() {
   } catch {
     throw createError({
       statusCode: 500,
-      statusMessage: 'FFMPEG_PATH 指向的 ffmpeg 不可用，无法从视频提取声音样本。',
+      message: 'FFMPEG_PATH 指向的 ffmpeg 不可用，无法从视频提取声音样本。',
     })
   }
 }
@@ -83,6 +88,40 @@ function audioOutputName(originalName: string) {
   return `${safe || 'sample'}.mp3`
 }
 
+export function isVideoMaterial(file: File) {
+  const type = String(file.type || '').toLowerCase()
+  const ext = normalizeExt(file.name)
+  if (type.startsWith('video/')) return true
+  return VIDEO_EXTENSIONS.has(ext) && !type.startsWith('audio/')
+}
+
+export function isAudioMaterial(file: File) {
+  const type = String(file.type || '').toLowerCase()
+  const ext = normalizeExt(file.name)
+  if (type.startsWith('audio/')) return true
+  if (AUDIO_EXTENSIONS.has(ext) && !type.startsWith('video/')) return true
+  return false
+}
+
+export function assertVoiceMaterialSize(file: File) {
+  if (isVideoMaterial(file)) {
+    if (file.size > MAX_VOICE_VIDEO_BYTES) {
+      throw createError({
+        statusCode: 400,
+        message: `视频「${file.name}」超过 400MB，请压缩后重试。`,
+      })
+    }
+    return
+  }
+
+  if (file.size > MAX_VOICE_AUDIO_BYTES) {
+    throw createError({
+      statusCode: 400,
+      message: `音频「${file.name}」超过 20MB，请压缩后重试。`,
+    })
+  }
+}
+
 async function extractAudioMp3FromVideo(file: File): Promise<File> {
   const workDir = await mkdtemp(join(tmpdir(), 'guide-voice-'))
   const inputPath = join(workDir, `input${normalizeExt(file.name) || '.mp4'}`)
@@ -91,18 +130,19 @@ async function extractAudioMp3FromVideo(file: File): Promise<File> {
   try {
     await writeFile(inputPath, Buffer.from(await file.arrayBuffer()))
     try {
+      // 大视频抽音频可能较久，超时放宽到 10 分钟
       await execFileAsync(resolveFfmpegBinary(), [
         '-y', '-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-q:a', '2',
         '-ar', '44100', '-ac', '1', outputPath,
-      ], { timeout: 120_000, maxBuffer: 8 * 1024 * 1024 })
+      ], { timeout: 600_000, maxBuffer: 8 * 1024 * 1024 })
     } catch (error) {
       const detail = error instanceof Error ? error.message : '未知错误'
-      throw createError({ statusCode: 400, statusMessage: `视频「${file.name}」提取音频失败：${detail}` })
+      throw createError({ statusCode: 400, message: `视频「${file.name}」提取音频失败：${detail}` })
     }
 
     const audioBuffer = await readFile(outputPath)
     if (!audioBuffer.byteLength) {
-      throw createError({ statusCode: 400, statusMessage: `视频「${file.name}」未提取到有效音频。` })
+      throw createError({ statusCode: 400, message: `视频「${file.name}」未提取到有效音频。` })
     }
     return new File([audioBuffer], audioOutputName(file.name), { type: 'audio/mpeg', lastModified: Date.now() })
   } finally {
@@ -111,25 +151,32 @@ async function extractAudioMp3FromVideo(file: File): Promise<File> {
   }
 }
 
-function isVideoMaterial(file: File) {
-  const type = String(file.type || '').toLowerCase()
-  const ext = normalizeExt(file.name)
-  if (type.startsWith('video/')) return true
-  return VIDEO_EXTENSIONS.has(ext) && !type.startsWith('audio/')
-}
+/**
+ * 单文件预处理：视频抽成 mp3，音频原样返回。
+ */
+export async function extractGuideVoiceMaterialFile(file: File): Promise<File> {
+  if (!(file instanceof File) || file.size <= 0) {
+    throw createError({ statusCode: 400, message: '请上传有效的声音样本文件。' })
+  }
 
-function isAudioMaterial(file: File) {
-  const type = String(file.type || '').toLowerCase()
-  const ext = normalizeExt(file.name)
-  if (type.startsWith('audio/')) return true
-  if (AUDIO_EXTENSIONS.has(ext) && !type.startsWith('video/')) return true
-  return false
+  assertVoiceMaterialSize(file)
+
+  if (isVideoMaterial(file)) {
+    return extractAudioMp3FromVideo(file)
+  }
+
+  if (!isAudioMaterial(file) && file.size > 0) {
+    // 无法识别扩展名时仍按音频透传，由下游校验
+    return file
+  }
+
+  return file
 }
 
 /**
  * 透传 multipart：
  * - 音频原样保留
- * - 视频临时转换为 mp3 后透传
+ * - 视频临时转换为 mp3 后透传（兼容未预先抽取的旧提交）
  */
 export async function prepareGuideMaterialFormData(source: FormData): Promise<FormData> {
   const next = new FormData()
@@ -146,14 +193,8 @@ export async function prepareGuideMaterialFormData(source: FormData): Promise<Fo
   }
 
   for (const file of materialEntries) {
-    if (isVideoMaterial(file)) {
-      const audio = await extractAudioMp3FromVideo(file)
-      next.append(GUIDE_VOICE_MATERIAL_FIELD, audio, audio.name)
-      continue
-    }
-    if (isAudioMaterial(file) || file.size > 0) {
-      next.append(GUIDE_VOICE_MATERIAL_FIELD, file, file.name || 'material.mp3')
-    }
+    const prepared = await extractGuideVoiceMaterialFile(file)
+    next.append(GUIDE_VOICE_MATERIAL_FIELD, prepared, prepared.name || 'material.mp3')
   }
 
   return next

@@ -204,9 +204,7 @@ const confirmDialogDescription = computed(() => {
     case 'submit-audit':
       return `确认将「${routeName}」提交审核吗？提交后内容将锁定，直至审核完成。`;
     default:
-      return authStore.isAdmin
-        ? `确认删除「${routeName}」吗？未上架路线删除后不可恢复。`
-        : `确认删除「${routeName}」吗？仅未上架且非待审的本人路线可删，删除后不可恢复。`;
+      return `确认删除「${routeName}」吗？仅创建人本人可删除，删除后不可恢复。`;
   }
 });
 

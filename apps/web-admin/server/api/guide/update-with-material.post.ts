@@ -5,7 +5,7 @@ import { prepareGuideMaterialFormData } from '~~/server/utils/extractGuideVoiceM
 
 /**
  * 更新导游并可选上传生成材料。
- * multipart：`material`（音频或视频；视频由服务端转换为 mp3）/ `txtmaterial`。
+ * multipart：`material`（音频；视频应在选中时已通过 extract-voice-material 抽成 mp3）/ `txtmaterial`。
  * 对齐 POST /Guide/update-with-material。
  */
 export default defineEventHandler(async (event): Promise<GuideGenerationCreateResponse | null> => {

@@ -93,4 +93,5 @@ export default defineNuxtConfig({
     provider: 'ipx',
     format: ['webp', 'avif']
   },
+  // 导游视频抽音频可至 400MB；部署侧反向代理需 client_max_body_size ≥ 420m
 })

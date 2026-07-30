@@ -179,13 +179,13 @@ export type GuideDraft = Omit<
   avatarPreviewUrl?: string | null
   /**
    * 音色材料本地文件，multipart 字段名 `material`。
-   * 视频会随表单交给 BFF 临时转换成 mp3，浏览器不参与转码。
+   * 视频在选择时即由 BFF 抽成 mp3，提交时仅上传已提取的音频。
    * 对齐 create-with-material / update-with-material
    * @deprecated 请用 materialFiles；保留首个文件兼容旧逻辑
    */
   materialFile?: File | null
   materialFileName?: string
-  /** 多份声音样本（同一字段名 `material` 多次 append；视频由 BFF 转为音频） */
+  /** 多份声音样本（同一字段名 `material` 多次 append；均为可提交音频） */
   materialFiles?: File[]
   /**
    * 语义/语料资料本地文件（txt），multipart 字段名 `txtmaterial`

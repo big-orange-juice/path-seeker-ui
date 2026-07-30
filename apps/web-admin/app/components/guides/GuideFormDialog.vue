@@ -12,20 +12,33 @@ import Select from '@/components/shadcn/select/Select.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import GuideTagDialog from '@/components/guides/GuideTagDialog.vue'
 import { useUploadAttachment } from '@/composables/useUploadAttachment'
+import {
+  MAX_VOICE_AUDIO_BYTES,
+  MAX_VOICE_VIDEO_BYTES,
+  useExtractGuideVoiceMaterial,
+} from '@/composables/useExtractGuideVoiceMaterial'
 import type { GuideDraft, TtsVoiceResponse } from '@/types/guide'
 
-/** 声音样本体积上限：20MB */
-const MAX_VOICE_MATERIAL_BYTES = 20 * 1024 * 1024
 /** 单次最多上传样本数 */
 const MAX_VOICE_MATERIAL_COUNT = 8
 
+type MaterialItemStatus = 'ready' | 'extracting' | 'error'
+
 interface MaterialListItem {
   key: string
-  file: File
+  /** 可提交的音频文件；提取中/失败为 null */
+  file: File | null
+  /** 视频原始文件，便于失败后重试 */
+  sourceFile?: File | null
   label: string
   sizeText: string
-  status: 'ready'
+  status: MaterialItemStatus
+  /** 0–100，提取中展示 */
+  progress: number
   fromVideo: boolean
+  errorMessage?: string
+  /** 取消进行中的提取 */
+  abort?: AbortController
 }
 
 interface Props {
@@ -58,6 +71,7 @@ const emit = defineEmits<{
 }>()
 
 const { uploadAttachment } = useUploadAttachment()
+const { extractVoiceMaterial, resolveExtractErrorMessage } = useExtractGuideVoiceMaterial()
 
 const form = reactive<GuideDraft>({
   ...props.initialValue,
@@ -70,7 +84,7 @@ const avatarUploading = shallowRef(false)
 const avatarError = shallowRef('')
 const materialError = shallowRef('')
 const tagDialogOpen = shallowRef(false)
-/** 样本列表；视频原文件会同步到 form.materialFiles，交由 BFF 转码。 */
+/** 样本列表；视频选中后立即服务端抽音频，仅 ready 的音频进入 form */
 const materialItems = shallowRef<MaterialListItem[]>([])
 
 const isVideoVoiceMaterial = (file: File) => {
@@ -95,8 +109,16 @@ const formatFileSize = (bytes: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+const patchMaterialItem = (key: string, patch: Partial<MaterialListItem>) => {
+  materialItems.value = materialItems.value.map((item) =>
+    item.key === key ? { ...item, ...patch } : item,
+  )
+}
+
 const syncMaterialFilesToForm = () => {
-  const ready = materialItems.value.map((item) => item.file)
+  const ready = materialItems.value
+    .filter((item) => item.status === 'ready' && item.file)
+    .map((item) => item.file!)
   form.materialFiles = ready
   form.materialFile = ready[0] ?? null
   form.materialFileName = ready[0]?.name || ''
@@ -134,18 +156,38 @@ const materialSummary = computed(() => {
   if (!items.length) {
     return ''
   }
+  const extracting = items.filter((item) => item.status === 'extracting').length
+  if (extracting) {
+    return `提取中 ${extracting} 个…`
+  }
   if (items.length === 1) {
     return items[0]?.label || '1 个样本'
   }
   return `已选 ${items.length} 个样本`
 })
 
+const hasMaterialExtracting = computed(() =>
+  materialItems.value.some((item) => item.status === 'extracting'),
+)
+
+const hasMaterialError = computed(() =>
+  materialItems.value.some((item) => item.status === 'error'),
+)
+
+const abortAllExtractions = () => {
+  for (const item of materialItems.value) {
+    item.abort?.abort()
+  }
+}
+
 watch(
   () => [props.open, props.initialValue] as const,
   ([open]) => {
     if (!open) {
+      abortAllExtractions()
       return
     }
+    abortAllExtractions()
     Object.assign(form, {
       ...props.initialValue,
       tagIds: [...(props.initialValue.tagIds ?? [])],
@@ -188,6 +230,8 @@ const canSubmit = computed(() =>
   Boolean(String(form.name || '').trim())
   && !props.submitting
   && !avatarUploading.value
+  && !hasMaterialExtracting.value
+  && !hasMaterialError.value
 )
 
 const voiceSelectOptions = computed(() => {
@@ -269,10 +313,57 @@ const clearAvatar = (event: Event) => {
 }
 
 const openMaterialPicker = () => {
-  if (props.submitting) {
+  if (props.submitting || hasMaterialExtracting.value) {
     return
   }
   materialInputRef.value?.click()
+}
+
+const startVideoExtraction = async (key: string, source: File) => {
+  const controller = new AbortController()
+  patchMaterialItem(key, {
+    status: 'extracting',
+    progress: 4,
+    file: null,
+    abort: controller,
+    errorMessage: undefined,
+  })
+  syncMaterialFilesToForm()
+
+  try {
+    const result = await extractVoiceMaterial(source, {
+      signal: controller.signal,
+      onProgress: (percent) => {
+        patchMaterialItem(key, { progress: percent, status: 'extracting' })
+      },
+    })
+    patchMaterialItem(key, {
+      status: 'ready',
+      progress: 100,
+      file: result.file,
+      label: result.file.name,
+      sizeText: formatFileSize(result.file.size),
+      fromVideo: true,
+      abort: undefined,
+      errorMessage: undefined,
+    })
+    syncMaterialFilesToForm()
+    materialError.value = ''
+  } catch (error) {
+    if (controller.signal.aborted) {
+      return
+    }
+    const message = resolveExtractErrorMessage(error)
+    patchMaterialItem(key, {
+      status: 'error',
+      progress: 0,
+      file: null,
+      abort: undefined,
+      errorMessage: message,
+    })
+    syncMaterialFilesToForm()
+    materialError.value = message
+  }
 }
 
 const handleMaterialChange = (event: Event) => {
@@ -287,6 +378,7 @@ const handleMaterialChange = (event: Event) => {
 
   const next = [...materialItems.value]
   const errors: string[] = []
+  const videosToExtract: Array<{ key: string, file: File }> = []
 
   for (const file of picked) {
     if (next.length >= MAX_VOICE_MATERIAL_COUNT) {
@@ -297,10 +389,15 @@ const handleMaterialChange = (event: Event) => {
       errors.push(`「${file.name}」格式不支持，请上传音频或常见视频。`)
       continue
     }
-    if (file.size > MAX_VOICE_MATERIAL_BYTES) {
-      errors.push(`「${file.name}」超过 20MB（${formatFileSize(file.size)}）。`)
+
+    const fromVideo = isVideoVoiceMaterial(file)
+    const maxBytes = fromVideo ? MAX_VOICE_VIDEO_BYTES : MAX_VOICE_AUDIO_BYTES
+    const maxLabel = fromVideo ? '400MB' : '20MB'
+    if (file.size > maxBytes) {
+      errors.push(`「${file.name}」超过 ${maxLabel}（${formatFileSize(file.size)}）。`)
       continue
     }
+
     const dup = next.some(
       (item) =>
         item.label === file.name
@@ -314,14 +411,31 @@ const handleMaterialChange = (event: Event) => {
     }
 
     const key = `${file.name}-${file.size}-${file.lastModified}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-    next.push({
-      key,
-      file,
-      label: file.name,
-      sizeText: formatFileSize(file.size),
-      status: 'ready',
-      fromVideo: isVideoVoiceMaterial(file),
-    })
+
+    if (fromVideo) {
+      next.push({
+        key,
+        file: null,
+        sourceFile: file,
+        label: file.name,
+        sizeText: formatFileSize(file.size),
+        status: 'extracting',
+        progress: 2,
+        fromVideo: true,
+      })
+      videosToExtract.push({ key, file })
+    } else {
+      next.push({
+        key,
+        file,
+        sourceFile: null,
+        label: file.name,
+        sizeText: formatFileSize(file.size),
+        status: 'ready',
+        progress: 100,
+        fromVideo: false,
+      })
+    }
   }
 
   materialItems.value = next
@@ -331,22 +445,47 @@ const handleMaterialChange = (event: Event) => {
     materialError.value = errors[0] || ''
   }
 
+  for (const item of videosToExtract) {
+    void startVideoExtraction(item.key, item.file)
+  }
 }
 
 const removeMaterialAt = (index: number) => {
+  const target = materialItems.value[index]
+  target?.abort?.abort()
   materialItems.value = materialItems.value.filter((_, i) => i !== index)
   syncMaterialFilesToForm()
-  materialError.value = ''
+  materialError.value = hasMaterialError.value
+    ? (materialItems.value.find((item) => item.status === 'error')?.errorMessage || materialError.value)
+    : ''
 }
 
 const clearMaterials = () => {
+  abortAllExtractions()
   materialItems.value = []
   syncMaterialFilesToForm()
   materialError.value = ''
 }
 
+const retryMaterialAt = (index: number) => {
+  const item = materialItems.value[index]
+  if (!item || item.status !== 'error' || !item.fromVideo || !item.sourceFile) {
+    materialError.value = '请重新选择该视频以再次提取。'
+    removeMaterialAt(index)
+    openMaterialPicker()
+    return
+  }
+  materialError.value = ''
+  void startVideoExtraction(item.key, item.sourceFile)
+}
+
 const handleSubmit = () => {
   if (!canSubmit.value) {
+    if (hasMaterialExtracting.value) {
+      materialError.value = '声音样本仍在提取，请完成后再保存。'
+    } else if (hasMaterialError.value) {
+      materialError.value = '存在提取失败的样本，请移除或重新上传后再保存。'
+    }
     return
   }
   const files = form.materialFiles || []
@@ -563,11 +702,11 @@ const handleSubmit = () => {
             <div class="flex items-center justify-between gap-2">
               <span class="form-label text-sm font-medium">自定义声音样本</span>
               <span class="text-[11px] text-muted-foreground">
-                可选 · 多选 · 音/视频 · ≤20MB
+                可选 · 音频≤20MB · 视频≤400MB
               </span>
             </div>
             <p class="text-xs text-muted-foreground">
-              仅在内置音色不够用时上传；视频会在提交后由服务端转换为音频
+              仅在内置音色不够用时上传；选择视频后会立即提取音频，成功后才能保存
             </p>
             <input
               ref="materialInput"
@@ -580,7 +719,7 @@ const handleSubmit = () => {
             <button
               type="button"
               class="flex w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-primary/35 bg-secondary/20 px-3 py-5 text-center transition hover:border-primary/55 hover:bg-secondary/35 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="submitting"
+              :disabled="submitting || hasMaterialExtracting"
               @click="openMaterialPicker"
             >
               <AppIcon name="image-up" class="h-5 w-5 text-primary/80" />
@@ -597,35 +736,75 @@ const handleSubmit = () => {
                 v-else
                 class="text-xs text-muted-foreground"
               >
-                支持音频与常见视频，单文件不超过 20MB，最多 {{ MAX_VOICE_MATERIAL_COUNT }} 个
+                音频≤20MB，视频≤400MB，最多 {{ MAX_VOICE_MATERIAL_COUNT }} 个
               </span>
             </button>
 
             <ul
               v-if="materialItems.length"
-              class="space-y-1.5 rounded-lg border border-border/50 bg-background/30 px-3 py-2"
+              class="space-y-2 rounded-lg border border-border/50 bg-background/30 px-3 py-2"
             >
               <li
                 v-for="(item, index) in materialItems"
                 :key="item.key"
-                class="flex items-center justify-between gap-2 text-xs"
+                class="space-y-1.5 text-xs"
               >
-                <span class="min-w-0 truncate text-foreground" :title="item.label">
-                  {{ item.label }}
-                  <span class="text-muted-foreground">· {{ item.sizeText }}</span>
-                  <span
-                    v-if="item.fromVideo"
-                    class="ml-1 text-emerald-300/90"
-                  >提交后转为音频</span>
-                </span>
-                <button
-                  type="button"
-                  class="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-40"
-                  :disabled="submitting"
-                  @click="removeMaterialAt(index)"
+                <div class="flex items-center justify-between gap-2">
+                  <span class="min-w-0 truncate text-foreground" :title="item.label">
+                    {{ item.label }}
+                    <span class="text-muted-foreground">· {{ item.sizeText }}</span>
+                    <span
+                      v-if="item.fromVideo && item.status === 'ready'"
+                      class="ml-1 text-emerald-300/90"
+                    >已提取音频</span>
+                    <span
+                      v-else-if="item.fromVideo && item.status === 'extracting'"
+                      class="ml-1 text-sky-300/90"
+                    >提取中</span>
+                    <span
+                      v-else-if="item.status === 'error'"
+                      class="ml-1 text-rose-300"
+                    >提取失败</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="shrink-0 text-muted-foreground hover:text-foreground disabled:opacity-40"
+                    :disabled="submitting"
+                    @click="removeMaterialAt(index)"
+                  >
+                    移除
+                  </button>
+                </div>
+
+                <div
+                  v-if="item.status === 'extracting'"
+                  class="space-y-1"
                 >
-                  移除
-                </button>
+                  <div class="h-1.5 overflow-hidden rounded-full bg-secondary/60">
+                    <div
+                      class="h-full rounded-full bg-sky-400/90 transition-[width] duration-200 ease-out"
+                      :style="{ width: `${Math.min(100, Math.max(2, item.progress))}%` }"
+                    />
+                  </div>
+                  <p class="text-[11px] text-sky-200/90">
+                    {{ item.progress < 80 ? `上传中 ${item.progress}%` : `服务端提取中 ${item.progress}%` }}
+                  </p>
+                </div>
+
+                <p
+                  v-if="item.status === 'error' && item.errorMessage"
+                  class="text-[11px] text-rose-300"
+                >
+                  {{ item.errorMessage }}
+                  <button
+                    type="button"
+                    class="ml-1 underline underline-offset-2 hover:text-rose-200"
+                    :disabled="submitting"
+                    @click="retryMaterialAt(index)"
+                  >
+                    重新选择
+                  </button>
+                </p>
               </li>
             </ul>
 
@@ -662,7 +841,7 @@ const handleSubmit = () => {
           :disabled="!canSubmit"
           @click="handleSubmit"
         >
-          {{ submitting ? '提交中…' : '保存' }}
+          {{ submitting ? '提交中…' : hasMaterialExtracting ? '提取中…' : '保存' }}
         </Button>
       </DialogFooter>
     </DialogContent>
