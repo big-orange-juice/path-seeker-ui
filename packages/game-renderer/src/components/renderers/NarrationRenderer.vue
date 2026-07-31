@@ -1,8 +1,10 @@
 <script setup lang="ts">
 /**
  * 解说导览：去 card 的博物馆音频播放器。
- * 有图：媒体区图/播放器约 3:2；「文」正文只盖到播放器底，底栏仅遮罩防误点。
- * 无图：解说文落在原图位（可略高、区内滚动），播放器按内容收缩，保证文+播放器+按钮同屏。
+ * 有图 / 无图：图区与解说文区使用固定高度，不被矮屏剩余空间压扁；
+ * 整页允许高于视口，由宿主 main 外层滚动（低分辨率 / 浏览器 chrome 场景）。
+ * 有图展开「文」：sheet 仅盖媒体栈（图+播放器），底栏 mask 防误点。
+ * 底栏「跳过 / 继续」单行并排，压缩底部占用。
  */
 import { computed, onBeforeUnmount, ref, watch } from "vue"
 import {
@@ -576,19 +578,19 @@ const remainingLabel = computed(() => {
         <footer v-if="showPlayActions" class="nr-actions">
           <button
             type="button"
+            class="nr-btn nr-btn--ghost"
+            :disabled="props.completing || (lyricsOpen && hasImages)"
+            @click="emit('skip')"
+          >
+            {{ props.completing ? "提交中…" : "跳过" }}
+          </button>
+          <button
+            type="button"
             class="nr-btn nr-btn--primary"
             :disabled="props.completing || (lyricsOpen && hasImages)"
             @click="emit('complete')"
           >
             {{ props.completing ? "提交中…" : "听完了，继续" }}
-          </button>
-          <button
-            type="button"
-            class="nr-btn"
-            :disabled="props.completing || (lyricsOpen && hasImages)"
-            @click="emit('skip')"
-          >
-            {{ props.completing ? "提交中…" : "跳过解说" }}
           </button>
         </footer>
         <slot name="footer" />
@@ -606,16 +608,17 @@ const remainingLabel = computed(() => {
 
 <style scoped>
 .nr {
+  /* 固定图/文高：比 240 更舒展；矮屏外滚，不被剩余视口压扁 */
+  --nr-stage-h: clamp(300px, 78vw, 420px);
+
   display: flex;
   min-width: 0;
-  min-height: 0;
-  /* basis 0：高度由宿主限定，不被长文撑开 */
-  flex: 1 1 0%;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 0.55rem;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
+  height: auto;
+  max-height: none;
+  overflow: visible;
   color: #fff8ea;
 }
 
@@ -652,45 +655,34 @@ const remainingLabel = computed(() => {
   letter-spacing: 0.04em;
 }
 
-/* 主体：媒体 + 底栏 */
+/* 主体：媒体 + 底栏（高度随内容，不抢剩余视口） */
 .nr-main {
   display: flex;
-  min-height: 0;
-  flex: 1 1 0%;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 0.55rem;
-  overflow: hidden;
+  min-height: 0;
+  overflow: visible;
 }
 
-/* 媒体栈：有图时图/播放器约 3:2；sheet 相对此层，止于播放器底 */
+/* 媒体栈：图/文固定高 + 播放器内容高；sheet 相对此层 */
 .nr-media {
   position: relative;
-  display: grid;
-  min-height: 0;
-  flex: 1 1 0%;
-  grid-template-rows: minmax(0, 2.85fr) minmax(0, 2.35fr);
-  overflow: hidden;
-}
-
-/*
- * 无配图：改用纵向 flex（比 grid fr 更稳）。
- * stage 吃剩余高度并内部滚动；player 按内容收缩，保证文+播放器+底栏同屏。
- */
-.nr-media.is-text-only {
   display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
-  grid-template-rows: none;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .nr-stage {
   position: relative;
-  min-height: 0;
+  flex: 0 0 auto;
+  width: 100%;
+  height: var(--nr-stage-h);
+  min-height: var(--nr-stage-h);
+  max-height: var(--nr-stage-h);
   overflow: hidden;
-}
-
-.nr-media.is-text-only .nr-stage {
-  flex: 1 1 0%;
-  min-height: 0;
 }
 
 .nr-stage-cover {
@@ -703,18 +695,16 @@ const remainingLabel = computed(() => {
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.35rem 0.05rem 0.15rem;
+  gap: 0.35rem;
+  padding: 0.15rem 0.05rem 0.2rem;
   overflow: hidden;
 }
 
-/* 无图：解说文绝对铺满 stage，正文成为唯一滚动容器 */
+/* 无图：解说文铺满固定 stage，正文区内滚动 */
 .nr-media.is-text-only .nr-lyrics-static {
   position: absolute;
   inset: 0;
   height: auto;
-  gap: 0.35rem;
-  padding: 0.15rem 0.05rem 0.2rem;
 }
 
 .nr-media.is-text-only .nr-script-label {
@@ -868,27 +858,17 @@ const remainingLabel = computed(() => {
   color: #f0b4b4;
 }
 
-/* 播放区：有图时略抬高占比并垂直居中；左右留白避免窄屏裁切 */
+/* 播放区：始终按内容高度，不参与抢剩余视口 */
 .nr-player {
   display: flex;
   min-width: 0;
-  min-height: 0;
+  flex: 0 0 auto;
   flex-direction: column;
-  justify-content: center;
-  gap: 0.35rem;
-  padding: 0.45rem 0.35rem 0.35rem;
+  justify-content: flex-start;
+  gap: 0.28rem;
+  padding: 0.4rem 0.3rem 0.2rem;
   border-top: 1px solid rgb(255 248 230 / 8%);
   background: transparent;
-}
-
-/* 无图：播放器贴内容高度，去掉大块空白，紧挨解说文下方 */
-.nr-media.is-text-only .nr-player {
-  flex: 0 0 auto;
-  flex-shrink: 0;
-  min-height: 0;
-  justify-content: flex-start;
-  gap: 0.18rem;
-  padding: 0.28rem 0.25rem 0.12rem;
 }
 
 .nr-audio-hidden {
@@ -1003,21 +983,6 @@ const remainingLabel = computed(() => {
   align-items: center;
   column-gap: 0.25rem;
   padding: 0.3rem 0 0.15rem;
-}
-
-/* 无图：略收紧运输区，给解说文多留一点纵向空间 */
-.nr-media.is-text-only .am-transport {
-  padding: 0.12rem 0 0.05rem;
-}
-
-.nr-media.is-text-only .am-scrub {
-  padding-top: 0;
-}
-
-.nr-media.is-text-only .am-status {
-  min-height: 1rem;
-  padding-top: 0;
-  padding-bottom: 0;
 }
 
 .am-transport__side {
@@ -1216,10 +1181,10 @@ const remainingLabel = computed(() => {
 .nr-foot {
   position: relative;
   display: grid;
-  flex-shrink: 0;
-  gap: 0.55rem;
-  margin-top: auto;
-  padding-top: 0.15rem;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+  padding-top: 0.1rem;
   padding-bottom: 0.1rem;
 }
 
@@ -1253,27 +1218,34 @@ const remainingLabel = computed(() => {
   pointer-events: auto;
 }
 
+/* 跳过 / 继续 单行等宽 */
 .nr-actions {
   display: grid;
-  gap: 0.45rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  align-items: stretch;
 }
 
 .nr-btn {
-  min-height: 46px;
+  min-height: 44px;
   border: 0;
-  border-bottom: 1px solid rgb(255 248 230 / 10%);
-  border-radius: 0;
+  border-radius: 999px;
   background: transparent;
-  color: rgb(247 239 221 / 78%);
+  color: rgb(247 239 221 / 82%);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.04em;
   cursor: pointer;
 }
 
+.nr-btn--ghost {
+  border: 1px solid rgb(255 248 230 / 16%);
+  background: rgb(255 248 230 / 4%);
+  color: rgb(247 239 221 / 72%);
+}
+
 .nr-btn--primary {
   border: 0;
-  border-radius: 999px;
   background: linear-gradient(155deg, #e8d18a, #c9a75a);
   color: #1a160f;
   font-weight: 650;

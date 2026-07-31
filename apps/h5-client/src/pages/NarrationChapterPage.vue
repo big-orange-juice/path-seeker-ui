@@ -212,16 +212,17 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* 图/文固定高，内容可超过视口；由 mission main 的 overflow-y-auto 外滚 */
 .narration-page {
   position: relative;
   display: flex;
-  /* basis 0：在已锁高的 mission frame 里吃满 main，不被长文撑开 */
-  flex: 1 1 0%;
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  padding-bottom: 0.35rem;
 }
 
 .stage-ask-fab {
@@ -251,28 +252,28 @@ onMounted(() => {
 
 .narration-page :deep(.stage-play) {
   display: flex;
-  flex: 1 1 0%;
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
+  height: auto;
+  max-height: none;
+  overflow: visible;
   background: transparent;
 }
 
 .narration-page :deep(.narration-shell) {
   display: flex;
-  flex: 1 1 0%;
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .narration-page__skeleton {
   display: flex;
-  flex: 1;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 0.85rem;
   padding-top: 0.35rem;

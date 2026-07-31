@@ -284,11 +284,12 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   background: var(--sp-void);
 }
 
-/* 解说页：高度由宿主锁死，禁止被长文撑出视口 */
+/* 解说页：图/文固定高，允许内容高于视口由宿主滚动 */
 .stage-play.is-narration {
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
+  flex: 0 0 auto;
+  height: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 .stage-play.is-empty {
@@ -469,16 +470,16 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   padding-top: 0.35rem;
 }
 
-/* 去 card：撑满宿主高度，内容内部分段贴底 */
+/* 去 card：内容自然高度，矮屏外滚 */
 .narration-shell {
   display: flex;
-  min-height: 0;
-  flex: 1 1 0%;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 0.45rem;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
+  height: auto;
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -492,9 +493,9 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 }
 
 .narration-shell :deep(.nr) {
-  flex: 1 1 0%;
+  flex: 0 0 auto;
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
+  height: auto;
+  max-height: none;
 }
 </style>
