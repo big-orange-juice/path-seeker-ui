@@ -28,11 +28,14 @@ import {
   parseStageConfig,
 } from '@path-seeker/game-renderer'
 import { useUploadAttachment } from '@/composables/useUploadAttachment'
-import type {
-  GenerateRouteStageNarrationImageResponse,
-  NarrationDetailResponse,
-  RouteStageNarrationImageResponse,
-  UpdateNarrationStageResponse,
+import {
+  NARRATION_TASK_STATUS,
+  type GenerateRouteStageNarrationImageResponse,
+  type NarrationDetailResponse,
+  type NarrationTaskStatusResponse,
+  type RouteNarrationTaskStatusResponse,
+  type RouteStageNarrationImageResponse,
+  type UpdateNarrationStageResponse,
 } from '@/types/narration'
 import { mapGuideResponse } from '@/composables/useGuideManagement'
 import type { GuideRecord, GuideResponseListTotalPageResult } from '@/types/guide'
@@ -116,12 +119,20 @@ const imageLightboxUrl = ref('')
 const generatingImage = ref(false)
 /** 手动刷新配图列表中 */
 const refreshingImages = ref(false)
+/** 无解说词时：手动查路线解说任务 + 拉 detail */
+const refreshingNarrationText = ref(false)
+/** 当前节点在路线解说任务列表里的最近一条（手动刷新写入） */
+const stageNarrationTask = ref<NarrationTaskStatusResponse | null>(null)
+/** 最近一次 detail 返回的解说词正文（不含本地未保存草稿） */
+const serverNarrationText = ref('')
 const errorMessage = ref('')
 const infoMessage = ref('')
 const narrationDetail = ref<NarrationDetailResponse | null>(null)
 const IMAGE_GEN_REF_MAX = 5
 /** 音频 / AI 配图已提交、等待用户手动刷新时的提示 */
 const PENDING_GEN_TIP = '已提交生成，完成后请点击刷新查看。'
+/** chat 异步生成解说词：无正文时的等待提示 */
+const PENDING_NARRATION_TEXT_TIP = '解说词生成中，完成后请点击刷新查看。'
 /** 解说配图本地列表；与 detail.images 同步，增删走 NarrationImage API */
 const narrationImages = shallowRef<RouteStageNarrationImageResponse[]>([])
 const imageInputRef = useTemplateRef<HTMLInputElement>('imageInput')
@@ -263,6 +274,98 @@ const canGenerateImage = computed(() => Boolean(
   && !refreshingImages.value
   && !saving.value,
 ))
+
+/** 服务端尚无解说词：展示刷新入口（chat 异步生成场景；不看本地草稿） */
+const hasServerNarrationText = computed(() => Boolean(serverNarrationText.value.trim()))
+const showNarrationTextRefresh = computed(() =>
+  Boolean(isNarration.value && stageId.value && props.routeId && !hasServerNarrationText.value),
+)
+
+/** 失败：status=6（观测）、旧 4、或 statusText 含失败/错误 */
+const isNarrationTaskFailed = (task: NarrationTaskStatusResponse | null | undefined) => {
+  if (!task) return false
+  const status = typeof task.status === 'number' ? task.status : null
+  if (status === NARRATION_TASK_STATUS.Failed || status === NARRATION_TASK_STATUS.FailedLegacy) {
+    return true
+  }
+  return /失败|错误/.test(String(task.statusText ?? '').trim())
+}
+const isNarrationTaskCancelled = (task: NarrationTaskStatusResponse | null | undefined) => {
+  if (!task) return false
+  const status = typeof task.status === 'number' ? task.status : null
+  if (status === NARRATION_TASK_STATUS.Cancelled) return true
+  return /取消/.test(String(task.statusText ?? '').trim())
+}
+/**
+ * 解说词任务摘要。
+ * 失败：只展示 errorMessage；进行中可展示 statusText / 进度 / currentMessage。
+ * 不展示来源、taskId 等技术字段。
+ */
+const narrationTaskSummary = computed(() => {
+  if (hasServerNarrationText.value) return null
+  const task = stageNarrationTask.value
+  if (!task) return null
+
+  const statusText = String(task.statusText ?? '').trim()
+  const currentMessage = String(task.currentMessage ?? '').trim()
+  const errorMessageText = String(task.errorMessage ?? '').trim()
+  const progressPercent = typeof task.progressPercent === 'number' && Number.isFinite(task.progressPercent)
+    ? Math.max(0, Math.min(100, Math.round(task.progressPercent)))
+    : null
+  const attemptCount = typeof task.attemptCount === 'number' ? task.attemptCount : null
+  const maxAttempts = typeof task.maxAttempts === 'number' ? task.maxAttempts : null
+  const failed = isNarrationTaskFailed(task)
+  const cancelled = isNarrationTaskCancelled(task)
+
+  // 失败：仅 errorMessage（无文案则退回简短失败提示）
+  if (failed) {
+    return {
+      tone: 'failed' as const,
+      title: '',
+      meta: '',
+      currentMessage: '',
+      errorMessage: errorMessageText || '解说词生成失败',
+      progressPercent: null as number | null,
+    }
+  }
+
+  let tone: 'pending' | 'cancelled' = cancelled ? 'cancelled' : 'pending'
+
+  let title = statusText
+  if (!title) {
+    title = cancelled ? '已取消' : '生成中'
+  } else if (!cancelled && /完成|成功|已就绪|已生成/.test(title)) {
+    title = '生成中'
+  }
+
+  const metaParts: string[] = []
+  if (!cancelled && progressPercent != null && progressPercent > 0) {
+    metaParts.push(`进度 ${progressPercent}%`)
+  }
+  if (!cancelled && attemptCount != null && maxAttempts != null && maxAttempts > 0) {
+    metaParts.push(`尝试 ${attemptCount}/${maxAttempts}`)
+  } else if (!cancelled && attemptCount != null && attemptCount > 0) {
+    metaParts.push(`尝试 ${attemptCount} 次`)
+  }
+
+  return {
+    tone,
+    title,
+    meta: metaParts.join(' · '),
+    currentMessage: currentMessage && currentMessage !== title ? currentMessage : '',
+    errorMessage: '',
+    progressPercent: cancelled ? null : progressPercent,
+  }
+})
+
+const narrationTextStatusLabel = computed(() => {
+  if (hasServerNarrationText.value) return ''
+  const summary = narrationTaskSummary.value
+  if (!summary) return '生成中'
+  // 失败：详情只在下方 errorMessage 卡片，标题旁不重复
+  if (summary.tone === 'failed') return ''
+  return summary.meta ? `${summary.title} · ${summary.meta}` : summary.title
+})
 
 /** 校验是否为可预览的 http(s) 图片地址 */
 const isPreviewableImageUrl = (value: string) => {
@@ -749,9 +852,12 @@ const loadNarrationDetail = async () => {
   if (!props.open || !isNarration.value || !stageId.value) {
     narrationDetail.value = null
     narrationImages.value = []
+    stageNarrationTask.value = null
+    serverNarrationText.value = ''
     resetForm()
     return
   }
+  stageNarrationTask.value = null
   try {
     narrationDetail.value = await request<NarrationDetailResponse | null>('/api/narration/detail', {
       method: 'GET', query: { stageId: stageId.value },
@@ -759,7 +865,125 @@ const loadNarrationDetail = async () => {
   } catch {
     narrationDetail.value = null
   }
+  serverNarrationText.value = String(narrationDetail.value?.narrationText ?? '').trim()
   resetForm()
+  // 无正文：拉一次任务状态展示进度/失败原因（不轮询）；之后靠手动刷新
+  if (!serverNarrationText.value && props.routeId) {
+    infoMessage.value = PENDING_NARRATION_TEXT_TIP
+    void fetchStageNarrationTask()
+      .then(() => {
+        applyNarrationTaskFeedback()
+      })
+      .catch(() => {
+        // 任务查询失败不挡编辑；保留默认提示
+      })
+  }
+}
+
+/** 从路线任务列表里挑出当前节点最近一条解说任务 */
+const pickStageNarrationTask = (
+  payload: RouteNarrationTaskStatusResponse | null,
+  targetStageId: string,
+): NarrationTaskStatusResponse | null => {
+  const tasks = [...(payload?.tasks ?? [])]
+    .filter((item) => String(item.stageId ?? '').trim() === targetStageId)
+  if (!tasks.length) return null
+  tasks.sort((left, right) => {
+    const leftAt = Date.parse(String(left.createdAt ?? '')) || 0
+    const rightAt = Date.parse(String(right.createdAt ?? '')) || 0
+    return rightAt - leftAt
+  })
+  return tasks[0] ?? null
+}
+
+/** 拉取当前节点解说任务（不轮询）；失败时静默，由调用方决定是否提示 */
+const fetchStageNarrationTask = async () => {
+  if (!stageId.value || !props.routeId) {
+    stageNarrationTask.value = null
+    return null
+  }
+  const routeStatus = await request<RouteNarrationTaskStatusResponse | null>(
+    '/api/narration/route-task-status',
+    {
+      method: 'GET',
+      query: { routeId: props.routeId },
+    },
+  )
+  stageNarrationTask.value = pickStageNarrationTask(routeStatus, stageId.value)
+  return stageNarrationTask.value
+}
+
+/** 根据任务 + 是否已有正文，写 info / error（任务详情主要在摘要卡片里展示） */
+const applyNarrationTaskFeedback = () => {
+  if (hasServerNarrationText.value) {
+    if (
+      infoMessage.value === PENDING_NARRATION_TEXT_TIP
+      || infoMessage.value === PENDING_GEN_TIP
+    ) {
+      infoMessage.value = ''
+    }
+    return
+  }
+  const task = stageNarrationTask.value
+  if (isNarrationTaskFailed(task)) {
+    // 错误正文放在任务卡片 errorMessage；底部只留短提示
+    errorMessage.value = ''
+    infoMessage.value = ''
+    return
+  }
+  if (isNarrationTaskCancelled(task)) {
+    errorMessage.value = ''
+    infoMessage.value = ''
+    return
+  }
+  errorMessage.value = ''
+  infoMessage.value = PENDING_NARRATION_TEXT_TIP
+}
+
+/**
+ * 无解说词时手动刷新：先查 route-task-status 进度，再拉 detail 同步正文。
+ * 不自动轮询；保留用户已输入的未保存草稿。
+ */
+const handleRefreshNarrationText = async () => {
+  if (!stageId.value || !props.routeId || refreshingNarrationText.value) return
+  refreshingNarrationText.value = true
+  errorMessage.value = ''
+  try {
+    await fetchStageNarrationTask()
+
+    const detail = await request<NarrationDetailResponse | null>('/api/narration/detail', {
+      method: 'GET',
+      query: { stageId: stageId.value },
+    })
+    if (detail) {
+      const draftText = form.narrationText.trim()
+      const serverText = String(detail.narrationText ?? '').trim()
+      serverNarrationText.value = serverText
+      narrationDetail.value = {
+        ...(narrationDetail.value ?? {}),
+        ...detail,
+        // 本地已改则保留草稿；空白时用服务端结果回填
+        narrationText: draftText || detail.narrationText,
+      }
+      if (!draftText && serverText) {
+        form.narrationText = serverText
+      }
+      syncNarrationImages(detail)
+    }
+
+    // 是否「真有解说词」只看 detail 正文
+    if (hasServerNarrationText.value) {
+      applyNarrationTaskFeedback()
+      emit('preview-refresh')
+      return
+    }
+
+    applyNarrationTaskFeedback()
+  } catch (error) {
+    errorMessage.value = resolveError(error, '刷新解说词状态失败。')
+  } finally {
+    refreshingNarrationText.value = false
+  }
 }
 
 /** 仅刷新音频相关字段，避免冲掉表单未保存编辑 */
@@ -771,11 +995,16 @@ const refreshNarrationAudioMeta = async () => {
   })
   if (!detail) return
   const draftText = form.narrationText.trim()
+  const serverText = String(detail.narrationText ?? '').trim()
+  serverNarrationText.value = serverText
   narrationDetail.value = {
     ...(narrationDetail.value ?? {}),
     ...detail,
     // 表单正文优先，避免刷新冲掉未保存编辑
     narrationText: draftText || detail.narrationText,
+  }
+  if (!draftText && serverText) {
+    form.narrationText = serverText
   }
 }
 
@@ -839,10 +1068,15 @@ const refreshNarrationImagesMeta = async () => {
   })
   if (!detail) return
   const draftText = form.narrationText.trim()
+  const serverText = String(detail.narrationText ?? '').trim()
+  serverNarrationText.value = serverText
   narrationDetail.value = {
     ...(narrationDetail.value ?? {}),
     ...detail,
     narrationText: draftText || detail.narrationText,
+  }
+  if (!draftText && serverText) {
+    form.narrationText = serverText
   }
   syncNarrationImages(detail)
   if (narrationImages.value.length > 0 && infoMessage.value === PENDING_GEN_TIP) {
@@ -1090,6 +1324,9 @@ const handleImageFiles = async (event: Event) => {
         query: { stageId: stageId.value },
       })
       narrationDetail.value = detail
+      if (detail) {
+        serverNarrationText.value = String(detail.narrationText ?? '').trim()
+      }
       syncNarrationImages(detail)
       // detail 若尚未包含刚 create 的图，合并本地 pending
       const knownAttachmentIds = new Set(collectAttachmentIds())
@@ -1148,6 +1385,8 @@ watch(
       return
     }
     narrationDetail.value = null
+    stageNarrationTask.value = null
+    serverNarrationText.value = ''
     resetForm()
   },
   { immediate: true },
@@ -1359,6 +1598,13 @@ const saveNarrationStage = async () => {
           : {}),
       },
     })
+    serverNarrationText.value = nextText
+    if (narrationDetail.value) {
+      narrationDetail.value = {
+        ...narrationDetail.value,
+        narrationText: nextText,
+      }
+    }
   }
 }
 
@@ -1394,6 +1640,7 @@ const handleGenerateAudio = async () => {
           narrationText: nextText,
         }
       }
+      serverNarrationText.value = nextText
     }
 
     await request('/api/narration/generate-audio', {
@@ -1757,14 +2004,81 @@ const handleSave = async () => {
             <div class="space-y-5">
               <!-- 正文 + 讲解侧栏 -->
               <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
-                <label class="block space-y-1.5 text-sm font-medium">
-                  解说词
+                <div class="block space-y-1.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-medium">解说词</span>
+                    <div
+                      v-if="showNarrationTextRefresh"
+                      class="flex min-w-0 items-center gap-1.5">
+                      <p
+                        v-if="narrationTextStatusLabel"
+                        class="truncate text-xs text-muted-foreground"
+                        :title="narrationTextStatusLabel">
+                        {{ narrationTextStatusLabel }}
+                      </p>
+                      <Button
+                        variant="ghost"
+                        type="button"
+                        size="sm"
+                        class="h-7 shrink-0 px-2 text-xs"
+                        :disabled="!stageId || !props.routeId || refreshingNarrationText || saving"
+                        @click="handleRefreshNarrationText">
+                        <AppIcon
+                          name="refresh-cw"
+                          class="mr-1 h-3.5 w-3.5"
+                          :class="refreshingNarrationText ? 'animate-spin' : ''" />
+                        {{ refreshingNarrationText ? '刷新中…' : '刷新' }}
+                      </Button>
+                    </div>
+                  </div>
                   <Textarea
                     v-model="form.narrationText"
                     class="h-[200px] resize-y text-sm leading-6 lg:h-[240px]"
                     placeholder="请输入解说词正文…"
                     :disabled="!props.canEdit || saving" />
-                </label>
+                  <!-- 失败只展示 errorMessage；进行中可展示进度与阶段说明 -->
+                  <div
+                    v-if="showNarrationTextRefresh && narrationTaskSummary"
+                    class="space-y-1 rounded-lg border px-3 py-2 text-xs leading-5"
+                    :class="{
+                      'border-rose-500/30 bg-rose-500/10 text-rose-100': narrationTaskSummary.tone === 'failed',
+                      'border-amber-500/30 bg-amber-500/10 text-amber-100': narrationTaskSummary.tone === 'cancelled',
+                      'border-sky-500/25 bg-sky-500/10 text-sky-100': narrationTaskSummary.tone === 'pending',
+                    }">
+                    <template v-if="narrationTaskSummary.tone === 'failed'">
+                      <p class="font-medium text-rose-50">
+                        {{ narrationTaskSummary.errorMessage }}
+                      </p>
+                    </template>
+                    <template v-else>
+                      <div class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span class="font-medium">{{ narrationTaskSummary.title }}</span>
+                        <span
+                          v-if="narrationTaskSummary.meta"
+                          class="opacity-80">
+                          {{ narrationTaskSummary.meta }}
+                        </span>
+                      </div>
+                      <p
+                        v-if="narrationTaskSummary.currentMessage"
+                        class="opacity-90">
+                        {{ narrationTaskSummary.currentMessage }}
+                      </p>
+                      <div
+                        v-if="narrationTaskSummary.progressPercent != null && narrationTaskSummary.tone === 'pending'"
+                        class="h-1 overflow-hidden rounded-full bg-black/25">
+                        <div
+                          class="h-full rounded-full bg-sky-300/80 transition-[width] duration-300"
+                          :style="{ width: `${narrationTaskSummary.progressPercent}%` }" />
+                      </div>
+                    </template>
+                  </div>
+                  <p
+                    v-else-if="showNarrationTextRefresh && infoMessage === PENDING_NARRATION_TEXT_TIP"
+                    class="text-xs text-sky-200/90">
+                    {{ infoMessage }}
+                  </p>
+                </div>
 
                 <div class="space-y-4 lg:border-l lg:border-border/60 lg:pl-5">
                   <div class="space-y-1.5">
@@ -2069,9 +2383,11 @@ const handleSave = async () => {
         <p v-if="errorMessage" class="shrink-0 text-sm text-destructive">
           {{ errorMessage }}
         </p>
-        <!-- 等待生成提示在音频/配图区块内展示；其它 info 放底部 -->
+        <!-- 等待生成提示在解说词/音频/配图区块内展示；其它 info 放底部 -->
         <p
-          v-else-if="infoMessage && infoMessage !== PENDING_GEN_TIP"
+          v-else-if="infoMessage
+            && infoMessage !== PENDING_GEN_TIP
+            && infoMessage !== PENDING_NARRATION_TEXT_TIP"
           class="shrink-0 text-sm text-muted-foreground">
           {{ infoMessage }}
         </p>

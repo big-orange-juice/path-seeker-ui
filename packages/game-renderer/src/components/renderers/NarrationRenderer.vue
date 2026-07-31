@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * 解说导览：去 card 的博物馆音频播放器。
- * 有图 / 无图：图区与解说文区使用固定高度，不被矮屏剩余空间压扁；
- * 整页允许高于视口，由宿主 main 外层滚动（低分辨率 / 浏览器 chrome 场景）。
+ * 有图 / 无图：图区与解说文区使用固定高度（cqw），不靠 flex:1 吃剩余视口；
+ * 整页允许高于视口，由宿主外层滚动（矮屏 / B 端机框 / 浏览器 chrome）。
  * 有图展开「文」：sheet 仅盖媒体栈（图+播放器），底栏 mask 防误点。
  * 底栏「跳过 / 继续」单行并排，压缩底部占用。
  */
@@ -608,8 +608,12 @@ const remainingLabel = computed(() => {
 
 <style scoped>
 .nr {
-  /* 固定图/文高：比 240 更舒展；矮屏外滚，不被剩余视口压扁 */
-  --nr-stage-h: clamp(300px, 78vw, 420px);
+  /*
+   * 图/文固定高：按内容区宽度算，不用 flex 吃剩余视口。
+   * 相对旧版 max 420 只略收一档，保证 B 端机框内播放器仍可见；B/C 共用。
+   */
+  container-type: inline-size;
+  --nr-stage-h: clamp(280px, 88cqw, 360px);
 
   display: flex;
   min-width: 0;
@@ -620,6 +624,13 @@ const remainingLabel = computed(() => {
   max-height: none;
   overflow: visible;
   color: #fff8ea;
+}
+
+/* 无 container query 时回退：同样略矮于 420，避免桌面 vw 顶满 */
+@supports not (width: 1cqw) {
+  .nr {
+    --nr-stage-h: clamp(280px, 70vw, 360px);
+  }
 }
 
 /* 标题区：纯文字，无底板 */

@@ -32,6 +32,62 @@ export interface NarrationDetailResponse {
   images?: RouteStageNarrationImageResponse[] | null
 }
 
+/**
+ * 解说词异步任务 status 码（以后端为准；观测到 6=失败）。
+ * UI 是否「已有解说词」以 detail.narrationText 为准；失败优先看 statusText / errorMessage。
+ */
+export const NARRATION_TASK_STATUS = {
+  Pending: 0,
+  Running: 1,
+  Completed: 2,
+  RetryWaiting: 3,
+  /** 部分环境仍可能返回 4 */
+  FailedLegacy: 4,
+  Cancelled: 5,
+  /** 当前后端失败态（statusText=失败） */
+  Failed: 6,
+} as const
+
+/** GET /api/Narration/task-status · route-task-status.tasks[] 单项（ID 一律 string） */
+export interface NarrationTaskStatusResponse {
+  taskId?: string | null
+  parentTaskId?: string | null
+  stageId?: string | null
+  routeId?: string | null
+  businessType?: string | null
+  createdFrom?: string | null
+  chatSessionId?: string | null
+  chatRunId?: string | null
+  status?: number
+  statusText?: string | null
+  progressPercent?: number
+  currentStage?: string | null
+  currentMessage?: string | null
+  attemptCount?: number
+  maxAttempts?: number
+  errorCode?: string | null
+  errorMessage?: string | null
+  createdAt?: string | null
+  completedAt?: string | null
+}
+
+/** GET /api/Narration/route-task-status — chat 新增/改节点后的路线级解说词任务汇总 */
+export interface RouteNarrationTaskStatusResponse {
+  routeId?: string | null
+  overallStatus?: string | null
+  progressPercent?: number
+  taskCount?: number
+  pendingCount?: number
+  processingCount?: number
+  retryWaitingCount?: number
+  completedCount?: number
+  failedCount?: number
+  cancelledCount?: number
+  finished?: boolean
+  succeeded?: boolean
+  tasks?: NarrationTaskStatusResponse[] | null
+}
+
 /** POST /api/NarrationImage/create */
 export interface CreateRouteStageNarrationImageRequest {
   stageId: string

@@ -6368,6 +6368,168 @@
         }
       }
     },
+    "/api/Narration/generate-task": {
+      "post": {
+        "tags": [
+          "Narration"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationGenerationTaskRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationGenerationTaskRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationGenerationTaskRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationTaskAcceptedResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationTaskAcceptedResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationTaskAcceptedResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Narration/task-status": {
+      "get": {
+        "tags": [
+          "Narration"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationTaskStatusResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationTaskStatusResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrationTaskStatusResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Narration/route-task-status": {
+      "get": {
+        "tags": [
+          "Narration"
+        ],
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteNarrationTaskStatusResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteNarrationTaskStatusResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteNarrationTaskStatusResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Narration/cancel-task": {
+      "post": {
+        "tags": [
+          "Narration"
+        ],
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelNarrationTaskResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelNarrationTaskResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancelNarrationTaskResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Narration/generate-batch": {
       "post": {
         "tags": [
@@ -10240,7 +10402,7 @@
           },
           "requiredChallengeCount": {
             "type": "integer",
-            "description": "必须完成的挑战数量；不传时等于本次有效 PickCount。",
+            "description": "必须完成的节点数量；字段名为兼容旧接口暂保留 ChallengeCount。",
             "format": "int32",
             "nullable": true
           },
@@ -11556,6 +11718,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "clientRequestId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "description": "同一次请求重试时复用；用户明确重新生成时应更换。",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -11823,6 +11992,57 @@
           },
           "data": {
             "$ref": "#/components/schemas/CancelAssetGenerationTaskResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancelNarrationTaskResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "result": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusText": {
+            "type": "string",
+            "nullable": true
+          },
+          "stopPolling": {
+            "type": "boolean"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CancelNarrationTaskResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/CancelNarrationTaskResponse"
           }
         },
         "additionalProperties": false
@@ -17463,6 +17683,26 @@
         },
         "additionalProperties": false
       },
+      "NarrationGenerationTaskRequest": {
+        "required": [
+          "stageId"
+        ],
+        "type": "object",
+        "properties": {
+          "stageId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "clientRequestId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "description": "同一次请求重试时复用；用户明确重新生成时应更换。",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "NarrationStageRequest": {
         "required": [
           "stageId"
@@ -17472,6 +17712,176 @@
           "stageId": {
             "minLength": 1,
             "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NarrationTaskAcceptedResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentTaskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusText": {
+            "type": "string",
+            "nullable": true
+          },
+          "progressPercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdFrom": {
+            "type": "string",
+            "nullable": true
+          },
+          "chatSessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "chatRunId": {
+            "type": "string",
+            "nullable": true
+          },
+          "reused": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NarrationTaskAcceptedResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/NarrationTaskAcceptedResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "NarrationTaskStatusResponse": {
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentTaskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "businessType": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdFrom": {
+            "type": "string",
+            "nullable": true
+          },
+          "chatSessionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "chatRunId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusText": {
+            "type": "string",
+            "nullable": true
+          },
+          "progressPercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currentStage": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "attemptCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NarrationTaskStatusResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/NarrationTaskStatusResponse"
           }
         },
         "additionalProperties": false
@@ -18541,6 +18951,86 @@
           },
           "data": {
             "$ref": "#/components/schemas/RouteDetailResponse"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteNarrationTaskStatusResponse": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "overallStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "progressPercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "taskCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pendingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "processingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "retryWaitingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cancelledCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "finished": {
+            "type": "boolean"
+          },
+          "succeeded": {
+            "type": "boolean"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NarrationTaskStatusResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteNarrationTaskStatusResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RouteNarrationTaskStatusResponse"
           }
         },
         "additionalProperties": false
@@ -21679,6 +22169,7 @@
           },
           "userStyleInput": {
             "type": "string",
+            "description": "兼容旧客户端保留；当前不参与解说词生成、质检或改写。",
             "nullable": true
           },
           "sceneContext": {
