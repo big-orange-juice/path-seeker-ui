@@ -919,13 +919,18 @@ async function saveRouteTitle() {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .route-device__viewport :deep(.gameplay-preview-root) {
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
+  min-height: 100%;
+  flex: 0 0 auto;
+  height: auto;
+  overflow: visible;
 }
 
 /* 顶栏安全区：内容从状态栏下开始，但背景仍延伸到岛下 */

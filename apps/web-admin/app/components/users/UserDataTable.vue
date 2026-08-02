@@ -3,6 +3,7 @@ import { computed, h } from 'vue';
 import type { ColumnDef } from '@tanstack/vue-table';
 import CollectionDataTable from '@/components/collections/CollectionDataTable.vue';
 import Button from '@/components/shadcn/button/Button.vue';
+import { roleDisplayName } from '@/constants/routeWorkflow';
 import {
   ADMIN_USER_STATUS,
   getAdminUserStatusLabel,
@@ -62,7 +63,11 @@ const columns = computed<ColumnDef<AdminUserRecord>[]>(() => [
     header: () =>
       h('span', { class: 'text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground' }, '角色'),
     cell: ({ row }) =>
-      h('span', { class: 'text-sm text-muted-foreground' }, row.original.roleName || row.original.roleCode || '—'),
+      h(
+        'span',
+        { class: 'text-sm text-muted-foreground' },
+        roleDisplayName(row.original.roleCode, row.original.roleName),
+      ),
   },
   {
     accessorKey: 'contact',

@@ -21,16 +21,15 @@ export const adminNavItems: AdminNavItem[] = [
     to: `${ADMIN_ROUTE_PREFIX}/collections`,
     icon: 'library'
   },
-  { label: '主题路线', to: `${ADMIN_ROUTE_PREFIX}/routes`, icon: 'route' },
   { label: '导游管理', to: `${ADMIN_ROUTE_PREFIX}/guides`, icon: 'user-round' },
+  { label: '主题路线', to: `${ADMIN_ROUTE_PREFIX}/routes`, icon: 'route' },
   { label: '用户管理', to: `${ADMIN_ROUTE_PREFIX}/users`, icon: 'user-round' },
 ];
 
 /** 导游账号可见菜单（只保留业务必要入口） */
 const guideNavItems: AdminNavItem[] = [
+  { label: '导游管理', to: `${ADMIN_ROUTE_PREFIX}/guides`, icon: 'user-round' },
   { label: '主题路线', to: `${ADMIN_ROUTE_PREFIX}/routes`, icon: 'route' },
-  // 导游自管视角：入口更贴近「讲解形象」而非后台管理（U-07）
-  { label: '我的讲解形象', to: `${ADMIN_ROUTE_PREFIX}/guides`, icon: 'user-round' }
 ];
 
 export const useAdminNavigation = () => {

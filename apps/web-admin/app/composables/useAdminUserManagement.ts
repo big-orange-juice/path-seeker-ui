@@ -12,6 +12,7 @@ import {
   ADMIN_USER_STATUS,
   createEmptyAdminUserDraft,
 } from '@/types/admin-user';
+import { roleDisplayName } from '@/constants/routeWorkflow';
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -38,7 +39,7 @@ export const useAdminUserManagement = () => {
       .filter((item) => item.id)
       .map((item) => ({
         value: item.id,
-        label: item.roleName || item.roleCode || item.id,
+        label: roleDisplayName(item.roleCode, item.roleName) || item.id,
       })),
   );
 

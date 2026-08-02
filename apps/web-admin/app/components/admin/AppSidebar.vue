@@ -12,6 +12,7 @@ const { navItems } = useAdminNavigation();
         v-for="item in navItems"
         :key="item.to"
         :to="item.to"
+        :data-admin-nav="item.to"
         class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors"
         :class="
           route.path === item.to

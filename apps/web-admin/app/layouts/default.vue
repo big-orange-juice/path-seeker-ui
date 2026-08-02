@@ -1,4 +1,8 @@
-﻿<template>
+﻿<script setup lang="ts">
+import AdminTipsGuide from '@/components/admin/AdminTipsGuide.vue';
+</script>
+
+<template>
   <div class="admin-shell h-screen overflow-hidden bg-background text-foreground">
     <div class="flex h-screen flex-col overflow-hidden">
       <AdminAppTopbar />
@@ -14,5 +18,6 @@
         </div>
       </div>
     </div>
+    <AdminTipsGuide />
   </div>
 </template>

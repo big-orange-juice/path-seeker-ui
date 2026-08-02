@@ -4905,7 +4905,7 @@
         "tags": [
           "Guide"
         ],
-        "summary": "跳转到导游试听音频的短时效地址。可见性沿用导游规则：管理员可试听全部，\n策展人可试听管理员创建的导游和自己创建的导游。",
+        "summary": "跳转到导游试听音频的短时效地址。可见性沿用导游规则：管理员可试听全部，\n导游可试听管理员创建的导游和自己创建的导游。",
         "parameters": [
           {
             "name": "guideId",
@@ -23368,7 +23368,7 @@
     },
     {
       "name": "Puzzle",
-      "description": "策展后台 — 新链路玩法目录与 skill.md 管理。\n旧 puzzle_type / puzzle CRUD 不再从本控制器暴露；路线与节点请走 RouteController / GameplayController，\nAgent 生成请走 AgentController。"
+      "description": "导游后台 — 新链路玩法目录与 skill.md 管理。\n旧 puzzle_type / puzzle CRUD 不再从本控制器暴露；路线与节点请走 RouteController / GameplayController，\nAgent 生成请走 AgentController。"
     },
     {
       "name": "Review",

@@ -53,7 +53,7 @@ const positioningRows: InfoRow[] = [
 
 const businessModelRows: InfoRow[] = [
   { name: '博物馆管理者', description: '维护馆藏、题库、主题路线与活动数据', value: '提高布展利用率与活动效率' },
-  { name: '策展 / 教研人员', description: '围绕文物创建多年龄谜题与故事任务', value: '将教育内容转为互动体验' },
+  { name: '导游 / 教研人员', description: '围绕文物创建多年龄谜题与故事任务', value: '将教育内容转为互动体验' },
   { name: '游客 / 家长 / 学生', description: '参与解谜任务并获得导览反馈与成就', value: '更沉浸、更完整地走完展线' },
 ];
 

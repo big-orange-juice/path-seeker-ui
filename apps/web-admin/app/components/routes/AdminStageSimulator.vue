@@ -16,7 +16,7 @@ const props = defineProps<{ stage: GameplayPreviewStage | null }>()
       <div class="route-device__viewport">
         <StagePlaySurface
           v-if="props.stage"
-          class="h-full min-h-0"
+          class="min-h-0"
           :stage="props.stage"
           :can-submit="false" />
         <div
@@ -85,20 +85,23 @@ const props = defineProps<{ stage: GameplayPreviewStage | null }>()
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  /* 解说固定高可能超出机框，允许纵向滚动，不靠 flex:1 硬撑 */
   overflow-x: hidden;
   overflow-y: auto;
-  /* 左右略加宽，避免解说运输控件贴边被手机框裁切 */
+  overscroll-behavior-y: contain;
   padding: 36px 14px 12px;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 .route-device__viewport :deep(.stage-play) {
+  width: 100%;
   min-width: 0;
-  min-height: 0;
-  flex: 1 1 0%;
-  overflow: hidden;
+  min-height: 100%;
+  flex: 0 0 auto;
+  height: auto;
+  overflow: visible;
 }
-/* 解说：高度随内容，禁止 flex 吃满剩余视口 */
 .route-device__viewport :deep(.stage-play.is-narration) {
+  min-height: max-content;
   flex: 0 0 auto;
   height: auto;
   max-height: none;

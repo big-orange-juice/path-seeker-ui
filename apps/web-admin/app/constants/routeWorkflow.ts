@@ -116,13 +116,22 @@ export const isGuideRole = (roleCode: string | null | undefined) =>
   normalizeRoleCode(roleCode) === ROUTE_ROLE_GUIDE;
 
 export const roleDisplayName = (roleCode: string | null | undefined, roleName?: string | null) => {
-  const code = normalizeRoleCode(roleCode || roleName);
+  const code = normalizeRoleCode(roleCode);
   if (isAdminRole(code)) {
     return '管理员';
   }
   if (isGuideRole(code)) {
     return '导游';
   }
+
+  const nameCode = normalizeRoleCode(roleName);
+  if (isAdminRole(nameCode)) {
+    return '管理员';
+  }
+  if (isGuideRole(nameCode)) {
+    return '导游';
+  }
+
   const name = String(roleName ?? '').trim();
   // 过滤后端码值，避免顶栏直接展示 CREATOR / ADMIN
   if (name && !/^(ADMIN|ADMINISTRATOR|CREATOR|GUIDE|CURATOR)$/i.test(name)) {

@@ -2,12 +2,15 @@
 import { computed } from 'vue';
 import {
   ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   ArrowUp,
   ArrowUpDown,
   Bot,
   BarChart3,
   CircleAlert,
   CircleCheck,
+  CircleHelp,
   Ellipsis,
   ImageUp,
   Library,
@@ -30,12 +33,15 @@ import {
 
 export type AppIconName =
   | 'arrow-down'
+  | 'arrow-left'
+  | 'arrow-right'
   | 'arrow-up'
   | 'arrow-up-down'
   | 'bar-chart-3'
   | 'bot'
   | 'circle-alert'
   | 'circle-check'
+  | 'circle-help'
   | 'ellipsis'
   | 'image-up'
   | 'library'
@@ -67,12 +73,15 @@ const props = withDefaults(defineProps<Props>(), {
 
 const iconMap: Record<AppIconName, LucideIcon> = {
   'arrow-down': ArrowDown,
+  'arrow-left': ArrowLeft,
+  'arrow-right': ArrowRight,
   'arrow-up': ArrowUp,
   'arrow-up-down': ArrowUpDown,
   'bar-chart-3': BarChart3,
   bot: Bot,
   'circle-alert': CircleAlert,
   'circle-check': CircleCheck,
+  'circle-help': CircleHelp,
   ellipsis: Ellipsis,
   'image-up': ImageUp,
   library: Library,

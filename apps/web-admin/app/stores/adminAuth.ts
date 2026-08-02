@@ -61,7 +61,7 @@ const normalizeProfile = (value: AdminProfile | null | undefined): AdminProfile 
   return {
     name: value.name || value.account || '管理员',
     account: value.account || value.name || 'admin',
-    role: value.role || roleDisplayName(roleCode),
+    role: roleDisplayName(roleCode, value.role),
     roleCode: roleCode || ROUTE_ROLE_ADMIN,
     adminId: String(value.adminId || '').trim(),
   };
