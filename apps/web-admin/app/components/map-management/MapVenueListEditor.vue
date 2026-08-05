@@ -25,11 +25,11 @@ const emit = defineEmits<{
   <section class="space-y-2.5 rounded-[0.9rem] bg-[#0f1114] p-3.5">
     <div class="flex items-center justify-between gap-2.5">
       <div class="space-y-0.5">
-        <h3 class="text-sm font-semibold text-foreground">场馆信息</h3>
-        <p class="text-xs text-muted-foreground">维护当前楼层的场馆资料与地图坐标。</p>
+        <h3 class="text-sm font-semibold text-foreground">展厅信息</h3>
+        <p class="text-xs text-muted-foreground">维护当前楼层的展厅资料与地图坐标。</p>
       </div>
       <UiButton size="sm" variant="secondary" @click="emit('addVenue')">
-        新增场馆
+        新增展厅
       </UiButton>
     </div>
 
@@ -42,7 +42,7 @@ const emit = defineEmits<{
         @click="emit('selectVenue', venue.id)">
         <div class="grid gap-2.5 md:grid-cols-2">
           <div class="space-y-1.5">
-            <label class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">展馆编码</label>
+            <label class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">展厅编码</label>
             <UiInput
               :model-value="venue.galleryCode"
               placeholder="例如：G-3-01"
@@ -50,7 +50,7 @@ const emit = defineEmits<{
           </div>
 
           <div class="space-y-1.5">
-            <label class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">展馆名称</label>
+            <label class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">展厅名称</label>
             <UiInput
               :model-value="venue.name"
               placeholder="例如：青铜馆"
@@ -86,11 +86,11 @@ const emit = defineEmits<{
         </div>
 
         <div class="mt-2.5 space-y-1.5">
-          <label class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">展馆描述</label>
+          <label class="text-[11px] uppercase tracking-[0.14em] text-muted-foreground">展厅描述</label>
           <UiTextarea
             :model-value="venue.description"
             rows="2"
-            placeholder="描述当前展馆的主题与内容"
+            placeholder="描述当前展厅的主题与内容"
             @update:model-value="emit('updateVenue', { targetId: venue.id, patch: { description: $event } })" />
         </div>
 

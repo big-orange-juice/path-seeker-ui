@@ -344,7 +344,7 @@ export const useMuseumWorkbench = (
 
   const resourceErrors = computed(() => ({
     floors: floorsError.value ? toErrorMessage(floorsError.value, '楼层数据加载失败，请稍后重试。') : '',
-    galleries: galleriesError.value ? toErrorMessage(galleriesError.value, '场馆点位加载失败，请稍后重试。') : '',
+    galleries: galleriesError.value ? toErrorMessage(galleriesError.value, '展厅点位加载失败，请稍后重试。') : '',
     facilities: facilitiesError.value ? toErrorMessage(facilitiesError.value, '设施数据加载失败，请稍后重试。') : '',
   }));
 
@@ -577,7 +577,7 @@ export const useMuseumWorkbench = (
         museumId: museumId.value,
         floorId,
         galleryCode: trim(venue.galleryCode) || `G-${trim(draft.floorNumber)}-${index + 1}`,
-        name: trim(venue.name) || `未命名展馆 ${index + 1}`,
+        name: trim(venue.name) || `未命名展厅 ${index + 1}`,
         subtitle: trim(venue.subtitle) || null,
         category: venue.category || DEFAULT_GALLERY_CATEGORY,
         description: trim(venue.description) || null,

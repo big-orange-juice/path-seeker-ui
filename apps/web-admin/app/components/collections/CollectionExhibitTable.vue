@@ -86,7 +86,7 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
   },
   {
     accessorKey: 'galleryId',
-    header: renderHeader('展馆', 'galleryId'),
+    header: renderHeader('展厅', 'galleryId'),
     cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, props.galleryLabelById[row.original.galleryId ?? ''] || '未分配'),
   },
   {

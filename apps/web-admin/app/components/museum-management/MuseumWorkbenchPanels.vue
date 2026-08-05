@@ -121,10 +121,10 @@ const selectedFloorMapImage = computed(() => selectedFloorMap.value?.mapImages[0
 const selectedFloorVenueCount = computed(() => venueDrafts.value.length);
 const galleryEmptyMessage = computed(() => {
   if (!floors.value.length) {
-    return '请先新增楼层，再维护当前博物馆的场馆点位。';
+    return '请先新增楼层，再维护当前博物馆的展厅点位。';
   }
 
-  return '当前楼层还没有场馆点位，可直接新增。';
+  return '当前楼层还没有展厅点位，可直接新增。';
 });
 
 const activeSectionError = computed(() => {
@@ -344,7 +344,7 @@ const saveCurrentFloorGalleries = async () => {
         {
           floorId: selectedFloorId.value,
           galleryCode: venue.galleryCode || `G-${floorCode}-${index + 1}`,
-          name: venue.name || `未命名场馆 ${index + 1}`,
+          name: venue.name || `未命名展厅 ${index + 1}`,
           subtitle: venue.subtitle,
           category: venue.category,
           description: venue.description,
@@ -426,7 +426,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
     <div
       v-if="!hasMuseumId"
       class="rounded-[0.9rem] border border-dashed border-border/70 bg-secondary/20 px-4 py-8 text-center text-sm text-muted-foreground">
-      请先创建并保存博物馆，再继续维护楼层、场馆和设施。
+      请先创建并保存博物馆，再继续维护楼层、展厅和设施。
     </div>
 
     <template v-else>
@@ -497,8 +497,8 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
 
       <AdminSectionCard
         v-else-if="activeSection === 'galleries'"
-        title="场馆点位"
-        description="按楼层维护场馆资料、点位坐标，并同步预览当前楼层底图。">
+        title="展厅点位"
+        description="按楼层维护展厅资料、点位坐标，并同步预览当前楼层底图。">
         <div class="space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap gap-2">
@@ -519,14 +519,14 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
 
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-xs text-muted-foreground">
-                当前楼层 {{ selectedFloorVenueCount }} 个场馆
+                当前楼层 {{ selectedFloorVenueCount }} 个展厅
               </span>
               <Button
                 size="sm"
                 variant="secondary"
                 :disabled="props.disabled || !selectedFloorId"
                 @click="addVenue">
-                新增场馆
+                新增展厅
               </Button>
               <Button
                 size="sm"
@@ -540,7 +540,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
           <div
             v-if="activeSectionPending"
             class="rounded-md bg-secondary/20 px-4 py-6 text-center text-sm text-muted-foreground">
-            正在加载场馆点位...
+            正在加载展厅点位...
           </div>
 
           <div

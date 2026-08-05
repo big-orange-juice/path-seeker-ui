@@ -162,9 +162,9 @@ const submitForm = () => {
             <Input v-model="formState.name" placeholder="请输入馆藏名称" />
           </div>
           <div class="space-y-2">
-            <label class="text-sm font-medium">所属展馆</label>
+            <label class="text-sm font-medium">所属展厅</label>
             <Select :model-value="formState.galleryId ?? ''" @update:model-value="formState.galleryId = $event || null">
-              <option value="">未分配展馆</option>
+              <option value="">未分配展厅</option>
               <option v-for="option in props.galleryOptions" :key="option.value" :value="option.value">
                 {{ option.label }}
               </option>
@@ -208,7 +208,7 @@ const submitForm = () => {
               @update:model-value="updateNumber('recommendedMinutes', $event)" />
           </div>
           <div class="rounded-lg border border-border/70 bg-secondary/25 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
-            名称、展馆与简介是常用项；编码与排序在「更多资料」中维护。
+            名称、展厅与简介是常用项；编码与排序在「更多资料」中维护。
           </div>
         </section>
 

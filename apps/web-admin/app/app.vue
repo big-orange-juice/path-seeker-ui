@@ -22,4 +22,5 @@ useHead({
 
   <AdminAuthExpiredDialog />
   <AdminActionFeedbackDialog />
+  <AdminToastHost />
 </template>

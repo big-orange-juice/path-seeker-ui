@@ -34,8 +34,8 @@ const tipsSteps: AdminTipsStep[] = [
     id: 'museums',
     target: `${ADMIN_ROUTE_PREFIX}/museums`,
     eyebrow: '菜单 · 博物馆',
-    title: '先把场馆基础信息准备好',
-    description: '维护博物馆的名称、楼层与设施信息，为路线中的站点提供准确的场馆背景。',
+    title: '先把展厅基础信息准备好',
+    description: '维护博物馆的名称、楼层与设施信息，为路线中的站点提供准确的展厅背景。',
   },
   {
     id: 'collections',

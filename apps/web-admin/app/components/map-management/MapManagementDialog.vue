@@ -46,7 +46,7 @@ const dialogTitle = computed(() =>
   props.mode === 'create' ? '新增楼层地图' : '编辑楼层地图'
 );
 const dialogDescription = computed(
-  () => '维护楼层基础信息、地图底图和展馆点位。'
+  () => '维护楼层基础信息、地图底图和展厅点位。'
 );
 
 const syncFormState = (value: FloorMapDraft) => {

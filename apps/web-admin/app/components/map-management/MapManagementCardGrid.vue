@@ -35,7 +35,7 @@ const emit = defineEmits<{
             <p class="text-xs text-white/70">层级 {{ record.floorLevel }} · 排序 {{ record.sortOrder }}</p>
           </div>
           <div class="rounded-full border border-white/18 bg-black/25 px-3 py-1 text-xs text-white/78">
-            {{ record.venues.length }} 个展馆
+            {{ record.venues.length }} 个展厅
           </div>
         </div>
 
@@ -70,7 +70,7 @@ const emit = defineEmits<{
   <div v-else class="warm-panel warm-outline rounded-[0.95rem] border border-dashed border-border/80 px-5 py-12 text-center">
     <p class="text-base font-medium text-foreground">还没有楼层地图</p>
     <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-      新增第一条楼层记录后，这里会展示楼层编码、名称、底图和展馆摘要。
+      新增第一条楼层记录后，这里会展示楼层编码、名称、底图和展厅摘要。
     </p>
   </div>
 </template>

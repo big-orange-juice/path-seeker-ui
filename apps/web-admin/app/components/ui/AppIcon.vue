@@ -22,9 +22,11 @@ import {
   Puzzle,
   RefreshCw,
   Route,
+  Search,
   Send,
   Sparkles,
   Trash2,
+  Undo2,
   UserRound,
   X,
   ZoomIn,
@@ -53,9 +55,11 @@ export type AppIconName =
   | 'puzzle'
   | 'refresh-cw'
   | 'route'
+  | 'search'
   | 'send'
   | 'sparkles'
   | 'trash-2'
+  | 'undo-2'
   | 'user-round'
   | 'x'
   | 'zoom-in';
@@ -93,9 +97,11 @@ const iconMap: Record<AppIconName, LucideIcon> = {
   puzzle: Puzzle,
   'refresh-cw': RefreshCw,
   route: Route,
+  search: Search,
   send: Send,
   sparkles: Sparkles,
   'trash-2': Trash2,
+  'undo-2': Undo2,
   'user-round': UserRound,
   x: X,
   'zoom-in': ZoomIn,

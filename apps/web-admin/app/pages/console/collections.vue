@@ -237,9 +237,9 @@ const handleRemove = async (record: ExhibitRecord) => {
           <Input v-model="filters.dynasty" placeholder="如 商晚期 / 北宋" />
         </div>
         <div class="w-[260px] space-y-2">
-          <label class="text-sm font-medium">场馆筛选</label>
+          <label class="text-sm font-medium">展厅筛选</label>
           <Select :model-value="filters.galleryId" @update:model-value="filters.galleryId = $event">
-            <option value="">全部场馆</option>
+            <option value="">全部展厅</option>
             <option value="0">未展览</option>
             <option v-for="option in galleryOptions" :key="option.value" :value="option.value">
               {{ option.label }}

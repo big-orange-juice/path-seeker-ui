@@ -173,7 +173,7 @@ const basicFields = computed<DisplayField[]>(() => {
 
   return [
     { label: '馆藏编码', value: formatValue(record.exhibitCode) },
-    { label: '所属展馆', value: getGalleryName(record) },
+    { label: '所属展厅', value: getGalleryName(record) },
     { label: '年代', value: formatValue(record.dynasty) },
     { label: '材质', value: formatValue(record.material) },
     { label: '类别', value: formatValue(record.category) },

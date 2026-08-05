@@ -41,10 +41,10 @@ const positionedVenues = computed(() =>
 const isPicking = computed(() => Boolean(props.pickingVenueId));
 const previewHeaderText = computed(() => {
   if (props.pickingVenueId) {
-    return `正在取点：${activeVenue.value?.name || '未命名场馆'}`;
+    return `正在取点：${activeVenue.value?.name || '未命名展厅'}`;
   }
 
-  return activeVenue.value?.name || '选择场馆';
+  return activeVenue.value?.name || '选择展厅';
 });
 
 const resolvePointFromEvent = (event: PointerEvent | MouseEvent) => {
@@ -155,7 +155,7 @@ const stopDragging = () => {
     <div class="rounded-[1rem] bg-[#14161a] p-3">
       <div
         class="mb-3 flex items-center justify-between text-xs text-muted-foreground">
-        <span>{{ isPicking ? '点击画面获取坐标' : '选择场馆后可取点' }}</span>
+        <span>{{ isPicking ? '点击画面获取坐标' : '选择展厅后可取点' }}</span>
         <span v-if="props.draftPoint">
           草稿：{{ props.draftPoint.x }}, {{ props.draftPoint.y }}
         </span>

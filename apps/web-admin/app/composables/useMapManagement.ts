@@ -219,7 +219,7 @@ export const useMapManagement = () => {
         museumId: museumId.value,
         floorId,
         galleryCode: gallery.galleryCode || `G-${draft.floorNumber}-${gallery.sortOrder}`,
-        name: gallery.name || `未命名展馆 ${gallery.sortOrder}`,
+        name: gallery.name || `未命名展厅 ${gallery.sortOrder}`,
         subtitle: gallery.subtitle || null,
         category: gallery.category,
         description: gallery.description || null,
