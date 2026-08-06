@@ -28,6 +28,50 @@ export interface ExhibitChatSource {
   imageUrl: string | null
 }
 
+/** 与 exhibit.location / 历史 locations 快照对齐 */
+export type ExhibitChatLocationStatus =
+  | "located"
+  | "multiple_locations"
+  | "gallery_only"
+  | "map_unavailable"
+  | "unbound"
+  | string
+
+export interface ExhibitChatLocationPoint {
+  pointId: string | null
+  title: string | null
+  xPercent: number
+  yPercent: number
+}
+
+export interface ExhibitChatLocationMap {
+  mapId: string | null
+  mapImageUrl: string | null
+  imageWidth: number | null
+  imageHeight: number | null
+  coordinateType: number | null
+  contentHash: string | null
+  points: ExhibitChatLocationPoint[]
+}
+
+export interface ExhibitChatLocationGallery {
+  galleryId: string | null
+  galleryName: string | null
+  floorId: string | null
+  floorName: string | null
+  floorLevel: number | null
+}
+
+/** 单条文物位置快照（SSE items[] / history locations[]） */
+export interface ExhibitChatLocationItem {
+  exhibitId: string | null
+  exhibitName: string | null
+  showcaseNo: string | null
+  status: ExhibitChatLocationStatus
+  gallery: ExhibitChatLocationGallery | null
+  maps: ExhibitChatLocationMap[]
+}
+
 export interface ExhibitChatSession {
   id: string
   museumId: string | null
@@ -45,11 +89,15 @@ export interface ExhibitChatMessage {
   content: string
   status: number
   sources: ExhibitChatSource[]
+  /** 该轮回答使用的位置快照；无位置问题时为空数组 */
+  locations: ExhibitChatLocationItem[]
   createdAt: string | null
 }
 
 export type ExhibitChatEventType =
   | "heartbeat"
+  | "sources"
+  | "exhibit.location"
   | "text.delta"
   | "tool.call.start"
   | "tool.call.result"
@@ -81,9 +129,22 @@ export interface ExhibitChatSuggestionsPayload {
   items?: string[] | null
 }
 
+export interface ExhibitChatSourcesPayload {
+  items?: ExhibitChatSource[] | null
+}
+
+export interface ExhibitChatLocationPayload {
+  intent?: string | null
+  items?: ExhibitChatLocationItem[] | null
+}
+
 export interface ExhibitChatDonePayload {
   assistantMessageId?: string | null
   sources?: ExhibitChatSource[] | null
+  sourceCount?: number | null
+  locationCount?: number | null
+  hasLocation?: boolean | null
+  refused?: boolean | null
 }
 
 export interface ExhibitChatErrorPayload {
@@ -135,6 +196,8 @@ export interface AskUiMessage {
   runId?: string
   errorMessage?: string
   sources?: ExhibitChatSource[]
+  /** 本轮位置快照（SSE exhibit.location / 历史 locations） */
+  locations?: ExhibitChatLocationItem[]
   /** 本轮 done 前下发的后续建议，以 chip 展示 */
   suggestions?: string[]
 }

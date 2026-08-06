@@ -13,6 +13,7 @@ import {
 } from "lucide-vue-next"
 import { storeToRefs } from "pinia"
 import { useToastStore } from "@path-seeker/client-state"
+import AskLocationCard from "@/components/shell/AskLocationCard.vue"
 import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskSpeech } from "@/composables/useAskSpeech"
 import {
@@ -68,12 +69,11 @@ async function scrollToBottom() {
   }
 }
 
+// 语音/文字模式统一滚到底：语音也渲染气泡，位置卡需可点
 watch(
   [messages, typing, open, interactionMode],
   () => {
-    if (!isVoiceMode.value) {
-      void scrollToBottom()
-    }
+    void scrollToBottom()
   },
   { deep: true },
 )
@@ -282,27 +282,25 @@ function handleSuggestion(text: string) {
         正在加载历史…
       </div>
 
-      <!-- 语音模式：状态 + 字幕（无动画球） -->
-      <div v-if="isVoiceMode" class="ask-voice">
+      <!--
+        语音模式：仍渲染气泡（位置卡可点），仅顶部状态条。
+        朗读只走 SSE 音频，不把气泡当字幕/朗读稿。
+      -->
+      <div
+        v-if="isVoiceMode"
+        class="ask-voice-bar"
+        aria-live="polite"
+      >
         <p class="ask-voice-phase">{{ voicePhaseLabel }}</p>
-
-        <div v-if="speech.lastUserText.value" class="ask-voice-user">
-          <span class="ask-voice-label">你</span>
-          <p>{{ speech.lastUserText.value }}</p>
-        </div>
-
-        <div class="ask-voice-caption">
-          <span class="ask-voice-label">助手</span>
-          <p v-if="speech.captionText.value">{{ speech.captionText.value }}</p>
-          <p v-else class="ask-voice-placeholder">
-            {{
-              speech.voicePhase.value === "thinking"
+        <p class="ask-voice-hint">
+          {{
+            speech.voicePhase.value === "speaking"
+              ? "正在朗读回复"
+              : speech.voicePhase.value === "thinking"
                 ? "正在组织回答…"
-                : "打字提问，我会朗读回复"
-            }}
-          </p>
-        </div>
-
+                : "回复会出现在下方气泡，可点位置卡"
+          }}
+        </p>
         <button
           v-if="speech.isSpeaking.value"
           type="button"
@@ -314,15 +312,18 @@ function handleSuggestion(text: string) {
         </button>
       </div>
 
-      <!-- 文字模式：消息列表 -->
-      <div v-else ref="msgsEl" class="ask-msgs">
+      <div ref="msgsEl" class="ask-msgs">
         <div
           v-if="!messages.length && !historyPending"
           class="ask-welcome"
         >
           <p class="ask-welcome-title">你好，我在展厅里。</p>
           <p class="ask-welcome-copy">
-            想找展品、听故事，或问这一站怎么走，都可以跟我说。
+            {{
+              isVoiceMode
+                ? "打字提问，我会朗读回复；位置等信息可在气泡里点开。"
+                : "想找展品、听故事，或问这一站怎么走，都可以跟我说。"
+            }}
           </p>
         </div>
 
@@ -348,6 +349,7 @@ function handleSuggestion(text: string) {
               {{ extractAskUserInstruction(msg.content) }}
             </template>
             <template v-else>
+              <!-- 正文仅视觉展示；语音模式朗读由 SSE 音频负责，不另起字幕轨 -->
               <AskMarkdown
                 v-if="msg.content"
                 :markdown="msg.content"
@@ -377,6 +379,11 @@ function handleSuggestion(text: string) {
                   {{ source.name || source.formalName || "相关展品" }}
                 </span>
               </div>
+
+              <AskLocationCard
+                v-if="msg.locations?.length"
+                :locations="msg.locations"
+              />
 
               <div
                 v-if="canUseSuggestions(msg)"

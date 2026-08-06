@@ -18,6 +18,16 @@ export default defineConfig({
       '@path-seeker/game-runtime': fileURLToPath(
         new URL('../../packages/game-runtime/src/index.ts', import.meta.url)
       ),
+      // 更长的子路径别名必须写在包入口之前，否则会被前缀吞掉
+      '@path-seeker/game-renderer/exhibit-location-map-overlay': fileURLToPath(
+        new URL(
+          '../../packages/game-renderer/src/components/ExhibitLocationMapOverlay.vue',
+          import.meta.url
+        )
+      ),
+      '@path-seeker/game-renderer': fileURLToPath(
+        new URL('../../packages/game-renderer/src/index.ts', import.meta.url)
+      ),
       // 强制所有依赖共用同一份 vue / pinia
       vue: fileURLToPath(new URL('./node_modules/vue', import.meta.url)),
       pinia: fileURLToPath(new URL('./node_modules/pinia', import.meta.url)),

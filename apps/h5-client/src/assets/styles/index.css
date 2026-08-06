@@ -1281,69 +1281,53 @@
     box-shadow: none;
   }
 
-  /* ----- Ask voice mode（无动画球，仅状态 + 字幕） ----- */
-  .ask-voice {
+  /* ----- Ask voice：紧凑状态条；正文/位置卡走下方气泡 ----- */
+  .ask-voice-bar {
     display: flex;
-    flex: 1;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.7rem;
-    overflow: auto;
-    padding: 0.85rem 0.9rem 0.75rem;
-    -webkit-overflow-scrolling: touch;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem 0.65rem;
+    padding: 0.55rem 0.9rem;
+    border-bottom: 1px solid rgba(255, 248, 230, 0.06);
+    background: linear-gradient(
+      180deg,
+      rgba(209, 178, 111, 0.08),
+      rgba(209, 178, 111, 0.02)
+    );
   }
 
   .ask-voice-phase {
-    margin: 0.15rem 0 0;
-    font-size: 0.72rem;
+    margin: 0;
+    font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--gold);
   }
 
-  .ask-voice-user,
-  .ask-voice-caption {
-    width: 100%;
-    padding: 0.7rem 0.85rem;
-    border-radius: 0.95rem;
-    border: 1px solid rgba(255, 248, 230, 0.07);
-    background: rgba(255, 255, 255, 0.025);
-  }
-
-  .ask-voice-user p,
-  .ask-voice-caption p {
-    margin: 0.28rem 0 0;
-    font-size: 0.9rem;
-    line-height: 1.55;
-    color: var(--fg);
-    word-break: break-word;
-  }
-
-  .ask-voice-label {
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+  .ask-voice-hint {
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
     color: var(--muted-ink);
-  }
-
-  .ask-voice-placeholder {
-    color: var(--fg-dim) !important;
+    font-size: 0.72rem;
+    line-height: 1.35;
   }
 
   .ask-voice-stop {
     display: inline-flex;
-    align-self: flex-start;
+    flex-shrink: 0;
     align-items: center;
     gap: 0.35rem;
-    min-height: 2rem;
-    padding: 0.35rem 0.9rem;
+    min-height: 1.85rem;
+    margin-left: auto;
+    padding: 0.28rem 0.75rem;
     border: 1px solid rgba(255, 248, 230, 0.14);
     border-radius: 999px;
     background: rgba(18, 17, 15, 0.65);
     color: rgba(242, 235, 224, 0.88);
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     font-weight: 650;
   }
 

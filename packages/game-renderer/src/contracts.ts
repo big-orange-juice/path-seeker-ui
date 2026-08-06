@@ -166,6 +166,46 @@ export interface StageExhibitLocationMap {
   exhibitName?: string | null
 }
 
+/** 通用地图弹层点位（关卡单点 / 问答多点） */
+export interface ExhibitMapOverlayPoint {
+  id?: string | null
+  title?: string | null
+  xPercent: number
+  yPercent: number
+}
+
+/** 多底图场景下的单张可绘地图 */
+export interface ExhibitMapOverlaySheet {
+  id: string
+  /** Tab 文案；缺省「地图 n」 */
+  label?: string | null
+  imageUrl: string
+  points: ExhibitMapOverlayPoint[]
+}
+
+/**
+ * 通用展厅地图全屏弹层数据。
+ * 关卡与问答共用手势层；入口由宿主自行提供。
+ * - 单图：填 imageUrl + points（关卡）
+ * - 多图：填 maps[]（问答 multiple_locations / 多 map）
+ */
+export interface ExhibitMapOverlayModel {
+  /** 标题区主文案（展厅名） */
+  galleryName?: string | null
+  /** 标题区副文案（点位 / 展品摘要） */
+  subtitle?: string | null
+  /** 单底图 URL（与 maps 二选一；maps 优先） */
+  imageUrl?: string | null
+  /** 当前/单图点位（maps 缺省时使用） */
+  points?: ExhibitMapOverlayPoint[]
+  /** 多底图；长度 > 1 时弹层展示 Tab */
+  maps?: ExhibitMapOverlaySheet[] | null
+  /** 打开时优先展示的 map id */
+  initialMapId?: string | null
+  /** 打开时优先居中的点位 id；缺省取当前图第一个有效点 */
+  focusPointId?: string | null
+}
+
 export interface GameplayPreviewStage {
   stageId: string
   interactionType: number

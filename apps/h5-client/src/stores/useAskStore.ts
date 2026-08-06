@@ -7,6 +7,8 @@ import {
   buildExhibitChatSendWithAudioUrl,
   createExhibitChatSession,
   fetchExhibitChatHistory,
+  mapExhibitChatLocationItems,
+  mapExhibitChatSource,
 } from "@/services/exhibitChat"
 import { resolveRequestErrorMessage } from "@/services/http"
 import { getDefaultAskVoiceId } from "@/utils/askVoice"
@@ -18,7 +20,9 @@ import type {
   ExhibitChatDonePayload,
   ExhibitChatErrorPayload,
   ExhibitChatEvent,
+  ExhibitChatLocationPayload,
   ExhibitChatSource,
+  ExhibitChatSourcesPayload,
   ExhibitChatSuggestionsPayload,
   ExhibitChatTextDeltaPayload,
   ExhibitChatVoiceSendRequest,
@@ -361,6 +365,7 @@ export const useAskStore = defineStore("ask", () => {
             id: item.id,
             runId: item.runId || undefined,
             sources: item.sources,
+            locations: item.locations?.length ? item.locations : undefined,
             createdAt: item.createdAt ? Date.parse(item.createdAt) || Date.now() : Date.now(),
           },
         )
@@ -420,6 +425,34 @@ export const useAskStore = defineStore("ask", () => {
     switch (event.type) {
       case "heartbeat": {
         typing.value = true
+        break
+      }
+
+      case "sources": {
+        // 文本增量前下发；先挂来源卡，再流式补文
+        const payload = (event.payload ?? {}) as ExhibitChatSourcesPayload
+        const items = Array.isArray(payload.items)
+          ? payload.items.map((item) => mapExhibitChatSource(item as Partial<ExhibitChatSource>))
+          : []
+        if (activeAssistantId && items.length) {
+          updateMessage(activeAssistantId, {
+            sources: items,
+            status: "streaming",
+          })
+        }
+        break
+      }
+
+      case "exhibit.location": {
+        // sources 之后、text.delta 之前；位置问题才有
+        const payload = (event.payload ?? {}) as ExhibitChatLocationPayload
+        const locations = mapExhibitChatLocationItems(payload.items)
+        if (activeAssistantId && locations.length) {
+          updateMessage(activeAssistantId, {
+            locations,
+            status: "streaming",
+          })
+        }
         break
       }
 
@@ -513,7 +546,8 @@ export const useAskStore = defineStore("ask", () => {
         return
       }
 
-      if (!event.type && rawEvent.event) {
+      // SSE event: 行优先（exhibit.location / sources 等）
+      if (rawEvent.event) {
         event.type = rawEvent.event
       }
       if (!event.eventId && rawEvent.id) {
