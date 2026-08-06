@@ -221,13 +221,16 @@
 
   /*
    * 任务流（map / 站点）：FAB 仍在，底栏留白更紧。
-   * 锁死 100dvh，让子页（尤其无图解说）拿到确定高度做区内滚动，
-   * 长列表页则在 main 内滚动，避免整页被文案撑开后无法滚动。
+   * 用 100svh（小视口）锁高：真机 Edge/Chrome 地址栏展开时 100dvh 常大于
+   * 可视区，主列被撑出一大截「点不到的底部黑区」，PC 模拟器则对得齐所以看不出来。
+   * 长列表仍由 main 内滚。
    */
   .client-frame-mission {
     @apply pb-[calc(4.25rem+env(safe-area-inset-bottom))];
-    height: 100dvh;
-    max-height: 100dvh;
+    height: 100vh;
+    max-height: 100vh;
+    height: 100svh;
+    max-height: 100svh;
     min-height: 0;
     overflow: hidden;
   }

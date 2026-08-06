@@ -324,12 +324,27 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   background: var(--sp-void);
 }
 
+/*
+ * 问答 / 拼图：按内容增高，短内容时吃满宿主高度并把操作区沉底。
+ * 背景透明，避免 flex 撑高后在按钮下方留下大块实心黑底（真机 Edge 尤甚）。
+ * 长内容仍由宿主 main 外滚，不在此裁切。
+ */
+.stage-play.is-observe_choice,
+.stage-play.is-image_puzzle {
+  flex: 1 0 auto;
+  min-height: 100%;
+  height: auto;
+  overflow: visible;
+  background: transparent;
+}
+
 /* 解说页：图/文固定高，允许内容高于视口由宿主滚动 */
 .stage-play.is-narration {
   flex: 0 0 auto;
   height: auto;
   max-height: none;
   overflow: visible;
+  background: transparent;
 }
 
 .stage-play.is-empty {
@@ -467,8 +482,8 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 /* 线性答题 / 拼图去 card：无边框/无底色，题面直接贴壳层 */
 .play-shell {
   display: flex;
-  min-height: 0;
-  flex: 1 1 auto;
+  min-height: 100%;
+  flex: 1 0 auto;
   flex-direction: column;
   gap: 1rem;
   border: 0;
@@ -479,15 +494,20 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 
 .play-shell__body {
   min-height: 0;
+  flex: 0 1 auto;
   border-radius: 0;
   background: transparent;
   padding: 0;
 }
 
+/* 短内容时沉底，贴近 FAB 留白；长内容无剩余空间时保持文档流末尾 */
 .play-shell__actions {
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
   gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 0.35rem;
 }
 
 /* 线性答题：题面更克制，选项区拉开呼吸 */
@@ -521,9 +541,10 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 }
 
 .play-shell--observe_choice .play-shell__actions {
-  margin-top: 0.35rem;
+  /* 保持 auto 沉底，仅收紧间距 */
+  margin-top: auto;
   gap: 0.7rem;
-  padding-top: 0.35rem;
+  padding-top: 0.5rem;
 }
 
 /* 去 card：内容自然高度，矮屏外滚 */

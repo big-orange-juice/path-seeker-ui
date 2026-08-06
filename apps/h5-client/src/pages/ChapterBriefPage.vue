@@ -312,9 +312,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative space-y-4">
+  <!-- min-height:100% 把 main 高度传给 StagePlaySurface，短题面可沉底操作区 -->
+  <div class="brief-page">
     <template v-if="ready && chapter && playStage">
       <StagePlaySurface
+        class="brief-page__surface"
         :stage="playStage"
         :puzzle="missionStore.currentPuzzle"
         :model-value="draft"
@@ -399,7 +401,10 @@ onUnmounted(() => {
       </StagePlaySurface>
     </template>
 
-    <div v-else-if="!ready || missionStore.gameplayPending || missionStore.detailPending" class="space-y-4 pt-1">
+    <div
+      v-else-if="!ready || missionStore.gameplayPending || missionStore.detailPending"
+      class="brief-page__fallback space-y-4 pt-1"
+    >
       <ClientSkeleton class="h-6 w-28" />
       <ClientSkeleton class="h-10 w-2/3" />
       <ClientSkeleton class="h-20 w-full" />
@@ -409,6 +414,7 @@ onUnmounted(() => {
 
     <ClientEmptyState
       v-else
+      class="brief-page__fallback"
       title="这一站暂时打不开"
       :description="missionStore.gameplayError || missionStore.detailError || '请回到路线重新进入。'"
       action-text="返回路线"
@@ -418,6 +424,24 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.brief-page {
+  display: flex;
+  min-height: 100%;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.brief-page__surface {
+  display: flex;
+  min-height: 100%;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.brief-page__fallback {
+  flex: 1 0 auto;
+}
+
 /* 题面顶栏 / 找一找头：紧凑胶囊，不与标题抢位 */
 .stage-ask-inline {
   display: inline-flex;
