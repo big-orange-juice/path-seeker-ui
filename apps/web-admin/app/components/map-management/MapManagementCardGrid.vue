@@ -53,7 +53,7 @@ const emit = defineEmits<{
             </span>
           </div>
 
-          <p class="text-xs text-white/65">{{ record.mapImages[0] ? '已配置地图底图' : '未配置地图底图' }}</p>
+          <p class="text-xs text-white/65">{{ record.mapImages[0] ? '已配置地图背景图' : '未配置地图背景图' }}</p>
           <div class="flex flex-wrap items-center justify-start gap-1.5">
             <UiButton size="sm" variant="secondary" @click="emit('edit', record)">
               编辑
@@ -70,7 +70,7 @@ const emit = defineEmits<{
   <div v-else class="warm-panel warm-outline rounded-[0.95rem] border border-dashed border-border/80 px-5 py-12 text-center">
     <p class="text-base font-medium text-foreground">还没有楼层地图</p>
     <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-      新增第一条楼层记录后，这里会展示楼层编码、名称、底图和展厅摘要。
+      新增第一条楼层记录后，这里会展示楼层编码、名称、地图背景图和展厅摘要。
     </p>
   </div>
 </template>

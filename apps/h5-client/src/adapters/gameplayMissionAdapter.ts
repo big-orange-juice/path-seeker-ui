@@ -197,7 +197,7 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
     id: stageId,
     interactionType: Number(stage.interactionType ?? stage.puzzleType ?? 0),
     templateType: "observe_choice" as const,
-    title: stageTitle || "未命名节点",
+    title: stageTitle || "未命名探索点",
     introText: "",
     prompt: "",
     hintPayload: {},
@@ -219,7 +219,7 @@ function buildPuzzle(stage: StageLike, route: RouteCardResponse | null | undefin
     schemaMeta,
     hintPayload,
     reward: makeReward(stageId, stageTitle || resolvedShared.title),
-    successCopy: "节点已完成。",
+    successCopy: "这一站已完成。",
     failureCopy: "本次未通过。",
   } as MissionPuzzle
 }

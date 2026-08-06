@@ -144,7 +144,7 @@ async function bootstrap() {
   }
 
   if (interactionType.value !== 10) {
-    toastStore.warning("暂不支持的节点", "该路线节点不属于当前正式玩法范围。")
+    toastStore.warning("暂不支持的玩法", "这一站的玩法类型暂未开放，请先探索其他站点。")
     await router.replace(`/missions/${routeId.value}/map`)
     return
   }
@@ -230,7 +230,7 @@ async function submitAnswer() {
     return
   }
   toastStore.success(
-    result.snapshot?.finalChapter ? "本路线已完成" : "章节解锁成功",
+    result.snapshot?.finalChapter ? "本路线已完成" : "本站已完成",
     result.message || "可以继续探索。",
   )
   // 末站也不自动进终局，统一走本站结果再回选站

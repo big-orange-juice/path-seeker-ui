@@ -58,7 +58,7 @@ const businessModelRows: InfoRow[] = [
 ];
 
 const conceptRows: InfoRow[] = [
-  { name: '内容资产化', description: '文物资料、故事、题目、路线都沉淀为可复用资产' },
+  { name: '内容资料管理', description: '文物资料、故事、题目、路线都沉淀为可复用资料' },
   { name: '路线任务化', description: '参观路径不只是导航，而是任务推进路径' },
   { name: '年龄适配', description: '同一文物支持不同年龄难度题目' },
   { name: '低打扰沉浸', description: '轻量 UI 服务于线下观展，不喧宾夺主' },
@@ -74,7 +74,7 @@ const bModuleColumns: TableColumn[] = [
 const bModules: Array<Record<string, string>> = [
   { module: '基础数据管理', description: '维护博物馆、楼层、展厅、展柜、标签和主题分类', value: '打通内容基础设施' },
   { module: '馆藏内容管理', description: '维护文物图文、音频、年代、材质、作者、故事和位置', value: '建立高质量内容底座' },
-  { module: '主题剧本编排', description: '按主题、路线、时长将多个谜题组合成完整探索路线', value: '形成 C 端可探索产品' },
+  { module: '主题路线设计', description: '按主题、路线、时长将多个玩法组合成完整探索路线', value: '形成游客端可探索产品' },
   { module: '审核与发布', description: '支持未上架、审核、上架、下线与版本管理', value: '控制内容质量' },
 ];
 
@@ -87,14 +87,14 @@ const cModuleColumns: TableColumn[] = [
 const cModules: Array<Record<string, string>> = [
   { module: '首页世界观入口', description: '展示主题任务、限时活动与推荐路线', gameplay: '像进入探索大厅' },
   { module: '故事引导页', description: '通过开场动画、旁白与目标说明建立代入', gameplay: '进入剧情状态' },
-  { module: '章节地图', description: '呈现当前展厅、已解锁线索和下一目标提示', gameplay: '像路线地图' },
+  { module: '路线地图', description: '呈现当前展厅、已解锁线索和下一目标提示', gameplay: '像路线地图' },
   { module: '收集与成就系统', description: '印章、碎片、徽章、角色卡和称号解锁', gameplay: '建立持续动力' },
 ];
 
 const flowStages: MilestoneStage[] = [
   { title: '1. 内容准备', target: '录入馆藏、展厅、标签与媒体资源', details: '让每条路线都有可复用内容底座。' },
   { title: '2. 出题设计', target: '为单件文物创建多年龄层谜题', details: '围绕观察、排序、推理与剧情判断扩展题型。' },
-  { title: '3. 主题编排', target: '组合剧情线、章节、奖励与终局', details: '把分散谜题整合成完整的探索路线。' },
+  { title: '3. 主题路线设计', target: '组合剧情线、站点、奖励与完成结果', details: '把分散玩法整合成完整的探索路线。' },
   { title: '4. 发布上线', target: '审核并发布为可探索路线', details: '控制内容质量与版本节奏。' },
   { title: '5. 复盘运营', target: '分析卡点并持续调整路线', details: '形成节日活动与馆校合作的长期机制。' },
 ];
@@ -156,7 +156,7 @@ const operationColumns: TableColumn[] = [
 
 const operationMetrics: Array<Record<string, string>> = [
   { dimension: '参与度', metrics: '启动人数、开始率、平均会话时长、进入任务详情率' },
-  { dimension: '完成度', metrics: '通关率、分章节流失率、平均提示次数' },
+  { dimension: '完成度', metrics: '完成率、分站点流失率、平均提示次数' },
   { dimension: '内容质量', metrics: '各题正确率、卡关题 Top10、被跳过题比例' },
   { dimension: '馆藏传播', metrics: '热门文物访问量、音频播放率、详情页停留时长' },
   { dimension: '运营效果', metrics: '节日活动参与率、复访率、分享率、勋章领取率' },
@@ -165,14 +165,14 @@ const operationMetrics: Array<Record<string, string>> = [
 
 const milestoneStages: MilestoneStage[] = [
   { title: '第一阶段', target: '快速验证', details: '先做 1 个馆、1 条主题线、10-15 个谜题、2 个年龄层。' },
-  { title: '第二阶段', target: '形成标准化能力', details: '完善题型模板、路线编排、活动配置和数据分析。' },
+  { title: '第二阶段', target: '形成标准化能力', details: '完善玩法模板、路线设计、活动配置和数据分析。' },
   { title: '第三阶段', target: '提升复用与增长', details: '支持多馆复制、馆际联动、节日专题与学校研学版本。' },
 ];
 
 const mvpRows: InfoRow[] = [
-  { name: 'B 端范围', description: '馆藏管理、谜题管理、主题编排、发布管理、基础数据看板' },
-  { name: 'C 端范围', description: '任务列表、剧情开场、章节地图、4-5 种基础题型、勋章奖励、结局海报' },
-  { name: '内容范围', description: '1 条 20-30 分钟路线，覆盖 8-12 个关键节点' },
+  { name: '管理后台范围', description: '馆藏管理、玩法管理、主题路线设计、发布管理、基础数据看板' },
+  { name: '游客端范围', description: '任务列表、剧情开场、路线地图、4-5 种基础玩法、勋章奖励、完成海报' },
+  { name: '内容范围', description: '1 条 20-30 分钟路线，覆盖 8-12 个关键站点' },
   { name: '年龄范围', description: '先支持 6-10 与 10-15 两档' },
   { name: '运营方式', description: '配合线下导览活动或周末家庭活动上线测试' },
 ];

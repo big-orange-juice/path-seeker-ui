@@ -8,6 +8,7 @@ import GalleryMapSelector from '@/components/gallery-map/GalleryMapSelector.vue'
 import type {
   GalleryMapCoordinate,
   GalleryMapGalleryOption,
+  GalleryMapPointExhibitRecord,
   GalleryMapPointRecord,
   GalleryMapRecord,
   GalleryMapSummary,
@@ -64,6 +65,7 @@ const emit = defineEmits<{
   movePoint: [payload: { point: GalleryMapPointRecord; coordinate: GalleryMapCoordinate }];
   editPoint: [point: GalleryMapPointRecord];
   removePoint: [point: GalleryMapPointRecord];
+  openExhibit: [exhibit: GalleryMapPointExhibitRecord];
 }>();
 </script>
 
@@ -149,7 +151,7 @@ const emit = defineEmits<{
         <span
           v-if="props.picking"
           class="shrink-0 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs text-primary">
-          点击底图取点
+          点击地图背景图取点
         </span>
       </div>
 
@@ -170,7 +172,8 @@ const emit = defineEmits<{
           :can-edit="props.selectedPoint?.markerType === 1"
           :action-pending="props.pointActionPending"
           @edit="emit('editPoint', $event)"
-          @remove="emit('removePoint', $event)" />
+          @remove="emit('removePoint', $event)"
+          @open-exhibit="emit('openExhibit', $event)" />
       </div>
     </section>
   </div>

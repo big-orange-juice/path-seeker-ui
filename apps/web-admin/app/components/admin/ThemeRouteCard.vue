@@ -37,7 +37,7 @@ const statusMap = {
 
     <div class="mt-4 grid gap-3 border-t border-border pt-4 md:grid-cols-[1fr_180px]">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">章节结构</p>
+        <p class="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">站点结构</p>
         <div class="mt-2 flex flex-wrap gap-2">
           <span
             v-for="step in props.route.structure"

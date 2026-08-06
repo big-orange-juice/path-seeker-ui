@@ -179,9 +179,9 @@ watch(routeId, () => void ensureFinaleData(), { immediate: true })
 
     <ClientEmptyState
       v-else
-      title="终局数据不可用"
-      :description="missionStore.routeResultError || '请先完成当前路线，再查看终局结果。'"
-      action-text="返回章节地图"
+      title="完成结果暂不可用"
+      :description="missionStore.routeResultError || '请先完成当前路线，再查看探索完成结果。'"
+      action-text="返回路线地图"
       @action="router.push(`/missions/${routeId}/map`)"
     />
   </div>

@@ -57,7 +57,7 @@ export default defineEventHandler(async (event) => {
   if (!sessionId || !clientMessageId || !message) {
     throw createError({
       statusCode: 400,
-      message: '会话 ID、消息幂等 ID 与消息内容均不能为空。',
+      message: '对话信息或消息内容不完整，请重试。',
     });
   }
 

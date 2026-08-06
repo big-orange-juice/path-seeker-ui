@@ -139,7 +139,7 @@ function handleSetAssistantVoice() {
   }
   const id = guideProviderVoiceId.value
   if (!id) {
-    toastStore.warning("暂不可用", "该导游尚无可用音色 ID，无法设为助手音色。")
+    toastStore.warning("暂不可用", "该导游的语音助手暂时不可用，请稍后再试。")
     return
   }
   if (isCurrentAssistantVoice.value) {

@@ -160,7 +160,7 @@ const dialogTitle = computed(() => (props.mode === 'edit' ? '编辑文物点位'
 const dialogDescription = computed(() => (
   props.mode === 'edit'
     ? '更新点位信息，并同步完整的关联文物集合。'
-    : '选择底图位置，并绑定已有系统文物。'
+    : '在地图背景图上选择位置，并绑定已有系统文物。'
 ));
 
 const validationMessage = computed(() => {
@@ -170,7 +170,7 @@ const validationMessage = computed(() => {
 
   const coordinate = resolvedCoordinate.value;
   if (!coordinate || !Number.isFinite(coordinate.xPercent) || !Number.isFinite(coordinate.yPercent)) {
-    return '请先在底图上选择点位。';
+    return '请先在地图背景图上选择位置。';
   }
 
   if (props.mode === 'edit' && !props.point) {
@@ -275,7 +275,7 @@ const submitForm = () => {
         <form class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4" @submit.prevent="submitForm">
           <section class="grid gap-3 sm:grid-cols-2">
             <div class="space-y-1.5">
-              <label class="text-xs font-medium">点位坐标</label>
+              <label class="text-xs font-medium">展厅位置</label>
               <Input :model-value="coordinateLabel" disabled />
             </div>
             <div class="space-y-1.5">

@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   if (!id || !routeId) {
     throw createError({
       statusCode: 400,
-      message: '缺少节点 ID 或路线 ID。',
+      message: '缺少站点或路线信息。',
     })
   }
 

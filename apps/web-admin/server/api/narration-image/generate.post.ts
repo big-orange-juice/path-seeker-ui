@@ -18,7 +18,7 @@ export default defineEventHandler(async (event): Promise<GenerateRouteStageNarra
   if (!stageId || !prompt || !idempotencyKey) {
     throw createError({
       statusCode: 400,
-      message: '缺少节点、画面描述或请求标识。',
+      message: '缺少站点、画面描述或请求信息。',
     })
   }
   if (prompt.length > 4000) {

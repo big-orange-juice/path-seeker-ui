@@ -85,13 +85,13 @@ const handleMarkerMove = (payload: { point: GalleryMapPointRecord; clientX: numb
       <div
         v-else-if="!props.map"
         class="flex min-h-[280px] w-full flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-secondary/20 px-6 text-center text-sm text-muted-foreground">
-        选择一个地图后，这里会展示底图和点位。
+        选择一个地图后，这里会展示地图背景图和展厅位置。
       </div>
 
       <div
         v-else-if="!props.map.imageUrl || imageFailed"
         class="flex min-h-[280px] w-full flex-1 items-center justify-center rounded-lg border border-dashed border-border/70 bg-secondary/20 px-6 text-center text-sm text-muted-foreground">
-        当前地图没有可用底图。
+        当前地图没有可用的地图背景图。
       </div>
 
       <div
@@ -102,7 +102,7 @@ const handleMarkerMove = (payload: { point: GalleryMapPointRecord; clientX: numb
         @click="handleStageClick">
         <img
           :src="props.map.imageUrl"
-          :alt="`${props.map.galleryName || '展厅'}地图底图`"
+          :alt="`${props.map.galleryName || '展厅'}地图背景图`"
           class="map-stage-image block select-none object-contain"
           draggable="false"
           @error="handleImageError">

@@ -434,7 +434,7 @@ function handleSuggestion(text: string) {
             type="button"
             class="ask-context-chip-remove"
             title="取消附件"
-            aria-label="取消站点上下文附件"
+            aria-label="取消当前站点信息"
             :disabled="typing"
             @click="askStore.clearStageContext()"
           >

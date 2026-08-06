@@ -38,7 +38,7 @@ const formState = reactive<MuseumFloorDraft>({
 });
 
 const dialogTitle = computed(() => (props.mode === 'create' ? '新增楼层' : '编辑楼层'));
-const dialogDescription = computed(() => '维护楼层编号、层级、底图与排序。');
+const dialogDescription = computed(() => '维护楼层编号、楼层级别、地图背景图与排序。');
 
 const mapImageList = computed({
   get: () => [...formState.mapImages],
@@ -158,9 +158,9 @@ const submitForm = () => {
 
         <UiImageUpload
           v-model="mapImageList"
-          label="楼层底图"
-          hint="上传当前楼层对应的底图。"
-          button-text="上传底图"
+          label="地图背景图"
+          hint="上传当前楼层对应的地图背景图。"
+          button-text="上传地图背景图"
           button-subtext="支持单张"
           :multiple="false"
           @uploaded="handleMapUploaded" />

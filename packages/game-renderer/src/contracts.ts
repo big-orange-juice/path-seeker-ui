@@ -17,7 +17,7 @@ export const SUPPORTED_INTERACTION_TYPES = [1, 6, 10, 11] as const
 export type SupportedInteractionType = (typeof SUPPORTED_INTERACTION_TYPES)[number]
 
 export const INTERACTION_TYPE_META = {
-  1: { label: "线性答题", className: "answer" },
+  1: { label: "观察选择", className: "answer" },
   6: { label: "纹样拼图", className: "jigsaw" },
   10: { label: "找一找", className: "find" },
   11: { label: "解说导览", className: "narration" },

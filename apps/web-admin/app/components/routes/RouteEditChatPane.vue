@@ -186,7 +186,7 @@ defineExpose({
       :tools="activeTools"
       :is-running="isRunning"
       empty-title="用对话编辑当前路线"
-      empty-description="例如：给当前节点增加提示，或按主题补几个节点。"
+      empty-description="例如：给当前站点增加提示，或按主题补几个站点。"
       @retry="retryLastFailed"
       @suggestion="handleSend" />
 
@@ -199,7 +199,7 @@ defineExpose({
     <ChatComposer
       :sending="isRunning"
       :disabled="!canSend"
-      placeholder="描述你想对当前路线或节点做的修改…"
+      placeholder="描述你想对当前路线或站点做的修改…"
       @send="handleSend"
       @cancel="cancelRun" />
   </div>

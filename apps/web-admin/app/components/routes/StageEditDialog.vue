@@ -1468,7 +1468,7 @@ const buildRegularConfig = () => {
     const options = parseChoiceOptionsForSave()
     const correctId = form.correctOptionId.trim()
     if (!form.prompt.trim() || options.length < 2 || !correctId) {
-      errorMessage.value = '请填写题干、至少两个选项，并点选正确答案。'
+      errorMessage.value = '请填写题目、至少两个选项，并点选正确答案。'
       return null
     }
     if (!options.some((item) => item.id === correctId)) {
@@ -1495,7 +1495,7 @@ const buildRegularConfig = () => {
     const pieces = parsePiecesForSave(cols)
     const correctOrder = pieces.map((item) => item.id)
     if (!form.prompt.trim()) {
-      errorMessage.value = '请填写题干。'
+      errorMessage.value = '请填写题目。'
       return null
     }
     if (form.puzzlePieces.some((item) => !item.imageUrl.trim())) {
@@ -1692,7 +1692,7 @@ const handleSave = async () => {
     emit('saved')
     isOpen.value = false
   } catch (error) {
-    errorMessage.value = resolveError(error, '节点保存失败。')
+    errorMessage.value = resolveError(error, '站点保存失败。')
   } finally {
     saving.value = false
   }
@@ -1738,7 +1738,7 @@ const handleSave = async () => {
                 题目内容
               </p>
               <label class="block space-y-1.5 text-sm font-medium">
-                题干
+                题目
                 <Textarea
                   v-model="form.prompt"
                   class="min-h-[88px]"
@@ -1804,7 +1804,7 @@ const handleSave = async () => {
                 拼图内容
               </p>
               <label class="block space-y-1.5 text-sm font-medium">
-                题干
+                题目
                 <Textarea
                   v-model="form.prompt"
                   class="min-h-[88px]"

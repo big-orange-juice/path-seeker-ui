@@ -30,13 +30,13 @@ const templateGlyphs: Partial<Record<PuzzleTemplateType, string>> = {
 }
 
 export function getPuzzleTypeLabel(type: PuzzleTemplateType, interactionType?: number | null) {
-  return getInteractionTypeMeta(interactionType)?.label ?? templateLabels[type] ?? "未支持节点"
+  return getInteractionTypeMeta(interactionType)?.label ?? templateLabels[type] ?? "暂不支持的玩法"
 }
 
 export function getPuzzleTypeAction(type: PuzzleTemplateType, interactionType?: number | null) {
   return (interactionType ? interactionActions[interactionType] : undefined)
     ?? templateActions[type]
-    ?? "返回路线选择可用节点"
+    ?? "返回路线选择其他探索点"
 }
 
 export function getPuzzleTypeGlyph(type: PuzzleTemplateType, interactionType?: number | null) {

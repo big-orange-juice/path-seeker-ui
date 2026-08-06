@@ -439,7 +439,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
       <AdminSectionCard
         v-if="activeSection === 'floors'"
         title="楼层地图"
-        description="维护当前博物馆下的楼层编号、层级、底图与排序。">
+        description="维护当前博物馆下的楼层编号、楼层级别、地图背景图与排序。">
         <div class="space-y-3">
           <div class="flex justify-end">
             <Button size="sm" :disabled="props.disabled || floorSubmitting" @click="openCreateFloor">
@@ -474,9 +474,9 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
                   </span>
                 </div>
                 <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                  <span>层级：{{ floor.floorLevel }}</span>
+                  <span>楼层级别：{{ floor.floorLevel }}</span>
                   <span>排序：{{ floor.sortOrder }}</span>
-                  <span>{{ floor.mapImages.length ? '已上传底图' : '未上传底图' }}</span>
+                  <span>{{ floor.mapImages.length ? '已上传地图背景图' : '未上传地图背景图' }}</span>
                 </div>
                 <p class="text-xs leading-5 text-muted-foreground">
                   {{ floor.description || '未填写楼层说明。' }}
@@ -498,7 +498,7 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
       <AdminSectionCard
         v-else-if="activeSection === 'galleries'"
         title="展厅点位"
-        description="按楼层维护展厅资料、点位坐标，并同步预览当前楼层底图。">
+        description="按楼层维护展厅资料、展厅位置，并同步预览当前楼层地图背景图。">
         <div class="space-y-3">
           <div class="flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap gap-2">

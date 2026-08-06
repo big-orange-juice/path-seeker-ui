@@ -127,7 +127,7 @@ const submitManual = () => {
   localError.value = '';
 
   if (!canSubmitManual.value) {
-    localError.value = '请补全路线标题、主题、提示词和所属博物馆。';
+    localError.value = '请补全路线标题、主题、创作要求和所属博物馆。';
     return;
   }
 
@@ -217,7 +217,7 @@ const submitManual = () => {
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium">生成提示</label>
+            <label class="text-sm font-medium">创作要求</label>
             <Textarea
               v-model="formState.themeQuery"
               class="min-h-[104px]"
@@ -228,7 +228,7 @@ const submitManual = () => {
           </div>
 
           <div class="space-y-2">
-            <label class="text-sm font-medium">谜题数量</label>
+            <label class="text-sm font-medium">站点数量</label>
             <Input
               v-model="pickCountModel"
               type="number"
@@ -236,7 +236,7 @@ const submitManual = () => {
               max="9"
               placeholder="建议 5–9" />
             <p class="text-[11px] text-muted-foreground">
-              建议 5–9 个站点，对应路线内关卡数量。
+              建议 5–9 个站点，对应路线内探索点数量。
             </p>
           </div>
 
@@ -249,7 +249,7 @@ const submitManual = () => {
               <span class="text-xs">{{ showAdvanced ? '收起' : '展开' }}</span>
             </button>
             <div v-if="showAdvanced" class="space-y-2 border-t border-border/50 px-3 py-3">
-              <label class="text-sm font-medium">最大查询数</label>
+              <label class="text-sm font-medium">最多参考资料数</label>
               <Input v-model="maxNodesModel" type="number" min="35" max="50" />
               <p class="text-[11px] text-muted-foreground">
                 一般无需修改，系统默认即可。

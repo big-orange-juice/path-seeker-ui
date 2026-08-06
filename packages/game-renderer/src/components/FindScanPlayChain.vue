@@ -215,7 +215,7 @@ const handleSkipStage = () => {
           <span :style="{ width: `${progressPct}%` }" />
         </div>
       </div>
-      <p v-else class="play-copy is-center">此节点尚未配置观展短片。</p>
+      <p v-else class="play-copy is-center">这一站尚未配置观展短片。</p>
 
       <p class="play-status">{{ statusText }}</p>
 

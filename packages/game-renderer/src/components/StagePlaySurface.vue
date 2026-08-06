@@ -104,17 +104,17 @@ const readNumber = (key: string) => {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
-const displayTitle = computed(() => props.stage?.title || "未命名节点")
+const displayTitle = computed(() => props.stage?.title || "未命名探索点")
 const puzzleHeading = computed(
   () => adaptedPuzzle.value?.prompt || adaptedPuzzle.value?.title || displayTitle.value,
 )
-const typeLabel = computed(() => meta.value?.label || "关卡")
+const typeLabel = computed(() => meta.value?.label || "玩法")
 const stageKicker = computed(() => {
   const no = props.stageNo
   const prefix = typeof no === "number" && no > 0 ? `第 ${no} 站 · ` : ""
   if (stageKind.value === "find_scan") return `${prefix}线索 · 找一找`
   if (stageKind.value === "narration") return `${prefix}解说导览`
-  return `${prefix}闯关`
+  return `${prefix}玩法`
 })
 
 const findClue = computed(
@@ -260,7 +260,7 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
     </section>
   </div>
   <div v-else class="stage-play is-empty">
-    <p class="play-muted">选择一个路线节点开始试玩</p>
+    <p class="play-muted">选择一个站点开始试玩</p>
   </div>
 </template>
 

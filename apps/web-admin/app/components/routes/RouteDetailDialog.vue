@@ -195,7 +195,7 @@ const previewStage = computed<GameplayPreviewStage | null>(() => {
   return {
     stageId: String(node.stageId || ''),
     interactionType: node.interactionType || 0,
-    title: node.title || '未命名节点',
+    title: node.title || '未命名站点',
     subtitle: node.subtitle,
     exhibitName: node.exhibitName,
     galleryName: node.galleryName,
@@ -264,7 +264,7 @@ const stageAttachmentLabel = computed(() => {
   const node = selectedNode.value;
   if (!node) return '';
   const order = node.sortOrder || sortedNodes.value.findIndex((item) => item.stageId === node.stageId) + 1;
-  return `${order}. ${node.title || '未命名节点'}`;
+  return `${order}. ${node.title || '未命名站点'}`;
 });
 
 const clearDetailRefreshTimer = () => {

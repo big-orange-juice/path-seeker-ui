@@ -7,16 +7,21 @@ import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue'
 import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
+import CollectionExhibitDetailDialog from '@/components/collections/CollectionExhibitDetailDialog.vue';
 import GalleryMapAnnotationDialog from '@/components/gallery-map/GalleryMapAnnotationDialog.vue';
 import GalleryMapWorkspace from '@/components/gallery-map/GalleryMapWorkspace.vue';
 import type {
   CreateGalleryMapAnnotationRequest,
   GalleryMapAnnotationRequest,
   GalleryMapCoordinate,
+  GalleryMapPointExhibitRecord,
   GalleryMapPointRecord,
   UpdateGalleryMapAnnotationRequest,
 } from '@/types/gallery-map';
 import type {
+  ExhibitRecord,
+  ExhibitResponse,
+  ExhibitResponseListTotalPageResult,
   MuseumResponse,
   MuseumResponseListTotalPageResult,
 } from '@/types/museum';
@@ -146,6 +151,126 @@ const undoStack = shallowRef<GalleryMapUndoEntry[]>([]);
 const undoPending = shallowRef(false);
 const deleteConfirmOpen = shallowRef(false);
 const pendingDeletePoint = shallowRef<GalleryMapPointRecord | null>(null);
+
+const exhibitDetailOpen = shallowRef(false);
+const exhibitDetailRecord = shallowRef<ExhibitRecord | null>(null);
+const exhibitDetailPending = shallowRef(false);
+
+const galleryLabelById = computed(() =>
+  Object.fromEntries(
+    galleries.value.map((gallery) => [gallery.value, gallery.label || gallery.name || gallery.value]),
+  ),
+);
+
+const mapExhibitResponse = (item: ExhibitResponse, fallbackMuseumId: string): ExhibitRecord => {
+  const rawItem = item as ExhibitResponse & Record<string, unknown>;
+  return {
+    id: String(item.id ?? '').trim(),
+    museumId: item.museumId ?? fallbackMuseumId,
+    galleryId: item.galleryId ?? null,
+    exhibitCode: item.exhibitCode ?? '',
+    name: item.name ?? '',
+    dynasty: item.dynasty ?? '',
+    material: item.material ?? '',
+    category: item.category ?? '',
+    description: item.description ?? '',
+    imageUrl: item.imageUrl,
+    imageFileId: item.imageUrl ? String(item.imageUrl).trim() || null : null,
+    qrCode: item.qrCode ?? '',
+    isHighlight: item.isHighlight ?? 0,
+    showcaseNo: item.showcaseNo ?? '',
+    recommendedMinutes: item.recommendedMinutes,
+    sortOrder: item.sortOrder ?? 0,
+    extraList: item.extraList ?? [],
+    mediaList: item.mediaList ?? [],
+    aiArchive: item.aiArchive ?? rawItem.aiAchive ?? rawItem.AIachive ?? null,
+  };
+};
+
+const fetchExhibitRecord = async (
+  exhibit: GalleryMapPointExhibitRecord,
+): Promise<ExhibitRecord | null> => {
+  const exhibitId = String(exhibit.exhibitId || '').trim();
+  if (!exhibitId) {
+    return null;
+  }
+
+  const keyword =
+    String(exhibit.sourceExhibitCode || '').trim()
+    || String(exhibit.exhibitName || exhibit.sourceExhibitName || '').trim()
+    || exhibitId;
+
+  const response = await request<ExhibitResponseListTotalPageResult<ExhibitResponse>>('/api/exhibit/query', {
+    method: 'POST',
+    body: {
+      pageIndex: 1,
+      pageSize: 20,
+      museumId: museumId.value || null,
+      galleryId: null,
+      dynasty: null,
+      isHighlight: null,
+      keyword,
+    },
+  });
+
+  const list = response.list ?? [];
+  const matched =
+    list.find((item) => String(item.id ?? '').trim() === exhibitId)
+    ?? list.find((item) => {
+      const code = String(item.exhibitCode ?? '').trim();
+      return code && code === String(exhibit.sourceExhibitCode || '').trim();
+    })
+    ?? null;
+
+  if (!matched) {
+    // 关键词未命中时再按编码/名称放宽一页
+    const fallback = await request<ExhibitResponseListTotalPageResult<ExhibitResponse>>('/api/exhibit/query', {
+      method: 'POST',
+      body: {
+        pageIndex: 1,
+        pageSize: 50,
+        museumId: museumId.value || null,
+        galleryId: null,
+        dynasty: null,
+        isHighlight: null,
+        keyword: exhibitId,
+      },
+    });
+    const fallbackMatch = (fallback.list ?? []).find(
+      (item) => String(item.id ?? '').trim() === exhibitId,
+    );
+    return fallbackMatch ? mapExhibitResponse(fallbackMatch, museumId.value) : null;
+  }
+
+  return mapExhibitResponse(matched, museumId.value);
+};
+
+const handleOpenExhibit = async (exhibit: GalleryMapPointExhibitRecord) => {
+  const exhibitId = String(exhibit.exhibitId || '').trim();
+  if (!exhibitId) {
+    actionFeedback.error('该关联尚未匹配馆藏，无法打开详情。');
+    return;
+  }
+
+  if (exhibitDetailPending.value) {
+    return;
+  }
+
+  exhibitDetailPending.value = true;
+  try {
+    const record = await fetchExhibitRecord(exhibit);
+    if (!record) {
+      actionFeedback.error('未找到对应馆藏，请确认是否已匹配。');
+      return;
+    }
+    exhibitDetailRecord.value = record;
+    exhibitDetailOpen.value = true;
+  } catch (caughtError) {
+    actionFeedback.errorFrom(caughtError, '馆藏详情加载失败。');
+  } finally {
+    exhibitDetailPending.value = false;
+  }
+};
 
 const readQueryString = (value: unknown) => {
   if (typeof value === 'string') {
@@ -288,7 +413,7 @@ const handleRefresh = async () => {
 
 const startAdding = () => {
   if (!currentMap.value?.imageUrl) {
-    actionFeedback.error('当前地图没有可用底图。');
+    actionFeedback.error('当前地图没有可用的地图背景图。');
     return;
   }
 
@@ -603,7 +728,13 @@ onUnmounted(() => {
       @pick-position="handlePickPosition"
       @move-point="handleMovePoint"
       @edit-point="handleEditPoint"
-      @remove-point="handleRemovePoint" />
+      @remove-point="handleRemovePoint"
+      @open-exhibit="handleOpenExhibit" />
+
+    <CollectionExhibitDetailDialog
+      v-model:open="exhibitDetailOpen"
+      :record="exhibitDetailRecord"
+      :gallery-label-by-id="galleryLabelById" />
 
     <GalleryMapAnnotationDialog
       :open="annotationOpen"

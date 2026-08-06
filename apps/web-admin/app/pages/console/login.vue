@@ -32,7 +32,7 @@ const redirectTarget = computed(() => {
 });
 
 const highlights = [
-  { index: '01', title: '路线', text: '创建主题路线，编排博物馆里的站点与故事。' },
+  { index: '01', title: '路线', text: '创建主题路线，设计博物馆里的站点与故事。' },
   { index: '02', title: '讲解', text: '改站点讲解与谜题，调整提示与难度。' },
   { index: '03', title: '发布', text: '提交审核或上架，按节奏推给现场游客。' },
 ];

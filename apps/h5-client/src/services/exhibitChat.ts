@@ -77,7 +77,7 @@ export async function createExhibitChatSession(payload: CreateExhibitChatSession
   if (typeof data === "string" || typeof data === "number") {
     const id = normalizeText(data)
     if (!id) {
-      throw new Error("创建会话失败，未返回会话 ID。")
+      throw new Error("创建对话失败，请稍后再试。")
     }
     return {
       id,
@@ -91,7 +91,7 @@ export async function createExhibitChatSession(payload: CreateExhibitChatSession
 
   const session = mapSession(data as Record<string, unknown>)
   if (!session) {
-    throw new Error("创建会话失败，未返回会话 ID。")
+    throw new Error("创建对话失败，请稍后再试。")
   }
   return session
 }

@@ -41,10 +41,16 @@ interface MaterialListItem {
   abort?: AbortController
 }
 
+type WorkspaceTab = 'style' | 'edit'
+
 interface Props {
   open: boolean
   mode: 'create' | 'edit'
   initialValue: GuideDraft
+  /** 编辑态初始 Tab：风格 / 编辑 */
+  initialTab?: WorkspaceTab
+  /** 风格说明（只读，不参与提交） */
+  styleDescription?: string
   submitting?: boolean
   voiceOptions?: TtsVoiceResponse[]
   voiceLoading?: boolean
@@ -54,6 +60,8 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  initialTab: 'edit',
+  styleDescription: '',
   submitting: false,
   voiceOptions: () => [],
   voiceLoading: false,
@@ -77,6 +85,7 @@ const form = reactive<GuideDraft>({
   ...props.initialValue,
   tagIds: [...(props.initialValue.tagIds ?? [])],
 })
+const activeTab = shallowRef<WorkspaceTab>('edit')
 const avatarPreviewUrl = shallowRef('')
 const avatarInputRef = useTemplateRef<HTMLInputElement>('avatarInput')
 const materialInputRef = useTemplateRef<HTMLInputElement>('materialInput')
@@ -86,6 +95,19 @@ const materialError = shallowRef('')
 const tagDialogOpen = shallowRef(false)
 /** 样本列表；视频选中后立即服务端抽音频，仅 ready 的音频进入 form */
 const materialItems = shallowRef<MaterialListItem[]>([])
+
+const showWorkspaceTabs = computed(() => props.mode === 'edit')
+
+const styleText = computed(() => String(props.styleDescription || '').trim())
+
+/** 粗判是否为 HTML 富文本，便于只读渲染 */
+const styleLooksLikeHtml = computed(() => {
+  const text = styleText.value
+  if (!text) {
+    return false
+  }
+  return /<\/?[a-z][\s\S]*>/i.test(text)
+})
 
 const isVideoVoiceMaterial = (file: File) => {
   const type = String(file.type || '').toLowerCase()
@@ -181,7 +203,7 @@ const abortAllExtractions = () => {
 }
 
 watch(
-  () => [props.open, props.initialValue] as const,
+  () => [props.open, props.initialValue, props.initialTab, props.mode] as const,
   ([open]) => {
     if (!open) {
       abortAllExtractions()
@@ -202,6 +224,9 @@ watch(
     avatarError.value = ''
     avatarUploading.value = false
     avatarPreviewUrl.value = String(props.initialValue.avatarPreviewUrl || '').trim()
+    activeTab.value = props.mode === 'edit' && props.initialTab === 'style'
+      ? 'style'
+      : 'edit'
   },
   { deep: true },
 )
@@ -211,7 +236,19 @@ const isOpen = computed({
   set: (value: boolean) => emit('update:open', value),
 })
 
-const title = computed(() => (props.mode === 'edit' ? '编辑导游' : '新增导游'))
+const title = computed(() => {
+  if (props.mode === 'create') {
+    return '新增导游'
+  }
+  return String(props.initialValue.name || '').trim() || '编辑导游'
+})
+
+const descriptionText = computed(() => {
+  if (props.mode === 'create') {
+    return '维护基础资料。优先选择内置音色，必要时再上传声音样本。'
+  }
+  return '查看讲解风格，或维护基础资料与音色。'
+})
 
 const voiceGenerationMeta = computed(() => {
   if (props.voiceGenerationStatus === 1) {
@@ -507,11 +544,60 @@ const handleSubmit = () => {
       <DialogHeader class="shrink-0 space-y-1 border-b border-border/60 px-5 py-3.5 pr-12">
         <DialogTitle>{{ title }}</DialogTitle>
         <DialogDescription>
-          维护基础资料。优先选择内置音色，必要时再上传声音样本。
+          {{ descriptionText }}
         </DialogDescription>
       </DialogHeader>
 
-      <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4">
+      <div
+        v-if="showWorkspaceTabs"
+        class="flex shrink-0 border-b border-border/70 px-5 pt-2"
+      >
+        <button
+          type="button"
+          class="inline-flex h-9 items-center border-b-2 px-4 text-sm font-medium transition-colors"
+          :class="activeTab === 'edit' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
+          @click="activeTab = 'edit'"
+        >
+          编辑
+        </button>
+        <button
+          type="button"
+          class="inline-flex h-9 items-center border-b-2 px-4 text-sm font-medium transition-colors"
+          :class="activeTab === 'style' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'"
+          @click="activeTab = 'style'"
+        >
+          风格
+        </button>
+      </div>
+
+      <!-- 风格：只读展示 styleDescription -->
+      <div
+        v-show="showWorkspaceTabs && activeTab === 'style'"
+        class="min-h-0 flex-1 overflow-y-auto px-5 py-4"
+      >
+        <p
+          v-if="!styleText"
+          class="text-sm text-muted-foreground"
+        >
+          暂无讲解风格说明。
+        </p>
+        <div
+          v-else-if="styleLooksLikeHtml"
+          class="guide-style-html rounded-md border border-border/40 bg-[#101216] px-3 py-3 text-sm leading-6 text-foreground/90"
+          v-html="styleText"
+        />
+        <div
+          v-else
+          class="guide-style-md rounded-md border border-border/40 bg-[#101216] px-3 py-3 text-sm leading-6 text-foreground/90"
+        >
+          <Comark :markdown="styleText" />
+        </div>
+      </div>
+
+      <div
+        v-show="!showWorkspaceTabs || activeTab === 'edit'"
+        class="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4"
+      >
         <!-- ① 基础信息：正方形头像点击上传 -->
         <section class="grid gap-4 sm:grid-cols-[7.5rem_minmax(0,1fr)]">
           <div class="space-y-1.5">
@@ -834,9 +920,10 @@ const handleSubmit = () => {
           :disabled="submitting"
           @click="isOpen = false"
         >
-          取消
+          {{ showWorkspaceTabs && activeTab === 'style' ? '关闭' : '取消' }}
         </Button>
         <Button
+          v-if="!showWorkspaceTabs || activeTab === 'edit'"
           type="button"
           :disabled="!canSubmit"
           @click="handleSubmit"
@@ -854,3 +941,109 @@ const handleSubmit = () => {
     @update:tags="handleTagsChange"
   />
 </template>
+
+<style scoped>
+.guide-style-md :deep(:first-child),
+.guide-style-html :deep(:first-child) {
+  margin-top: 0;
+}
+
+.guide-style-md :deep(:last-child),
+.guide-style-html :deep(:last-child) {
+  margin-bottom: 0;
+}
+
+.guide-style-md :deep(p),
+.guide-style-html :deep(p) {
+  margin: 0.4em 0;
+}
+
+.guide-style-md :deep(h1),
+.guide-style-md :deep(h2),
+.guide-style-md :deep(h3),
+.guide-style-md :deep(h4),
+.guide-style-html :deep(h1),
+.guide-style-html :deep(h2),
+.guide-style-html :deep(h3),
+.guide-style-html :deep(h4) {
+  margin: 0.75em 0 0.35em;
+  font-weight: 600;
+  line-height: 1.35;
+  color: hsl(var(--foreground));
+}
+
+.guide-style-md :deep(ul),
+.guide-style-md :deep(ol),
+.guide-style-html :deep(ul),
+.guide-style-html :deep(ol) {
+  margin: 0.4em 0;
+  padding-left: 1.2rem;
+}
+
+.guide-style-md :deep(ul),
+.guide-style-html :deep(ul) {
+  list-style: disc;
+}
+
+.guide-style-md :deep(ol),
+.guide-style-html :deep(ol) {
+  list-style: decimal;
+}
+
+.guide-style-md :deep(li),
+.guide-style-html :deep(li) {
+  margin: 0.15em 0;
+}
+
+.guide-style-md :deep(blockquote),
+.guide-style-html :deep(blockquote) {
+  margin: 0.5em 0;
+  border-left: 2px solid rgba(209, 178, 111, 0.35);
+  padding-left: 0.7rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.guide-style-md :deep(a),
+.guide-style-html :deep(a) {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.guide-style-md :deep(code),
+.guide-style-html :deep(code) {
+  border-radius: 0.3rem;
+  background: rgba(209, 178, 111, 0.1);
+  padding: 0.08em 0.32em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.86em;
+  color: #f0e2bc;
+}
+
+.guide-style-md :deep(pre),
+.guide-style-html :deep(pre) {
+  margin: 0.55em 0;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(209, 178, 111, 0.12);
+  background: rgba(8, 9, 11, 0.72);
+  padding: 0.6rem 0.7rem;
+}
+
+.guide-style-md :deep(pre code),
+.guide-style-html :deep(pre code) {
+  display: block;
+  padding: 0;
+  background: transparent;
+  font-size: 0.8em;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.guide-style-md :deep(strong),
+.guide-style-html :deep(strong) {
+  font-weight: 600;
+  color: #f4e7c4;
+}
+</style>

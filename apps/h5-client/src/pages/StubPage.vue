@@ -18,7 +18,7 @@ const description = computed(() => String(route.meta.description || "当前页�
     @action="router.push('/shell/hall')"
   >
     <div class="rounded-[0.9rem] bg-background/70 p-4 text-sm leading-6 text-muted-foreground">
-      当前已经切到标准 Vue H5 路由结构，下一步会把 `apps/mp-wechat` 的真实任务数据、会话状态和页面职责逐段接入。
+      该功能正在准备中，请稍后再试。
     </div>
   </ClientEmptyState>
 </template>

@@ -105,26 +105,26 @@ const resolveProgressMessage = (input: {
 
   if (status === 'running') {
     if (totalCount > 0 && currentIndex > 0) {
-      const head = `正在创建第 ${currentIndex} 个节点，累计 ${createdCount}/${totalCount}`;
+      const head = `正在创建第 ${currentIndex} 个站点，累计 ${createdCount}/${totalCount}`;
       return exhibitName ? `${head} · ${exhibitName}` : head;
     }
 
-    return payloadMessage || '正在创建节点';
+    return payloadMessage || '正在创建站点';
   }
 
   if (status === 'succeeded') {
     return totalCount > 0
-      ? `已创建 ${createdCount} 个节点，共 ${totalCount} 个`
-      : payloadMessage || '节点创建成功';
+      ? `已创建 ${createdCount} 个站点，共 ${totalCount} 个`
+      : payloadMessage || '站点创建成功';
   }
 
   if (status === 'failed') {
-    return payloadMessage || '节点创建失败';
+    return payloadMessage || '站点创建失败';
   }
 
   return createdCount > 0
-    ? `节点生成完成，共创建 ${createdCount} 个`
-    : payloadMessage || '节点生成完成';
+    ? `站点生成完成，共创建 ${createdCount} 个`
+    : payloadMessage || '站点生成完成';
 };
 
 const isNewBuildBatch = (
@@ -499,8 +499,8 @@ defineExpose({
       :is-running="isRunning"
       :error-message="errorMessage"
       empty-title="用对话创建主题路线"
-      empty-description="例如：帮我创建一条关于宋代瓷器的讲解路线，覆盖 6 到 8 个展品节点。"
-      placeholder="描述主题、受众、节点数量或讲解风格…"
+      empty-description="例如：帮我创建一条关于宋代瓷器的讲解路线，覆盖 6 到 8 个站点。"
+      placeholder="描述主题、受众、站点数量或讲解风格…"
       @send="sendMessage"
       @cancel="cancelRun"
       @retry="retryLastFailed"

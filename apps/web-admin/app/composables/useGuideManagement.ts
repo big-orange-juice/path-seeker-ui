@@ -142,6 +142,7 @@ export const mapGuideResponse = (item: GuideResponse): GuideRecord => {
       ? item.tagIds.map((tagId) => String(tagId ?? '').trim()).filter(Boolean)
       : [],
     semanticProfile: item.semanticProfile ?? '',
+    styleDescription: item.styleDescription ?? '',
     voiceStyle: item.voiceStyle ?? '',
     voiceProvider: item.voiceProvider ?? '',
     providerVoiceId: item.providerVoiceId ?? '',

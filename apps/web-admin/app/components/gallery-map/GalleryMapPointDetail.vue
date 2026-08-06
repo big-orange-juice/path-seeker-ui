@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import Button from '@/components/shadcn/button/Button.vue';
-import type { GalleryMapPointRecord } from '@/types/gallery-map';
+import type {
+  GalleryMapPointExhibitRecord,
+  GalleryMapPointRecord,
+} from '@/types/gallery-map';
 
 interface Props {
   point: GalleryMapPointRecord | null;
@@ -16,7 +19,11 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   edit: [point: GalleryMapPointRecord];
   remove: [point: GalleryMapPointRecord];
+  openExhibit: [exhibit: GalleryMapPointExhibitRecord];
 }>();
+
+const canOpenExhibit = (exhibit: GalleryMapPointExhibitRecord) =>
+  Boolean(String(exhibit.exhibitId || '').trim());
 
 const markerTypeLabel = (markerType: number) => {
   if (markerType === 1) {
@@ -93,25 +100,44 @@ const markerTypeLabel = (markerType: number) => {
         </div>
 
         <div v-if="props.point.exhibits.length" class="mt-3 space-y-2">
-          <article
+          <button
             v-for="exhibit in props.point.exhibits"
             :key="exhibit.id || `${exhibit.sourceExhibitCode}-${exhibit.sortOrder}`"
-            class="flex gap-3 rounded-lg border border-border/70 bg-secondary/20 px-3 py-2.5">
+            type="button"
+            class="flex w-full gap-3 rounded-lg border border-border/70 bg-secondary/20 px-3 py-2.5 text-left transition-colors"
+            :class="
+              canOpenExhibit(exhibit)
+                ? 'hover:border-primary/40 hover:bg-secondary/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                : 'cursor-default opacity-90'
+            "
+            :title="canOpenExhibit(exhibit) ? '查看馆藏详情' : '尚未匹配馆藏，无法打开详情'"
+            :disabled="!canOpenExhibit(exhibit)"
+            @click="canOpenExhibit(exhibit) && emit('openExhibit', exhibit)">
             <img
               v-if="exhibit.sourceImageUrl"
               :src="exhibit.sourceImageUrl"
               :alt="exhibit.sourceExhibitName || '文物图片'"
               class="h-11 w-11 shrink-0 rounded-md object-cover"
               loading="lazy">
-            <div class="min-w-0">
+            <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-medium text-foreground">
                 {{ exhibit.exhibitName || exhibit.sourceExhibitName || '未命名文物' }}
               </p>
               <p class="mt-1 truncate text-xs text-muted-foreground">
                 {{ exhibit.sourceExhibitCode || '未填写来源编码' }}
               </p>
+              <p
+                v-if="canOpenExhibit(exhibit)"
+                class="mt-1 text-[11px] text-primary/90">
+                点击查看详情
+              </p>
+              <p
+                v-else
+                class="mt-1 text-[11px] text-muted-foreground">
+                未匹配馆藏
+              </p>
             </div>
-          </article>
+          </button>
         </div>
 
         <p v-else class="mt-3 text-sm text-muted-foreground">暂无关联文物。</p>

@@ -22,7 +22,7 @@ const props = defineProps<{ stage: GameplayPreviewStage | null }>()
         <div
           v-else
           class="flex h-full min-h-[200px] items-center justify-center px-4 text-center text-sm text-white/45">
-          点击左侧节点预览
+          点击左侧站点预览
         </div>
       </div>
     </div>

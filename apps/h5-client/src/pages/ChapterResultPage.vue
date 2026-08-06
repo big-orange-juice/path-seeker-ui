@@ -61,8 +61,8 @@ onUnmounted(() => {
 
     <ClientEmptyState
       v-else
-      title="还没有章节结果"
-      description="请先完成当前章节作答。"
+      title="还没有本站结果"
+      description="请先完成这一站的探索。"
       action-text="返回路线"
       @action="router.push(`/missions/${routeId}/map`)"
     />

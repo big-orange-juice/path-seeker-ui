@@ -120,7 +120,7 @@ const progressTone = computed(() => {
       <section v-if="progress" class="space-y-2">
         <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <AppIcon name="sparkles" class="h-3.5 w-3.5" />
-          节点生成
+          站点生成
         </div>
         <div
           class="rounded-lg border px-3 py-3"

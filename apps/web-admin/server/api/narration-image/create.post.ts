@@ -16,7 +16,7 @@ export default defineEventHandler(async (event): Promise<string | null> => {
   if (!stageId || !attachmentId) {
     throw createError({
       statusCode: 400,
-      message: '缺少节点或附件信息。',
+      message: '缺少站点或附件信息。',
     })
   }
 

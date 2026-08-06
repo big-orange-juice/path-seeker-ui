@@ -55,7 +55,7 @@ export const PUZZLE_TEMPLATE_OPTIONS: Array<SchemaMappedOption<PuzzleTemplateTyp
     value: "observe_choice",
     label: "观察选择",
     schemaValue: 1,
-    description: "首屏与基础章节的高频题型。",
+    description: "常见的观察选择题型。",
   },
   {
     value: "image_puzzle",

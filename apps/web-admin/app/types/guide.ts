@@ -21,6 +21,8 @@ export interface GuideResponse {
   description?: string | null
   tagIds?: string[] | null
   semanticProfile?: string | null
+  /** 讲解风格说明（富文本/Markdown，只读展示） */
+  styleDescription?: string | null
   styleProfileJson?: string | null
   voiceStyle?: string | null
   voiceProvider?: string | null
@@ -137,6 +139,8 @@ export interface GuideRecord {
   description: string
   tagIds: string[]
   semanticProfile: string
+  /** 讲解风格说明（只读展示，不参与表单提交） */
+  styleDescription: string
   voiceStyle: string
   voiceProvider: string
   providerVoiceId: string
@@ -173,6 +177,7 @@ export type GuideDraft = Omit<
   | 'generationProgress'
   | 'generationError'
   | 'isGenerating'
+  | 'styleDescription'
 > & {
   id?: string
   /** 表单预览用头像 URL（不提交） */

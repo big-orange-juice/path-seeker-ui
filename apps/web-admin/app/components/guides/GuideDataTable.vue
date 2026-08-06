@@ -20,7 +20,6 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  detail: [record: GuideRecord]
   edit: [record: GuideRecord]
   remove: [record: GuideRecord]
 }>()
@@ -153,16 +152,6 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
       const acting = isActing(record.id)
 
       return h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
-        h(
-          Button,
-          {
-            variant: 'outline',
-            size: 'sm',
-            disabled: acting,
-            onClick: () => emit('detail', record),
-          },
-          () => '详情',
-        ),
         h(
           Button,
           {

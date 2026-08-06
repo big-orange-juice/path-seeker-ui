@@ -109,7 +109,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     const nextId = String(created ?? '').trim();
 
     if (!nextId) {
-      throw new Error('创建会话失败，未返回会话 ID。');
+      throw new Error('创建对话失败，请稍后再试。');
     }
 
     sessionId.value = nextId;

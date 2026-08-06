@@ -46,7 +46,7 @@ const dialogTitle = computed(() =>
   props.mode === 'create' ? '新增楼层地图' : '编辑楼层地图'
 );
 const dialogDescription = computed(
-  () => '维护楼层基础信息、地图底图和展厅点位。'
+  () => '维护楼层基础信息、地图背景图和展厅位置。'
 );
 
 const syncFormState = (value: FloorMapDraft) => {
@@ -245,7 +245,7 @@ const submitForm = () => {
               <section class="space-y-4 rounded-[0.95rem] bg-[#0f1114] p-4">
                 <div class="space-y-1">
                   <h3 class="text-sm font-semibold text-foreground">基础信息</h3>
-                  <p class="text-xs text-muted-foreground">维护楼层编号、名称、排序和底图。</p>
+                  <p class="text-xs text-muted-foreground">维护楼层编号、名称、排序和地图背景图。</p>
                 </div>
 
                 <div class="grid gap-3 md:grid-cols-2">

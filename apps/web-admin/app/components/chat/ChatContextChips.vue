@@ -34,7 +34,7 @@ const emit = defineEmits<{
           class="h-3 w-3 shrink-0 opacity-80" />
         <span class="min-w-0 truncate">
           <span class="chat-chip__kind">
-            {{ chip.kind === 'route' ? '路线' : '节点' }}
+            {{ chip.kind === 'route' ? '路线' : '站点' }}
           </span>
           {{ chip.label }}
         </span>
@@ -42,7 +42,7 @@ const emit = defineEmits<{
           v-if="chip.removable"
           type="button"
           class="chat-chip__remove"
-          title="移除节点上下文"
+          :title="chip.kind === 'route' ? '移除当前路线信息' : '移除当前站点信息'"
           @click="emit('remove', chip)">
           <AppIcon name="x" class="h-3 w-3" />
         </button>

@@ -2,7 +2,6 @@
 import { shallowRef, watch } from 'vue'
 // useDebounceFn 由 @vueuse/nuxt 自动导入；@vueuse/core 非直接依赖，显式 import 解析不到
 import GuideDataTable from '@/components/guides/GuideDataTable.vue'
-import GuideDetailDialog from '@/components/guides/GuideDetailDialog.vue'
 import GuideFormDialog from '@/components/guides/GuideFormDialog.vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
@@ -56,17 +55,15 @@ const {
 
 const formOpen = shallowRef(false)
 const formMode = shallowRef<'create' | 'edit'>('create')
+const formInitialTab = shallowRef<'style' | 'edit'>('edit')
 const formDraft = shallowRef<GuideDraft>(createEmptyGuideDraft())
+const formStyleDescription = shallowRef('')
 const formSubmitting = shallowRef(false)
 const formError = shallowRef('')
 const voiceOptions = shallowRef<TtsVoiceResponse[]>([])
 const voiceLoading = shallowRef(false)
 const activeFormRecord = shallowRef<GuideRecord | null>(null)
 const voiceStatusRefreshing = shallowRef(false)
-
-const detailOpen = shallowRef(false)
-const detailPending = shallowRef(false)
-const detailRecord = shallowRef<GuideRecord | null>(null)
 
 const confirmOpen = shallowRef(false)
 const confirmRecord = shallowRef<GuideRecord | null>(null)
@@ -100,16 +97,24 @@ watch(formOpen, (open) => {
 
 const startCreate = () => {
   formMode.value = 'create'
+  formInitialTab.value = 'edit'
   formDraft.value = createEmptyGuideDraft()
+  formStyleDescription.value = ''
   activeFormRecord.value = null
   formError.value = ''
   formOpen.value = true
 }
 
-const startEdit = async (record: GuideRecord) => {
+/** 打开编辑工作台：风格 / 编辑 两个 Tab */
+const openWorkspace = async (
+  record: GuideRecord,
+  tab: 'style' | 'edit' = 'edit',
+) => {
   formMode.value = 'edit'
+  formInitialTab.value = tab
   formError.value = ''
   formDraft.value = createGuideDraftFromRecord(record)
+  formStyleDescription.value = record.styleDescription || ''
   activeFormRecord.value = record
   formOpen.value = true
 
@@ -117,11 +122,16 @@ const startEdit = async (record: GuideRecord) => {
     const detail = await fetchGuideDetail(record.id)
     if (detail) {
       formDraft.value = createGuideDraftFromRecord(detail)
+      formStyleDescription.value = detail.styleDescription || ''
       activeFormRecord.value = detail
     }
   } catch {
-    // 列表数据可继续编辑
+    // 列表数据可继续查看 / 编辑
   }
+}
+
+const startEdit = (record: GuideRecord) => {
+  void openWorkspace(record, 'edit')
 }
 
 const refreshVoiceStatus = async () => {
@@ -135,6 +145,7 @@ const refreshVoiceStatus = async () => {
     const detail = await fetchGuideDetail(record.id)
     if (detail) {
       formDraft.value = createGuideDraftFromRecord(detail)
+      formStyleDescription.value = detail.styleDescription || ''
       activeFormRecord.value = detail
     }
     await refresh()
@@ -142,23 +153,6 @@ const refreshVoiceStatus = async () => {
     actionFeedback.errorFrom(caughtError, '音色状态刷新失败。')
   } finally {
     voiceStatusRefreshing.value = false
-  }
-}
-
-const openDetail = async (record: GuideRecord) => {
-  detailRecord.value = record
-  detailOpen.value = true
-  detailPending.value = true
-
-  try {
-    const detail = await fetchGuideDetail(record.id)
-    if (detail) {
-      detailRecord.value = detail
-    }
-  } catch (caughtError) {
-    actionFeedback.errorFrom(caughtError, '导游详情加载失败。')
-  } finally {
-    detailPending.value = false
   }
 }
 
@@ -209,9 +203,10 @@ const submitRemove = async () => {
     await deleteGuide(record.id)
     confirmOpen.value = false
     confirmRecord.value = null
-    if (detailRecord.value?.id === record.id) {
-      detailOpen.value = false
-      detailRecord.value = null
+    if (activeFormRecord.value?.id === record.id) {
+      formOpen.value = false
+      activeFormRecord.value = null
+      formStyleDescription.value = ''
     }
     actionFeedback.success('导游已删除。')
   } catch (caughtError) {
@@ -219,11 +214,6 @@ const submitRemove = async () => {
   } finally {
     finishActing(record.id)
   }
-}
-
-const handleDetailEdit = (record: GuideRecord) => {
-  detailOpen.value = false
-  void startEdit(record)
 }
 </script>
 
@@ -319,7 +309,6 @@ const handleDetailEdit = (record: GuideRecord) => {
         :rows="rows"
         :pending="pending"
         :acting-ids="actionPendingIds"
-        @detail="openDetail"
         @edit="startEdit"
         @remove="askRemove"
       />
@@ -328,7 +317,9 @@ const handleDetailEdit = (record: GuideRecord) => {
     <GuideFormDialog
       v-model:open="formOpen"
       :mode="formMode"
+      :initial-tab="formInitialTab"
       :initial-value="formDraft"
+      :style-description="formStyleDescription"
       :submitting="formSubmitting"
       :voice-options="voiceOptions"
       :voice-loading="voiceLoading"
@@ -338,13 +329,6 @@ const handleDetailEdit = (record: GuideRecord) => {
       @submit="handleFormSubmit"
       @search-voice="searchVoiceOptions"
       @refresh-voice-status="refreshVoiceStatus"
-    />
-
-    <GuideDetailDialog
-      v-model:open="detailOpen"
-      :record="detailRecord"
-      :pending="detailPending"
-      @edit="handleDetailEdit"
     />
 
     <Dialog v-model:open="confirmOpen">

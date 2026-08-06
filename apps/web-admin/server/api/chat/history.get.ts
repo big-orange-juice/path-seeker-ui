@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!sessionId) {
     throw createError({
       statusCode: 400,
-      message: '缺少会话 ID。',
+      message: '当前对话信息缺失，请刷新后重试。',
     });
   }
 

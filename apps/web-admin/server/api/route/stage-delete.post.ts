@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   if (!id) {
     throw createError({
       statusCode: 400,
-      message: '缺少节点 ID。',
+      message: '缺少站点信息。',
     })
   }
 

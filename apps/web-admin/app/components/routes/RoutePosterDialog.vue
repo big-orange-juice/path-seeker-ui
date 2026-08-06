@@ -175,7 +175,7 @@ const collectStaticCandidates = (detail: RouteDetailResponse | null): RoutePoste
     const config = parseStageConfig(node.config) as Record<string, unknown>
     const imageUrl = readConfigText(config, 'image_url', 'imageUrl', 'cover_image_url', 'coverImageUrl')
     if (imageUrl) {
-      push(imageUrl, `${title} · 节点图`, 'node', stageId)
+      push(imageUrl, `${title} · 站点配图`, 'node', stageId)
     }
   })
 
@@ -324,7 +324,7 @@ const loadNodeCandidates = async () => {
     candidates.value = merged
     selectedCandidateUrls.value = merged.map((item) => item.url)
   } catch (error) {
-    errorMessage.value = resolveError(error, '加载节点图片失败。')
+    errorMessage.value = resolveError(error, '加载站点配图失败。')
     candidates.value = []
   } finally {
     loadingNodeImages.value = false
@@ -470,7 +470,7 @@ onBeforeUnmount(() => {
       <DialogHeader class="shrink-0 space-y-1.5 border-b border-border/60 px-5 py-4">
         <DialogTitle>海报管理</DialogTitle>
         <DialogDescription>
-          {{ routeTitle }} · 上传参考图；需要时再启用节点图片
+          {{ routeTitle }} · 上传参考图；需要时再启用站点配图
         </DialogDescription>
       </DialogHeader>
 
@@ -516,7 +516,7 @@ onBeforeUnmount(() => {
             <UiImageUpload
               :model-value="refUrls"
               label="上传参考图"
-              hint="通过图片上传添加参考，最多 5 张；节点图请在下方单独勾选。"
+              hint="通过图片上传添加参考，最多 5 张；站点配图请在下方单独勾选。"
               button-text="选择图片"
               button-subtext="支持多图"
               item-label="参考图"
@@ -539,7 +539,7 @@ onBeforeUnmount(() => {
                 :disabled="generating || loadingNodeImages"
                 @change="onUseNodeImagesChange"
               >
-              <span>启用节点可用图</span>
+              <span>启用站点可用图</span>
               <span class="font-normal text-muted-foreground">勾选后加载并默认全选</span>
             </label>
 
@@ -547,7 +547,7 @@ onBeforeUnmount(() => {
               v-if="useNodeImages && loadingNodeImages"
               class="rounded-lg border border-border/60 bg-muted/10 px-3 py-4 text-center text-xs text-muted-foreground"
             >
-              正在获取节点图片…
+              正在获取站点配图…
             </div>
 
             <div
@@ -591,7 +591,7 @@ onBeforeUnmount(() => {
               v-else-if="useNodeImages && !loadingNodeImages"
               class="rounded-lg border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground"
             >
-              当前路线节点暂无可用图片，可上传参考图。
+              当前路线站点暂无可用图片，可上传参考图。
             </p>
           </div>
 

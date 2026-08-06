@@ -535,12 +535,12 @@ export const useMissionStore = defineStore(
           let mission: MissionDetail | null = cachedMission
           if (!mission || options.force) {
             if (!detail) {
-              gameplayError.value = "任务节点数据不完整"
+              gameplayError.value = "探索点数据不完整"
               return null
             }
             mission = adaptRouteDetailToMission(detail, stages)
             if (!mission) {
-              gameplayError.value = "任务节点数据不完整"
+              gameplayError.value = "探索点数据不完整"
               return null
             }
           }
@@ -655,7 +655,7 @@ export const useMissionStore = defineStore(
 
         let mission = bundle.mission
         if (!mission) {
-          gameplayError.value = "任务节点数据不完整"
+          gameplayError.value = "探索点数据不完整"
           return null
         }
 
@@ -736,7 +736,7 @@ export const useMissionStore = defineStore(
         const adapted = adaptRouteResult(raw)
         if (!adapted) {
           if (!options.silent) {
-            routeResultError.value = "终局数据不完整"
+            routeResultError.value = "完成结果数据不完整"
             routeResult.value = null
           }
           return null
@@ -756,7 +756,7 @@ export const useMissionStore = defineStore(
         return adapted
       } catch (error) {
         if (!options.silent) {
-          routeResultError.value = resolveRequestErrorMessage(error, "终局结果加载失败")
+          routeResultError.value = resolveRequestErrorMessage(error, "完成结果加载失败")
           routeResult.value = null
         }
         return null
@@ -1019,7 +1019,7 @@ export const useMissionStore = defineStore(
         const targetHint = resolveStageHintTarget(hints, used.length)
 
         if (!targetHint?.clueId) {
-          gameplayError.value = "当前节点暂时没有可用提示。"
+          gameplayError.value = "这一站暂时没有可用提示。"
           return null
         }
 
@@ -1236,17 +1236,17 @@ export const useMissionStore = defineStore(
       options: { skipped?: boolean } = {},
     ) {
       if (!activeSession.value || !currentChapter.value || !currentPuzzle.value) {
-        return buildMissionSubmitResult(false, "当前没有可完成的节点。", null)
+        return buildMissionSubmitResult(false, "当前没有可完成的探索点。", null)
       }
 
       const interactionType = Number(
         currentChapter.value.interactionType ?? currentPuzzle.value.interactionType ?? 0,
       )
       if (source === "narration" && interactionType !== 11) {
-        return buildMissionSubmitResult(false, "当前节点不是解说导览。", null)
+        return buildMissionSubmitResult(false, "当前探索点不是解说导览。", null)
       }
       if (source === "find_scan" && interactionType !== 10) {
-        return buildMissionSubmitResult(false, "当前节点不是找一找。", null)
+        return buildMissionSubmitResult(false, "当前探索点不是找一找。", null)
       }
 
       gameplayPending.value = true
@@ -1336,7 +1336,7 @@ export const useMissionStore = defineStore(
      */
     async function forceSkipCurrentStage() {
       if (!activeSession.value || !currentChapter.value || !currentPuzzle.value) {
-        return buildMissionSubmitResult(false, "当前没有可跳过的节点。", null)
+        return buildMissionSubmitResult(false, "当前没有可跳过的探索点。", null)
       }
 
       const interactionType = Number(

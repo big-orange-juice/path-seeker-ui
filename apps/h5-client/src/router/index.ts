@@ -178,7 +178,7 @@ const router = createRouter({
           path: "missions/:routeId/finale",
           component: FinalePage,
           meta: {
-            title: "终局结算",
+            title: "探索完成",
             showTabBar: false,
           },
         },

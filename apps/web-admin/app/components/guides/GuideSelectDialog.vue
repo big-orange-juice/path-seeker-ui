@@ -77,7 +77,7 @@ const handleSelect = (guide: GuideRecord) => {
             选择导游
           </DialogTitle>
           <DialogDescription class="text-xs">
-            为当前解说节点指定讲解导游。
+            为当前解说站点指定讲解导游。
           </DialogDescription>
         </DialogHeader>
       </div>

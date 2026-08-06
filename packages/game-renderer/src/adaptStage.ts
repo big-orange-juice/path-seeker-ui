@@ -287,7 +287,7 @@ export function adaptStageToPuzzle(input: StageAdaptInput): PuzzleDefinition | n
   const base = {
     id: resolveStageId(input),
     interactionType,
-    title: normalizeText(input.title, "未命名节点"),
+    title: normalizeText(input.title, "未命名探索点"),
     introText: normalizeText(input.subtitle) || undefined,
     prompt: content,
     hintPayload: buildHintPayloadFromConfig(config),

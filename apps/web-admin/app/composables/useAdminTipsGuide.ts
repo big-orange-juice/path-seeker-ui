@@ -20,15 +20,15 @@ const tipsSteps: AdminTipsStep[] = [
     target: `${ADMIN_ROUTE_PREFIX}/guides`,
     eyebrow: '第一步 · 导游管理',
     title: '先准备导游，再创建路线',
-    description: '导游菜单是主题路线创建的前提。先创建或完善讲解形象，路线节点才能绑定对应的讲解风格。',
+    description: '导游菜单是主题路线创建的前提。先创建或完善讲解形象，路线站点才能绑定对应的讲解风格。',
     note: '创建路线前，请先完成导游配置。',
   },
   {
     id: 'routes',
     target: `${ADMIN_ROUTE_PREFIX}/routes`,
     eyebrow: '第二步 · 主题路线',
-    title: '在这里编排一条探索路线',
-    description: '选择主题、添加站点和谜题，把博物馆内容组织成游客可以完成的探索旅程。',
+    title: '在这里设计一条探索路线',
+    description: '选择主题、添加站点和玩法，把博物馆内容组织成游客可以完成的探索旅程。',
   },
   {
     id: 'museums',
@@ -42,7 +42,7 @@ const tipsSteps: AdminTipsStep[] = [
     target: `${ADMIN_ROUTE_PREFIX}/collections`,
     eyebrow: '菜单 · 馆藏内容',
     title: '集中维护展品与故事素材',
-    description: '管理展品资料和可讲述的内容，让路线节点有可靠的素材来源。',
+    description: '管理展品资料和可讲述的内容，让路线站点有可靠的素材来源。',
   },
   {
     id: 'operations',
