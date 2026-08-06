@@ -381,7 +381,9 @@ const remainingLabel = computed(() => {
   >
     <header class="nr-head">
       <p class="nr-kicker">Audio Guide</p>
-      <h3 class="nr-title">{{ displayTitle }}</h3>
+      <slot name="title">
+        <h3 class="nr-title">{{ displayTitle }}</h3>
+      </slot>
       <p v-if="guideLabel" class="nr-sub">{{ guideLabel }}</p>
     </header>
 
@@ -454,8 +456,10 @@ const remainingLabel = computed(() => {
           </div>
 
           <div class="am-transport">
-            <!-- 三栏：左右等宽，中间 -10/播/+10 真正居中 -->
-            <div class="am-transport__side" aria-hidden="true" />
+            <!-- 三栏：左右等宽，中间 -10/播/+10 真正居中；左栏可挂问答，右栏「文」 -->
+            <div class="am-transport__side is-start">
+              <slot name="transport-start" />
+            </div>
 
             <div class="am-transport__core">
               <button
@@ -653,6 +657,7 @@ const remainingLabel = computed(() => {
 
 .nr-title {
   margin: 0;
+  min-width: 0;
   font-size: 1.28rem;
   font-weight: 650;
   line-height: 1.25;
@@ -1000,6 +1005,11 @@ const remainingLabel = computed(() => {
   display: flex;
   min-width: 0;
   align-items: center;
+}
+
+.am-transport__side.is-start {
+  justify-content: flex-start;
+  padding-left: 0.05rem;
 }
 
 .am-transport__side.is-end {

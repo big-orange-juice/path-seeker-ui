@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef } from "vue"
+import { computed, onMounted, onUnmounted, shallowRef, watch } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { MessageCircle } from "lucide-vue-next"
 import {
   NARRATION_AUDIO_STATUS,
   StagePlaySurface,
   type GameplayPreviewStage,
+  type StageExhibitLocationMap,
 } from "@path-seeker/game-renderer"
 import { useToastStore } from "@path-seeker/client-state"
 import { ClientButton, ClientEmptyState, ClientSkeleton } from "@/components/ui"
 import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
 import { fetchNarrationDetail, type NarrationDetailResponse } from "@/services/gameplay"
 import { useAskStore } from "@/stores/useAskStore"
+import { resolveExhibitLocationMap } from "@/utils/resolveExhibitLocationMap"
 
 const route = useRoute()
 const router = useRouter()
@@ -26,6 +28,8 @@ const loading = shallowRef(false)
 const finishing = shallowRef(false)
 const detail = shallowRef<NarrationDetailResponse | null>(null)
 const loadError = shallowRef("")
+const exhibitLocation = shallowRef<StageExhibitLocationMap | null>(null)
+let exhibitLocationRequestSeq = 0
 
 const chapter = computed(() => missionStore.currentChapter)
 const interactionType = computed(() =>
@@ -91,8 +95,24 @@ const playStage = computed<GameplayPreviewStage | null>(() => {
       : null,
     narrationStatus: loading.value ? "loading" : loadError.value ? "error" : "ready",
     narrationErrorMessage: loadError.value,
+    exhibitLocation: exhibitLocation.value,
   }
 })
+
+async function loadExhibitLocation(refExhibitId?: string | null) {
+  const id = String(refExhibitId || "").trim()
+  const requestId = ++exhibitLocationRequestSeq
+  exhibitLocation.value = null
+  if (!id || id === "0") return
+  try {
+    const next = await resolveExhibitLocationMap(id)
+    if (requestId !== exhibitLocationRequestSeq) return
+    exhibitLocation.value = next
+  } catch {
+    if (requestId !== exhibitLocationRequestSeq) return
+    exhibitLocation.value = null
+  }
+}
 
 async function completeNarration(options: { skipped?: boolean } = {}) {
   if (finishing.value || !missionStore.activeSession || !chapter.value) return
@@ -132,6 +152,7 @@ async function bootstrap() {
 
   // 已完成解说节点允许重复收听，不因 solved 踢回路线页
   ready.value = true
+  void loadExhibitLocation(chapter.value?.refExhibitId)
   await loadDetail()
 }
 
@@ -154,25 +175,25 @@ function openStageAsk() {
   })
 }
 
+watch(
+  () => chapter.value?.refExhibitId,
+  (refExhibitId) => {
+    if (!ready.value) return
+    void loadExhibitLocation(refExhibitId)
+  },
+)
+
 onMounted(() => {
   void bootstrap()
+})
+
+onUnmounted(() => {
+  exhibitLocationRequestSeq += 1
 })
 </script>
 
 <template>
   <div class="narration-page">
-    <button
-      v-if="ready && chapter"
-      type="button"
-      class="stage-ask-fab"
-      title="快捷问答"
-      aria-label="快捷问答"
-      @click="openStageAsk()"
-    >
-      <MessageCircle class="h-4 w-4" />
-      <span>问答</span>
-    </button>
-
     <StagePlaySurface
       v-if="ready && chapter && playStage"
       :stage="playStage"
@@ -180,6 +201,19 @@ onMounted(() => {
       :can-submit="true"
       @complete-narration="completeNarration()"
       @skip-narration="completeNarration({ skipped: true })">
+      <!-- 播放器左侧，与右侧「文」对称 -->
+      <template #ask>
+        <button
+          type="button"
+          class="stage-ask-inline is-player"
+          title="快捷问答"
+          aria-label="快捷问答"
+          @click="openStageAsk()"
+        >
+          <MessageCircle class="stage-ask-inline__icon" :stroke-width="1.9" />
+          <span>问答</span>
+        </button>
+      </template>
       <template #actions>
         <ClientButton
           variant="outline"
@@ -225,29 +259,49 @@ onMounted(() => {
   padding-bottom: 0.35rem;
 }
 
-.stage-ask-fab {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 12;
+/* 播放器运输区左侧：与右侧「文」同高、对称 */
+.stage-ask-inline {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  border: 1px solid rgba(209, 178, 111, 0.35);
+  justify-content: center;
+  gap: 0.22rem;
+  margin: 0;
+  border: 0;
   border-radius: 999px;
-  background: rgba(18, 16, 12, 0.78);
-  padding: 0.35rem 0.7rem;
-  color: #efd391;
-  font-size: 0.72rem;
+  background: transparent;
+  color: rgb(240 223 176 / 88%);
+  font: inherit;
   font-weight: 700;
   letter-spacing: 0.04em;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 
-.stage-ask-fab:active {
-  transform: scale(0.98);
-  opacity: 0.92;
+.stage-ask-inline.is-player {
+  height: 3.05rem;
+  min-width: 3.05rem;
+  padding: 0 0.55rem;
+  font-size: 13px;
+}
+
+.stage-ask-inline__icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+}
+
+.stage-ask-inline:hover {
+  color: #f7efdd;
+  background: rgb(209 178 111 / 12%);
+}
+
+.stage-ask-inline:active {
+  transform: scale(0.94);
 }
 
 .narration-page :deep(.stage-play) {

@@ -6,7 +6,7 @@ const props = defineProps<{ stage: GameplayPreviewStage | null }>()
 
 <template>
   <div class="route-device__chrome min-h-0 flex-1">
-    <div class="route-device__screen">
+    <div class="route-device__screen" data-stage-frame>
       <div class="route-device__status" aria-hidden="true">
         <span class="route-device__time">9:41</span>
         <span class="route-device__island" />

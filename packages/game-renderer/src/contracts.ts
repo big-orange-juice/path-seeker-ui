@@ -147,6 +147,25 @@ export interface GameplayPreviewNarration {
 
 export type GameplayPreviewNarrationStatus = "idle" | "loading" | "ready" | "error"
 
+/**
+ * 节点关联文物在展厅地图上的定位预览（B 端模拟器 / H5 共用）。
+ * 由宿主根据 refExhibitId 查询后注入；无点位时不传。
+ */
+export interface StageExhibitLocationMap {
+  /** 展厅名称 */
+  galleryName?: string | null
+  /** 地图底图 URL */
+  imageUrl: string
+  /** 高亮点位 X 百分比（0–100） */
+  xPercent: number
+  /** 高亮点位 Y 百分比（0–100） */
+  yPercent: number
+  /** 点位标题（默认展品名） */
+  pointTitle?: string | null
+  /** 展品名称 */
+  exhibitName?: string | null
+}
+
 export interface GameplayPreviewStage {
   stageId: string
   interactionType: number
@@ -159,6 +178,8 @@ export interface GameplayPreviewStage {
   narration?: GameplayPreviewNarration | null
   narrationStatus?: GameplayPreviewNarrationStatus
   narrationErrorMessage?: string | null
+  /** 有 refExhibitId 且能解析到地图点位时注入，驱动定位图标与地图弹层 */
+  exhibitLocation?: StageExhibitLocationMap | null
 }
 
 /**

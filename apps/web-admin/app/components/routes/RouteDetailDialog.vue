@@ -11,6 +11,7 @@ import {
   type GameplayPreviewNarration,
   type GameplayPreviewNarrationStatus,
   type GameplayPreviewStage,
+  type StageExhibitLocationMap,
 } from '@path-seeker/game-renderer';
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
@@ -36,6 +37,7 @@ import type {
   UpdateRouteTitlePayload,
 } from '@/types/route';
 import RouteStatusBadge from '@/components/routes/RouteStatusBadge.vue';
+import { resolveExhibitLocationMap } from '@/utils/resolveExhibitLocationMap';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
 import '@vue-flow/controls/dist/style.css';
@@ -89,6 +91,7 @@ const chatPaneRef = shallowRef<{
 const narrationDetail = shallowRef<NarrationDetailResponse | null>(null);
 const narrationStatus = shallowRef<GameplayPreviewNarrationStatus>('idle');
 const narrationErrorMessage = shallowRef('');
+const exhibitLocation = shallowRef<StageExhibitLocationMap | null>(null);
 const editingRouteTitle = shallowRef(false);
 const routeTitleDraft = shallowRef('');
 const savingRouteTitle = shallowRef(false);
@@ -96,6 +99,7 @@ const routeTitleError = shallowRef('');
 let detailRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSilentRefresh = false;
 let narrationRequestSeq = 0;
+let exhibitLocationRequestSeq = 0;
 
 // 新增站点暂关
 // const interactionTypeOptions = SUPPORTED_INTERACTION_TYPES.map((type) => ({
@@ -203,6 +207,7 @@ const previewStage = computed<GameplayPreviewStage | null>(() => {
     narration: isNarration ? mapNarrationPreview(narrationDetail.value) : null,
     narrationStatus: isNarration ? narrationStatus.value : 'idle',
     narrationErrorMessage: isNarration ? narrationErrorMessage.value : null,
+    exhibitLocation: exhibitLocation.value,
   };
 });
 
@@ -247,6 +252,28 @@ watch(narrationWatchKey, (stageId) => {
   narrationStatus.value = 'idle';
   narrationErrorMessage.value = '';
   if (stageId) void loadNarrationDetail(stageId);
+}, { immediate: true });
+
+const exhibitLocationWatchKey = computed(() => {
+  if (!props.open) return '';
+  return String(previewNode.value?.refExhibitId || '').trim();
+});
+const loadExhibitLocation = async (refExhibitId: string) => {
+  const requestId = ++exhibitLocationRequestSeq;
+  exhibitLocation.value = null;
+  try {
+    const next = await resolveExhibitLocationMap(request, refExhibitId);
+    if (requestId !== exhibitLocationRequestSeq) return;
+    exhibitLocation.value = next;
+  } catch {
+    if (requestId !== exhibitLocationRequestSeq) return;
+    exhibitLocation.value = null;
+  }
+};
+watch(exhibitLocationWatchKey, (refExhibitId) => {
+  exhibitLocationRequestSeq += 1;
+  exhibitLocation.value = null;
+  if (refExhibitId) void loadExhibitLocation(refExhibitId);
 }, { immediate: true });
 
 const routeId = computed(() => String(props.detail?.route?.id ?? '').trim());

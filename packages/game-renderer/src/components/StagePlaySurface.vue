@@ -17,6 +17,7 @@ import {
   type PuzzleDefinition,
 } from "../contracts"
 import FindScanPlayChain from "./FindScanPlayChain.vue"
+import StageExhibitLocationMap from "./StageExhibitLocationMap.vue"
 import NarrationRenderer from "./renderers/NarrationRenderer.vue"
 import PuzzleRendererHost from "./PuzzleRendererHost.vue"
 
@@ -166,6 +167,13 @@ const narrationAudioUrl = computed(
   () => readString("audio_url") || String(narration.value?.audioUrl ?? "").trim(),
 )
 const narrationImages = computed(() => narration.value?.images ?? [])
+const exhibitLocation = computed(() => {
+  const location = props.stage?.exhibitLocation
+  if (!location) return null
+  const imageUrl = String(location.imageUrl || "").trim()
+  if (!imageUrl) return null
+  return location
+})
 
 const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   draft.value = value
@@ -180,15 +188,26 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
       class="play-shell"
       :class="`play-shell--${stageKind}`">
       <div class="play-meta-row">
-        <span class="play-tag">{{ typeLabel }}</span>
-        <p v-if="stageKind === 'observe_choice'" class="play-kicker play-kicker--inline">
-          {{ stageKicker }}
-        </p>
+        <div class="play-meta-row__lead">
+          <span class="play-tag">{{ typeLabel }}</span>
+          <p v-if="stageKind === 'observe_choice'" class="play-kicker play-kicker--inline">
+            {{ stageKicker }}
+          </p>
+        </div>
+        <div v-if="$slots.ask" class="play-meta-ask">
+          <slot name="ask" />
+        </div>
       </div>
 
       <div class="play-heading">
         <p v-if="stageKind !== 'observe_choice'" class="play-kicker">{{ stageKicker }}</p>
-        <h2 class="play-title">{{ puzzleHeading }}</h2>
+        <StageExhibitLocationMap
+          v-if="exhibitLocation"
+          :location="exhibitLocation"
+          :title="puzzleHeading"
+          :size="stageKind === 'observe_choice' ? 'narration' : 'md'"
+        />
+        <h2 v-else class="play-title">{{ puzzleHeading }}</h2>
       </div>
 
       <div class="play-shell__body">
@@ -224,6 +243,16 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
       @update:phase="emit('update:findPhase', $event)"
       @complete="emit('complete-find')"
       @skip-stage="emit('skip-find')">
+      <template v-if="exhibitLocation" #title>
+        <StageExhibitLocationMap
+          :location="exhibitLocation"
+          :title="displayTitle"
+          size="lg"
+        />
+      </template>
+      <template v-if="$slots.ask" #ask>
+        <slot name="ask" />
+      </template>
       <template #actions>
         <slot name="actions" />
       </template>
@@ -247,6 +276,16 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
         :show-play-actions="canSubmit"
         @complete="emit('complete-narration')"
         @skip="emit('skip-narration')">
+        <template v-if="exhibitLocation" #title>
+          <StageExhibitLocationMap
+            :location="exhibitLocation"
+            :title="props.stage.title || props.stage.exhibitName || '当前文物'"
+            size="narration"
+          />
+        </template>
+        <template v-if="$slots.ask" #transport-start>
+          <slot name="ask" />
+        </template>
         <template #footer>
           <slot name="actions" />
         </template>
@@ -276,6 +315,7 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   --sp-fg-dim: #a89f90;
   --sp-radius-lg: 1.05rem;
 
+  position: relative;
   display: flex;
   min-height: 0;
   flex: 1 1 0%;
@@ -328,6 +368,21 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
   gap: 0.75rem;
 }
 
+.play-meta-row__lead {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.play-meta-ask {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
 .play-tag {
   display: inline-flex;
   align-items: center;
@@ -357,6 +412,7 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 
 .play-title {
   margin: 0;
+  min-width: 0;
   color: var(--sp-fg);
   font-size: 1.5rem;
   font-weight: 600;
@@ -440,7 +496,7 @@ const handleDraftUpdate = (value: PuzzleAnswerDraft) => {
 }
 
 .play-shell--observe_choice .play-meta-row {
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: center;
   gap: 0.65rem;
   flex-wrap: wrap;

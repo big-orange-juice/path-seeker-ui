@@ -139,9 +139,16 @@ const handleSkipStage = () => {
     <!-- 扫一扫：对齐 H5 locate 卡片 -->
     <section v-if="phase === 'scan'" class="play-panel">
       <div class="play-panel__inner">
-        <div class="play-heading">
+        <div class="find-top">
           <p class="play-kicker">{{ scanKicker }}</p>
-          <h2 class="play-title is-lg">{{ displayStageTitle }}</h2>
+          <div v-if="$slots.ask" class="find-top__ask">
+            <slot name="ask" />
+          </div>
+        </div>
+        <div class="play-heading">
+          <slot name="title">
+            <h2 class="play-title is-lg">{{ displayStageTitle }}</h2>
+          </slot>
           <p class="play-copy">{{ displayClue }}</p>
         </div>
 
@@ -189,16 +196,23 @@ const handleSkipStage = () => {
       <div class="film-head">
         <div class="play-heading">
           <p class="play-kicker">{{ videoKicker }}</p>
-          <h2 class="play-title">{{ displayStageTitle }}</h2>
+          <slot name="title">
+            <h2 class="play-title">{{ displayStageTitle }}</h2>
+          </slot>
         </div>
-        <button
-          v-if="canComplete"
-          type="button"
-          class="play-btn is-compact"
-          :disabled="finishing"
-          @click="handleSkipStage">
-          跳过
-        </button>
+        <div class="film-head__trail">
+          <div v-if="$slots.ask" class="film-head__ask">
+            <slot name="ask" />
+          </div>
+          <button
+            v-if="canComplete"
+            type="button"
+            class="play-btn is-compact"
+            :disabled="finishing"
+            @click="handleSkipStage">
+            跳过
+          </button>
+        </div>
       </div>
 
       <div v-if="hasVideo" class="film-frame">
@@ -296,6 +310,7 @@ const handleSkipStage = () => {
 
 .play-title {
   margin: 0;
+  min-width: 0;
   color: var(--sp-fg);
   font-size: 1.5rem;
   font-weight: 600;
@@ -455,11 +470,36 @@ const handleSkipStage = () => {
   padding: 0.25rem 0.15rem 0.5rem;
 }
 
+.find-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.find-top__ask {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
 .film-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+}
+
+.film-head__trail {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.film-head__ask {
+  display: flex;
+  align-items: center;
 }
 
 .film-frame {

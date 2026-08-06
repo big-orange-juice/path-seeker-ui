@@ -594,6 +594,83 @@ export function fetchExhibit(exhibitId: string) {
   })
 }
 
+/** 展厅地图点位关联文物 */
+export interface GalleryMapPointExhibitResponse {
+  id?: string | null
+  mapPointId?: string | null
+  exhibitId?: string | null
+  exhibitName?: string | null
+  sourceExhibitCode?: string | null
+  sourceExhibitName?: string | null
+  matchStatus?: number
+  sortOrder?: number
+}
+
+/** 展厅地图点位 */
+export interface GalleryMapPointResponse {
+  id?: string | null
+  galleryMapId?: string | null
+  sourcePointCode?: string | null
+  markerType?: number
+  xPercent?: number
+  yPercent?: number
+  title?: string | null
+  description?: string | null
+  sortOrder?: number
+  exhibitCount?: number
+  exhibits?: GalleryMapPointExhibitResponse[] | null
+}
+
+/** 展厅地图详情（含点位） */
+export interface GalleryMapResponse {
+  id?: string | null
+  galleryId?: string | null
+  galleryName?: string | null
+  mapIndex?: number
+  sourceImageUrl?: string | null
+  imageUrl?: string | null
+  imageWidth?: number | null
+  imageHeight?: number | null
+  sortOrder?: number
+  pointCount?: number
+  points?: GalleryMapPointResponse[] | null
+}
+
+export interface GalleryMapPageRequest {
+  pageIndex: number
+  pageSize: number
+  galleryId?: string | null
+  sourceArticleCode?: string | null
+  crawlStatus?: number | null
+}
+
+export interface GalleryMapPageResult {
+  list?: GalleryMapResponse[] | null
+  pageIndex?: number
+  pageSize?: number
+  total?: number
+  totalPages?: number
+}
+
+/** POST /GalleryMap/PageList — 按展厅查地图列表 */
+export function fetchGalleryMapPageList(body: GalleryMapPageRequest) {
+  return request<GalleryMapPageResult>("/GalleryMap/PageList", {
+    method: "POST",
+    data: body,
+  })
+}
+
+/** GET /GalleryMap/Get — 地图底图 + 点位 + 文物关系 */
+export function fetchGalleryMap(mapId: string) {
+  const id = String(mapId ?? "").trim()
+  if (!id || id === "0") {
+    return Promise.reject(new Error("invalid gallery map id"))
+  }
+  return request<GalleryMapResponse>("/GalleryMap/Get", {
+    query: { id },
+  })
+}
+
 /** Narration 音频状态（对齐后端常量） */
 export const NARRATION_AUDIO_STATUS = {
   NotGenerated: 0,

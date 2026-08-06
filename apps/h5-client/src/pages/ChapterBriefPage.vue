@@ -10,6 +10,7 @@ import {
   StagePlaySurface,
   type GameplayPreviewStage,
   type PuzzleAnswerDraft,
+  type StageExhibitLocationMap,
 } from "@path-seeker/game-renderer"
 import { createPuzzleDraft } from "@path-seeker/game-runtime"
 import { useToastStore } from "@path-seeker/client-state"
@@ -19,6 +20,7 @@ import { useMissionChapterReady } from "@/composables/useMissionChapterReady"
 import { useAskStore } from "@/stores/useAskStore"
 import { useCinemaStore } from "@/stores/useCinemaStore"
 import type { MissionAnswerDraft } from "@/types/mission"
+import { resolveExhibitLocationMap } from "@/utils/resolveExhibitLocationMap"
 
 const route = useRoute()
 const router = useRouter()
@@ -33,6 +35,8 @@ const ready = shallowRef(false)
 const finishing = shallowRef(false)
 const draft = shallowRef<MissionAnswerDraft | null>(null)
 const findPhase = shallowRef<"scan" | "video">("scan")
+const exhibitLocation = shallowRef<StageExhibitLocationMap | null>(null)
+let exhibitLocationRequestSeq = 0
 
 const chapter = computed(() => missionStore.currentChapter)
 const artifact = computed(() => missionStore.currentArtifact)
@@ -117,8 +121,24 @@ const playStage = computed<GameplayPreviewStage | null>(() => {
     exhibitName: artifact.value?.title || current.title,
     galleryName: current.targetLocation || artifact.value?.location || "",
     config,
+    exhibitLocation: exhibitLocation.value,
   }
 })
+
+async function loadExhibitLocation(refExhibitId?: string | null) {
+  const id = String(refExhibitId || "").trim()
+  const requestId = ++exhibitLocationRequestSeq
+  exhibitLocation.value = null
+  if (!id || id === "0") return
+  try {
+    const next = await resolveExhibitLocationMap(id)
+    if (requestId !== exhibitLocationRequestSeq) return
+    exhibitLocation.value = next
+  } catch {
+    if (requestId !== exhibitLocationRequestSeq) return
+    exhibitLocation.value = null
+  }
+}
 
 async function bootstrap() {
   ready.value = false
@@ -140,6 +160,7 @@ async function bootstrap() {
   if (interactionType.value === 1 || interactionType.value === 6) {
     syncPuzzleDraft()
     ready.value = true
+    void loadExhibitLocation(chapter.value?.refExhibitId)
     return
   }
 
@@ -160,6 +181,7 @@ async function bootstrap() {
     findPhase.value = "scan"
   }
   ready.value = true
+  void loadExhibitLocation(chapter.value?.refExhibitId)
 }
 
 function handleFindPhase(phase: "scan" | "video") {
@@ -271,29 +293,26 @@ watch(
   },
 )
 
+watch(
+  () => chapter.value?.refExhibitId,
+  (refExhibitId) => {
+    if (!ready.value) return
+    void loadExhibitLocation(refExhibitId)
+  },
+)
+
 onMounted(() => {
   void bootstrap()
 })
 
 onUnmounted(() => {
   cinemaStore.setVideoPlaying(false)
+  exhibitLocationRequestSeq += 1
 })
 </script>
 
 <template>
   <div class="relative space-y-4">
-    <button
-      v-if="ready && chapter"
-      type="button"
-      class="stage-ask-fab"
-      title="快捷问答"
-      aria-label="快捷问答"
-      @click="openStageAsk()"
-    >
-      <MessageCircle class="h-4 w-4" />
-      <span>问答</span>
-    </button>
-
     <template v-if="ready && chapter && playStage">
       <StagePlaySurface
         :stage="playStage"
@@ -307,6 +326,19 @@ onUnmounted(() => {
         @update:find-phase="handleFindPhase"
         @complete-find="completeFind()"
         @skip-find="completeFind({ skipped: true })">
+        <!-- 答题：顶栏右侧；找一找：kicker 行 / 短片头右侧 -->
+        <template #ask>
+          <button
+            type="button"
+            class="stage-ask-inline"
+            title="快捷问答"
+            aria-label="快捷问答"
+            @click="openStageAsk()"
+          >
+            <MessageCircle class="stage-ask-inline__icon" :stroke-width="1.9" />
+            <span>问答</span>
+          </button>
+        </template>
         <template #actions>
           <template v-if="interactionType === 1 || interactionType === 6">
             <div v-if="missionStore.currentChapterSolved" class="rounded-[1rem] bg-background/70 p-4">
@@ -386,28 +418,37 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.stage-ask-fab {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 12;
+/* 题面顶栏 / 找一找头：紧凑胶囊，不与标题抢位 */
+.stage-ask-inline {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  justify-content: center;
+  gap: 0.22rem;
+  min-height: 1.7rem;
+  margin: 0;
   border: 1px solid rgba(209, 178, 111, 0.35);
   border-radius: 999px;
-  background: rgba(18, 16, 12, 0.78);
-  padding: 0.35rem 0.7rem;
+  background: rgba(18, 16, 12, 0.55);
+  padding: 0.28rem 0.62rem 0.28rem 0.48rem;
   color: #efd391;
+  font: inherit;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.04em;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
   backdrop-filter: blur(8px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
 }
 
-.stage-ask-fab:active {
-  transform: scale(0.98);
+.stage-ask-inline__icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+}
+
+.stage-ask-inline:active {
+  transform: scale(0.97);
   opacity: 0.92;
 }
 </style>
