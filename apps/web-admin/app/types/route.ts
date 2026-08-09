@@ -151,6 +151,47 @@ export interface RouteAdminResponse {
   canEdit?: boolean | null;
   sortOrder: number;
   isGenerating?: boolean | null;
+  /** 路线后台任务状态：0=空闲 1=排队中 2=执行中 3=等待重试 */
+  taskStatus?: number | null;
+  taskStatusText?: string | null;
+  /**
+   * 生成进度 0–100。
+   * 列表接口可能直接返回；未返回时由前端用 TaskStatus 聚合补齐。
+   */
+  progressPercent?: number | null;
+}
+
+/** GET /api/Route/TaskStatus 单条任务 */
+export interface RouteTaskDetailResponse {
+  taskSource?: string | null;
+  taskId?: string | null;
+  taskCode?: string | null;
+  taskType?: string | null;
+  assetKind?: string | null;
+  stageId?: string | null;
+  exhibitId?: string | null;
+  status?: number | null;
+  statusText?: string | null;
+  progressPercent?: number | null;
+  attemptCount?: number | null;
+  maxAttempts?: number | null;
+  summary?: string | null;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+  createdAt?: string | null;
+  startedAt?: string | null;
+  nextRunAt?: string | null;
+}
+
+/** GET /api/Route/TaskStatus 汇总 */
+export interface RouteTaskSummaryResponse {
+  routeId?: string | null;
+  taskStatus?: number | null;
+  taskStatusText?: string | null;
+  executingTaskCount?: number | null;
+  assetGenerationTaskCount?: number | null;
+  routeBuildTaskCount?: number | null;
+  tasks?: RouteTaskDetailResponse[] | null;
 }
 
 export interface RouteRecord {
@@ -181,6 +222,10 @@ export interface RouteRecord {
   canEdit: boolean | null;
   sortOrder: number;
   isGenerating: boolean;
+  taskStatus: number | null;
+  taskStatusText: string;
+  /** 生成进度 0–100；无数据时为 null */
+  progressPercent: number | null;
 }
 
 export interface RouteAuditPayload {

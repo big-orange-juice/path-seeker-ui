@@ -10,10 +10,12 @@ import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import { useAdminNavigation } from '@/composables/useAdminNavigation';
 import { useAdminTipsGuide } from '@/composables/useAdminTipsGuide';
 import { useAdminAuthStore } from '@/stores/adminAuth';
+import { useAdminUiStore } from '@/stores/adminUi';
 import { ADMIN_LOGIN_PATH } from '@/constants/admin-auth';
 
 const route = useRoute();
 const authStore = useAdminAuthStore();
+const uiStore = useAdminUiStore();
 const { navItems } = useAdminNavigation();
 const { openManually: openTips } = useAdminTipsGuide();
 
@@ -64,6 +66,26 @@ const handleLogout = async () => {
       </div>
 
       <div class="flex items-center gap-3 text-sm text-foreground">
+        <div
+          class="flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/25 px-2 py-1"
+          title="拖动调整界面缩放：正常 / 放大">
+          <span class="hidden shrink-0 text-xs text-muted-foreground sm:inline">UI缩放</span>
+          <span class="hidden text-[11px] text-muted-foreground md:inline">正常</span>
+          <input
+            class="admin-ui-scale-range w-16 cursor-pointer accent-primary sm:w-20"
+            type="range"
+            min="0"
+            max="1"
+            step="1"
+            :value="uiStore.uiScaleIndex"
+            :aria-label="`UI缩放：${uiStore.uiScaleLabel}`"
+            :aria-valuetext="uiStore.uiScaleLabel"
+            @input="uiStore.setUiScaleIndex(($event.target as HTMLInputElement).value)" />
+          <span class="hidden text-[11px] text-muted-foreground md:inline">放大</span>
+          <span class="min-w-[2rem] text-center text-xs font-medium text-primary">
+            {{ uiStore.uiScaleLabel }}
+          </span>
+        </div>
         <UiButton
           variant="ghost"
           size="sm"

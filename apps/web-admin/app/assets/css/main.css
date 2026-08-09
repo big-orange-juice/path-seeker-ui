@@ -118,6 +118,69 @@
     filter 0.24s ease;
 }
 
+/**
+ * UI 缩放两档：正常 / 放大。
+ * 挂在 html 上，覆盖 Teleport 到 body 的弹层与下拉。
+ * Chromium / Edge / Safari 用 zoom；不支持时回落 root font-size。
+ *
+ * --admin-ui-zoom 供 fixed 弹层反算宽高，避免放大后 dialog 超出可视区。
+ */
+html {
+  --admin-ui-zoom: 1;
+}
+
+html.admin-ui-scale-normal {
+  --admin-ui-zoom: 1;
+  zoom: 1;
+}
+
+html.admin-ui-scale-large {
+  --admin-ui-zoom: 1.2;
+  zoom: 1.2;
+}
+
+@supports not (zoom: 1) {
+  html.admin-ui-scale-normal {
+    font-size: 100%;
+  }
+
+  html.admin-ui-scale-large {
+    font-size: 120%;
+  }
+}
+
+/**
+ * Dialog 遮罩：尺寸按 zoom 反算，视觉上仍贴满视口。
+ * 内容过高时遮罩可滚，避免放大后弹窗顶/底被裁切。
+ * 弹窗 max-height 同样反算，压过业务侧 h-[90vh] 等固定高度。
+ */
+.admin-dialog-overlay {
+  width: calc(100vw / var(--admin-ui-zoom, 1));
+  height: calc(100dvh / var(--admin-ui-zoom, 1));
+  max-width: calc(100vw / var(--admin-ui-zoom, 1));
+  max-height: calc(100dvh / var(--admin-ui-zoom, 1));
+  box-sizing: border-box;
+  overscroll-behavior: contain;
+}
+
+.admin-dialog-overlay > [role='dialog'] {
+  max-height: calc(100dvh / var(--admin-ui-zoom, 1) - 2.5rem);
+}
+
+/* 顶栏 UI 缩放滑杆：高度收紧，两档点选 */
+.admin-ui-scale-range {
+  height: 1.25rem;
+  margin: 0;
+  vertical-align: middle;
+  background: transparent;
+}
+
+.admin-ui-scale-range:focus-visible {
+  outline: 1px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 999px;
+}
+
 .page-fade-enter-from,
 .page-fade-leave-to {
   opacity: 0;

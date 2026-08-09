@@ -28,6 +28,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   routeChanged: [routeId: string];
   routePublished: [routeId: string];
+  /** 本轮 SSE 正常结束且已有 routeId（仅新建工作台使用，编辑侧不挂此组件） */
+  runCompleted: [routeId: string];
 }>();
 
 const routeDetail = ref<ChatRouteDetailPayload | null>(null);
@@ -456,12 +458,12 @@ const {
 } = useChatSession({
   onEvent: handleUiEvent,
   onDone: (payload: ChatDonePayload) => {
-    // 与 ui.route.*.updated 同路径：完整 SSE 结束至少刷一次列表/预览
     // useChatSession 已把 contextRouteId 回填进 payload.routeId
+    // 终态只发 runCompleted，由新建页统一刷新列表 + 按需提示后台任务，避免与 routeChanged 双刷
     const routeId = String(payload.routeId || routeDetail.value?.id || '').trim();
 
     if (routeId) {
-      emit('routeChanged', routeId);
+      emit('runCompleted', routeId);
     }
   },
 });

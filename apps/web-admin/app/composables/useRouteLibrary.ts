@@ -14,11 +14,57 @@ import type {
   RouteMutationPayload,
   RoutePageRequest,
   RouteRecord,
+  RouteTaskSummaryResponse,
 } from '@/types/route';
 
 const DEFAULT_PAGE_SIZE = 10;
 
 const normalizeText = (value: string | null | undefined) => String(value ?? '').trim();
+
+/** 将接口进度规范到 0–100 整数；非法值返回 null */
+const normalizeProgressPercent = (value: unknown): number | null => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(100, Math.round(value)));
+};
+
+/**
+ * 从 TaskStatus 汇总推算列表进度：
+ * - 有子任务时取 progressPercent 均值
+ * - 仅排队、尚无进度时记 0
+ */
+const resolveProgressFromTaskSummary = (
+  summary: RouteTaskSummaryResponse | null | undefined
+): number | null => {
+  if (!summary) {
+    return null;
+  }
+
+  const tasks = Array.isArray(summary.tasks) ? summary.tasks : [];
+  if (!tasks.length) {
+    // 1=排队中：已进入生成流程但尚无子进度
+    return summary.taskStatus === 1 ? 0 : null;
+  }
+
+  let sum = 0;
+  let count = 0;
+  for (const task of tasks) {
+    const percent = normalizeProgressPercent(task.progressPercent);
+    if (percent == null) {
+      continue;
+    }
+    sum += percent;
+    count += 1;
+  }
+
+  if (!count) {
+    return summary.taskStatus === 1 ? 0 : null;
+  }
+
+  return Math.round(sum / count);
+};
 
 export { ROUTE_PUBLISH_STATUS_OPTIONS, ROUTE_AUDIT_STATUS_OPTIONS };
 
@@ -76,6 +122,57 @@ export const useRouteLibrary = (
     }
   );
 
+  /**
+   * 列表未带 progressPercent 时，按 routeId 缓存 TaskStatus 聚合进度。
+   * 仅覆盖当前页 isGenerating 行，避免无关请求。
+   */
+  const progressByRouteId = shallowRef<Record<string, number>>({});
+  let progressFetchToken = 0;
+
+  const enrichGeneratingProgress = async (list: RouteAdminResponse[]) => {
+    const token = ++progressFetchToken;
+    const generating = list.filter((item) => Boolean(item.isGenerating));
+    if (!generating.length) {
+      progressByRouteId.value = {};
+      return;
+    }
+
+    const nextMap: Record<string, number> = {};
+    await Promise.all(
+      generating.map(async (item) => {
+        const id = normalizeText(item.id);
+        if (!id) {
+          return;
+        }
+
+        const fromList = normalizeProgressPercent(item.progressPercent);
+        if (fromList != null) {
+          nextMap[id] = fromList;
+          return;
+        }
+
+        try {
+          const summary = await request<RouteTaskSummaryResponse>('/api/route/task-status', {
+            method: 'GET',
+            query: { routeId: id },
+          });
+          const percent = resolveProgressFromTaskSummary(summary);
+          if (percent != null) {
+            nextMap[id] = percent;
+          }
+        } catch {
+          // 单行失败不影响列表主体；保持无百分比展示
+        }
+      })
+    );
+
+    if (token !== progressFetchToken) {
+      return;
+    }
+
+    progressByRouteId.value = nextMap;
+  };
+
   watch(
     hasSelectedMuseum,
     (selected) => {
@@ -88,37 +185,57 @@ export const useRouteLibrary = (
     { immediate: true }
   );
 
+  watch(
+    () => data.value.list,
+    (list) => {
+      void enrichGeneratingProgress(list ?? []);
+    },
+    { immediate: true }
+  );
+
   const rows = computed<RouteRecord[]>(() => {
-    const list = (data.value.list ?? []).map((item) => ({
-      id: normalizeText(item.id) || uuidv4(),
-      routeCode: normalizeText(item.routeCode),
-      routeType: item.routeType ?? 0,
-      museumId: normalizeText(item.museumId) || null,
-      title: normalizeText(item.title),
-      theme: normalizeText(item.theme),
-      coverImageUrl: normalizeText(item.coverImageUrl) || null,
-      scaleType: item.scaleType ?? 0,
-      difficultyLevel: item.difficultyLevel ?? 0,
-      ageGroup: item.ageGroup ?? 0,
-      allowTeam: item.allowTeam ?? 0,
-      minTeamSize: item.minTeamSize ?? 0,
-      maxTeamSize: item.maxTeamSize ?? 0,
-      estimatedMinutes: item.estimatedMinutes ?? null,
-      totalScore: item.totalScore ?? 0,
-      puzzleCount: item.puzzleCount ?? 0,
-      intro: normalizeText(item.intro),
-      rewardTitle: normalizeText(item.rewardTitle),
-      publishStatus: item.publishStatus ?? 0,
-      auditStatus: item.auditStatus ?? 0,
-      auditRemark: normalizeText(item.auditRemark),
-      // 缺省按需审展示；管理员免审路线后端会回 false
-      auditRequired: typeof item.auditRequired === 'boolean' ? item.auditRequired : true,
-      ownerId: normalizeText(item.ownerId) || null,
-      ownerName: normalizeText(item.ownerName),
-      canEdit: typeof item.canEdit === 'boolean' ? item.canEdit : null,
-      sortOrder: item.sortOrder ?? 0,
-      isGenerating: Boolean(item.isGenerating),
-    }));
+    const list = (data.value.list ?? []).map((item) => {
+      const id = normalizeText(item.id) || uuidv4();
+      const listProgress = normalizeProgressPercent(item.progressPercent);
+      const cachedProgress =
+        typeof progressByRouteId.value[id] === 'number'
+          ? progressByRouteId.value[id]!
+          : null;
+
+      return {
+        id,
+        routeCode: normalizeText(item.routeCode),
+        routeType: item.routeType ?? 0,
+        museumId: normalizeText(item.museumId) || null,
+        title: normalizeText(item.title),
+        theme: normalizeText(item.theme),
+        coverImageUrl: normalizeText(item.coverImageUrl) || null,
+        scaleType: item.scaleType ?? 0,
+        difficultyLevel: item.difficultyLevel ?? 0,
+        ageGroup: item.ageGroup ?? 0,
+        allowTeam: item.allowTeam ?? 0,
+        minTeamSize: item.minTeamSize ?? 0,
+        maxTeamSize: item.maxTeamSize ?? 0,
+        estimatedMinutes: item.estimatedMinutes ?? null,
+        totalScore: item.totalScore ?? 0,
+        puzzleCount: item.puzzleCount ?? 0,
+        intro: normalizeText(item.intro),
+        rewardTitle: normalizeText(item.rewardTitle),
+        publishStatus: item.publishStatus ?? 0,
+        auditStatus: item.auditStatus ?? 0,
+        auditRemark: normalizeText(item.auditRemark),
+        // 缺省按需审展示；管理员免审路线后端会回 false
+        auditRequired: typeof item.auditRequired === 'boolean' ? item.auditRequired : true,
+        ownerId: normalizeText(item.ownerId) || null,
+        ownerName: normalizeText(item.ownerName),
+        canEdit: typeof item.canEdit === 'boolean' ? item.canEdit : null,
+        sortOrder: item.sortOrder ?? 0,
+        isGenerating: Boolean(item.isGenerating),
+        taskStatus: typeof item.taskStatus === 'number' ? item.taskStatus : null,
+        taskStatusText: normalizeText(item.taskStatusText),
+        progressPercent: listProgress ?? cachedProgress,
+      };
+    });
 
     const currentSorting = sorting.value[0];
     if (!currentSorting) {

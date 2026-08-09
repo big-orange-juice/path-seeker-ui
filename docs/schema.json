@@ -5156,7 +5156,7 @@
                     "description": "导游关联的标签 ID 列表，创建和更新时覆盖保存"
                   },
                   "SemanticProfile": {
-                    "maxLength": 8000,
+                    "maxLength": 15000,
                     "type": "string"
                   },
                   "VoiceStyle": {
@@ -5518,7 +5518,7 @@
                     "description": "导游关联的标签 ID 列表，创建和更新时覆盖保存"
                   },
                   "SemanticProfile": {
-                    "maxLength": 8000,
+                    "maxLength": 15000,
                     "type": "string"
                   },
                   "VoiceStyle": {
@@ -8272,6 +8272,44 @@
         }
       }
     },
+    "/api/Route/TaskStatus": {
+      "get": {
+        "tags": ["Route"],
+        "summary": "查询路线当前正在执行的后台任务数量及任务详情。",
+        "parameters": [
+          {
+            "name": "routeId",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteTaskSummaryResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteTaskSummaryResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteTaskSummaryResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/Route/Create": {
       "post": {
         "tags": ["Route"],
@@ -9327,6 +9365,54 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TeamResponseListApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/temp/guide-style/generate": {
+      "post": {
+        "tags": ["TemporaryGuideStyle"],
+        "summary": "Analyzes an uploaded TXT file and persists the generated style Markdown files locally.",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              },
+              "encoding": {
+                "file": {
+                  "style": "form"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemporaryGuideStyleGenerationResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemporaryGuideStyleGenerationResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemporaryGuideStyleGenerationResponseApiResponse"
                 }
               }
             }
@@ -14422,6 +14508,13 @@
             },
             "nullable": true
           },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExhibitLocationResponse"
+            },
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -14686,6 +14779,126 @@
         },
         "additionalProperties": false,
         "description": "文物-玩法绑定项：每个文物绑定其专属玩法类型。"
+      },
+      "ExhibitLocationGalleryResponse": {
+        "type": "object",
+        "properties": {
+          "galleryId": {
+            "type": "string",
+            "nullable": true
+          },
+          "galleryName": {
+            "type": "string",
+            "nullable": true
+          },
+          "floorId": {
+            "type": "string",
+            "nullable": true
+          },
+          "floorName": {
+            "type": "string",
+            "nullable": true
+          },
+          "floorLevel": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitLocationMapResponse": {
+        "type": "object",
+        "properties": {
+          "mapId": {
+            "type": "string",
+            "nullable": true
+          },
+          "mapImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageWidth": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "imageHeight": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "coordinateType": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "contentHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExhibitLocationPointResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitLocationPointResponse": {
+        "type": "object",
+        "properties": {
+          "pointId": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "xPercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "yPercent": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExhibitLocationResponse": {
+        "type": "object",
+        "properties": {
+          "exhibitId": {
+            "type": "string",
+            "nullable": true
+          },
+          "exhibitName": {
+            "type": "string",
+            "nullable": true
+          },
+          "showcaseNo": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "gallery": {
+            "$ref": "#/components/schemas/ExhibitLocationGalleryResponse"
+          },
+          "maps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExhibitLocationMapResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
       },
       "ExhibitMediaItem": {
         "type": "object",
@@ -19435,6 +19648,15 @@
             "description": "发布状态：1=草稿 2=已发布 3=已下线",
             "format": "int32"
           },
+          "publishStatusText": {
+            "type": "string",
+            "description": "发布状态文本：草稿、已上架或已下架",
+            "nullable": true
+          },
+          "isPublished": {
+            "type": "boolean",
+            "description": "是否处于上架状态；仅 PublishStatus=2 时为 true"
+          },
           "auditRequired": {
             "type": "boolean",
             "description": "是否需要管理员审核；管理员创建的路线为 false"
@@ -19457,6 +19679,16 @@
           "isGenerating": {
             "type": "boolean",
             "description": "是否正在 AI 生成中（查 agent_route_build_task 表，status 0=Pending 1=Running 3=RetryWaiting 视为生成中）"
+          },
+          "taskStatus": {
+            "type": "integer",
+            "description": "路线后台任务状态：0=空闲 1=排队中 2=执行中 3=等待重试",
+            "format": "int32"
+          },
+          "taskStatusText": {
+            "type": "string",
+            "description": "路线后台任务状态文本",
+            "nullable": true
           }
         },
         "additionalProperties": false,
@@ -20652,6 +20884,145 @@
         "additionalProperties": false,
         "description": "数据看板 — 路线维度"
       },
+      "RouteTaskDetailResponse": {
+        "type": "object",
+        "properties": {
+          "taskSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskId": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskType": {
+            "type": "string",
+            "nullable": true
+          },
+          "assetKind": {
+            "type": "string",
+            "nullable": true
+          },
+          "stageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "exhibitId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "statusText": {
+            "type": "string",
+            "nullable": true
+          },
+          "progressPercent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "nextRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteTaskSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "taskStatus": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "taskStatusText": {
+            "type": "string",
+            "nullable": true
+          },
+          "executingTaskCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "assetGenerationTaskCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "routeBuildTaskCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RouteTaskDetailResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteTaskSummaryResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RouteTaskSummaryResponse"
+          }
+        },
+        "additionalProperties": false
+      },
       "SaveGuideRequest": {
         "required": ["name"],
         "type": "object",
@@ -20681,7 +21052,7 @@
             "nullable": true
           },
           "semanticProfile": {
-            "maxLength": 8000,
+            "maxLength": 15000,
             "type": "string",
             "nullable": true
           },
@@ -21746,6 +22117,60 @@
               "$ref": "#/components/schemas/TeamResponse"
             },
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TemporaryGuideStyleGenerationResponse": {
+        "type": "object",
+        "properties": {
+          "generationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceFileName": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string",
+            "nullable": true
+          },
+          "model": {
+            "type": "string",
+            "nullable": true
+          },
+          "localDirectory": {
+            "type": "string",
+            "nullable": true
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "TemporaryGuideStyleGenerationResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "traceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/TemporaryGuideStyleGenerationResponse"
           }
         },
         "additionalProperties": false
@@ -22945,7 +23370,7 @@
             "nullable": true
           },
           "semanticProfile": {
-            "maxLength": 8000,
+            "maxLength": 15000,
             "type": "string",
             "nullable": true
           },
@@ -24360,6 +24785,10 @@
     {
       "name": "Team",
       "description": "组队 — 创建/加入/退出/解散/查询 (需登录)"
+    },
+    {
+      "name": "TemporaryGuideStyle",
+      "description": "Temporary local-only Guide style generation utilities."
     },
     {
       "name": "TreasureHunt",

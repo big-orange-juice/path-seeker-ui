@@ -135,25 +135,40 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
     header: renderHeader('路线', 'title'),
     cell: ({ row }) => {
       const record = row.original;
-      return h('div', { class: 'min-w-0 space-y-1' }, [
-        h('div', { class: 'flex items-center gap-2' }, [
+      const titleText = record.title || '未命名路线';
+      // tip：完整标题；编码仅作补充（R-01 列表不强调编码）
+      const titleTip = record.routeCode
+        ? `${titleText}（编码：${record.routeCode}）`
+        : titleText;
+      return h('div', { class: 'min-w-0 max-w-[12rem] space-y-1' }, [
+        h('div', { class: 'flex min-w-0 items-center gap-2' }, [
           h(
             'p',
             {
-              class: 'truncate font-medium text-foreground',
-              // 编码仅 hover 可见，列表主文案不强调（R-01）
-              title: record.routeCode ? `编码：${record.routeCode}` : undefined
+              class: 'min-w-0 truncate font-medium text-foreground',
+              title: titleTip
             },
-            record.title || '未命名路线'
+            titleText
           ),
           record.isGenerating
             ? h(
                 'span',
                 {
                   class:
-                    'rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-200'
+                    'shrink-0 rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-200',
+                  title: [
+                    '路线异步生成中，可点击刷新查看最新状态',
+                    record.taskStatusText || '',
+                    record.progressPercent != null
+                      ? `当前进度 ${record.progressPercent}%`
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · '),
                 },
-                '生成中'
+                record.progressPercent != null
+                  ? `生成中 ${record.progressPercent}%`
+                  : '生成中'
               )
             : null,
           record.auditRequired
@@ -161,7 +176,7 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
                 'span',
                 {
                   class:
-                    'rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-200'
+                    'shrink-0 rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] text-violet-200'
                 },
                 '需审'
               )
@@ -183,22 +198,33 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
   {
     accessorKey: 'theme',
     header: renderHeader('主题', 'theme'),
-    cell: ({ row }) =>
-      h(
+    cell: ({ row }) => {
+      // 主题常为长文案：列宽收紧 + 单行截断，完整内容靠 native tip
+      const theme = String(row.original.theme || '').trim() || '未设置';
+      return h(
         'span',
-        { class: 'text-sm text-muted-foreground' },
-        row.original.theme || '未设置'
-      )
+        {
+          class: 'block max-w-[16rem] truncate text-sm text-muted-foreground',
+          title: theme
+        },
+        theme
+      );
+    }
   },
   {
     accessorKey: 'ownerName',
     header: renderHeader('创建人', 'ownerName'),
-    cell: ({ row }) =>
-      h(
+    cell: ({ row }) => {
+      const ownerName = String(row.original.ownerName || '').trim() || '—';
+      return h(
         'span',
-        { class: 'text-sm text-muted-foreground' },
-        row.original.ownerName || '—'
-      )
+        {
+          class: 'block max-w-[5.5rem] truncate text-sm text-muted-foreground',
+          title: ownerName
+        },
+        ownerName
+      );
+    }
   },
   {
     accessorKey: 'puzzleCount',

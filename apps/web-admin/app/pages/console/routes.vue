@@ -134,17 +134,47 @@ const {
   fetchRouteDetail,
 } = useRouteLibrary(() => selectedMuseumId.value);
 
+/** 新建流程里已提示过「后台生成中」的路线，避免同一 route 多轮 done 重复弹窗 */
+const createBackgroundHintRouteIds = new Set<string>();
+
+/**
+ * 仅新增：done / 条件生成完成后，若列表仍标记 isGenerating，提醒用户回列表查看。
+ * 编辑页走 RouteEditChatPane，不会进入此逻辑。
+ */
+const maybeShowCreateBackgroundHint = (routeId: string) => {
+  const id = String(routeId || '').trim();
+  if (!id || createBackgroundHintRouteIds.has(id)) {
+    return false;
+  }
+
+  const record = rows.value.find((item) => item.id === id);
+  if (!record?.isGenerating) {
+    return false;
+  }
+
+  createBackgroundHintRouteIds.add(id);
+  actionFeedback.show({
+    tone: 'info',
+    title: '路线已创建',
+    description: '部分内容仍在后台生成，可关闭窗口后到列表查看「生成中」状态，完成后点击刷新。',
+  });
+  return true;
+};
+
 const handleCreateManual = async (payload: BuildRouteFromThemePayload) => {
   createSubmitting.value = true;
 
   try {
-    await request<string>('/api/route/build-from-theme', {
+    const createdId = await request<string>('/api/route/build-from-theme', {
       method: 'POST',
       body: payload,
     });
     createDialogOpen.value = false;
     await refresh();
-    actionFeedback.success('主题路线已生成。');
+    // 与 AI 新建一致：仍生成中则提示回列表；否则普通成功
+    if (!maybeShowCreateBackgroundHint(String(createdId || ''))) {
+      actionFeedback.success('主题路线已生成。');
+    }
   } catch (caughtError) {
     actionFeedback.errorFrom(caughtError, '主题路线创建失败。');
   } finally {
@@ -155,6 +185,16 @@ const handleCreateManual = async (payload: BuildRouteFromThemePayload) => {
 const handleChatRouteChanged = async (_routeId: string) => {
   try {
     await refresh();
+  } catch (caughtError) {
+    actionFeedback.errorFrom(caughtError, '路线列表刷新失败。');
+  }
+};
+
+/** AI 新建对话一轮 done：刷新列表后按需提示后台任务（编辑不会触发） */
+const handleCreateRunCompleted = async (routeId: string) => {
+  try {
+    await refresh();
+    maybeShowCreateBackgroundHint(routeId);
   } catch (caughtError) {
     actionFeedback.errorFrom(caughtError, '路线列表刷新失败。');
   }
@@ -663,7 +703,8 @@ const detailActions = computed(() => {
       :submitting="createSubmitting"
       @submit-manual="handleCreateManual"
       @route-changed="handleChatRouteChanged"
-      @route-published="handleChatRoutePublished" />
+      @route-published="handleChatRoutePublished"
+      @run-completed="handleCreateRunCompleted" />
 
     <!-- v-if + key：关闭即销毁内部状态；换路线强制重挂载 -->
     <RouteDetailDialog

@@ -39,6 +39,8 @@ const emit = defineEmits<{
   submitManual: [payload: BuildRouteFromThemePayload];
   routeChanged: [routeId: string];
   routePublished: [routeId: string];
+  /** AI 新建对话一轮 done 且已有 routeId */
+  runCompleted: [routeId: string];
 }>();
 
 const activeTab = ref<'ai' | 'manual'>('ai');
@@ -184,7 +186,8 @@ const submitManual = () => {
           ref="chatWorkspaceRef"
           :active="props.open"
           @route-changed="emit('routeChanged', $event)"
-          @route-published="emit('routePublished', $event)" />
+          @route-published="emit('routePublished', $event)"
+          @run-completed="emit('runCompleted', $event)" />
       </div>
 
       <div v-show="activeTab === 'manual'" class="flex min-h-0 flex-1 flex-col">

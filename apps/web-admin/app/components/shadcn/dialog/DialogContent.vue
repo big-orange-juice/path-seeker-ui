@@ -91,6 +91,7 @@ const contentClass = computed(() => {
   const hasMaxWidth = /\bmax-w-/.test(extra)
 
   return cn(
+    // 高度上限由 .admin-dialog-overlay > [role=dialog] 统一按 --admin-ui-zoom 反算
     'warm-panel warm-outline relative w-full rounded-[0.95rem] border border-border/80 bg-[#111316]',
     !hasMaxWidth && 'max-w-[1360px]',
     extra,
@@ -108,9 +109,14 @@ const contentClass = computed(() => {
       leave-from-class="opacity-100"
       leave-to-class="opacity-0"
     >
+      <!--
+        UI 缩放挂在 html 的 zoom 上时，fixed inset-0 会被一起放大而溢出视口。
+        用 width/height = 100vw|/|--admin-ui-zoom 反算，使遮罩视觉上仍贴满屏幕；
+        遮罩本身可滚动，避免大弹窗被裁切。
+      -->
       <div
         v-if="dialog.open.value"
-        class="fixed inset-0 flex items-center justify-center bg-black/65 px-4 py-6 backdrop-blur-sm"
+        class="admin-dialog-overlay fixed left-0 top-0 flex items-start justify-center overflow-x-hidden overflow-y-auto bg-black/65 px-4 py-6 backdrop-blur-sm sm:items-center"
         :style="{ zIndex: overlayZIndex }"
         data-dialog-overlay
       >
