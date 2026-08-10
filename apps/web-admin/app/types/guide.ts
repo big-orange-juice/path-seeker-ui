@@ -193,8 +193,8 @@ export type GuideDraft = Omit<
   /** 多份声音样本（同一字段名 `material` 多次 append；均为可提交音频） */
   materialFiles?: File[]
   /**
-   * 语义/语料资料本地文件（txt），multipart 字段名 `txtmaterial`
-   * 前端已不再上传文风；字段保留兼容旧调用
+   * 讲解文风示例（txt），multipart 字段名 `txtmaterial`
+   * 对齐 create-with-material / update-with-material
    */
   txtMaterialFile?: File | null
   txtMaterialFileName?: string

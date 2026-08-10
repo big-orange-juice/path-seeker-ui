@@ -264,7 +264,7 @@ const buildMaterialFormData = (draft: GuideDraft, mode: 'create' | 'edit') => {
   appendFormField(formData, 'Status', draft.status || DEFAULT_STATUS)
   appendFormField(formData, 'SortOrder', Number.isFinite(draft.sortOrder) ? draft.sortOrder : 0)
 
-  // multipart：material 可多份；文风不再由前端上传
+  // multipart：material 可多份；txtmaterial 为讲解文风（可选，单文件）
   const materialList =
     Array.isArray(draft.materialFiles) && draft.materialFiles.length
       ? draft.materialFiles.filter((item): item is File => item instanceof File)
@@ -274,6 +274,10 @@ const buildMaterialFormData = (draft: GuideDraft, mode: 'create' | 'edit') => {
 
   for (const file of materialList) {
     formData.append('material', file, file.name)
+  }
+
+  if (draft.txtMaterialFile instanceof File) {
+    formData.append('txtmaterial', draft.txtMaterialFile, draft.txtMaterialFile.name)
   }
 
   return formData

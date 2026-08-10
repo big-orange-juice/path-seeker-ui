@@ -89,9 +89,11 @@ const activeTab = shallowRef<WorkspaceTab>('edit')
 const avatarPreviewUrl = shallowRef('')
 const avatarInputRef = useTemplateRef<HTMLInputElement>('avatarInput')
 const materialInputRef = useTemplateRef<HTMLInputElement>('materialInput')
+const txtMaterialInputRef = useTemplateRef<HTMLInputElement>('txtMaterialInput')
 const avatarUploading = shallowRef(false)
 const avatarError = shallowRef('')
 const materialError = shallowRef('')
+const txtMaterialError = shallowRef('')
 const tagDialogOpen = shallowRef(false)
 /** 样本列表；视频选中后立即服务端抽音频，仅 ready 的音频进入 form */
 const materialItems = shallowRef<MaterialListItem[]>([])
@@ -121,6 +123,13 @@ const isVoiceMaterialFile = (file: File) => {
   return type.startsWith('audio/') || isVideoVoiceMaterial(file) || /\.(mp3|wav|m4a|aac|ogg|flac|mpga)$/.test(name)
 }
 
+/** 讲解文风：txt → multipart `txtmaterial` */
+const isTxtMaterialFile = (file: File) => {
+  const name = file.name.toLowerCase()
+  const type = (file.type || '').toLowerCase()
+  return name.endsWith('.txt') || type === 'text/plain'
+}
+
 const formatFileSize = (bytes: number) => {
   if (bytes < 1024) {
     return `${bytes} B`
@@ -144,8 +153,6 @@ const syncMaterialFilesToForm = () => {
   form.materialFiles = ready
   form.materialFile = ready[0] ?? null
   form.materialFileName = ready[0]?.name || ''
-  form.txtMaterialFile = null
-  form.txtMaterialFileName = ''
 }
 
 /** 标签名称缓存：仅用于表单回显，key 为 tagId */
@@ -221,6 +228,7 @@ watch(
     })
     materialItems.value = []
     materialError.value = ''
+    txtMaterialError.value = ''
     avatarError.value = ''
     avatarUploading.value = false
     avatarPreviewUrl.value = String(props.initialValue.avatarPreviewUrl || '').trim()
@@ -245,9 +253,9 @@ const title = computed(() => {
 
 const descriptionText = computed(() => {
   if (props.mode === 'create') {
-    return '维护基础资料。优先选择内置音色，必要时再上传声音样本。'
+    return '维护基础资料。可选择内置音色、声音样本与讲解文风示例。'
   }
-  return '查看讲解风格，或维护基础资料与音色。'
+  return '查看讲解风格，或维护基础资料、音色与文风。'
 })
 
 const voiceGenerationMeta = computed(() => {
@@ -516,6 +524,42 @@ const retryMaterialAt = (index: number) => {
   void startVideoExtraction(item.key, item.sourceFile)
 }
 
+const openTxtMaterialPicker = () => {
+  if (props.submitting) {
+    return
+  }
+  txtMaterialInputRef.value?.click()
+}
+
+const handleTxtMaterialChange = (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0] ?? null
+  txtMaterialError.value = ''
+  input.value = ''
+
+  if (!file) {
+    form.txtMaterialFile = null
+    form.txtMaterialFileName = ''
+    return
+  }
+
+  if (!isTxtMaterialFile(file)) {
+    txtMaterialError.value = '讲解文风仅支持 TXT 文本。'
+    form.txtMaterialFile = null
+    form.txtMaterialFileName = ''
+    return
+  }
+
+  form.txtMaterialFile = file
+  form.txtMaterialFileName = file.name
+}
+
+const clearTxtMaterial = () => {
+  form.txtMaterialFile = null
+  form.txtMaterialFileName = ''
+  txtMaterialError.value = ''
+}
+
 const handleSubmit = () => {
   if (!canSubmit.value) {
     if (hasMaterialExtracting.value) {
@@ -532,8 +576,8 @@ const handleSubmit = () => {
     materialFile: files[0] ?? null,
     materialFileName: files[0]?.name || '',
     materialFiles: files,
-    txtMaterialFile: null,
-    txtMaterialFileName: '',
+    txtMaterialFile: form.txtMaterialFile ?? null,
+    txtMaterialFileName: form.txtMaterialFileName || '',
   })
 }
 </script>
@@ -910,6 +954,60 @@ const handleSubmit = () => {
               {{ materialError }}
             </p>
           </div>
+        </section>
+
+        <!-- ③ 讲解文风：可选 txt，提交 multipart `txtmaterial` -->
+        <section class="space-y-2 border-t border-border/60 pt-4">
+          <div class="flex items-center justify-between gap-2">
+            <span class="form-label text-sm font-medium">讲解文风</span>
+            <span class="text-[11px] text-muted-foreground">可选 · TXT</span>
+          </div>
+          <p class="text-xs text-muted-foreground">
+            上传文风示例，用于生成语气与用词风格
+          </p>
+          <input
+            ref="txtMaterialInput"
+            type="file"
+            accept=".txt,text/plain"
+            class="hidden"
+            @change="handleTxtMaterialChange"
+          >
+          <button
+            type="button"
+            class="flex w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-primary/35 bg-secondary/20 px-3 py-4 text-center transition hover:border-primary/55 hover:bg-secondary/35 disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="submitting"
+            @click="openTxtMaterialPicker"
+          >
+            <AppIcon name="image-up" class="h-5 w-5 text-primary/80" />
+            <span class="text-sm font-medium text-foreground">
+              {{ form.txtMaterialFileName ? '重新选择文风示例' : '点击上传文风示例' }}
+            </span>
+            <span class="text-xs text-muted-foreground">
+              仅支持 TXT
+            </span>
+          </button>
+          <div
+            v-if="form.txtMaterialFileName"
+            class="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-background/30 px-3 py-2"
+          >
+            <p class="min-w-0 truncate text-sm text-foreground" :title="form.txtMaterialFileName">
+              {{ form.txtMaterialFileName }}
+            </p>
+            <button
+              type="button"
+              class="shrink-0 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+              :disabled="submitting"
+              @click="clearTxtMaterial"
+            >
+              移除
+            </button>
+          </div>
+          <p
+            v-if="txtMaterialError"
+            class="text-xs text-rose-300"
+          >
+            {{ txtMaterialError }}
+          </p>
         </section>
       </div>
 
