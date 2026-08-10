@@ -155,7 +155,7 @@ const emit = defineEmits<{
         </span>
       </div>
 
-      <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div class="grid min-h-0 flex-1 gap-4 min-[1200px]:grid-cols-[minmax(0,1fr)_18.75rem]">
         <GalleryMapCanvas
           :map="props.map"
           :selected-point-id="props.selectedPoint?.id || ''"

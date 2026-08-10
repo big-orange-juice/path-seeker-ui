@@ -167,7 +167,7 @@ const routeStatsOption = computed<EChartsCoreOption | null>(() => {
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
+  <div class="admin-page-frame flex flex-col gap-4">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="min-w-0">
         <p class="text-sm text-muted-foreground">

@@ -12,7 +12,7 @@ function handleClose(event: MouseEvent, path: string) {
 
 <template>
   <div class="border-b border-border bg-[#111214] px-3 sm:px-4 lg:px-5">
-    <div class="flex h-10 items-center gap-2 overflow-x-auto">
+    <div class="admin-tabs-inner flex items-center gap-2 overflow-x-auto">
       <NuxtLink
         v-for="tab in tabs"
         :key="tab.to"

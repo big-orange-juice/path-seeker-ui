@@ -119,66 +119,202 @@
 }
 
 /**
- * UI 缩放两档：正常 / 放大。
- * 挂在 html 上，覆盖 Teleport 到 body 的弹层与下拉。
- * Chromium / Edge / Safari 用 zoom；不支持时回落 root font-size。
- *
- * --admin-ui-zoom 供 fixed 弹层反算宽高，避免放大后 dialog 超出可视区。
+ * 后台密度三档：视口媒体查询驱动（系统 125%/150% 缩小 CSS 视口后自动更紧）。
+ * 字号整体偏大便于阅读；壳层/Dialog 用 token 收边，避免放大后裁切或越界。
+ * - compact：窄屏 / 矮屏
+ * - regular：常规办公桌面
+ * - wide：宽高都充足
  */
+:root {
+  --admin-density: regular;
+  /* 阅读优先：常规档接近浏览器默认 16px */
+  --admin-font-size: 16px;
+  --admin-sidebar-width: 14rem;
+  --admin-topbar-height: 3.5rem;
+  --admin-tabs-height: 2.5rem;
+  --admin-main-pad-x: 1.25rem;
+  --admin-main-pad-y: 1rem;
+  --admin-shell-gap: 0.875rem;
+  --admin-dialog-pad-x: 0.875rem;
+  --admin-dialog-pad-y: 1rem;
+  /* 预留边距，压过业务侧 h-[90vh]，防顶底贴边 */
+  --admin-dialog-max-height: min(92dvh, calc(100dvh - 2rem));
+  --admin-page-max-width: 87.5rem;
+  --admin-filter-control-min: 10rem;
+  --admin-nav-drawer-width: min(18rem, calc(100vw - 2.5rem));
+  --admin-nav-drawer-z: 10500;
+}
+
+/* 紧凑：字仍可读，边距更收，给内容区腾高度/宽度 */
+@media (max-width: 1365.98px), (max-height: 799.98px) {
+  :root {
+    --admin-density: compact;
+    --admin-font-size: 15px;
+    --admin-sidebar-width: 13.25rem;
+    --admin-topbar-height: 3.25rem;
+    --admin-tabs-height: 2.25rem;
+    --admin-main-pad-x: 0.875rem;
+    --admin-main-pad-y: 0.75rem;
+    --admin-shell-gap: 0.75rem;
+    --admin-dialog-pad-x: 0.625rem;
+    --admin-dialog-pad-y: 0.75rem;
+    --admin-dialog-max-height: min(94dvh, calc(100dvh - 1rem));
+    --admin-page-max-width: 100%;
+    --admin-filter-control-min: 8.5rem;
+    --admin-nav-drawer-width: min(17rem, calc(100vw - 2rem));
+  }
+}
+
+/* 宽敞：大屏略放大字号，边距仍克制 */
+@media (min-width: 1600px) and (min-height: 900px) {
+  :root {
+    --admin-density: wide;
+    --admin-font-size: 17px;
+    --admin-sidebar-width: 15rem;
+    --admin-topbar-height: 3.625rem;
+    --admin-tabs-height: 2.625rem;
+    --admin-main-pad-x: 1.5rem;
+    --admin-main-pad-y: 1.125rem;
+    --admin-shell-gap: 1rem;
+    --admin-dialog-pad-x: 1rem;
+    --admin-dialog-pad-y: 1.125rem;
+    --admin-dialog-max-height: min(90dvh, calc(100dvh - 2.5rem));
+    --admin-page-max-width: 90rem;
+    --admin-filter-control-min: 11rem;
+  }
+}
+
 html {
-  --admin-ui-zoom: 1;
+  font-size: var(--admin-font-size);
 }
 
-html.admin-ui-scale-normal {
-  --admin-ui-zoom: 1;
-  zoom: 1;
+/* 壳层：侧栏宽 / 主区内边距走 token，随密度档变化 */
+.admin-shell-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
-html.admin-ui-scale-large {
-  --admin-ui-zoom: 1.2;
-  zoom: 1.2;
-}
-
-@supports not (zoom: 1) {
-  html.admin-ui-scale-normal {
-    font-size: 100%;
+@media (min-width: 1024px) {
+  .admin-shell-body {
+    display: grid;
+    grid-template-columns: var(--admin-sidebar-width) minmax(0, 1fr);
   }
+}
 
-  html.admin-ui-scale-large {
-    font-size: 120%;
-  }
+.admin-topbar-inner {
+  height: var(--admin-topbar-height);
+}
+
+.admin-tabs-inner {
+  height: var(--admin-tabs-height);
+}
+
+.admin-main {
+  padding: var(--admin-main-pad-y) var(--admin-main-pad-x);
+}
+
+.admin-page-frame {
+  width: 100%;
+  max-width: var(--admin-page-max-width);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /**
- * Dialog 遮罩：尺寸按 zoom 反算，视觉上仍贴满视口。
- * 内容过高时遮罩可滚，避免放大后弹窗顶/底被裁切。
- * 弹窗 max-height 同样反算，压过业务侧 h-[90vh] 等固定高度。
+ * Dialog 遮罩：贴满视口；内容过高时遮罩可滚。
+ * max-height 用密度 token，压过业务侧 h-[90vh] 等固定高度。
  */
 .admin-dialog-overlay {
-  width: calc(100vw / var(--admin-ui-zoom, 1));
-  height: calc(100dvh / var(--admin-ui-zoom, 1));
-  max-width: calc(100vw / var(--admin-ui-zoom, 1));
-  max-height: calc(100dvh / var(--admin-ui-zoom, 1));
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
   box-sizing: border-box;
+  padding: var(--admin-dialog-pad-y) var(--admin-dialog-pad-x);
   overscroll-behavior: contain;
 }
 
 .admin-dialog-overlay > [role='dialog'] {
-  max-height: calc(100dvh / var(--admin-ui-zoom, 1) - 2.5rem);
+  /* 只约束高度；宽度交给业务 max-w，避免盖掉小确认框 */
+  max-height: var(--admin-dialog-max-height);
 }
 
-/* 顶栏 UI 缩放滑杆：高度收紧，两档点选 */
-.admin-ui-scale-range {
-  height: 1.25rem;
+/* 大工作台 Dialog：随视口降栏数；矮屏保持可滚，避免三栏硬挤后裁切 */
+.admin-dialog-workspace {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  gap: var(--admin-shell-gap);
+  overflow: auto;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: minmax(min-content, 1fr);
+}
+
+@media (min-width: 1100px) {
+  .admin-dialog-workspace {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1366px) and (min-height: 800px) {
+  .admin-dialog-workspace {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    overflow: hidden;
+  }
+}
+
+/* 窄屏导航抽屉 */
+.admin-nav-drawer-root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--admin-nav-drawer-z);
+  display: flex;
+  pointer-events: none;
+}
+
+.admin-nav-drawer-backdrop {
+  position: absolute;
+  inset: 0;
   margin: 0;
-  vertical-align: middle;
-  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
 }
 
-.admin-ui-scale-range:focus-visible {
-  outline: 1px solid hsl(var(--ring));
-  outline-offset: 2px;
-  border-radius: 999px;
+.admin-nav-drawer-panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: var(--admin-nav-drawer-width);
+  max-width: 100%;
+  height: 100%;
+  max-height: 100dvh;
+  flex-direction: column;
+  overflow: hidden;
+  pointer-events: auto;
+  border-right: 1px solid hsl(var(--border));
+  background: #0f1012;
+  box-shadow: 12px 0 32px rgba(0, 0, 0, 0.35);
+}
+
+body.admin-nav-drawer-open {
+  overflow: hidden;
+}
+
+/* ≥lg 强制关闭抽屉层（窗口拉大后不残留） */
+@media (min-width: 1024px) {
+  .admin-nav-drawer-root {
+    display: none !important;
+  }
+
+  body.admin-nav-drawer-open {
+    overflow: unset;
+  }
 }
 
 .page-fade-enter-from,

@@ -185,7 +185,7 @@ const submitResetPassword = async () => {
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-[1400px] flex-col gap-4">
+  <div class="admin-page-frame flex flex-col gap-4">
     <div
       v-if="error"
       class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"

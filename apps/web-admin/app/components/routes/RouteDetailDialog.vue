@@ -535,7 +535,7 @@ async function saveRouteTitle() {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent
-      class="flex h-[92vh] max-w-[min(96vw,1560px)] flex-col overflow-hidden p-0">
+      class="flex h-[min(92vh,var(--admin-dialog-max-height))] max-w-[min(96vw,1560px)] flex-col overflow-hidden p-0">
       <div class="flex shrink-0 items-start border-b border-border/70 px-5 py-3 pr-12">
         <DialogHeader class="min-w-0 space-y-1.5 text-left">
           <div class="flex min-w-0 flex-wrap items-center gap-2">
@@ -575,9 +575,9 @@ async function saveRouteTitle() {
 
       <div
         v-else
-        class="grid min-h-0 flex-1 grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-5 overflow-hidden px-5 py-4">
-        <!-- 左：画布 ~2 -->
-        <section class="flex min-h-0 min-w-0 flex-col">
+        class="admin-dialog-workspace px-5 py-4">
+        <!-- 左：画布 ~2；窄屏由 .admin-dialog-workspace 降为单栏 -->
+        <section class="flex min-h-[18rem] min-w-0 flex-col lg:min-h-0">
           <div
             class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background/70">
             <div
@@ -636,13 +636,13 @@ async function saveRouteTitle() {
         </section>
 
         <!-- 中：手机模拟器外框（画面铺满，灵动岛叠在上方） -->
-        <aside class="flex min-h-0 min-w-0 flex-col overflow-hidden">
+        <aside class="flex min-h-[22rem] min-w-0 flex-col overflow-hidden lg:min-h-0">
           <AdminStageSimulator
             :stage="previewStage" />
         </aside>
 
         <!-- 右：对话 ~1 -->
-        <section class="flex min-h-0 min-w-0 flex-col">
+        <section class="flex min-h-[16rem] min-w-0 flex-col lg:min-h-0">
           <div
             v-if="!props.canEdit"
             class="mb-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">

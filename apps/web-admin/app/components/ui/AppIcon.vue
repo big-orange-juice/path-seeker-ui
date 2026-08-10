@@ -19,6 +19,7 @@ import {
   Lock,
   Map,
   Megaphone,
+  Menu,
   Puzzle,
   RefreshCw,
   Route,
@@ -52,6 +53,7 @@ export type AppIconName =
   | 'lock'
   | 'map'
   | 'megaphone'
+  | 'menu'
   | 'puzzle'
   | 'refresh-cw'
   | 'route'
@@ -94,6 +96,7 @@ const iconMap: Record<AppIconName, LucideIcon> = {
   lock: Lock,
   map: Map,
   megaphone: Megaphone,
+  menu: Menu,
   puzzle: Puzzle,
   'refresh-cw': RefreshCw,
   route: Route,

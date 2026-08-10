@@ -8,15 +8,15 @@ import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import { useAdminNavigation } from '@/composables/useAdminNavigation';
+import { useAdminNavDrawer } from '@/composables/useAdminNavDrawer';
 import { useAdminTipsGuide } from '@/composables/useAdminTipsGuide';
 import { useAdminAuthStore } from '@/stores/adminAuth';
-import { useAdminUiStore } from '@/stores/adminUi';
 import { ADMIN_LOGIN_PATH } from '@/constants/admin-auth';
 
 const route = useRoute();
 const authStore = useAdminAuthStore();
-const uiStore = useAdminUiStore();
 const { navItems } = useAdminNavigation();
+const { open, openNav } = useAdminNavDrawer();
 const { openManually: openTips } = useAdminTipsGuide();
 
 const logoutConfirmOpen = shallowRef(false);
@@ -53,39 +53,31 @@ const handleLogout = async () => {
 
 <template>
   <header class="border-b border-border bg-background/96 backdrop-blur-sm">
-    <div class="flex h-14 items-center justify-between gap-3 px-4 sm:px-5 lg:px-6">
-      <div class="flex min-w-0 items-center gap-3">
-        <div class="flex h-16 items-center">
-          <p class="font-display text-[1.18rem] font-semibold tracking-tight text-primary">Path Seeker</p>
+    <div class="admin-topbar-inner flex items-center justify-between gap-3 px-3 sm:px-5 lg:px-6">
+      <div class="flex min-w-0 items-center gap-2 sm:gap-3">
+        <!-- 窄屏侧栏隐藏后，由此打开导航抽屉 -->
+        <button
+          type="button"
+          class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground lg:hidden"
+          title="打开导航菜单"
+          aria-label="打开导航菜单"
+          :aria-expanded="open"
+          aria-controls="admin-nav-drawer"
+          @click="openNav"
+        >
+          <UiAppIcon name="menu" class="h-4 w-4" />
+        </button>
+        <div class="flex min-w-0 items-center">
+          <p class="font-display truncate text-[1.1rem] font-semibold tracking-tight text-primary sm:text-[1.18rem]">Path Seeker</p>
         </div>
         <div class="hidden h-5 w-px bg-border sm:block" />
         <div class="min-w-0">
-          <p class="text-[11px] uppercase tracking-[0.24em] text-primary/80">path seeker museum</p>
-          <h1 class="truncate pt-1 text-base font-semibold text-foreground">{{ currentPage?.label || '控制台' }}</h1>
+          <p class="hidden text-[11px] uppercase tracking-[0.24em] text-primary/80 sm:block">path seeker museum</p>
+          <h1 class="truncate text-base font-semibold text-foreground sm:pt-1">{{ currentPage?.label || '控制台' }}</h1>
         </div>
       </div>
 
       <div class="flex items-center gap-3 text-sm text-foreground">
-        <div
-          class="flex items-center gap-2 rounded-lg border border-border/60 bg-secondary/25 px-2 py-1"
-          title="拖动调整界面缩放：正常 / 放大">
-          <span class="hidden shrink-0 text-xs text-muted-foreground sm:inline">UI缩放</span>
-          <span class="hidden text-[11px] text-muted-foreground md:inline">正常</span>
-          <input
-            class="admin-ui-scale-range w-16 cursor-pointer accent-primary sm:w-20"
-            type="range"
-            min="0"
-            max="1"
-            step="1"
-            :value="uiStore.uiScaleIndex"
-            :aria-label="`UI缩放：${uiStore.uiScaleLabel}`"
-            :aria-valuetext="uiStore.uiScaleLabel"
-            @input="uiStore.setUiScaleIndex(($event.target as HTMLInputElement).value)" />
-          <span class="hidden text-[11px] text-muted-foreground md:inline">放大</span>
-          <span class="min-w-[2rem] text-center text-xs font-medium text-primary">
-            {{ uiStore.uiScaleLabel }}
-          </span>
-        </div>
         <UiButton
           variant="ghost"
           size="sm"

@@ -686,7 +686,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto flex h-full min-h-0 w-full max-w-[1400px] flex-1 flex-col gap-4 overflow-hidden">
+  <div class="admin-page-frame flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden">
     <div
       v-if="error"
       class="shrink-0 rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
