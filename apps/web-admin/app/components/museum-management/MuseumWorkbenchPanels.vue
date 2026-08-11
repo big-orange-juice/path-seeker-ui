@@ -640,8 +640,8 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
       @save="saveFloor" />
 
     <Dialog :open="facilityDialogOpen" @update:open="(...args) => facilityDialogOpen = Boolean(args[0])">
-      <DialogContent class="max-w-[760px] overflow-hidden p-0">
-        <div class="border-b border-border/70 px-5 py-3">
+      <DialogContent class="flex max-h-[var(--admin-dialog-max-height)] max-w-[760px] flex-col overflow-hidden p-0">
+        <div class="shrink-0 border-b border-border/70 px-5 py-3">
           <DialogHeader class="space-y-0.5">
             <DialogTitle class="text-[1.05rem] font-semibold tracking-tight text-foreground">
               {{ facilityDialogMode === 'create' ? '新增设施' : '编辑设施' }}
@@ -651,59 +651,61 @@ const removeFacility = async (record: MuseumFacilityRecord) => {
             </DialogDescription>
           </DialogHeader>
         </div>
-        <form class="space-y-4 px-5 py-4" @submit.prevent="saveFacility">
-          <section class="grid gap-3 md:grid-cols-2">
-            <div class="space-y-2">
-              <label class="text-sm font-medium">设施名称</label>
-              <Input v-model="facilityDraft.name" placeholder="请输入设施名称" />
-            </div>
-            <div class="space-y-2">
-              <label class="text-sm font-medium">所属楼层</label>
-              <Select :model-value="facilityDraft.floorId ?? ''" @update:model-value="facilityDraft.floorId = $event || null">
-                <option value="">未绑定楼层</option>
-                <option v-for="option in floorOptions" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </Select>
-            </div>
-          </section>
+        <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="saveFacility">
+          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <section class="grid gap-3 md:grid-cols-2">
+              <div class="space-y-2">
+                <label class="text-sm font-medium">设施名称</label>
+                <Input v-model="facilityDraft.name" placeholder="请输入设施名称" />
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium">所属楼层</label>
+                <Select :model-value="facilityDraft.floorId ?? ''" @update:model-value="facilityDraft.floorId = $event || null">
+                  <option value="">未绑定楼层</option>
+                  <option v-for="option in floorOptions" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </Select>
+              </div>
+            </section>
 
-          <section class="grid gap-3 md:grid-cols-2">
-            <div class="space-y-2">
-              <label class="text-sm font-medium">设施类型</label>
-              <Select :model-value="String(facilityDraft.facilityType)" @update:model-value="facilityDraft.facilityType = Number($event)">
-                <option v-for="option in facilityTypeOptions" :key="option.value" :value="String(option.value)">
-                  {{ option.label }}
-                </option>
-              </Select>
-            </div>
-            <div class="space-y-2">
-              <label class="text-sm font-medium">排序号</label>
-              <Input
-                :model-value="String(facilityDraft.sortOrder)"
-                type="number"
-                @update:model-value="updateFacilitySortOrder($event)" />
-            </div>
-          </section>
+            <section class="grid gap-3 md:grid-cols-2">
+              <div class="space-y-2">
+                <label class="text-sm font-medium">设施类型</label>
+                <Select :model-value="String(facilityDraft.facilityType)" @update:model-value="facilityDraft.facilityType = Number($event)">
+                  <option v-for="option in facilityTypeOptions" :key="option.value" :value="String(option.value)">
+                    {{ option.label }}
+                  </option>
+                </Select>
+              </div>
+              <div class="space-y-2">
+                <label class="text-sm font-medium">排序号</label>
+                <Input
+                  :model-value="String(facilityDraft.sortOrder)"
+                  type="number"
+                  @update:model-value="updateFacilitySortOrder($event)" />
+              </div>
+            </section>
 
-          <section class="space-y-2">
-            <label class="text-sm font-medium">位置描述</label>
-            <Textarea
-              v-model="facilityDraft.locationDesc"
-              rows="3"
-              placeholder="请输入位置描述" />
-          </section>
+            <section class="space-y-2">
+              <label class="text-sm font-medium">位置描述</label>
+              <Textarea
+                v-model="facilityDraft.locationDesc"
+                rows="3"
+                placeholder="请输入位置描述" />
+            </section>
 
-          <UiImageUpload
-            v-model="facilityIconList"
-            label="设施图标"
-            hint="上传设施对应的图标素材。"
-            button-text="上传图标"
-            button-subtext="支持单张"
-            :multiple="false"
-            @uploaded="handleFacilityUploaded" />
+            <UiImageUpload
+              v-model="facilityIconList"
+              label="设施图标"
+              hint="上传设施对应的图标素材。"
+              button-text="上传图标"
+              button-subtext="支持单张"
+              :multiple="false"
+              @uploaded="handleFacilityUploaded" />
+          </div>
 
-          <div class="flex justify-end gap-2 border-t border-border/70 pt-3">
+          <div class="flex shrink-0 justify-end gap-2 border-t border-border/70 px-5 py-3">
             <Button variant="ghost" type="button" @click="facilityDialogOpen = false">取消</Button>
             <Button type="submit" :disabled="facilitySubmitting">
               {{ facilitySubmitting ? '保存中...' : '保存设施' }}

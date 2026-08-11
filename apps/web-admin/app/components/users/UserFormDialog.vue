@@ -96,13 +96,13 @@ const handleSubmit = () => {
 
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="max-w-[min(92vw,32rem)] rounded-xl border border-border bg-[#15171b] p-0">
-      <DialogHeader class="space-y-1 px-5 pb-2 pt-4 pr-12">
+    <DialogContent class="flex max-h-[var(--admin-dialog-max-height)] max-w-[min(92vw,32rem)] flex-col overflow-hidden rounded-xl border border-border bg-[#15171b] p-0">
+      <DialogHeader class="shrink-0 space-y-1 px-5 pb-2 pt-4 pr-12">
         <DialogTitle class="text-base">{{ title }}</DialogTitle>
         <DialogDescription class="text-xs">{{ description }}</DialogDescription>
       </DialogHeader>
 
-      <div class="space-y-3 px-5 py-3">
+      <div class="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-3">
         <p v-if="localError" class="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {{ localError }}
         </p>
@@ -160,7 +160,7 @@ const handleSubmit = () => {
         </div>
       </div>
 
-      <DialogFooter class="px-5 pb-4 pt-2">
+      <DialogFooter class="shrink-0 px-5 pb-4 pt-2">
         <Button variant="outline" type="button" :disabled="props.submitting" @click="isOpen = false">
           取消
         </Button>

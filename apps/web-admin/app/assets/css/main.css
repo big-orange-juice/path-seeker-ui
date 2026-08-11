@@ -261,7 +261,8 @@ html {
 @media (min-width: 1366px) and (min-height: 800px) {
   .admin-dialog-workspace {
     grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 }
 

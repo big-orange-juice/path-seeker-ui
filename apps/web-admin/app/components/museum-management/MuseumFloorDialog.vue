@@ -107,8 +107,8 @@ const submitForm = () => {
 
 <template>
   <Dialog :open="props.open" @update:open="handleOpenChange">
-    <DialogContent class="max-w-[760px] overflow-hidden p-0">
-      <div class="border-b border-border/70 px-5 py-3 pr-12">
+    <DialogContent class="flex max-h-[var(--admin-dialog-max-height)] max-w-[760px] flex-col overflow-hidden p-0">
+      <div class="shrink-0 border-b border-border/70 px-5 py-3 pr-12">
         <DialogHeader class="space-y-0.5">
           <DialogTitle class="text-[1.05rem] font-semibold tracking-tight text-foreground">
             {{ dialogTitle }}
@@ -119,53 +119,55 @@ const submitForm = () => {
         </DialogHeader>
       </div>
 
-      <form class="space-y-4 px-5 py-4" @submit.prevent="submitForm">
-        <section class="grid gap-3 md:grid-cols-2">
-          <div class="space-y-2">
-            <label class="text-sm font-medium">楼层号</label>
-            <Input v-model="formState.floorNumber" placeholder="例如：3F" />
-          </div>
-          <div class="space-y-2">
-            <label class="text-sm font-medium">楼层名称</label>
-            <Input v-model="formState.floorName" placeholder="例如：特展走廊" />
-          </div>
-        </section>
+      <form class="flex min-h-0 flex-1 flex-col" @submit.prevent="submitForm">
+        <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <section class="grid gap-3 md:grid-cols-2">
+            <div class="space-y-2">
+              <label class="text-sm font-medium">楼层号</label>
+              <Input v-model="formState.floorNumber" placeholder="例如：3F" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-sm font-medium">楼层名称</label>
+              <Input v-model="formState.floorName" placeholder="例如：特展走廊" />
+            </div>
+          </section>
 
-        <section class="grid gap-3 md:grid-cols-2">
-          <div class="space-y-2">
-            <label class="text-sm font-medium">层级</label>
-            <Input
-              :model-value="String(formState.floorLevel)"
-              type="number"
-              @update:model-value="formState.floorLevel = Number($event || 0)" />
-          </div>
-          <div class="space-y-2">
-            <label class="text-sm font-medium">排序号</label>
-            <Input
-              :model-value="String(formState.sortOrder)"
-              type="number"
-              @update:model-value="formState.sortOrder = Number($event || 0)" />
-          </div>
-        </section>
+          <section class="grid gap-3 md:grid-cols-2">
+            <div class="space-y-2">
+              <label class="text-sm font-medium">层级</label>
+              <Input
+                :model-value="String(formState.floorLevel)"
+                type="number"
+                @update:model-value="formState.floorLevel = Number($event || 0)" />
+            </div>
+            <div class="space-y-2">
+              <label class="text-sm font-medium">排序号</label>
+              <Input
+                :model-value="String(formState.sortOrder)"
+                type="number"
+                @update:model-value="formState.sortOrder = Number($event || 0)" />
+            </div>
+          </section>
 
-        <section class="space-y-2">
-          <label class="text-sm font-medium">楼层说明</label>
-          <Textarea
-            v-model="formState.description"
-            rows="3"
-            placeholder="请输入楼层说明" />
-        </section>
+          <section class="space-y-2">
+            <label class="text-sm font-medium">楼层说明</label>
+            <Textarea
+              v-model="formState.description"
+              rows="3"
+              placeholder="请输入楼层说明" />
+          </section>
 
-        <UiImageUpload
-          v-model="mapImageList"
-          label="地图背景图"
-          hint="上传当前楼层对应的地图背景图。"
-          button-text="上传地图背景图"
-          button-subtext="支持单张"
-          :multiple="false"
-          @uploaded="handleMapUploaded" />
+          <UiImageUpload
+            v-model="mapImageList"
+            label="地图背景图"
+            hint="上传当前楼层对应的地图背景图。"
+            button-text="上传地图背景图"
+            button-subtext="支持单张"
+            :multiple="false"
+            @uploaded="handleMapUploaded" />
+        </div>
 
-        <div class="flex justify-end gap-2 border-t border-border/70 pt-3">
+        <div class="flex shrink-0 justify-end gap-2 border-t border-border/70 px-5 py-3">
           <Button variant="ghost" type="button" @click="emit('update:open', false)">取消</Button>
           <Button type="submit" :disabled="props.submitting">
             {{ props.submitting ? '保存中...' : '保存楼层' }}
