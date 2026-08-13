@@ -12,6 +12,39 @@ export interface RouteStageNarrationImageResponse {
   updatedAt?: string | null
 }
 
+export interface NarrationPronunciationMatchResponse {
+  lexiconId?: string | null
+  phrase?: string | null
+  pronunciation?: string | null
+  scopeType?: number
+  museumId?: string | null
+  version?: number
+}
+
+export interface NarrationNodePronunciationResponse {
+  lexiconId?: string | null
+  phrase?: string | null
+  pronunciation?: string | null
+  disabled?: boolean
+  isOverride?: boolean
+  scopeType?: number
+}
+
+export interface SaveNarrationPronunciationRequest {
+  stageId: string
+  phrase: string
+  pronunciation: string
+}
+
+export interface UpdateNarrationPronunciationRequest extends SaveNarrationPronunciationRequest {
+  originalPhrase: string
+}
+
+export interface DeleteNarrationPronunciationRequest {
+  stageId: string
+  phrase: string
+}
+
 /** GET /api/Narration/detail 响应（ID 一律按 string 处理） */
 export interface NarrationDetailResponse {
   stageId?: string | null
@@ -28,6 +61,12 @@ export interface NarrationDetailResponse {
   audioUrl?: string | null
   audioStatus?: number
   durationMs?: number | null
+  pronunciationStatus?: number
+  pronunciationStatusText?: string | null
+  pronunciationDictionaryVersion?: string | null
+  pronunciationGeneratedAt?: string | null
+  pronunciationError?: string | null
+  matchedPronunciations?: NarrationPronunciationMatchResponse[] | null
   version?: number
   images?: RouteStageNarrationImageResponse[] | null
 }

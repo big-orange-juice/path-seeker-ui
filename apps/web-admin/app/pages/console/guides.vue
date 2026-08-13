@@ -69,6 +69,7 @@ const confirmOpen = shallowRef(false)
 const confirmRecord = shallowRef<GuideRecord | null>(null)
 const actionPendingIds = shallowRef<string[]>([])
 const actionFeedback = useActionFeedback()
+const router = useRouter()
 
 const loadVoiceOptions = async (keyword?: string) => {
   voiceLoading.value = true
@@ -132,6 +133,10 @@ const openWorkspace = async (
 
 const startEdit = (record: GuideRecord) => {
   void openWorkspace(record, 'edit')
+}
+
+const startPronunciationGeneration = (record: GuideRecord) => {
+  void router.push({ path: '/console/pronunciation', query: { guideId: record.id, create: '1' } })
 }
 
 const refreshVoiceStatus = async () => {
@@ -310,6 +315,7 @@ const submitRemove = async () => {
         :pending="pending"
         :acting-ids="actionPendingIds"
         @edit="startEdit"
+        @pronunciation="startPronunciationGeneration"
         @remove="askRemove"
       />
     </section>

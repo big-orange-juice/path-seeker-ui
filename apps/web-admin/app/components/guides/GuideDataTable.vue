@@ -21,6 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   edit: [record: GuideRecord]
+  pronunciation: [record: GuideRecord]
   remove: [record: GuideRecord]
 }>()
 
@@ -161,6 +162,16 @@ const columns = computed<ColumnDef<GuideRecord>[]>(() => [
             onClick: () => emit('edit', record),
           },
           () => '编辑',
+        ),
+        h(
+          Button,
+          {
+            variant: 'outline',
+            size: 'sm',
+            disabled: acting,
+            onClick: () => emit('pronunciation', record),
+          },
+          () => '发音词典',
         ),
         h(
           Button,

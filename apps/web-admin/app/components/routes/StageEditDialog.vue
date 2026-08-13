@@ -10,6 +10,7 @@ import {
 } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import GuideSelectDialog from '@/components/guides/GuideSelectDialog.vue'
+import NarrationPronunciationPanel from '@/components/routes/NarrationPronunciationPanel.vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue'
@@ -329,7 +330,7 @@ const narrationTaskSummary = computed(() => {
     }
   }
 
-  let tone: 'pending' | 'cancelled' = cancelled ? 'cancelled' : 'pending'
+  const tone: 'pending' | 'cancelled' = cancelled ? 'cancelled' : 'pending'
 
   let title = statusText
   if (!title) {
@@ -2148,6 +2149,13 @@ const handleSave = async () => {
                   </div>
                 </div>
               </div>
+
+              <NarrationPronunciationPanel
+                :detail="narrationDetail"
+                :stage-id="stageId"
+                :can-edit="props.canEdit"
+                :refreshing="refreshingAudio"
+                @refresh="handleRefreshAudio" />
 
               <!-- 配图：单层区块，顶栏 + 内容 + 图库 -->
               <div class="space-y-3 border-t border-border/60 pt-5">
