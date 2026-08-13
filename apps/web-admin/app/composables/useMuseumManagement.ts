@@ -1,4 +1,4 @@
-import { computed, reactive, toRefs } from 'vue';
+import { computed, reactive, shallowRef, toRefs, watch } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
 import type {
@@ -13,6 +13,14 @@ import type {
 
 const DEFAULT_STATUS = 1;
 const DEFAULT_PAGE_SIZE = 20;
+
+const createEmptyPageResult = (): MuseumResponseListTotalPageResult<MuseumResponse> => ({
+  list: [],
+  pageIndex: 1,
+  pageSize: DEFAULT_PAGE_SIZE,
+  total: 0,
+  totalPages: 0,
+});
 
 const toNullableId = (value: string | null | undefined) => {
   const normalized = String(value ?? '').trim();
@@ -99,24 +107,34 @@ export const useMuseumManagement = () => {
     status: filters.status || null,
   }));
 
-  const { data, pending, error, refresh } = useAsyncData(
-    'museum-management:list',
-    () =>
-      request<MuseumResponseListTotalPageResult<MuseumResponse>>('/api/museum-management/query', {
+  const data = shallowRef(createEmptyPageResult());
+  const pending = shallowRef(false);
+  const error = shallowRef<Error | null>(null);
+  let requestVersion = 0;
+
+  const refresh = async () => {
+    const currentVersion = ++requestVersion;
+    const payload = { ...queryPayload.value };
+    pending.value = true;
+    error.value = null;
+    try {
+      const result = await request<MuseumResponseListTotalPageResult<MuseumResponse>>('/api/museum-management/query', {
         method: 'POST',
-        body: queryPayload.value,
-      }),
-    {
-      default: () => ({
-        list: [],
-        pageIndex: 1,
-        pageSize: DEFAULT_PAGE_SIZE,
-        total: 0,
-        totalPages: 0,
-      }),
-      watch: [queryPayload],
+        body: payload,
+      });
+      if (currentVersion !== requestVersion) return;
+      data.value = result;
+    } catch (caught) {
+      if (currentVersion !== requestVersion) return;
+      error.value = caught instanceof Error ? caught : new Error('博物馆数据加载失败。');
+    } finally {
+      if (currentVersion === requestVersion) pending.value = false;
     }
-  );
+  };
+
+  watch(queryPayload, () => {
+    if (import.meta.client) void refresh();
+  }, { immediate: true });
 
   const museums = computed<MuseumRecord[]>(() =>
     (data.value.list ?? []).map((item) => ({

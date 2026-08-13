@@ -135,6 +135,9 @@ export const useGalleryMapManagement = (
   const listPending = shallowRef(false);
   const detailPending = shallowRef(false);
   const error = shallowRef<Error | null>(null);
+  let galleryRequestVersion = 0;
+  let listRequestVersion = 0;
+  let detailRequestVersion = 0;
 
   const clearSelection = () => {
     galleries.value = [];
@@ -145,10 +148,12 @@ export const useGalleryMapManagement = (
   };
 
   const loadGalleries = async () => {
+    const currentVersion = ++galleryRequestVersion;
+    const currentMuseumId = museumId.value;
     galleryPending.value = true;
     error.value = null;
 
-    if (!museumId.value) {
+    if (!currentMuseumId) {
       clearSelection();
       galleryPending.value = false;
       return galleries.value;
@@ -160,18 +165,20 @@ export const useGalleryMapManagement = (
         body: {
           pageIndex: 1,
           pageSize: PAGE_SIZE,
-          museumId: museumId.value,
+          museumId: currentMuseumId,
         },
       });
 
+      if (currentVersion !== galleryRequestVersion || currentMuseumId !== museumId.value) return galleries.value;
       galleries.value = normalizeGalleryOptions(response.list ?? []);
       return galleries.value;
     } catch (caughtError) {
+      if (currentVersion !== galleryRequestVersion || currentMuseumId !== museumId.value) return galleries.value;
       galleries.value = [];
       error.value = caughtError instanceof Error ? caughtError : new Error('展厅加载失败。');
       throw caughtError;
     } finally {
-      galleryPending.value = false;
+      if (currentVersion === galleryRequestVersion) galleryPending.value = false;
     }
   };
 
@@ -183,6 +190,7 @@ export const useGalleryMapManagement = (
       return null;
     }
 
+    const currentVersion = ++detailRequestVersion;
     selectedMapId.value = normalizedId;
     detailPending.value = true;
     error.value = null;
@@ -194,6 +202,7 @@ export const useGalleryMapManagement = (
         throw new Error('地图数据无效。');
       }
 
+      if (currentVersion !== detailRequestVersion || selectedMapId.value !== normalizedId) return null;
       currentMap.value = nextMap;
       selectedMapId.value = nextMap.id;
       if (nextMap.galleryId) {
@@ -201,17 +210,20 @@ export const useGalleryMapManagement = (
       }
       return nextMap;
     } catch (caughtError) {
+      if (currentVersion !== detailRequestVersion || selectedMapId.value !== normalizedId) return null;
       currentMap.value = null;
       error.value = caughtError instanceof Error ? caughtError : new Error('地图加载失败。');
       throw caughtError;
     } finally {
-      detailPending.value = false;
+      if (currentVersion === detailRequestVersion) detailPending.value = false;
     }
   };
 
   const loadMaps = async (galleryId: string | null = null, preferredMapId = '') => {
     const normalizedGalleryId = String(galleryId ?? '').trim();
     const normalizedPreferredMapId = String(preferredMapId || '').trim();
+    const currentVersion = ++listRequestVersion;
+    detailRequestVersion += 1;
     listPending.value = true;
     error.value = null;
     selectedGalleryId.value = normalizedGalleryId;
@@ -237,6 +249,7 @@ export const useGalleryMapManagement = (
         body,
       });
 
+      if (currentVersion !== listRequestVersion || selectedGalleryId.value !== normalizedGalleryId) return maps.value;
       maps.value = (response.list ?? [])
         .map(normalizeSummary)
         .filter((map): map is GalleryMapSummary => Boolean(map));
@@ -254,10 +267,11 @@ export const useGalleryMapManagement = (
 
       return maps.value;
     } catch (caughtError) {
+      if (currentVersion !== listRequestVersion || selectedGalleryId.value !== normalizedGalleryId) return maps.value;
       error.value = caughtError instanceof Error ? caughtError : new Error('地图列表加载失败。');
       throw caughtError;
     } finally {
-      listPending.value = false;
+      if (currentVersion === listRequestVersion) listPending.value = false;
     }
   };
 

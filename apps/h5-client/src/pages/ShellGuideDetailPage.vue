@@ -35,6 +35,8 @@ const pending = shallowRef(false)
 const routesPending = shallowRef(false)
 const errorMessage = shallowRef("")
 const routesError = shallowRef("")
+let guideRequestVersion = 0
+let routesRequestVersion = 0
 
 const loading = computed(() => pending.value && !guide.value)
 const sampleUrl = computed(() => String(guide.value?.voiceSampleUrl || "").trim())
@@ -73,6 +75,7 @@ const shortDesc = computed(() => {
 
 /** 导游详情：用 guideId 精确拉已发布路线（与展厅瀑布流同卡） */
 async function loadGuideRoutes(id: string) {
+  const currentVersion = ++routesRequestVersion
   routesPending.value = true
   routesError.value = ""
   try {
@@ -85,22 +88,29 @@ async function loadGuideRoutes(id: string) {
         guideId: id,
       }),
     )
+    if (currentVersion !== routesRequestVersion || id !== guideId.value) return
     routes.value = resolveRouteList(response)
       .map(adaptRemoteRouteCard)
       .filter((item): item is MissionRouteCard => Boolean(item))
   } catch (error) {
+    if (currentVersion !== routesRequestVersion || id !== guideId.value) return
     routes.value = []
     routesError.value = resolveRequestErrorMessage(error, "关联路线加载失败。")
   } finally {
-    routesPending.value = false
+    if (currentVersion === routesRequestVersion) routesPending.value = false
   }
 }
 
 async function loadGuide() {
+  const currentVersion = ++guideRequestVersion
+  routesRequestVersion += 1
   const id = guideId.value
+  routesPending.value = false
+  routesError.value = ""
+  routes.value = []
   if (!id) {
     guide.value = null
-    routes.value = []
+    pending.value = false
     errorMessage.value = "缺少导游标识。"
     return
   }
@@ -109,19 +119,19 @@ async function loadGuide() {
   errorMessage.value = ""
   try {
     const list = await fetchGuideClientList()
+    if (currentVersion !== guideRequestVersion || id !== guideId.value) return
     guide.value = list.find((item) => item.id === id) || null
     if (!guide.value) {
       errorMessage.value = "未找到该导游。"
-      routes.value = []
       return
     }
     void loadGuideRoutes(id)
   } catch (error) {
+    if (currentVersion !== guideRequestVersion || id !== guideId.value) return
     guide.value = null
-    routes.value = []
     errorMessage.value = resolveRequestErrorMessage(error, "导游详情加载失败。")
   } finally {
-    pending.value = false
+    if (currentVersion === guideRequestVersion) pending.value = false
   }
 }
 

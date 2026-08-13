@@ -18,6 +18,15 @@ import type {
 } from '@/types/route';
 
 const DEFAULT_PAGE_SIZE = 10;
+const FILTER_DEBOUNCE_MS = 300;
+
+const createEmptyPageResult = (): RouteAdminResponseListTotalPageResult<RouteAdminResponse> => ({
+  list: [],
+  pageIndex: 1,
+  pageSize: DEFAULT_PAGE_SIZE,
+  total: 0,
+  totalPages: 0,
+});
 
 const normalizeText = (value: string | null | undefined) => String(value ?? '').trim();
 
@@ -91,6 +100,8 @@ export const useRouteLibrary = (
 
   const pageIndex = shallowRef(1);
   const pageSize = shallowRef(DEFAULT_PAGE_SIZE);
+  const appliedKeyword = shallowRef('');
+  const appliedOwnerName = shallowRef('');
   const sorting = shallowRef<Array<{ id: string; desc: boolean }>>([{ id: 'sortOrder', desc: false }]);
 
   const queryPayload = computed<RoutePageRequest>(() => ({
@@ -99,28 +110,46 @@ export const useRouteLibrary = (
     museumId: museumId.value || null,
     publishStatus: filters.publishStatus < 0 ? null : filters.publishStatus,
     auditStatus: filters.auditStatus < 0 ? null : filters.auditStatus,
-    ownerName: filters.ownerName.trim() || null,
-    keyword: filters.keyword.trim() || null,
+    ownerName: appliedOwnerName.value || null,
+    keyword: appliedKeyword.value || null,
   }));
 
-  const { data, pending, error, refresh } = useAsyncData(
-    computed(() => `route-library:list:${museumId.value}`),
-    () => request<RouteAdminResponseListTotalPageResult<RouteAdminResponse>>('/api/route/page-list', {
-      method: 'POST',
-      body: queryPayload.value,
-    }),
-    {
-      default: () => ({
-        list: [],
-        pageIndex: 1,
-        pageSize: DEFAULT_PAGE_SIZE,
-        total: 0,
-        totalPages: 0,
-      }),
-      immediate: false,
-      watch: [queryPayload],
+  const data = shallowRef(createEmptyPageResult());
+  const pending = shallowRef(false);
+  const error = shallowRef<Error | null>(null);
+  let listRequestVersion = 0;
+
+  const refresh = async () => {
+    const requestVersion = ++listRequestVersion;
+    if (!hasSelectedMuseum.value) {
+      data.value = createEmptyPageResult();
+      pending.value = false;
+      error.value = null;
+      return;
     }
-  );
+
+    const payload = { ...queryPayload.value };
+    pending.value = true;
+    error.value = null;
+
+    try {
+      const result = await request<RouteAdminResponseListTotalPageResult<RouteAdminResponse>>('/api/route/page-list', {
+        method: 'POST',
+        body: payload,
+      });
+      if (requestVersion !== listRequestVersion) return;
+      data.value = result;
+    } catch (requestError) {
+      if (requestVersion !== listRequestVersion) return;
+      error.value = requestError instanceof Error
+        ? requestError
+        : new Error('主题路线数据加载失败。');
+    } finally {
+      if (requestVersion === listRequestVersion) {
+        pending.value = false;
+      }
+    }
+  };
 
   /**
    * 列表未带 progressPercent 时，按 routeId 缓存 TaskStatus 聚合进度。
@@ -173,16 +202,20 @@ export const useRouteLibrary = (
     progressByRouteId.value = nextMap;
   };
 
-  watch(
-    hasSelectedMuseum,
-    (selected) => {
-      if (!selected) {
-        return;
-      }
+  watch(queryPayload, () => {
+    if (import.meta.client) void refresh();
+  }, { immediate: true });
 
-      void refresh();
-    },
-    { immediate: true }
+  watch(
+    [() => filters.keyword, () => filters.ownerName],
+    ([keyword, ownerName], _previous, onCleanup) => {
+      const timer = window.setTimeout(() => {
+        pageIndex.value = 1;
+        appliedKeyword.value = keyword.trim();
+        appliedOwnerName.value = ownerName.trim();
+      }, FILTER_DEBOUNCE_MS);
+      onCleanup(() => window.clearTimeout(timer));
+    }
   );
 
   watch(
@@ -341,7 +374,7 @@ export const useRouteLibrary = (
     });
 
   watch(
-    [museumId, () => filters.keyword, () => filters.publishStatus, () => filters.auditStatus],
+    [museumId, () => filters.publishStatus, () => filters.auditStatus],
     () => {
       pageIndex.value = 1;
     }

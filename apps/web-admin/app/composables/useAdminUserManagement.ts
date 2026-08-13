@@ -33,6 +33,7 @@ export const useAdminUserManagement = () => {
   const error = shallowRef<Error | null>(null);
   const roles = shallowRef<AdminRoleOption[]>([]);
   const rolesPending = shallowRef(false);
+  let requestVersion = 0;
 
   const roleOptions = computed(() =>
     roles.value
@@ -55,33 +56,37 @@ export const useAdminUserManagement = () => {
   };
 
   const refresh = async () => {
+    const currentVersion = ++requestVersion;
+    const payload = {
+      pageIndex: pageIndex.value,
+      pageSize: pageSize.value,
+      keyword: normalizeText(keyword.value) || null,
+      roleId: normalizeText(roleId.value) || null,
+      status: status.value === 0 ? null : status.value,
+    };
     pending.value = true;
     error.value = null;
 
     try {
       const data = await request<AdminUserPageResult>('/api/admin/page-list', {
         method: 'POST',
-        body: {
-          pageIndex: pageIndex.value,
-          pageSize: pageSize.value,
-          keyword: normalizeText(keyword.value) || null,
-          roleId: normalizeText(roleId.value) || null,
-          status: status.value === 0 ? null : status.value,
-        },
+        body: payload,
       });
 
+      if (currentVersion !== requestVersion) return;
       rows.value = data.list ?? [];
       total.value = data.total ?? 0;
       totalPages.value = data.totalPages ?? 0;
       pageIndex.value = data.pageIndex ?? pageIndex.value;
       pageSize.value = data.pageSize ?? pageSize.value;
     } catch (caught) {
+      if (currentVersion !== requestVersion) return;
       error.value = caught instanceof Error ? caught : new Error('管理员列表加载失败。');
       rows.value = [];
       total.value = 0;
       totalPages.value = 0;
     } finally {
-      pending.value = false;
+      if (currentVersion === requestVersion) pending.value = false;
     }
   };
 

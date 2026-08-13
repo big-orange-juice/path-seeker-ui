@@ -137,8 +137,14 @@ export const useMuseumWorkbench = (
   const floorsLoadedMuseumId = shallowRef('');
   const galleriesLoadedMuseumId = shallowRef('');
   const facilitiesLoadedMuseumId = shallowRef('');
+  let floorsRequestVersion = 0;
+  let galleriesRequestVersion = 0;
+  let facilitiesRequestVersion = 0;
 
   const resetResourceState = () => {
+    floorsRequestVersion += 1;
+    galleriesRequestVersion += 1;
+    facilitiesRequestVersion += 1;
     floorsData.value = [];
     galleriesData.value = [];
     facilitiesData.value = [];
@@ -154,49 +160,55 @@ export const useMuseumWorkbench = (
   };
 
   const loadFloors = async (options: { force?: boolean } = {}) => {
-    if (!museumId.value) {
+    const currentMuseumId = museumId.value;
+    if (!currentMuseumId) {
       floorsData.value = [];
       floorsError.value = null;
       floorsLoadedMuseumId.value = '';
       return;
     }
 
-    if (!options.force && (floorsPending.value || floorsLoadedMuseumId.value === museumId.value)) {
+    if (!options.force && (floorsPending.value || floorsLoadedMuseumId.value === currentMuseumId)) {
       return;
     }
 
+    const currentVersion = ++floorsRequestVersion;
     floorsPending.value = true;
     floorsError.value = null;
 
     try {
       const response = await request<FloorResponse[] | FloorResponseListTotalPageResult<FloorResponse>>('/api/map-management/floors', {
-        query: { museumId: museumId.value },
+        query: { museumId: currentMuseumId },
       });
+      if (currentVersion !== floorsRequestVersion || currentMuseumId !== museumId.value) return;
       floorsData.value = Array.isArray(response)
         ? normalizeList<FloorResponse>(response)
         : normalizePagedList<FloorResponse>(response).list;
-      floorsLoadedMuseumId.value = museumId.value;
+      floorsLoadedMuseumId.value = currentMuseumId;
     } catch (error) {
+      if (currentVersion !== floorsRequestVersion || currentMuseumId !== museumId.value) return;
       floorsData.value = [];
       floorsError.value = error;
       floorsLoadedMuseumId.value = '';
     } finally {
-      floorsPending.value = false;
+      if (currentVersion === floorsRequestVersion) floorsPending.value = false;
     }
   };
 
   const loadGalleries = async (options: { force?: boolean } = {}) => {
-    if (!museumId.value) {
+    const currentMuseumId = museumId.value;
+    if (!currentMuseumId) {
       galleriesData.value = [];
       galleriesError.value = null;
       galleriesLoadedMuseumId.value = '';
       return;
     }
 
-    if (!options.force && (galleriesPending.value || galleriesLoadedMuseumId.value === museumId.value)) {
+    if (!options.force && (galleriesPending.value || galleriesLoadedMuseumId.value === currentMuseumId)) {
       return;
     }
 
+    const currentVersion = ++galleriesRequestVersion;
     galleriesPending.value = true;
     galleriesError.value = null;
 
@@ -208,50 +220,55 @@ export const useMuseumWorkbench = (
           body: {
             pageIndex: 1,
             pageSize: 1000,
-            museumId: museumId.value,
+            museumId: currentMuseumId,
           } satisfies GalleryPageRequest,
         }
       );
 
+      if (currentVersion !== galleriesRequestVersion || currentMuseumId !== museumId.value) return;
       galleriesData.value = normalizePagedList<GalleryResponse>(response).list;
-      galleriesLoadedMuseumId.value = museumId.value;
+      galleriesLoadedMuseumId.value = currentMuseumId;
     } catch (error) {
+      if (currentVersion !== galleriesRequestVersion || currentMuseumId !== museumId.value) return;
       galleriesData.value = [];
       galleriesError.value = error;
       galleriesLoadedMuseumId.value = '';
     } finally {
-      galleriesPending.value = false;
+      if (currentVersion === galleriesRequestVersion) galleriesPending.value = false;
     }
   };
 
   const loadFacilities = async (options: { force?: boolean } = {}) => {
-    if (!museumId.value) {
+    const currentMuseumId = museumId.value;
+    if (!currentMuseumId) {
       facilitiesData.value = [];
       facilitiesError.value = null;
       facilitiesLoadedMuseumId.value = '';
       return;
     }
 
-    if (!options.force && (facilitiesPending.value || facilitiesLoadedMuseumId.value === museumId.value)) {
+    if (!options.force && (facilitiesPending.value || facilitiesLoadedMuseumId.value === currentMuseumId)) {
       return;
     }
 
+    const currentVersion = ++facilitiesRequestVersion;
     facilitiesPending.value = true;
     facilitiesError.value = null;
 
     try {
-      facilitiesData.value = normalizeList<FacilityResponse>(
-        await request<FacilityResponse[]>('/api/museum-management/facilities', {
-          query: { museumId: museumId.value },
-        })
-      );
-      facilitiesLoadedMuseumId.value = museumId.value;
+      const response = await request<FacilityResponse[]>('/api/museum-management/facilities', {
+        query: { museumId: currentMuseumId },
+      });
+      if (currentVersion !== facilitiesRequestVersion || currentMuseumId !== museumId.value) return;
+      facilitiesData.value = normalizeList<FacilityResponse>(response);
+      facilitiesLoadedMuseumId.value = currentMuseumId;
     } catch (error) {
+      if (currentVersion !== facilitiesRequestVersion || currentMuseumId !== museumId.value) return;
       facilitiesData.value = [];
       facilitiesError.value = error;
       facilitiesLoadedMuseumId.value = '';
     } finally {
-      facilitiesPending.value = false;
+      if (currentVersion === facilitiesRequestVersion) facilitiesPending.value = false;
     }
   };
 

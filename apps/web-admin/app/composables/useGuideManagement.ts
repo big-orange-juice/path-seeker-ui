@@ -17,6 +17,14 @@ const DEFAULT_PAGE_SIZE = 20
 const DEFAULT_STATUS = 1
 const DEFAULT_VOICE_STATUS = 1
 
+const createEmptyPageResult = (): GuideResponseListTotalPageResult => ({
+  list: [],
+  pageIndex: 1,
+  pageSize: DEFAULT_PAGE_SIZE,
+  total: 0,
+  totalPages: 0,
+})
+
 const normalizeText = (value: string | null | undefined) => String(value ?? '').trim()
 
 const appendFormField = (
@@ -303,29 +311,39 @@ export const useGuideManagement = () => {
     pageSize: pageSize.value,
   }))
 
-  const { data, pending, error, refresh } = useAsyncData(
-    'guide-management:list',
-    () =>
-      request<GuideResponseListTotalPageResult>('/api/guide/query', {
+  const data = shallowRef(createEmptyPageResult())
+  const pending = shallowRef(false)
+  const error = shallowRef<Error | null>(null)
+  let requestVersion = 0
+
+  const refresh = async () => {
+    const currentVersion = ++requestVersion
+    const payload = { ...queryPayload.value }
+    pending.value = true
+    error.value = null
+    try {
+      const result = await request<GuideResponseListTotalPageResult>('/api/guide/query', {
         query: {
-          keyword: queryPayload.value.keyword || undefined,
-          status: queryPayload.value.status ?? undefined,
-          voiceStatus: queryPayload.value.voiceStatus ?? undefined,
-          pageIndex: queryPayload.value.pageIndex,
-          pageSize: queryPayload.value.pageSize,
+          keyword: payload.keyword || undefined,
+          status: payload.status ?? undefined,
+          voiceStatus: payload.voiceStatus ?? undefined,
+          pageIndex: payload.pageIndex,
+          pageSize: payload.pageSize,
         },
-      }),
-    {
-      default: () => ({
-        list: [],
-        pageIndex: 1,
-        pageSize: DEFAULT_PAGE_SIZE,
-        total: 0,
-        totalPages: 0,
-      }),
-      watch: [queryPayload],
-    },
-  )
+      })
+      if (currentVersion !== requestVersion) return
+      data.value = result
+    } catch (caught) {
+      if (currentVersion !== requestVersion) return
+      error.value = caught instanceof Error ? caught : new Error('导游数据加载失败。')
+    } finally {
+      if (currentVersion === requestVersion) pending.value = false
+    }
+  }
+
+  watch(queryPayload, () => {
+    if (import.meta.client) void refresh()
+  }, { immediate: true })
 
   const rows = computed(() =>
     (data.value.list ?? [])

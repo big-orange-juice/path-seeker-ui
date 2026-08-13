@@ -1,11 +1,10 @@
-import { computed } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
 import type {
   CreateFloorPayload,
   CreateGalleryPayload,
   FloorResponse,
-  FloorResponseListTotalPageResult,
   GalleryPageRequest,
   GalleryResponse,
   GalleryResponseListTotalPageResult,
@@ -97,7 +96,6 @@ const normalizeDraft = (draft: FloorMapDraft): FloorMapDraft => ({
 export const useMapManagement = () => {
   const runtimeConfig = useRuntimeConfig();
   const museumId = computed(() => String(runtimeConfig.public.museumId || '1').trim());
-  const asyncKey = computed(() => `map-management:${museumId.value}`);
   const { request } = useApiClient();
 
   const createEmptyDraft = (): FloorMapDraft => ({
@@ -111,36 +109,46 @@ export const useMapManagement = () => {
     venues: [createVenue()],
   });
 
-  const { data, pending, error, refresh } = useAsyncData(
-    asyncKey,
-    async () => {
+  const data = shallowRef<{ floors: FloorResponse[]; galleries: GalleryResponse[] }>({ floors: [], galleries: [] });
+  const pending = shallowRef(false);
+  const error = shallowRef<Error | null>(null);
+  let requestVersion = 0;
+
+  const refresh = async () => {
+    const currentVersion = ++requestVersion;
+    const currentMuseumId = museumId.value;
+    pending.value = true;
+    error.value = null;
+    try {
       const [floors, galleries] = await Promise.all([
         request<FloorResponse[]>('/api/map-management/floors', {
-          query: { museumId: museumId.value },
+          query: { museumId: currentMuseumId },
         }),
         request<GalleryResponseListTotalPageResult<GalleryResponse>>('/api/map-management/galleries/query', {
           method: 'POST',
           body: {
             pageIndex: 1,
             pageSize: 1000,
-            museumId: museumId.value,
+            museumId: currentMuseumId,
           } satisfies GalleryPageRequest,
         }),
       ]);
-
-      return {
+      if (currentVersion !== requestVersion) return;
+      data.value = {
         floors: Array.isArray(floors) ? normalizeList<FloorResponse>(floors) : normalizePagedList<FloorResponse>(floors).list,
         galleries: galleries.list ?? [],
       };
-    },
-    {
-      default: () => ({
-        floors: [],
-        galleries: [],
-      }),
-      watch: [museumId],
+    } catch (caught) {
+      if (currentVersion !== requestVersion) return;
+      error.value = caught instanceof Error ? caught : new Error('地图数据加载失败。');
+    } finally {
+      if (currentVersion === requestVersion) pending.value = false;
     }
-  );
+  };
+
+  watch(museumId, () => {
+    if (import.meta.client) void refresh();
+  }, { immediate: true });
 
   const maps = computed<FloorMapRecord[]>(() => {
     const galleriesByFloorId = new Map<string, GalleryResponse[]>();

@@ -26,6 +26,7 @@ export const usePronunciationManagement = () => {
   const pageIndex = shallowRef(1)
   const pageSize = shallowRef(20)
   const filters = reactive({ scopeType: 0, museumId: '', guideId: '', batchId: '', status: -1, sourceType: '', keyword: '', routeId: '' })
+  let requestVersion = 0
 
   const query = computed(() => ({
     ScopeType: filters.scopeType || undefined,
@@ -41,25 +42,30 @@ export const usePronunciationManagement = () => {
   }))
 
   const refresh = async (silent = false) => {
+    const currentVersion = ++requestVersion
+    const currentTab = activeTab.value
+    const currentQuery = { ...query.value }
     if (!silent) pending.value = true
     error.value = null
     try {
-      const endpoint = activeTab.value === 'batches'
+      const endpoint = currentTab === 'batches'
         ? '/api/tts-pronunciation/generation-batches'
-        : activeTab.value === 'entries'
+        : currentTab === 'entries'
           ? '/api/tts-pronunciation/entries'
           : '/api/tts-pronunciation/stale-audio'
-      const response = await request<ApiResponse<PronunciationPage<PronunciationBatch | PronunciationEntry | AffectedNarration>>>(endpoint, { query: query.value })
+      const response = await request<ApiResponse<PronunciationPage<PronunciationBatch | PronunciationEntry | AffectedNarration>>>(endpoint, { query: currentQuery })
+      if (currentVersion !== requestVersion) return
       const page = unwrap(response) ?? { items: [], total: 0 }
       total.value = page.total ?? 0
-      if (activeTab.value === 'batches') batches.value = (page.items ?? []) as PronunciationBatch[]
-      if (activeTab.value === 'entries') entries.value = (page.items ?? []) as PronunciationEntry[]
-      if (activeTab.value === 'stale') staleItems.value = (page.items ?? []) as AffectedNarration[]
+      if (currentTab === 'batches') batches.value = (page.items ?? []) as PronunciationBatch[]
+      if (currentTab === 'entries') entries.value = (page.items ?? []) as PronunciationEntry[]
+      if (currentTab === 'stale') staleItems.value = (page.items ?? []) as AffectedNarration[]
       selectedIds.value = []
     } catch (caught) {
+      if (currentVersion !== requestVersion) return
       error.value = caught instanceof Error ? caught : new Error('数据加载失败。')
     } finally {
-      if (!silent) pending.value = false
+      if (!silent && currentVersion === requestVersion) pending.value = false
     }
   }
 
@@ -68,7 +74,9 @@ export const usePronunciationManagement = () => {
     if (pollingTimer) clearInterval(pollingTimer)
     pollingTimer = undefined
     if (activeTab.value === 'batches' && batches.value.some((item) => item.status === 0 || item.status === 1)) {
-      pollingTimer = setInterval(() => void refresh(true), 3000)
+      pollingTimer = setInterval(() => {
+        if (!pending.value) void refresh(true)
+      }, 3000)
     }
   }
 
