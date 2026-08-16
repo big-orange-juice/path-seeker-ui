@@ -28,7 +28,7 @@ import {
 } from '@/constants/routeWorkflow';
 import { useActionFeedback } from '@/composables/useActionFeedback';
 import { useAdminAuthStore } from '@/stores/adminAuth';
-import type { BuildRouteFromThemePayload, RouteDetailResponse, RouteRecord } from '@/types/route';
+import type { RouteDetailResponse, RouteRecord } from '@/types/route';
 import type { MuseumResponse, MuseumResponseListTotalPageResult } from '@/types/museum';
 
 definePageMeta({
@@ -40,7 +40,6 @@ const actionFeedback = useActionFeedback();
 const selectedMuseumId = shallowRef('');
 const { request } = useApiClient();
 const createDialogOpen = shallowRef(false);
-const createSubmitting = shallowRef(false);
 const actionPendingIds = shallowRef<string[]>([]);
 const confirmDialogOpen = shallowRef(false);
 const confirmActionType = shallowRef<'publish' | 'unpublish' | 'delete' | 'submit-audit'>('publish');
@@ -159,27 +158,6 @@ const maybeShowCreateBackgroundHint = (routeId: string) => {
     description: '部分内容仍在后台生成，可关闭窗口后到列表查看「生成中」状态，完成后点击刷新。',
   });
   return true;
-};
-
-const handleCreateManual = async (payload: BuildRouteFromThemePayload) => {
-  createSubmitting.value = true;
-
-  try {
-    const createdId = await request<string>('/api/route/build-from-theme', {
-      method: 'POST',
-      body: payload,
-    });
-    createDialogOpen.value = false;
-    await refresh();
-    // 与 AI 新建一致：仍生成中则提示回列表；否则普通成功
-    if (!maybeShowCreateBackgroundHint(String(createdId || ''))) {
-      actionFeedback.success('主题路线已生成。');
-    }
-  } catch (caughtError) {
-    actionFeedback.errorFrom(caughtError, '主题路线创建失败。');
-  } finally {
-    createSubmitting.value = false;
-  }
 };
 
 const handleChatRouteChanged = async (_routeId: string) => {
@@ -644,7 +622,7 @@ const detailActions = computed(() => {
             @click="setPendingAuditFilter">
             待审核
           </Button>
-          <Button :disabled="!selectedMuseumId || createSubmitting" @click="createDialogOpen = true">
+          <Button :disabled="!selectedMuseumId" @click="createDialogOpen = true">
             <AppIcon name="route" class="h-4 w-4" />
             新增路线
           </Button>
@@ -698,10 +676,6 @@ const detailActions = computed(() => {
 
     <RouteCreateDialog
       v-model:open="createDialogOpen"
-      :museum-options="museumOptions"
-      :default-museum-id="selectedMuseumId"
-      :submitting="createSubmitting"
-      @submit-manual="handleCreateManual"
       @route-changed="handleChatRouteChanged"
       @route-published="handleChatRoutePublished"
       @run-completed="handleCreateRunCompleted" />

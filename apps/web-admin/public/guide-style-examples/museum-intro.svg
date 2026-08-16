@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540">
+  <defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#24201b"/><stop offset="1" stop-color="#9b7743"/></linearGradient></defs>
+  <rect width="960" height="540" fill="url(#bg)"/><circle cx="790" cy="120" r="170" fill="#d6b477" opacity=".24"/>
+  <path d="M0 425c190-75 350-55 520 10s300 72 440-12v117H0z" fill="#17181b" opacity=".86"/>
+  <text x="72" y="105" fill="#f8ecd5" font-family="serif" font-size="28" letter-spacing="5">MUSEUM GUIDE / 01</text>
+  <text x="72" y="210" fill="#fff" font-family="serif" font-size="66" font-weight="700">一件文物，</text><text x="72" y="285" fill="#fff" font-family="serif" font-size="66" font-weight="700">一段时间。</text>
+  <text x="74" y="355" fill="#f4d7a2" font-family="sans-serif" font-size="23">从器物的纹理，走进它诞生的年代</text>
+  <rect x="74" y="405" width="188" height="3" fill="#d6b477"/><text x="74" y="455" fill="#d6b477" font-family="sans-serif" font-size="18">讲解示例 · 约 90 秒</text>
+</svg>

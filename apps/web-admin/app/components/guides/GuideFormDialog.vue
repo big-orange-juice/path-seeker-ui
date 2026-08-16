@@ -97,6 +97,13 @@ const txtMaterialError = shallowRef('')
 const tagDialogOpen = shallowRef(false)
 /** 样本列表；视频选中后立即服务端抽音频，仅 ready 的音频进入 form */
 const materialItems = shallowRef<MaterialListItem[]>([])
+const selectedStyleExample = shallowRef<string | null>(null)
+
+const styleExamples = [
+  { src: '/guide-style-examples/museum-intro.svg', title: '展品开场', caption: '先建立画面，再进入背景' },
+  { src: '/guide-style-examples/clue-story.svg', title: '线索提问', caption: '用问题引导观察与发现' },
+  { src: '/guide-style-examples/quiet-narration.svg', title: '语气节奏', caption: '克制、温和，给细节留白' },
+] as const
 
 const showWorkspaceTabs = computed(() => props.mode === 'edit')
 
@@ -229,6 +236,7 @@ watch(
     materialItems.value = []
     materialError.value = ''
     txtMaterialError.value = ''
+    selectedStyleExample.value = null
     avatarError.value = ''
     avatarUploading.value = false
     avatarPreviewUrl.value = String(props.initialValue.avatarPreviewUrl || '').trim()
@@ -965,6 +973,27 @@ const handleSubmit = () => {
           <p class="text-xs text-muted-foreground">
             上传文风示例，用于生成语气与用词风格
           </p>
+          <div class="rounded-lg border border-primary/20 bg-primary/[0.04] p-3">
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <div>
+                <p class="text-sm font-medium text-foreground">样例说明</p>
+                <p class="mt-0.5 text-xs text-muted-foreground">参考这些讲解片段的画面感、提问方式与语气节奏</p>
+              </div>
+              <span class="shrink-0 text-[11px] text-muted-foreground">本地示例 · {{ styleExamples.length }} 张</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                v-for="example in styleExamples"
+                :key="example.src"
+                type="button"
+                class="group overflow-hidden rounded-md border border-border/70 bg-background/40 text-left transition hover:border-primary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                @click="selectedStyleExample = example.src"
+              >
+                <img :src="example.src" :alt="example.title" class="aspect-[16/9] w-full object-cover transition duration-200 group-hover:scale-[1.03]">
+                <span class="block px-2 py-1.5"><span class="block truncate text-xs font-medium text-foreground">{{ example.title }}</span><span class="mt-0.5 block truncate text-[10px] text-muted-foreground">{{ example.caption }}</span></span>
+              </button>
+            </div>
+          </div>
           <input
             ref="txtMaterialInput"
             type="file"
@@ -1009,6 +1038,17 @@ const handleSubmit = () => {
             {{ txtMaterialError }}
           </p>
         </section>
+      </div>
+
+      <div
+        v-if="selectedStyleExample"
+        class="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm"
+        role="dialog"
+        aria-label="查看样例图片"
+        @click.self="selectedStyleExample = null"
+      >
+        <button type="button" class="absolute right-4 top-4 rounded-md bg-black/40 px-3 py-1.5 text-sm text-white hover:bg-black/65" @click="selectedStyleExample = null">关闭</button>
+        <img :src="selectedStyleExample" alt="讲解文风样例" class="max-h-full max-w-full rounded-lg border border-white/20 object-contain shadow-2xl">
       </div>
 
       <DialogFooter class="shrink-0 border-t border-border/60 px-5 py-3">
