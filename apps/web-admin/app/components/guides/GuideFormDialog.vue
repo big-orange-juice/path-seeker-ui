@@ -1047,7 +1047,13 @@ const handleSubmit = () => {
         aria-label="查看样例图片"
         @click.self="selectedStyleExample = null"
       >
-        <button type="button" class="absolute right-4 top-4 rounded-md bg-black/40 px-3 py-1.5 text-sm text-white hover:bg-black/65" @click="selectedStyleExample = null">关闭</button>
+        <button
+          type="button"
+          class="absolute left-4 top-4 rounded-md border border-white/20 bg-black/55 px-3 py-1.5 text-sm text-white hover:bg-black/75"
+          @click="selectedStyleExample = null"
+        >
+          返回表单
+        </button>
         <img :src="selectedStyleExample" alt="讲解文风样例" class="max-h-full max-w-full rounded-lg border border-white/20 object-contain shadow-2xl">
       </div>
 
