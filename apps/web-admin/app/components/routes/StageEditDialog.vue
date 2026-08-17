@@ -22,6 +22,7 @@ import { IMAGE_LIGHTBOX_Z_INDEX } from '@/components/shadcn/dialog/layer'
 import Input from '@/components/shadcn/input/Input.vue'
 import Textarea from '@/components/shadcn/textarea/Textarea.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import type { ChatAttachmentReference } from '@/types/chat'
 import {
   getInteractionTypeMeta,
   isSupportedInteractionType,
@@ -47,6 +48,7 @@ interface Props {
   routeId: string
   node: RouteNodeResponse | null
   canEdit?: boolean
+  referencedAttachmentIds?: string[]
 }
 
 interface ChoiceOptionRow {
@@ -92,12 +94,16 @@ interface StageFormState {
   guideName: string
 }
 
-const props = withDefaults(defineProps<Props>(), { canEdit: true })
+const props = withDefaults(defineProps<Props>(), {
+  canEdit: true,
+  referencedAttachmentIds: () => [],
+})
 const emit = defineEmits<{
   'update:open': [value: boolean]
   saved: []
   /** 配图增删后通知父级重拉解说 detail，刷新模拟器 */
   'preview-refresh': []
+  reference: [attachment: ChatAttachmentReference]
 }>()
 const { request } = useApiClient()
 const { uploadAttachment } = useUploadAttachment()
@@ -136,6 +142,9 @@ const PENDING_GEN_TIP = '已提交生成，完成后请点击刷新查看。'
 const PENDING_NARRATION_TEXT_TIP = '解说词生成中，完成后请点击刷新查看。'
 /** 解说配图本地列表；与 detail.images 同步，增删走 NarrationImage API */
 const narrationImages = shallowRef<RouteStageNarrationImageResponse[]>([])
+const referencedAttachmentIdSet = computed(
+  () => new Set(props.referencedAttachmentIds.map((id) => String(id).trim()).filter(Boolean)),
+)
 const imageInputRef = useTemplateRef<HTMLInputElement>('imageInput')
 const imageGenRefInputRef = useTemplateRef<HTMLInputElement>('imageGenRefInput')
 const pieceImageInputRef = useTemplateRef<HTMLInputElement>('pieceImageInput')
@@ -1378,6 +1387,22 @@ const removeNarrationImage = async (image: RouteStageNarrationImageResponse) => 
   }
 }
 
+const referenceNarrationImage = (
+  image: RouteStageNarrationImageResponse,
+  index: number,
+) => {
+  const attachmentId = String(image.attachmentId ?? '').trim()
+  const imageUrl = String(image.imageUrl ?? '').trim()
+  if (!attachmentId || !imageUrl) return
+
+  emit('reference', {
+    attachmentId,
+    imageUrl,
+    label: `${form.title.trim() || '当前节点'} · 配图 ${index + 1}`,
+    source: 'stage',
+  })
+}
+
 watch(
   () => [props.open, stageId.value, props.node?.config, props.node?.title, props.node?.subtitle],
   () => {
@@ -2351,18 +2376,28 @@ const handleSave = async () => {
                       <AppIcon name="zoom-in" class="h-3 w-3" />
                     </button>
 
-                    <div class="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between bg-black/55 px-1 py-0.5">
+                    <div class="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-1 bg-black/60 px-1 py-0.5">
                       <span class="truncate text-[10px] text-white/90">
                         {{ index === 0 ? '封面' : index + 1 }}
                       </span>
-                      <button
-                        v-if="props.canEdit"
-                        type="button"
-                        class="text-[10px] text-white/90 hover:text-white disabled:opacity-40"
-                        :disabled="imageBusy || generatingImage"
-                        @click.stop="removeNarrationImage(image)">
-                        删
-                      </button>
+                      <div class="flex shrink-0 items-center gap-1">
+                        <button
+                          v-if="image.attachmentId && image.imageUrl"
+                          type="button"
+                          class="text-[10px] text-white/90 hover:text-white disabled:opacity-60"
+                          :disabled="referencedAttachmentIdSet.has(String(image.attachmentId))"
+                          @click.stop="referenceNarrationImage(image, index)">
+                          {{ referencedAttachmentIdSet.has(String(image.attachmentId)) ? '已引用' : '引用' }}
+                        </button>
+                        <button
+                          v-if="props.canEdit"
+                          type="button"
+                          class="text-[10px] text-white/90 hover:text-white disabled:opacity-40"
+                          :disabled="imageBusy || generatingImage"
+                          @click.stop="removeNarrationImage(image)">
+                          删
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

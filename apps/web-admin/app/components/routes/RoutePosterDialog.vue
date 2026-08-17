@@ -18,6 +18,7 @@ import Textarea from '@/components/shadcn/textarea/Textarea.vue'
 import { IMAGE_LIGHTBOX_Z_INDEX } from '@/components/shadcn/dialog/layer'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import UiImageUpload from '@/components/ui/ImageUpload.vue'
+import type { ChatAttachmentReference } from '@/types/chat'
 import type {
   GenerateRoutePosterResponse,
   RoutePosterCandidateImage,
@@ -34,6 +35,7 @@ interface Props {
 const props = defineProps<Props>()
 const emit = defineEmits<{
   'update:open': [value: boolean]
+  reference: [attachment: ChatAttachmentReference]
 }>()
 
 const { request } = useApiClient()
@@ -447,6 +449,19 @@ const handleRefreshPosters = async () => {
   }
 }
 
+const referencePoster = (poster: RoutePosterResponse, index: number) => {
+  const attachmentId = String(poster.attachmentId ?? '').trim()
+  const imageUrl = String(poster.imageUrl ?? '').trim()
+  if (!attachmentId || !imageUrl) return
+
+  emit('reference', {
+    attachmentId,
+    imageUrl,
+    label: String(poster.title ?? '').trim() || `海报 ${index + 1}`,
+    source: 'poster',
+  })
+}
+
 // v-if 挂载时 open 已为 true，必须 immediate，否则不会拉现有海报
 watch(
   () => [props.open, routeId.value] as const,
@@ -643,6 +658,14 @@ onBeforeUnmount(() => {
                   @click="openLightbox(String(poster.imageUrl))"
                 >
                   <AppIcon name="zoom-in" class="h-3.5 w-3.5" />
+                </button>
+                <button
+                  v-if="poster.attachmentId && poster.imageUrl"
+                  type="button"
+                  class="absolute inset-x-1 bottom-1 z-10 h-7 rounded-md bg-black/70 text-xs font-medium text-white transition hover:bg-black/85"
+                  @click="referencePoster(poster, index)"
+                >
+                  引用
                 </button>
               </div>
             </div>

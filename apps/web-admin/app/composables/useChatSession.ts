@@ -460,11 +460,11 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
       .filter(Boolean);
 
     if ((!displayMessage || !wireMessage) && !attachmentFiles.length && !existingAttachmentIds.length) {
-      return;
+      return false;
     }
 
     if (isRunning.value) {
-      return;
+      return false;
     }
 
     errorMessage.value = '';
@@ -584,7 +584,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
             errorMessage: '已取消发送。',
           });
         }
-        return;
+        return false;
       }
 
       const detail = resolveErrorMessage(error, '发送消息失败。');
@@ -597,9 +597,12 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         });
       }
       options.onError?.({ code: 'client_error', message: detail }, null);
+      return false;
     } finally {
       abortController = null;
     }
+
+    return true;
   };
 
   const retryLastFailed = async () => {

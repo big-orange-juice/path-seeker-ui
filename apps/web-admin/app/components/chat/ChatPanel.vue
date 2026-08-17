@@ -2,7 +2,12 @@
 import { computed, useSlots } from 'vue';
 import ChatComposer from '@/components/chat/ChatComposer.vue';
 import ChatMessageList from '@/components/chat/ChatMessageList.vue';
-import type { ChatComposerSubmitPayload, ChatToolActivity, ChatUiMessage } from '@/types/chat';
+import type {
+  ChatAttachmentReference,
+  ChatComposerSubmitPayload,
+  ChatToolActivity,
+  ChatUiMessage,
+} from '@/types/chat';
 
 interface Props {
   messages: ChatUiMessage[];
@@ -13,6 +18,7 @@ interface Props {
   emptyTitle?: string;
   emptyDescription?: string;
   placeholder?: string;
+  referencedAttachments?: ChatAttachmentReference[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -23,6 +29,7 @@ const props = withDefaults(defineProps<Props>(), {
   emptyTitle: '开始对话',
   emptyDescription: '用自然语言描述目标，助手会协助搜索资料并推进创建。',
   placeholder: '描述你想创建的主题路线…',
+  referencedAttachments: () => [],
 });
 
 const emit = defineEmits<{
@@ -30,6 +37,7 @@ const emit = defineEmits<{
   cancel: [];
   retry: [];
   suggestion: [text: string];
+  removeReference: [attachmentId: string];
 }>();
 
 const hasAside = computed(() => Boolean(useSlots().aside));
@@ -55,7 +63,9 @@ const hasAside = computed(() => Boolean(useSlots().aside));
         :sending="props.isRunning"
         :disabled="props.disabled"
         :placeholder="props.placeholder"
+        :referenced-attachments="props.referencedAttachments"
         @send="emit('send', $event)"
+        @remove-reference="emit('removeReference', $event)"
         @cancel="emit('cancel')" />
     </div>
 

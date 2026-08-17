@@ -470,7 +470,10 @@ const {
 });
 
 const handleSend = (payload: ChatComposerSubmitPayload) =>
-  sendMessage(payload.message, { attachmentFiles: payload.images });
+  sendMessage(payload.message, {
+    attachmentFiles: payload.images,
+    attachmentIds: payload.attachmentIds,
+  });
 
 const resetSession = () => {
   clearBuildProgress();

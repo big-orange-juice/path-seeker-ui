@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
-import type { ChatComposerSubmitPayload } from '@/types/chat';
+import type { ChatAttachmentReference, ChatComposerSubmitPayload } from '@/types/chat';
 
 const MAX_IMAGE_COUNT = 4;
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
@@ -18,26 +18,40 @@ interface Props {
   disabled?: boolean;
   sending?: boolean;
   placeholder?: string;
+  referencedAttachments?: ChatAttachmentReference[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
   disabled: false,
   sending: false,
   placeholder: '描述你想创建的主题路线…',
+  referencedAttachments: () => [],
 });
 
 const emit = defineEmits<{
   send: [payload: ChatComposerSubmitPayload];
   cancel: [];
+  removeReference: [attachmentId: string];
 }>();
 
 const draft = ref('');
 const pendingImages = ref<PendingImage[]>([]);
 const pasteError = shallowRef('');
 const textareaRef = useTemplateRef<HTMLTextAreaElement>('textareaRef');
+const referenceAttachmentIds = computed(() =>
+  Array.from(new Set(
+    props.referencedAttachments
+      .map((item) => String(item.attachmentId).trim())
+      .filter(Boolean),
+  )).slice(0, MAX_IMAGE_COUNT),
+);
 
 const canSubmit = computed(() =>
-  (Boolean(draft.value.trim()) || pendingImages.value.length > 0)
+  (
+    Boolean(draft.value.trim())
+    || pendingImages.value.length > 0
+    || referenceAttachmentIds.value.length > 0
+  )
   && !props.disabled
   && !props.sending,
 );
@@ -64,10 +78,11 @@ const submit = () => {
 
   const message = draft.value.trim();
   const images = pendingImages.value.map((item) => item.file);
+  const attachmentIds = [...referenceAttachmentIds.value];
   draft.value = '';
   clearPendingImages();
   void resizeTextarea();
-  emit('send', { message, images });
+  emit('send', { message, images, attachmentIds });
 };
 
 const clearPendingImages = () => {
@@ -97,7 +112,9 @@ const addPastedImages = (files: File[]) => {
     pasteError.value = '仅支持 JPEG、PNG 或 WebP 图片。';
   }
 
-  const availableCount = MAX_IMAGE_COUNT - pendingImages.value.length;
+  const availableCount = MAX_IMAGE_COUNT
+    - referenceAttachmentIds.value.length
+    - pendingImages.value.length;
   const candidates = acceptedFiles.slice(0, Math.max(availableCount, 0));
   if (acceptedFiles.length > availableCount) {
     pasteError.value = `每条消息最多粘贴 ${MAX_IMAGE_COUNT} 张图片。`;
@@ -183,6 +200,27 @@ onBeforeUnmount(clearPendingImages);
             :disabled="props.sending"
             title="移除图片"
             @click="removePendingImage(image.id)">
+            <AppIcon name="x" class="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      <div v-if="props.referencedAttachments.length" class="chat-composer__references">
+        <div
+          v-for="reference in props.referencedAttachments"
+          :key="reference.attachmentId"
+          class="chat-composer__reference">
+          <img
+            :src="reference.imageUrl"
+            :alt="reference.label"
+            class="chat-composer__reference-image">
+          <span class="chat-composer__reference-label">{{ reference.label }}</span>
+          <button
+            type="button"
+            class="chat-composer__reference-remove"
+            :disabled="props.sending"
+            title="移除引用"
+            @click="emit('removeReference', reference.attachmentId)">
             <AppIcon name="x" class="h-3 w-3" />
           </button>
         </div>
@@ -299,6 +337,56 @@ onBeforeUnmount(clearPendingImages);
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+}
+
+.chat-composer__references {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chat-composer__reference {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 11rem;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(209, 178, 111, 0.2);
+  background: rgba(209, 178, 111, 0.06);
+  padding: 0.2rem 0.3rem 0.2rem 0.2rem;
+}
+
+.chat-composer__reference-image {
+  height: 1.75rem;
+  width: 1.75rem;
+  flex-shrink: 0;
+  border-radius: 0.35rem;
+  object-fit: cover;
+}
+
+.chat-composer__reference-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: hsl(var(--foreground));
+}
+
+.chat-composer__reference-remove {
+  display: inline-flex;
+  height: 1.25rem;
+  width: 1.25rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+}
+
+.chat-composer__reference-remove:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: hsl(var(--foreground));
 }
 
 .chat-composer__image-wrap {

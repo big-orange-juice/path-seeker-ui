@@ -29,6 +29,7 @@ import {
 import { useActionFeedback } from '@/composables/useActionFeedback';
 import { useAdminAuthStore } from '@/stores/adminAuth';
 import type { RouteDetailResponse, RouteRecord } from '@/types/route';
+import type { ChatAttachmentReference } from '@/types/chat';
 import type { MuseumResponse, MuseumResponseListTotalPageResult } from '@/types/museum';
 
 definePageMeta({
@@ -55,6 +56,7 @@ const publishAfterAuditOpen = shallowRef(false);
 const publishAfterAuditRecord = shallowRef<RouteRecord | null>(null);
 const posterDialogOpen = shallowRef(false);
 const posterRecord = shallowRef<RouteRecord | null>(null);
+const chatReferences = shallowRef<ChatAttachmentReference[]>([]);
 
 const workflowContext = computed(() => ({
   roleCode: authStore.roleCode,
@@ -259,6 +261,7 @@ const destroyDetailDialogState = () => {
   detailPending.value = false;
   detailRecord.value = null;
   routeDetail.value = null;
+  chatReferences.value = [];
 };
 
 const onDetailDialogOpenChange = (value: boolean) => {
@@ -289,7 +292,10 @@ const onPosterDialogOpenChange = (value: boolean) => {
   }
 };
 
-const handleDetail = async (record: RouteRecord) => {
+const handleDetail = async (
+  record: RouteRecord,
+  initialChatReference?: ChatAttachmentReference,
+) => {
   const actions = getRouteWorkflowActions(record, workflowContext.value);
   if (!actions.canOpenDetail) {
     actionFeedback.error(
@@ -303,6 +309,7 @@ const handleDetail = async (record: RouteRecord) => {
 
   // 先清空再挂载，保证 dialog 不复用上一条路线的节点/会话
   routeDetail.value = null;
+  chatReferences.value = initialChatReference ? [initialChatReference] : [];
   detailRecord.value = record;
   detailDialogOpen.value = true;
   detailPending.value = true;
@@ -316,6 +323,21 @@ const handleDetail = async (record: RouteRecord) => {
     detailPending.value = false;
     finishRowAction(record.id);
   }
+};
+
+const handlePosterReference = (attachment: ChatAttachmentReference) => {
+  const record = posterRecord.value;
+  if (!record) {
+    return;
+  }
+
+  if (!getRouteWorkflowActions(record, workflowContext.value).canEditContent) {
+    actionFeedback.error('当前路线暂不可编辑，无法引用到 Chat。', '无法引用');
+    return;
+  }
+
+  onPosterDialogOpenChange(false);
+  void handleDetail(record, attachment);
 };
 
 watch(detailDialogOpen, (open) => {
@@ -684,6 +706,7 @@ const detailActions = computed(() => {
     <RouteDetailDialog
       v-if="detailDialogOpen"
       :key="detailRecord?.id || 'route-detail'"
+      v-model:chat-references="chatReferences"
       :open="detailDialogOpen"
       :detail="routeDetail"
       :record="detailRecord"
@@ -725,6 +748,7 @@ const detailActions = computed(() => {
       :key="posterRecord?.id || 'route-poster'"
       :open="posterDialogOpen"
       :record="posterRecord"
+      @reference="handlePosterReference"
       @update:open="onPosterDialogOpenChange" />
 
     <Dialog v-model:open="confirmDialogOpen">

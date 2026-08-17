@@ -6,7 +6,11 @@ import ChatContextChips, {
 import ChatComposer from '@/components/chat/ChatComposer.vue';
 import ChatMessageList from '@/components/chat/ChatMessageList.vue';
 import { useChatSession } from '@/composables/useChatSession';
-import type { ChatComposerSubmitPayload, ChatEventResponse } from '@/types/chat';
+import type {
+  ChatAttachmentReference,
+  ChatComposerSubmitPayload,
+  ChatEventResponse,
+} from '@/types/chat';
 
 interface Props {
   active?: boolean;
@@ -14,12 +18,14 @@ interface Props {
   routeLabel: string;
   stageId?: string;
   stageLabel?: string;
+  referencedAttachments?: ChatAttachmentReference[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
   active: true,
   stageId: '',
-  stageLabel: ''
+  stageLabel: '',
+  referencedAttachments: () => [],
 });
 
 const emit = defineEmits<{
@@ -28,6 +34,8 @@ const emit = defineEmits<{
   requestDetailRefresh: [routeId: string];
   /** run 结束时立即再刷一次 */
   flushDetailRefresh: [routeId: string];
+  removeReference: [attachmentId: string];
+  referencesConsumed: [attachmentIds: string[]];
 }>();
 
 const buildOutboundMessage = (
@@ -137,7 +145,11 @@ const contextChips = computed<ChatContextChip[]>(() => {
 
 const canSend = computed(() => Boolean(String(props.routeId || '').trim()));
 
-const sendTextMessage = async (userText: string, attachmentFiles: File[] = []) => {
+const sendTextMessage = async (
+  userText: string,
+  attachmentFiles: File[] = [],
+  attachmentIds = props.referencedAttachments.map((item) => item.attachmentId),
+) => {
   const routeId = String(props.routeId || '').trim();
 
   if (!routeId) {
@@ -147,11 +159,14 @@ const sendTextMessage = async (userText: string, attachmentFiles: File[] = []) =
   const stageId = String(props.stageId || '').trim() || undefined;
   const wireMessage = buildOutboundMessage(userText, routeId, stageId);
 
-  await sendMessage(userText, { wireMessage, attachmentFiles });
+  const sent = await sendMessage(userText, { wireMessage, attachmentFiles, attachmentIds });
+  if (sent && attachmentIds.length) {
+    emit('referencesConsumed', attachmentIds);
+  }
 };
 
 const handleSend = (payload: ChatComposerSubmitPayload) =>
-  sendTextMessage(payload.message, payload.images);
+  sendTextMessage(payload.message, payload.images, payload.attachmentIds);
 
 const handleRemoveChip = (chip: ChatContextChip) => {
   if (chip.kind === 'stage') {
@@ -202,8 +217,10 @@ defineExpose({
     <ChatComposer
       :sending="isRunning"
       :disabled="!canSend"
+      :referenced-attachments="props.referencedAttachments"
       placeholder="描述你想对当前路线或站点做的修改…"
       @send="handleSend"
+      @remove-reference="emit('removeReference', $event)"
       @cancel="cancelRun" />
   </div>
 </template>

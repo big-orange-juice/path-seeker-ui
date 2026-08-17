@@ -13,6 +13,14 @@ export interface ChatSendRequest {
 export interface ChatComposerSubmitPayload {
   message: string;
   images: File[];
+  attachmentIds: string[];
+}
+
+export interface ChatAttachmentReference {
+  attachmentId: string;
+  imageUrl: string;
+  label: string;
+  source: 'poster' | 'stage';
 }
 
 export interface ChatSessionResponse {

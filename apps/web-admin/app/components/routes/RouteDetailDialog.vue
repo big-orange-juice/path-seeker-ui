@@ -26,6 +26,7 @@ import AdminStageSimulator from '@/components/routes/AdminStageSimulator.vue';
 import RouteEditChatPane from '@/components/routes/RouteEditChatPane.vue';
 import StageEditDialog from '@/components/routes/StageEditDialog.vue';
 import { useActionFeedback } from '@/composables/useActionFeedback';
+import type { ChatAttachmentReference } from '@/types/chat';
 import type { RouteWorkflowActions } from '@/constants/routeWorkflow';
 import type { NarrationDetailResponse } from '@/types/narration';
 import type {
@@ -50,6 +51,7 @@ interface Props {
   canEdit?: boolean;
   lockMessage?: string;
   actions?: RouteWorkflowActions | null;
+  chatReferences?: ChatAttachmentReference[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -58,6 +60,7 @@ const props = withDefaults(defineProps<Props>(), {
   canEdit: true,
   lockMessage: '',
   actions: null,
+  chatReferences: () => [],
 });
 
 const emit = defineEmits<{
@@ -68,6 +71,7 @@ const emit = defineEmits<{
   submitAudit: [];
   audit: [];
   'title-saved': [title: string];
+  'update:chatReferences': [attachments: ChatAttachmentReference[]];
 }>();
 
 const { request } = useApiClient();
@@ -88,6 +92,44 @@ const chatPaneRef = shallowRef<{
   resetSession: () => void;
   abortActiveRun: () => void;
 } | null>(null);
+const chatReferenceIds = computed(() =>
+  props.chatReferences.map((item) => item.attachmentId),
+);
+
+const addChatReference = (attachment: ChatAttachmentReference) => {
+  const attachmentId = String(attachment.attachmentId).trim();
+  if (!attachmentId) {
+    return;
+  }
+
+  if (props.chatReferences.some((item) => item.attachmentId === attachmentId)) {
+    actionFeedback.success('图片已在 Chat 上下文中。');
+    return;
+  }
+
+  if (props.chatReferences.length >= 4) {
+    actionFeedback.error('每条消息最多引用 4 张图片。', '无法继续添加');
+    return;
+  }
+
+  emit('update:chatReferences', [...props.chatReferences, attachment]);
+  actionFeedback.success('已添加到 Chat 上下文。');
+};
+
+const removeChatReference = (attachmentId: string) => {
+  emit(
+    'update:chatReferences',
+    props.chatReferences.filter((item) => item.attachmentId !== attachmentId),
+  );
+};
+
+const consumeChatReferences = (attachmentIds: string[]) => {
+  const consumedIds = new Set(attachmentIds);
+  emit(
+    'update:chatReferences',
+    props.chatReferences.filter((item) => !consumedIds.has(item.attachmentId)),
+  );
+};
 const narrationDetail = shallowRef<NarrationDetailResponse | null>(null);
 const narrationStatus = shallowRef<GameplayPreviewNarrationStatus>('idle');
 const narrationErrorMessage = shallowRef('');
@@ -657,7 +699,10 @@ async function saveRouteTitle() {
             :route-label="routeTitle"
             :stage-id="selectedStageId"
             :stage-label="stageAttachmentLabel"
+            :referenced-attachments="props.chatReferences"
             @clear-stage="clearStageAttachment"
+            @remove-reference="removeChatReference"
+            @references-consumed="consumeChatReferences"
             @request-detail-refresh="handleRequestDetailRefresh"
             @flush-detail-refresh="handleFlushDetailRefresh" />
           <div
@@ -715,7 +760,9 @@ async function saveRouteTitle() {
     :route-id="routeId"
     :node="selectedNode"
     :can-edit="props.canEdit"
+    :referenced-attachment-ids="chatReferenceIds"
     @saved="handleStageSaved"
+    @reference="addChatReference"
     @preview-refresh="handleNarrationPreviewRefresh" />
 
   <!-- 新增站点弹窗：暂注释，待完善创建字段后再开放
