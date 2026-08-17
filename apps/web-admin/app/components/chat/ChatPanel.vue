@@ -2,7 +2,7 @@
 import { computed, useSlots } from 'vue';
 import ChatComposer from '@/components/chat/ChatComposer.vue';
 import ChatMessageList from '@/components/chat/ChatMessageList.vue';
-import type { ChatToolActivity, ChatUiMessage } from '@/types/chat';
+import type { ChatComposerSubmitPayload, ChatToolActivity, ChatUiMessage } from '@/types/chat';
 
 interface Props {
   messages: ChatUiMessage[];
@@ -26,7 +26,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  send: [message: string];
+  send: [payload: ChatComposerSubmitPayload];
   cancel: [];
   retry: [];
   suggestion: [text: string];

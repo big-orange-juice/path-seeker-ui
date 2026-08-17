@@ -6,7 +6,13 @@ export interface CreateChatSessionRequest {
 export interface ChatSendRequest {
   sessionId: string;
   clientMessageId: string;
+  message: string | null;
+  attachmentIds: string[] | null;
+}
+
+export interface ChatComposerSubmitPayload {
   message: string;
+  images: File[];
 }
 
 export interface ChatSessionResponse {
@@ -214,9 +220,11 @@ export interface ChatUiMessage {
   content: string;
   status: ChatMessageStatus;
   clientMessageId?: string;
+  wireMessage?: string;
   runId?: string;
   errorMessage?: string;
   createdAt: number;
+  attachmentIds?: string[];
   /** 本轮 done 前下发的后续建议，以 chip 展示 */
   suggestions?: string[];
 }

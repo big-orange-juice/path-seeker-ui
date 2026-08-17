@@ -1,6 +1,18 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
+import type { ChatComposerSubmitPayload } from '@/types/chat';
+
+const MAX_IMAGE_COUNT = 4;
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_SIZE = 25 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+interface PendingImage {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
 
 interface Props {
   disabled?: boolean;
@@ -15,15 +27,19 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  send: [message: string];
+  send: [payload: ChatComposerSubmitPayload];
   cancel: [];
 }>();
 
 const draft = ref('');
-const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const pendingImages = ref<PendingImage[]>([]);
+const pasteError = shallowRef('');
+const textareaRef = useTemplateRef<HTMLTextAreaElement>('textareaRef');
 
 const canSubmit = computed(() =>
-  Boolean(draft.value.trim()) && !props.disabled && !props.sending,
+  (Boolean(draft.value.trim()) || pendingImages.value.length > 0)
+  && !props.disabled
+  && !props.sending,
 );
 
 const resizeTextarea = async () => {
@@ -47,9 +63,81 @@ const submit = () => {
   }
 
   const message = draft.value.trim();
+  const images = pendingImages.value.map((item) => item.file);
   draft.value = '';
+  clearPendingImages();
   void resizeTextarea();
-  emit('send', message);
+  emit('send', { message, images });
+};
+
+const clearPendingImages = () => {
+  for (const image of pendingImages.value) {
+    URL.revokeObjectURL(image.previewUrl);
+  }
+
+  pendingImages.value = [];
+  pasteError.value = '';
+};
+
+const removePendingImage = (id: string) => {
+  const target = pendingImages.value.find((item) => item.id === id);
+  if (target) {
+    URL.revokeObjectURL(target.previewUrl);
+  }
+
+  pendingImages.value = pendingImages.value.filter((item) => item.id !== id);
+  pasteError.value = '';
+};
+
+const addPastedImages = (files: File[]) => {
+  pasteError.value = '';
+
+  const acceptedFiles = files.filter((file) => ACCEPTED_IMAGE_TYPES.has(file.type));
+  if (acceptedFiles.length !== files.length) {
+    pasteError.value = '仅支持 JPEG、PNG 或 WebP 图片。';
+  }
+
+  const availableCount = MAX_IMAGE_COUNT - pendingImages.value.length;
+  const candidates = acceptedFiles.slice(0, Math.max(availableCount, 0));
+  if (acceptedFiles.length > availableCount) {
+    pasteError.value = `每条消息最多粘贴 ${MAX_IMAGE_COUNT} 张图片。`;
+  }
+
+  let totalSize = pendingImages.value.reduce((total, item) => total + item.file.size, 0);
+  const nextImages: PendingImage[] = [];
+
+  for (const file of candidates) {
+    if (file.size > MAX_IMAGE_SIZE) {
+      pasteError.value = '单张图片不能超过 10 MB。';
+      continue;
+    }
+
+    if (totalSize + file.size > MAX_TOTAL_IMAGE_SIZE) {
+      pasteError.value = '本条消息的图片总大小不能超过 25 MB。';
+      continue;
+    }
+
+    totalSize += file.size;
+    nextImages.push({
+      id: crypto.randomUUID(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    });
+  }
+
+  pendingImages.value = [...pendingImages.value, ...nextImages];
+};
+
+const onPaste = (event: ClipboardEvent) => {
+  const imageFiles = Array.from(event.clipboardData?.items ?? [])
+    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file));
+
+  if (imageFiles.length) {
+    event.preventDefault();
+    addPastedImages(imageFiles);
+  }
 };
 
 const onKeydown = (event: KeyboardEvent) => {
@@ -58,6 +146,8 @@ const onKeydown = (event: KeyboardEvent) => {
     submit();
   }
 };
+
+onBeforeUnmount(clearPendingImages);
 </script>
 
 <template>
@@ -75,11 +165,34 @@ const onKeydown = (event: KeyboardEvent) => {
         class="chat-composer__input"
         :placeholder="props.placeholder"
         :disabled="props.disabled || props.sending"
-        @keydown="onKeydown" />
+        @keydown="onKeydown"
+        @paste="onPaste" />
+
+      <div v-if="pendingImages.length" class="chat-composer__images">
+        <div
+          v-for="image in pendingImages"
+          :key="image.id"
+          class="chat-composer__image-wrap">
+          <img
+            :src="image.previewUrl"
+            :alt="image.file.name || '待发送图片'"
+            class="chat-composer__image">
+          <button
+            type="button"
+            class="chat-composer__image-remove"
+            :disabled="props.sending"
+            title="移除图片"
+            @click="removePendingImage(image.id)">
+            <AppIcon name="x" class="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      <p v-if="pasteError" class="chat-composer__error">{{ pasteError }}</p>
 
       <div class="chat-composer__actions">
         <p class="chat-composer__hint">
-          <span class="hidden sm:inline">Enter 发送 · Shift+Enter 换行</span>
+          <span class="hidden sm:inline">可粘贴图片 · Enter 发送 · Shift+Enter 换行</span>
           <span class="sm:hidden">Enter 发送</span>
         </p>
 
@@ -180,6 +293,50 @@ const onKeydown = (event: KeyboardEvent) => {
 
 .chat-composer__input:disabled {
   cursor: not-allowed;
+}
+
+.chat-composer__images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chat-composer__image-wrap {
+  position: relative;
+  height: 3.25rem;
+  width: 3.25rem;
+}
+
+.chat-composer__image {
+  height: 100%;
+  width: 100%;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(209, 178, 111, 0.2);
+  object-fit: cover;
+}
+
+.chat-composer__image-remove {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  display: inline-flex;
+  height: 1.1rem;
+  width: 1.1rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(15, 16, 19, 0.96);
+  color: hsl(var(--muted-foreground));
+}
+
+.chat-composer__image-remove:hover:not(:disabled) {
+  color: hsl(var(--foreground));
+}
+
+.chat-composer__error {
+  font-size: 11px;
+  color: hsl(var(--destructive));
 }
 
 .chat-composer__actions {

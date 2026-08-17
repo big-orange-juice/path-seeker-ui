@@ -53,8 +53,16 @@ export default defineEventHandler(async (event) => {
   const sessionId = String(body?.sessionId ?? '').trim();
   const clientMessageId = String(body?.clientMessageId ?? '').trim();
   const message = String(body?.message ?? '').trim();
+  const attachmentIds = Array.isArray(body?.attachmentIds)
+    ? Array.from(new Set(body.attachmentIds.map((id) => String(id).trim()).filter(Boolean)))
+    : [];
 
-  if (!sessionId || !clientMessageId || !message) {
+  if (
+    !sessionId
+    || !clientMessageId
+    || (!message && !attachmentIds.length)
+    || attachmentIds.length > 4
+  ) {
     throw createError({
       statusCode: 400,
       message: '对话信息或消息内容不完整，请重试。',
@@ -85,7 +93,8 @@ export default defineEventHandler(async (event) => {
     body: JSON.stringify({
       sessionId,
       clientMessageId,
-      message,
+      message: message || null,
+      attachmentIds: attachmentIds.length ? attachmentIds : null,
     }),
   });
 

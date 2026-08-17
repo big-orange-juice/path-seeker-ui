@@ -6,7 +6,7 @@ import ChatContextChips, {
 import ChatComposer from '@/components/chat/ChatComposer.vue';
 import ChatMessageList from '@/components/chat/ChatMessageList.vue';
 import { useChatSession } from '@/composables/useChatSession';
-import type { ChatEventResponse } from '@/types/chat';
+import type { ChatComposerSubmitPayload, ChatEventResponse } from '@/types/chat';
 
 interface Props {
   active?: boolean;
@@ -137,7 +137,7 @@ const contextChips = computed<ChatContextChip[]>(() => {
 
 const canSend = computed(() => Boolean(String(props.routeId || '').trim()));
 
-const handleSend = async (userText: string) => {
+const sendTextMessage = async (userText: string, attachmentFiles: File[] = []) => {
   const routeId = String(props.routeId || '').trim();
 
   if (!routeId) {
@@ -147,8 +147,11 @@ const handleSend = async (userText: string) => {
   const stageId = String(props.stageId || '').trim() || undefined;
   const wireMessage = buildOutboundMessage(userText, routeId, stageId);
 
-  await sendMessage(userText, { wireMessage });
+  await sendMessage(userText, { wireMessage, attachmentFiles });
 };
+
+const handleSend = (payload: ChatComposerSubmitPayload) =>
+  sendTextMessage(payload.message, payload.images);
 
 const handleRemoveChip = (chip: ChatContextChip) => {
   if (chip.kind === 'stage') {
@@ -188,7 +191,7 @@ defineExpose({
       empty-title="用对话编辑当前路线"
       empty-description="例如：给当前站点增加提示，或按主题补几个站点。"
       @retry="retryLastFailed"
-      @suggestion="handleSend" />
+      @suggestion="sendTextMessage" />
 
     <div v-if="errorMessage" class="chat-error">
       {{ errorMessage }}

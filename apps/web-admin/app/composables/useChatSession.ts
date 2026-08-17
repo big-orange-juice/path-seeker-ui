@@ -54,6 +54,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
   const { request } = useApiClient();
   const authStore = useAdminAuthStore();
   const runtimeConfig = useRuntimeConfig();
+  const { uploadAttachment } = useUploadAttachment();
 
   const sessionId = ref('');
   const messages = ref<ChatUiMessage[]>([]);
@@ -447,12 +448,18 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
       clientMessageId?: string;
       /** 实际发给后端的完整文本；缺省等于展示用 rawMessage */
       wireMessage?: string;
+      attachmentFiles?: File[];
+      attachmentIds?: string[];
     },
   ) => {
     const displayMessage = rawMessage.trim();
     const wireMessage = String(optionsOverride?.wireMessage ?? rawMessage).trim();
+    const attachmentFiles = optionsOverride?.attachmentFiles ?? [];
+    const existingAttachmentIds = (optionsOverride?.attachmentIds ?? [])
+      .map((id) => String(id).trim())
+      .filter(Boolean);
 
-    if (!displayMessage || !wireMessage) {
+    if ((!displayMessage || !wireMessage) && !attachmentFiles.length && !existingAttachmentIds.length) {
       return;
     }
 
@@ -466,16 +473,37 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     runStatus.value = 'running';
     runTerminalReceived = false;
 
-    const clientMessageId = optionsOverride?.clientMessageId || uuidv4();
-    const userMessage = createLocalMessage('user', displayMessage, 'completed', { clientMessageId });
-    const assistantMessage = createLocalMessage('assistant', '', 'pending');
-    activeAssistantId = assistantMessage.id;
-    messages.value = [...messages.value, userMessage, assistantMessage];
-
     abortController = new AbortController();
+    let assistantMessageId = '';
 
     try {
-      const ensuredSessionId = await ensureSession(displayMessage);
+      const uploadedAttachments = await Promise.all(
+        attachmentFiles.map((file) => uploadAttachment(file, 'image')),
+      );
+      const attachmentIds = Array.from(new Set([
+        ...existingAttachmentIds,
+        ...uploadedAttachments
+          .map((attachment) => String(attachment.fileId ?? '').trim())
+          .filter(Boolean),
+      ]));
+
+      if (attachmentIds.length !== existingAttachmentIds.length + attachmentFiles.length) {
+        throw new Error('部分图片上传后未返回附件 ID，请重试。');
+      }
+
+      const clientMessageId = optionsOverride?.clientMessageId || uuidv4();
+      const localContent = displayMessage || `发送了 ${attachmentIds.length} 张图片`;
+      const userMessage = createLocalMessage('user', localContent, 'completed', {
+        clientMessageId,
+        wireMessage,
+        attachmentIds,
+      });
+      const assistantMessage = createLocalMessage('assistant', '', 'pending');
+      assistantMessageId = assistantMessage.id;
+      activeAssistantId = assistantMessage.id;
+      messages.value = [...messages.value, userMessage, assistantMessage];
+
+      const ensuredSessionId = await ensureSession(displayMessage || '图片对话');
       const sendUrl = resolveAppApiUrl(String(runtimeConfig.app.baseURL || '/'), '/api/chat/send');
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -498,7 +526,8 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         body: JSON.stringify({
           sessionId: ensuredSessionId,
           clientMessageId,
-          message: wireMessage,
+          message: wireMessage || null,
+          attachmentIds: attachmentIds.length ? attachmentIds : null,
         }),
         signal: abortController.signal,
         credentials: 'same-origin',
@@ -528,13 +557,13 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         throw new Error(detail);
       }
 
-      updateMessage(assistantMessage.id, { status: 'streaming' });
+      updateMessage(assistantMessageId, { status: 'streaming' });
       await consumeSseStream(response);
 
       // 双保险：流已结束仍未 terminal 时再合成一次 done（consume 内已处理多数路径）
       if (runStatus.value === 'running' && !runTerminalReceived) {
         runStatus.value = 'completed';
-        updateMessage(assistantMessage.id, { status: 'completed' });
+        updateMessage(assistantMessageId, { status: 'completed' });
         runTerminalReceived = true;
         options.onDone?.(
           {
@@ -549,20 +578,24 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         runStatus.value = 'idle';
-        updateMessage(assistantMessage.id, {
-          status: 'failed',
-          errorMessage: '已取消发送。',
-        });
+        if (assistantMessageId) {
+          updateMessage(assistantMessageId, {
+            status: 'failed',
+            errorMessage: '已取消发送。',
+          });
+        }
         return;
       }
 
       const detail = resolveErrorMessage(error, '发送消息失败。');
       runStatus.value = 'failed';
       errorMessage.value = detail;
-      updateMessage(assistantMessage.id, {
-        status: 'failed',
-        errorMessage: detail,
-      });
+      if (assistantMessageId) {
+        updateMessage(assistantMessageId, {
+          status: 'failed',
+          errorMessage: detail,
+        });
+      }
       options.onError?.({ code: 'client_error', message: detail }, null);
     } finally {
       abortController = null;
@@ -580,7 +613,10 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     // Drop the failed turn and resend with a new clientMessageId (user-initiated retry).
     const dropIds = new Set([lastUser.id, lastAssistant.id]);
     messages.value = messages.value.filter((item) => !dropIds.has(item.id));
-    await sendMessage(lastUser.content);
+    await sendMessage(lastUser.content, {
+      wireMessage: lastUser.wireMessage,
+      attachmentIds: lastUser.attachmentIds,
+    });
   };
 
   const cancelRun = () => {

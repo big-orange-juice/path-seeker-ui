@@ -5,6 +5,7 @@ import RouteChatPreviewPane from '@/components/routes/RouteChatPreviewPane.vue';
 import { useChatSession } from '@/composables/useChatSession';
 import type {
   ChatDonePayload,
+  ChatComposerSubmitPayload,
   ChatEventResponse,
   ChatExhibitListItem,
   ChatExhibitSelectedPayload,
@@ -21,7 +22,7 @@ interface Props {
   active?: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   active: true,
 });
 
@@ -468,6 +469,9 @@ const {
   },
 });
 
+const handleSend = (payload: ChatComposerSubmitPayload) =>
+  sendMessage(payload.message, { attachmentFiles: payload.images });
+
 const resetSession = () => {
   clearBuildProgress();
   resetChatSession();
@@ -503,7 +507,7 @@ defineExpose({
       empty-title="用对话创建主题路线"
       empty-description="例如：帮我创建一条关于宋代瓷器的讲解路线，覆盖 6 到 8 个站点。"
       placeholder="描述主题、受众、站点数量或讲解风格…"
-      @send="sendMessage"
+      @send="handleSend"
       @cancel="cancelRun"
       @retry="retryLastFailed"
       @suggestion="sendMessage">
