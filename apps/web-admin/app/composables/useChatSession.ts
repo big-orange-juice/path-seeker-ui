@@ -347,12 +347,16 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         const message = String(payload.message || '对话处理失败。');
         runStatus.value = 'failed';
         errorMessage.value = message;
-        activeTools.value = activeTools.value.map((item) => ({
-          ...item,
-          status: 'done' as const,
-          pendingCallIds: [],
-          label: resolveToolStatusLabel(item.toolName, 'done', item.count),
-        }));
+        activeTools.value = activeTools.value.map((item) =>
+          item.status === 'running'
+            ? {
+                ...item,
+                status: 'failed' as const,
+                pendingCallIds: [],
+                label: resolveToolStatusLabel(item.toolName, 'failed', item.count),
+              }
+            : item,
+        );
 
         if (activeAssistantId) {
           updateMessage(activeAssistantId, {

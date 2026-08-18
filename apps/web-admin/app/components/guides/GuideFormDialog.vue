@@ -80,6 +80,12 @@ const emit = defineEmits<{
 
 const { uploadAttachment } = useUploadAttachment()
 const { extractVoiceMaterial, resolveExtractErrorMessage } = useExtractGuideVoiceMaterial()
+const runtimeConfig = useRuntimeConfig()
+
+const resolvePublicAssetUrl = (path: string) => {
+  const baseURL = String(runtimeConfig.app.baseURL || '/').replace(/\/?$/, '/')
+  return `${baseURL}${path.replace(/^\/+/, '')}`
+}
 
 const form = reactive<GuideDraft>({
   ...props.initialValue,
@@ -100,9 +106,9 @@ const materialItems = shallowRef<MaterialListItem[]>([])
 const selectedStyleExample = shallowRef<string | null>(null)
 
 const styleExamples = [
-  { src: '/guide-style-examples/museum-intro.svg', title: '展品开场', caption: '先建立画面，再进入背景' },
-  { src: '/guide-style-examples/clue-story.svg', title: '线索提问', caption: '用问题引导观察与发现' },
-  { src: '/guide-style-examples/quiet-narration.svg', title: '语气节奏', caption: '克制、温和，给细节留白' },
+  { src: resolvePublicAssetUrl('guide-style-examples/museum-intro.svg'), title: '展品开场', caption: '先建立画面，再进入背景' },
+  { src: resolvePublicAssetUrl('guide-style-examples/clue-story.svg'), title: '线索提问', caption: '用问题引导观察与发现' },
+  { src: resolvePublicAssetUrl('guide-style-examples/quiet-narration.svg'), title: '语气节奏', caption: '克制、温和，给细节留白' },
 ] as const
 
 const showWorkspaceTabs = computed(() => props.mode === 'edit')

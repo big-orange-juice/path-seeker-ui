@@ -244,7 +244,7 @@ export interface ChatToolActivity {
   callId: string;
   toolName: string;
   label: string;
-  status: 'running' | 'done';
+  status: 'running' | 'done' | 'failed';
   /** 同类工具累计调用次数（合并展示用） */
   count: number;
   /** 尚未收到 result 的 callId，用于合并后仍能正确收口 */

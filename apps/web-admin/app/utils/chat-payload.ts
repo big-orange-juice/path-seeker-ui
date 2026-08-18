@@ -60,15 +60,17 @@ const TOOL_STATUS_LABELS: Record<string, { running: string; done: string }> = {
 
 export const resolveToolStatusLabel = (
   toolName: string | null | undefined,
-  status: 'running' | 'done' = 'running',
+  status: 'running' | 'done' | 'failed' = 'running',
   count = 1,
 ) => {
   const name = String(toolName || '').trim();
   const safeCount = Number.isFinite(count) && count > 1 ? Math.floor(count) : 1;
 
-  let base = '';
+  let base: string;
 
-  if (!name) {
+  if (status === 'failed') {
+    base = name ? `执行 ${name} 失败` : '处理失败';
+  } else if (!name) {
     base = status === 'done' ? '已处理' : '正在处理';
   } else {
     const labels = TOOL_STATUS_LABELS[name];

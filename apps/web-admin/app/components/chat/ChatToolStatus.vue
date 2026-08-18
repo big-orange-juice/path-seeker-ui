@@ -20,9 +20,9 @@ const props = defineProps<Props>();
         v-for="tool in props.tools"
         :key="tool.id || tool.callId"
         class="chat-tool"
-        :class="tool.status === 'running' ? 'is-running' : 'is-done'">
+        :class="`is-${tool.status}`">
         <AppIcon
-          :name="tool.status === 'running' ? 'loader-circle' : 'circle-check'"
+          :name="tool.status === 'running' ? 'loader-circle' : tool.status === 'failed' ? 'circle-alert' : 'circle-check'"
           class="h-3 w-3"
           :class="tool.status === 'running' ? 'animate-spin' : ''" />
         {{ tool.label }}
@@ -92,6 +92,12 @@ const props = defineProps<Props>();
   border-color: rgba(52, 211, 153, 0.22);
   background: rgba(16, 185, 129, 0.08);
   color: rgb(110, 231, 183);
+}
+
+.chat-tool.is-failed {
+  border-color: rgba(248, 113, 113, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+  color: rgb(252, 165, 165);
 }
 
 @keyframes chat-tool-pulse {
