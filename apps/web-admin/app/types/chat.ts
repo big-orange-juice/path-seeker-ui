@@ -14,12 +14,16 @@ export interface ChatComposerSubmitPayload {
   message: string;
   images: File[];
   attachmentIds: string[];
+  attachmentReferences: ChatAttachmentReference[];
 }
 
-export interface ChatAttachmentReference {
+export interface ChatMessageAttachment {
   attachmentId: string;
   imageUrl: string;
   label: string;
+}
+
+export interface ChatAttachmentReference extends ChatMessageAttachment {
   source: 'poster' | 'stage';
 }
 
@@ -233,6 +237,7 @@ export interface ChatUiMessage {
   errorMessage?: string;
   createdAt: number;
   attachmentIds?: string[];
+  attachments?: ChatMessageAttachment[];
   /** 本轮 done 前下发的后续建议，以 chip 展示 */
   suggestions?: string[];
 }

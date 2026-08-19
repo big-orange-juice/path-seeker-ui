@@ -6,6 +6,7 @@ import type {
   ChatDonePayload,
   ChatErrorPayload,
   ChatEventResponse,
+  ChatMessageAttachment,
   ChatSuggestionsPayload,
   ChatTextDeltaPayload,
   ChatToolActivity,
@@ -454,6 +455,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
       wireMessage?: string;
       attachmentFiles?: File[];
       attachmentIds?: string[];
+      attachmentReferences?: ChatMessageAttachment[];
     },
   ) => {
     const displayMessage = rawMessage.trim();
@@ -495,12 +497,33 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
         throw new Error('部分图片上传后未返回附件 ID，请重试。');
       }
 
+      const attachmentIdSet = new Set(attachmentIds);
+      const messageAttachments = [
+        ...(optionsOverride?.attachmentReferences ?? [])
+          .map((attachment) => ({
+            attachmentId: String(attachment.attachmentId ?? '').trim(),
+            imageUrl: String(attachment.imageUrl ?? '').trim(),
+            label: String(attachment.label ?? '').trim() || '引用图片',
+          })),
+        ...uploadedAttachments.map((attachment, index) => ({
+          attachmentId: String(attachment.fileId ?? '').trim(),
+          imageUrl: String(attachment.fileUrl ?? '').trim(),
+          label: attachmentFiles[index]?.name || `图片 ${index + 1}`,
+        })),
+      ].filter((attachment) =>
+        attachmentIdSet.has(attachment.attachmentId) && Boolean(attachment.imageUrl),
+      );
+      const uniqueMessageAttachments = Array.from(
+        new Map(messageAttachments.map((attachment) => [attachment.attachmentId, attachment])).values(),
+      );
+
       const clientMessageId = optionsOverride?.clientMessageId || uuidv4();
       const localContent = displayMessage || `发送了 ${attachmentIds.length} 张图片`;
       const userMessage = createLocalMessage('user', localContent, 'completed', {
         clientMessageId,
         wireMessage,
         attachmentIds,
+        attachments: uniqueMessageAttachments,
       });
       const assistantMessage = createLocalMessage('assistant', '', 'pending');
       assistantMessageId = assistantMessage.id;
@@ -623,6 +646,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
     await sendMessage(lastUser.content, {
       wireMessage: lastUser.wireMessage,
       attachmentIds: lastUser.attachmentIds,
+      attachmentReferences: lastUser.attachments,
     });
   };
 

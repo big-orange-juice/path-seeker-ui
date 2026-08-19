@@ -149,6 +149,7 @@ const sendTextMessage = async (
   userText: string,
   attachmentFiles: File[] = [],
   attachmentIds = props.referencedAttachments.map((item) => item.attachmentId),
+  attachmentReferences = props.referencedAttachments,
 ) => {
   const routeId = String(props.routeId || '').trim();
 
@@ -159,14 +160,24 @@ const sendTextMessage = async (
   const stageId = String(props.stageId || '').trim() || undefined;
   const wireMessage = buildOutboundMessage(userText, routeId, stageId);
 
-  const sent = await sendMessage(userText, { wireMessage, attachmentFiles, attachmentIds });
+  const sent = await sendMessage(userText, {
+    wireMessage,
+    attachmentFiles,
+    attachmentIds,
+    attachmentReferences,
+  });
   if (sent && attachmentIds.length) {
     emit('referencesConsumed', attachmentIds);
   }
 };
 
 const handleSend = (payload: ChatComposerSubmitPayload) =>
-  sendTextMessage(payload.message, payload.images, payload.attachmentIds);
+  sendTextMessage(
+    payload.message,
+    payload.images,
+    payload.attachmentIds,
+    payload.attachmentReferences,
+  );
 
 const handleRemoveChip = (chip: ChatContextChip) => {
   if (chip.kind === 'stage') {

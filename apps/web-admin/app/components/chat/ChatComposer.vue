@@ -82,7 +82,14 @@ const submit = () => {
   draft.value = '';
   clearPendingImages();
   void resizeTextarea();
-  emit('send', { message, images, attachmentIds });
+  emit('send', {
+    message,
+    images,
+    attachmentIds,
+    attachmentReferences: props.referencedAttachments.filter((item) =>
+      attachmentIds.includes(String(item.attachmentId).trim()),
+    ),
+  });
 };
 
 const clearPendingImages = () => {

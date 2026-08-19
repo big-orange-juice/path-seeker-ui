@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, shallowRef } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
+import ChatImageLightbox from '@/components/chat/ChatImageLightbox.vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
-import type { ChatUiMessage } from '@/types/chat';
+import type { ChatMessageAttachment, ChatUiMessage } from '@/types/chat';
 
 interface Props {
   message: ChatUiMessage;
@@ -21,16 +22,22 @@ const emit = defineEmits<{
   suggestion: [text: string];
 }>();
 
+const previewAttachment = shallowRef<ChatMessageAttachment | null>(null);
 const isUser = computed(() => props.message.role === 'user');
 const isAssistant = computed(() => props.message.role === 'assistant');
 const isStreaming = computed(() => props.message.status === 'streaming' || props.message.status === 'pending');
 const isFailed = computed(() => props.message.status === 'failed');
+const attachments = computed(() => props.message.attachments ?? []);
 const suggestions = computed(() =>
   (props.message.suggestions ?? []).map((item) => String(item ?? '').trim()).filter(Boolean),
 );
 const canUseSuggestions = computed(
   () => isAssistant.value && !isStreaming.value && !isFailed.value && suggestions.value.length > 0,
 );
+
+const openAttachmentPreview = (attachment: ChatMessageAttachment) => {
+  previewAttachment.value = attachment;
+};
 </script>
 
 <template>
@@ -69,6 +76,24 @@ const canUseSuggestions = computed(
           'chat-bubble--failed': isFailed,
           'chat-bubble--streaming': isStreaming && !message.content,
         }">
+        <div v-if="isUser && attachments.length" class="chat-attachments">
+          <button
+            v-for="attachment in attachments"
+            :key="attachment.attachmentId"
+            type="button"
+            class="chat-attachment"
+            :title="`放大查看：${attachment.label}`"
+            @click="openAttachmentPreview(attachment)">
+            <img
+              :src="attachment.imageUrl"
+              :alt="attachment.label"
+              class="chat-attachment__image">
+            <span class="chat-attachment__zoom" aria-hidden="true">
+              <AppIcon name="zoom-in" class="h-3.5 w-3.5" />
+            </span>
+          </button>
+        </div>
+
         <Comark
           v-if="isAssistant && message.content"
           :markdown="message.content"
@@ -116,6 +141,11 @@ const canUseSuggestions = computed(
         </Button>
       </div>
     </div>
+
+    <ChatImageLightbox
+      v-if="previewAttachment"
+      :attachment="previewAttachment"
+      @close="previewAttachment = null" />
   </article>
 </template>
 
@@ -273,6 +303,56 @@ const canUseSuggestions = computed(
   min-height: 2.6rem;
   display: flex;
   align-items: center;
+}
+
+.chat-attachments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 4.5rem));
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+}
+
+.chat-attachment {
+  position: relative;
+  display: block;
+  height: 4.5rem;
+  overflow: hidden;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 245, 220, 0.14);
+  background: rgba(0, 0, 0, 0.18);
+  cursor: zoom-in;
+}
+
+.chat-attachment__image {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  transition: transform 0.18s ease;
+}
+
+.chat-attachment:hover .chat-attachment__image {
+  transform: scale(1.04);
+}
+
+.chat-attachment__zoom {
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  display: inline-flex;
+  height: 1.4rem;
+  width: 1.4rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.35rem;
+  background: rgba(0, 0, 0, 0.68);
+  color: white;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.chat-attachment:hover .chat-attachment__zoom,
+.chat-attachment:focus-visible .chat-attachment__zoom {
+  opacity: 1;
 }
 
 .chat-thinking {

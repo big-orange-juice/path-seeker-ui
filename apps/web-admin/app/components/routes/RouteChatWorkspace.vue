@@ -473,6 +473,7 @@ const handleSend = (payload: ChatComposerSubmitPayload) =>
   sendMessage(payload.message, {
     attachmentFiles: payload.images,
     attachmentIds: payload.attachmentIds,
+    attachmentReferences: payload.attachmentReferences,
   });
 
 const resetSession = () => {
