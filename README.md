@@ -184,6 +184,8 @@ pnpm dev:mp-weixin
 ## 文档索引
 
 - `docs/01-product-solution.md`：产品方案与业务模型。
+- `docs/02-c端产品方案.md`：从游客旅程、现场玩法、问答、组队、弱网、指标和版本规划整理的 C 端完整方案。
+- `docs/03-b端产品方案.md`：从内容资产、地图、导游音色、路线编排、Agent、审核发布、权限和运营指标整理的 B 端完整方案。
 - `docs/schema.json`：公开 C 端接口契约参考。
 - `docs/h5-client-demo-alignment-status.md`：H5 与 demo 体验对齐专项（07-15 切片）。
 - `docs/h5-client-progress-and-plan.md`：H5 实现总进度、未完成项与后续计划。
