@@ -26,3 +26,4 @@ apps/admin-web/node_modules
 
 # @ffmpeg/core 同步产物（~30MB wasm，由 postinstall/prebuild 生成）
 apps/web-admin/public/ffmpeg/
+/.vs
