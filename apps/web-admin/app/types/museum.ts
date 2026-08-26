@@ -292,6 +292,10 @@ export interface MuseumResponse {
   intro: string | null;
   coverImageUrl: string | null;
   status: number;
+  venueType?: number;
+  coordinateSystem?: number;
+  mapProvider?: number | null;
+  boundaryGeoJson?: string | null;
 }
 
 export interface CreateMuseumPayload {
@@ -314,6 +318,10 @@ export interface CreateMuseumPayload {
   intro: string | null;
   coverImageUrl: string | null;
   status: number;
+  venueType?: number;
+  coordinateSystem?: number;
+  mapProvider?: number | null;
+  boundaryGeoJson?: string | null;
 }
 
 export interface UpdateMuseumPayload extends CreateMuseumPayload {
@@ -342,6 +350,10 @@ export interface MuseumRecord {
   coverImageUrl: string | null;
   coverImageFileId: string | null;
   status: number;
+  venueType?: number;
+  coordinateSystem?: number;
+  mapProvider?: number | null;
+  boundaryGeoJson?: string | null;
 }
 
 export interface MuseumDraft {
@@ -366,6 +378,10 @@ export interface MuseumDraft {
   coverImageUrl: string | null;
   coverImageFileId: string | null;
   status: number;
+  venueType?: number;
+  coordinateSystem?: number;
+  mapProvider?: number | null;
+  boundaryGeoJson?: string | null;
 }
 
 export interface MuseumFloorDraft {

@@ -68,6 +68,10 @@ const toPayload = (draft: MuseumDraft): CreateMuseumPayload => ({
   intro: draft.intro || null,
   coverImageUrl: toNullableId(draft.coverImageFileId),
   status: draft.status,
+  venueType: draft.venueType ?? 1,
+  coordinateSystem: draft.coordinateSystem ?? 1,
+  mapProvider: draft.mapProvider ?? null,
+  boundaryGeoJson: draft.boundaryGeoJson || null,
 });
 
 const createEmptyDraftValue = (): MuseumDraft => ({
@@ -91,6 +95,10 @@ const createEmptyDraftValue = (): MuseumDraft => ({
   coverImageUrl: null,
   coverImageFileId: null,
   status: DEFAULT_STATUS,
+  venueType: 1,
+  coordinateSystem: 1,
+  mapProvider: null,
+  boundaryGeoJson: null,
 });
 
 export const useMuseumManagement = () => {
@@ -159,6 +167,10 @@ export const useMuseumManagement = () => {
       coverImageUrl: item.coverImageUrl,
       coverImageFileId: toNullableId(item.coverImageUrl),
       status: item.status ?? DEFAULT_STATUS,
+      venueType: item.venueType ?? 1,
+      coordinateSystem: item.coordinateSystem ?? 1,
+      mapProvider: item.mapProvider ?? null,
+      boundaryGeoJson: item.boundaryGeoJson ?? null,
     }))
   );
 
@@ -186,6 +198,10 @@ export const useMuseumManagement = () => {
     coverImageUrl: record.coverImageUrl,
     coverImageFileId: record.coverImageFileId,
     status: record.status,
+    venueType: record.venueType,
+    coordinateSystem: record.coordinateSystem,
+    mapProvider: record.mapProvider,
+    boundaryGeoJson: record.boundaryGeoJson,
   });
 
   const saveDraft = async (draft: MuseumDraft, targetId?: string) => {

@@ -6,6 +6,7 @@
  * - 可绘时打开多图/多点地图弹层
  */
 import { computed, shallowRef, useTemplateRef } from "vue"
+import { useRouter } from "vue-router"
 import type { ExhibitMapOverlayModel } from "@path-seeker/game-renderer"
 import ExhibitLocationMapOverlay from "@path-seeker/game-renderer/exhibit-location-map-overlay"
 import type { ExhibitChatLocationItem } from "@/types/exhibitChat"
@@ -16,11 +17,13 @@ import {
   formatExhibitLocationStatusHint,
   getLocationPreviewImageUrl,
   toExhibitMapOverlayModel,
+  toOutdoorMapFocusModel,
 } from "@/utils/exhibitLocationView"
 
 const props = defineProps<{
   locations: ExhibitChatLocationItem[]
 }>()
+const router = useRouter()
 
 const open = shallowRef(false)
 const activeModel = shallowRef<ExhibitMapOverlayModel | null>(null)
@@ -77,9 +80,14 @@ function onThumbError(item: ExhibitChatLocationItem, index: number) {
 
 function openMap(item: ExhibitChatLocationItem) {
   const model = toExhibitMapOverlayModel(item)
-  if (!model) return
-  activeModel.value = model
-  open.value = true
+  if (model) {
+    activeModel.value = model
+    open.value = true
+    return
+  }
+  const outdoor = toOutdoorMapFocusModel(item)
+  if (!outdoor?.exhibitId) return
+  void router.push({ path: `/map`, query: { assetId: outdoor.exhibitId } })
 }
 
 function closeMap() {

@@ -11,14 +11,26 @@ function normalizeStatus(item: ExhibitChatLocationItem | null | undefined) {
 
 /** 是否可打开可绘地图（至少一张底图 + 一个有效点位） */
 export function canOpenExhibitLocationMap(item: ExhibitChatLocationItem | null | undefined) {
-  return Boolean(toExhibitMapOverlayModel(item))
+  return Boolean(toExhibitMapOverlayModel(item) || item?.outdoorLocations?.some((location) => location.longitude != null && location.latitude != null))
 }
 
 export function formatExhibitLocationPlaceLine(item: ExhibitChatLocationItem) {
   const floor = String(item.gallery?.floorName || "").trim()
   const gallery = String(item.gallery?.galleryName || "").trim()
   const parts = [floor, gallery].filter(Boolean)
-  return parts.join(" · ")
+  return parts.join(" · ") || item.siteArea?.name || (item.outdoorLocations?.length ? "景区地图" : "")
+}
+
+export function toOutdoorMapFocusModel(item: ExhibitChatLocationItem | null | undefined) {
+  const location = item?.outdoorLocations?.find((candidate) => candidate.isPrimary) || item?.outdoorLocations?.[0]
+  if (!location || location.longitude == null || location.latitude == null) return null
+  return { exhibitId: item?.exhibitId || null, exhibitName: item?.exhibitName || null, longitude: location.longitude, latitude: location.latitude, coordinateSystem: location.coordinateSystem }
+}
+
+export function resolveExhibitLocationView(item: ExhibitChatLocationItem | null | undefined) {
+  const indoor = toExhibitMapOverlayModel(item)
+  const outdoor = toOutdoorMapFocusModel(item)
+  return indoor && outdoor ? { kind: "both" as const, indoor, outdoor } : outdoor ? { kind: "outdoor" as const, outdoor } : indoor ? { kind: "indoor" as const, indoor } : null
 }
 
 /** 气泡卡状态短提示 */

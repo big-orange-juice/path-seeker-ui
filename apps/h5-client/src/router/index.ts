@@ -14,6 +14,8 @@ import ShellGuidesPage from "@/pages/ShellGuidesPage.vue"
 import ShellHallPage from "@/pages/ShellHallPage.vue"
 import ShellPlayingPage from "@/pages/ShellPlayingPage.vue"
 import ShellMePage from "@/pages/ShellMePage.vue"
+import OutdoorMapPage from "@/pages/OutdoorMapPage.vue"
+import HeritageAssetDetailPage from "@/pages/HeritageAssetDetailPage.vue"
 
 const router = createRouter({
   // 与 vite.config base 对齐，否则访问 /path-seeker/client/ 会报 No match found
@@ -36,6 +38,9 @@ const router = createRouter({
       path: "/",
       component: MobileShellLayout,
       children: [
+        { path: "museums/:museumId/map", name: "outdoor-map", component: OutdoorMapPage, meta: { title: "景区地图", showTabBar: false } },
+        { path: "map", redirect: (to) => ({ path: `/museums/${String(to.query.museumId || import.meta.env.VITE_MUSEUM_ID || '1')}/map`, query: to.query }) },
+        { path: "museums/:museumId/assets/:assetId", name: "heritage-asset", component: HeritageAssetDetailPage, meta: { title: "文化资产", showTabBar: false } },
         {
           path: "shell",
           children: [

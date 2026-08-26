@@ -7,6 +7,8 @@ import type {
   ExhibitChatLocationItem,
   ExhibitChatLocationMap,
   ExhibitChatLocationPoint,
+  ExhibitChatLocationArea,
+  ExhibitChatOutdoorLocation,
   ExhibitChatLocationStatus,
   ExhibitChatMessage,
   ExhibitChatSession,
@@ -78,6 +80,20 @@ function mapLocationGallery(
   }
 }
 
+function mapOutdoorLocation(item: Partial<ExhibitChatOutdoorLocation> | null | undefined): ExhibitChatOutdoorLocation {
+  return {
+    id: normalizeText(item?.id) || null,
+    locationType: normalizeNumber(item?.locationType),
+    longitude: item?.longitude == null ? null : normalizeNumber(item.longitude),
+    latitude: item?.latitude == null ? null : normalizeNumber(item.latitude),
+    coordinateSystem: normalizeNumber(item?.coordinateSystem, 1),
+    locationName: normalizeText(item?.locationName) || null,
+    entranceName: normalizeText(item?.entranceName) || null,
+    isPrimary: normalizeNumber(item?.isPrimary),
+    geometryGeoJson: normalizeText(item?.geometryGeoJson) || null,
+  }
+}
+
 /** 规范化 SSE / 历史中的位置快照项 */
 export function mapExhibitChatLocationItem(
   item: (Partial<ExhibitChatLocationItem> & {
@@ -90,6 +106,11 @@ export function mapExhibitChatLocationItem(
   }
 
   const mapsRaw = Array.isArray(item.maps) ? item.maps : []
+  const outdoorRaw = Array.isArray((item as Record<string, unknown>).outdoorLocations)
+    ? (item as Record<string, unknown>).outdoorLocations as unknown[]
+    : []
+  const areaRaw = (item as Record<string, unknown>).siteArea
+  const area = areaRaw && typeof areaRaw === "object" ? areaRaw as Partial<ExhibitChatLocationArea> : null
   const status = (normalizeText(item.status) || "unbound") as ExhibitChatLocationStatus
 
   return {
@@ -101,6 +122,10 @@ export function mapExhibitChatLocationItem(
     maps: mapsRaw.map((map) =>
       mapLocationMap(map as Partial<ExhibitChatLocationMap> & { points?: unknown }),
     ),
+    assetType: item.assetType == null ? null : normalizeNumber(item.assetType),
+    assetTypeName: normalizeText(item.assetTypeName) || null,
+    siteArea: area ? { id: normalizeText(area.id) || null, name: normalizeText(area.name) || null, areaType: area.areaType == null ? null : normalizeNumber(area.areaType) } : null,
+    outdoorLocations: outdoorRaw.map((location) => mapOutdoorLocation(location as Partial<ExhibitChatOutdoorLocation>)),
   }
 }
 

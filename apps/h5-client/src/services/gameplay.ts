@@ -1,4 +1,21 @@
 import { request } from "@/services/http"
+import type { OutdoorMapSceneResponse } from "@path-seeker/ts-shared"
+
+export interface OutdoorMapSceneQuery {
+  museumId: string
+  minLongitude?: number
+  minLatitude?: number
+  maxLongitude?: number
+  maxLatitude?: number
+  assetType?: number
+  siteAreaId?: string
+  includeGeometry?: boolean
+}
+
+/** GET /Map/Scene；地图查询中的场馆和区域 ID 始终按字符串透传。 */
+export function fetchOutdoorMapScene(query: OutdoorMapSceneQuery) {
+  return request<OutdoorMapSceneResponse>("/Map/Scene", { query: { ...query } })
+}
 
 /** 路线卡片（对齐 schema RouteCardResponse；列表不保证 intro/rewardTitle） */
 export interface RouteCardResponse {

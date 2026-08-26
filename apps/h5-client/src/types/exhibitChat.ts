@@ -62,6 +62,24 @@ export interface ExhibitChatLocationGallery {
   floorLevel: number | null
 }
 
+export interface ExhibitChatLocationArea {
+  id: string | null
+  name: string | null
+  areaType: number | null
+}
+
+export interface ExhibitChatOutdoorLocation {
+  id: string | null
+  locationType: number
+  longitude: number | null
+  latitude: number | null
+  coordinateSystem: number
+  locationName: string | null
+  entranceName: string | null
+  isPrimary: number
+  geometryGeoJson: string | null
+}
+
 /** 单条文物位置快照（SSE items[] / history locations[]） */
 export interface ExhibitChatLocationItem {
   exhibitId: string | null
@@ -70,6 +88,10 @@ export interface ExhibitChatLocationItem {
   status: ExhibitChatLocationStatus
   gallery: ExhibitChatLocationGallery | null
   maps: ExhibitChatLocationMap[]
+  assetType: number | null
+  assetTypeName: string | null
+  siteArea: ExhibitChatLocationArea | null
+  outdoorLocations: ExhibitChatOutdoorLocation[]
 }
 
 export interface ExhibitChatSession {

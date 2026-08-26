@@ -124,6 +124,11 @@ const updateNumber = (field: NumericField, value: string) => {
       </button>
 
       <div v-if="showMoreFields" class="space-y-4 border-t border-border/50 px-3 py-3">
+        <section class="grid gap-3 md:grid-cols-3">
+          <div class="space-y-2"><label class="text-sm font-medium">场馆类型</label><Select :model-value="String(model.venueType ?? 1)" @update:model-value="model.venueType = Number($event)"><option value="1">传统博物馆</option><option value="2">古镇景区</option><option value="3">混合场馆</option></Select></div>
+          <div class="space-y-2"><label class="text-sm font-medium">坐标系</label><Select :model-value="String(model.coordinateSystem ?? 1)" @update:model-value="model.coordinateSystem = Number($event)"><option value="1">WGS84</option><option value="2">GCJ02</option><option value="3">BD09</option></Select></div>
+          <div class="space-y-2"><label class="text-sm font-medium">地图供应商</label><Select :model-value="String(model.mapProvider ?? '')" @update:model-value="model.mapProvider = $event ? Number($event) : null"><option value="">未指定</option><option value="1">高德地图</option><option value="2">腾讯地图</option><option value="3">百度地图</option></Select></div>
+        </section>
         <section class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
             <label class="text-sm font-medium">博物馆编码</label>
@@ -134,6 +139,7 @@ const updateNumber = (field: NumericField, value: string) => {
             <Input v-model="model.wechatAccount" placeholder="请输入公众号名称" />
           </div>
         </section>
+        <section class="space-y-2"><label class="text-sm font-medium">景区边界 GeoJSON</label><Textarea :model-value="model.boundaryGeoJson ?? ''" rows="4" placeholder="可填写 Polygon 或 MultiPolygon" @update:model-value="model.boundaryGeoJson = $event || null" /></section>
 
         <section class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
