@@ -24,6 +24,7 @@ import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import Input from '@/components/shadcn/input/Input.vue';
 import AdminStageSimulator from '@/components/routes/AdminStageSimulator.vue';
 import RouteEditChatPane from '@/components/routes/RouteEditChatPane.vue';
+import RouteMapEditorDialog from '@/components/routes/RouteMapEditorDialog.vue';
 import StageEditDialog from '@/components/routes/StageEditDialog.vue';
 import { useActionFeedback } from '@/composables/useActionFeedback';
 import type { ChatAttachmentReference } from '@/types/chat';
@@ -78,6 +79,7 @@ const { request } = useApiClient();
 const actionFeedback = useActionFeedback();
 const selectedStageId = shallowRef('');
 const stageEditOpen = shallowRef(false);
+const routeMapOpen = shallowRef(false);
 // 新增站点暂关
 // const stageCreateOpen = shallowRef(false);
 // const creatingStage = shallowRef(false);
@@ -592,6 +594,15 @@ async function saveRouteTitle() {
             <Button v-if="props.canEdit && !editingRouteTitle" variant="ghost" type="button" size="icon" class="h-7 w-7 shrink-0" aria-label="编辑路线标题" title="编辑路线标题" @click="startRouteTitleEdit"><Pencil class="h-3.5 w-3.5" /></Button>
             <p v-if="routeTitleError" class="text-xs text-rose-300">{{ routeTitleError }}</p>
             <RouteStatusBadge v-if="props.record" :record="props.record" />
+            <Button
+              v-if="routeId"
+              type="button"
+              size="sm"
+              variant="outline"
+              class="h-7 px-2.5 text-xs"
+              @click="routeMapOpen = true">
+              路线地图
+            </Button>
           </div>
           <DialogDescription>
             {{ routeMeta }}
@@ -754,6 +765,11 @@ async function saveRouteTitle() {
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <RouteMapEditorDialog
+    v-model:open="routeMapOpen"
+    :route-id="routeId"
+    :can-edit="props.canEdit" />
 
   <StageEditDialog
     v-model:open="stageEditOpen"

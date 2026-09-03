@@ -1,5 +1,5 @@
 import { request } from "@/services/http"
-import type { OutdoorMapSceneResponse } from "@path-seeker/ts-shared"
+import type { OutdoorMapSceneResponse, OutdoorRouteMapResponse } from "@path-seeker/ts-shared"
 
 export interface OutdoorMapSceneQuery {
   museumId: string
@@ -15,6 +15,10 @@ export interface OutdoorMapSceneQuery {
 /** GET /Map/Scene；地图查询中的场馆和区域 ID 始终按字符串透传。 */
 export function fetchOutdoorMapScene(query: OutdoorMapSceneQuery) {
   return request<OutdoorMapSceneResponse>("/Map/Scene", { query: { ...query } })
+}
+
+export function fetchOutdoorRouteMap(routeId: string) {
+  return request<OutdoorRouteMapResponse>("/Map/Route", { query: { routeId } })
 }
 
 /** 路线卡片（对齐 schema RouteCardResponse；列表不保证 intro/rewardTitle） */

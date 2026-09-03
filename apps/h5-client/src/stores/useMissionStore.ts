@@ -89,6 +89,7 @@ export const useMissionStore = defineStore(
   "mission",
   () => {
     const routeCards = shallowRef<MissionRouteCard[]>([])
+    const currentMuseumId = shallowRef(DEFAULT_MUSEUM_ID)
     const missionMap = shallowRef<Record<string, MissionDetail>>({})
     const remoteHintTextMap = shallowRef<Record<string, string>>({})
     const detailPending = shallowRef(false)
@@ -301,7 +302,14 @@ export const useMissionStore = defineStore(
      * - requestId 丢弃过期响应，避免筛选竞态
      * - inflight 合并：bootstrap 与展厅 onMounted 共用同一请求，避免连打两次 Published
      */
-    async function loadRouteCards(options: { force?: boolean } = {}) {
+    async function loadRouteCards(options: { force?: boolean; museumId?: string } = {}) {
+      const requestedMuseumId = String(options.museumId || currentMuseumId.value || DEFAULT_MUSEUM_ID).trim()
+      if (requestedMuseumId !== currentMuseumId.value) {
+        currentMuseumId.value = requestedMuseumId
+        routeCards.value = []
+        routeTotal.value = 0
+        routeListFetchedAt.value = 0
+      }
       const force = Boolean(options.force)
       const freshEnough =
         routeCards.value.length > 0
@@ -348,7 +356,7 @@ export const useMissionStore = defineStore(
           // 难度/规模已从 UI 移除；导游：guideId 精确 / guideName 模糊
           const response = await fetchPublishedRoutes(
             buildRoutePageQuery({
-              museumId: DEFAULT_MUSEUM_ID,
+              museumId: currentMuseumId.value,
               ageBand: filters.ageBand ?? "all",
               difficulty: "all",
               scaleType: "all",
@@ -400,7 +408,9 @@ export const useMissionStore = defineStore(
     }
 
     /** 展厅进入：空列表或过期时再拉；已有进行中请求则复用 */
-    async function ensureRouteCards(options: { force?: boolean } = {}) {
+    async function ensureRouteCards(options: { force?: boolean; museumId?: string } = {}) {
+      const requestedMuseumId = String(options.museumId || currentMuseumId.value || DEFAULT_MUSEUM_ID).trim()
+      if (requestedMuseumId !== currentMuseumId.value) return loadRouteCards({ force: true, museumId: requestedMuseumId })
       if (routeListInflight) {
         return routeListInflight
       }
@@ -1443,6 +1453,7 @@ export const useMissionStore = defineStore(
 
     return {
       routeCards,
+      currentMuseumId,
       missionMap,
       filteredRoutes,
       filters,

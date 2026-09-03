@@ -64,7 +64,8 @@ export default defineNuxtConfig({
     // 私有：仅服务端；可用环境变量 NUXT_BACKEND_BASE_URL 覆盖
     backendBaseUrl: process.env.NUXT_BACKEND_BASE_URL || '',
     public: {
-      museumId: process.env.NUXT_PUBLIC_MUSEUM_ID || '1'
+      museumId: process.env.NUXT_PUBLIC_MUSEUM_ID || '1',
+      tencentMapKey: process.env.NUXT_PUBLIC_TENCENT_MAP_KEY || ''
     }
   },
   modules: [

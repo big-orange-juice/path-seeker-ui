@@ -14,8 +14,11 @@ import {
 } from "@/components/ui"
 import MissionPreviewCard from "@/components/shell/MissionPreviewCard.vue"
 import { useMissionStore } from "@/stores/useMissionStore"
+import { useRoute } from "vue-router"
 
 const missionStore = useMissionStore()
+const route = useRoute()
+const museumId = computed(() => String(route.params.venueId || route.query.museumId || missionStore.currentMuseumId || import.meta.env.VITE_MUSEUM_ID || "").trim())
 const filterSheetOpen = shallowRef(false)
 const keywordDraft = ref(missionStore.filters.keyword || "")
 const guideNameDraft = ref(missionStore.filters.guideName || "")
@@ -78,7 +81,7 @@ function confirmFilters() {
 }
 
 async function refreshRoutes(force = false) {
-  await missionStore.ensureRouteCards({ force })
+  await missionStore.ensureRouteCards({ force, museumId: museumId.value })
 }
 
 watch(
@@ -102,6 +105,7 @@ onMounted(() => {
   }
   void refreshRoutes(false)
 })
+watch(museumId, () => void refreshRoutes(true))
 </script>
 
 <template>
