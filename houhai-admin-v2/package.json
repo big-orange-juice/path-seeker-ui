@@ -1,0 +1,9 @@
+{
+  "name": "path-seeker-houhai-admin-v2",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {"dev":"vite --host 127.0.0.1 --port 5190","build":"vue-tsc --noEmit && vite build","typecheck":"vue-tsc --noEmit","test":"node --experimental-strip-types --test tests/*.test.ts"},
+  "dependencies":{"leaflet":"1.9.4","lucide-vue-next":"1.0.0","vue":"3.5.39"},
+  "devDependencies":{"@types/leaflet":"1.9.21","@types/node":"22.15.30","@vitejs/plugin-vue":"5.2.4","typescript":"5.8.3","vite":"5.4.21","vue-tsc":"3.3.5"}
+}
