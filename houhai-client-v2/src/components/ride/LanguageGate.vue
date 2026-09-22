@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ArrowRight, Check, Globe2 } from 'lucide-vue-next'
-import { languages, message } from '../../ride/i18n'
-import type { Locale } from '../../ride/types'
+import { languages, message, styles } from '../../ride/i18n'
+import type { Locale, RideStyle } from '../../ride/types'
 
 const locale = defineModel<Locale>({ required: true })
+const style = defineModel<RideStyle>('style', { required: true })
 defineProps<{ loading: boolean; error: boolean }>()
-defineEmits<{ enter: [locale: Locale] }>()
+defineEmits<{ enter: [] }>()
 </script>
 
 <template>
@@ -21,12 +22,18 @@ defineEmits<{ enter: [locale: Locale] }>()
           <span>{{ language.name }}</span><Check v-if="locale === language.id" :size="20" />
         </button>
       </div>
+      <p class="style-label">{{ message(locale, 'chooseStyle') }}</p>
+      <div class="style-options" role="group" :aria-label="message(locale, 'chooseStyle')">
+        <button v-for="item in styles" :key="item.id" :class="{ selected: style === item.id }" :aria-pressed="style === item.id" :disabled="loading" @click="style = item.id">
+          <span><strong>{{ item.name[locale] }}</strong><small>{{ item.note[locale] }}</small></span><Check v-if="style === item.id" :size="18" />
+        </button>
+      </div>
       <p v-if="error" role="alert">{{ message(locale, 'loadError') }}</p>
-      <button class="enter-button" :disabled="loading" @click="$emit('enter', locale)">{{ message(locale, loading ? 'loading' : error ? 'retry' : 'enter') }}<ArrowRight :size="20" /></button>
+      <button class="enter-button" :disabled="loading" @click="$emit('enter')">{{ message(locale, loading ? 'loading' : error ? 'retry' : 'enter') }}<ArrowRight :size="20" /></button>
     </section>
   </main>
 </template>
 
 <style scoped>
-.language-gate{min-height:100dvh;display:grid;place-items:center;padding:32px 22px;position:relative;overflow:hidden;background:#e6efeb}.language-card{width:min(100%,480px);position:relative;z-index:1}.gate-symbol{width:56px;height:56px;background:var(--lake);color:white;border-radius:50%;display:grid;place-items:center;margin-bottom:28px}.gate-place{font-size:11px;letter-spacing:3px;color:#58756c}.language-card h1{font:500 clamp(30px,5vw,42px)/1.3 var(--display);margin:18px 0 36px;max-width:450px}.language-label{font-size:14px;color:#567469}.language-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0 32px}.language-options button{min-height:68px;display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border:1px solid #b5cbc2;border-radius:14px;background:#f8faf9;font-size:18px;color:var(--lake)}.language-options .selected{border:2px solid var(--lake);padding:15px 17px;background:#d3e4dc}.enter-button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:58px;border:0;border-radius:14px;padding:16px 22px;background:var(--lake);color:white;font-weight:600}.water-lines{position:absolute;right:-32vw;bottom:-30vw;width:95vw;height:95vw;border:1px solid #b5cdc3;border-radius:50%;pointer-events:none}.water-lines span{position:absolute;inset:8%;border:1px solid #b5cdc3;border-radius:50%}.water-lines span:nth-child(2){inset:17%}.water-lines span:nth-child(3){inset:27%}
+.language-gate{min-height:100dvh;display:grid;place-items:center;padding:32px 22px;position:relative;overflow:hidden;background:#e6efeb}.language-card{width:min(100%,480px);position:relative;z-index:1}.gate-symbol{width:56px;height:56px;background:var(--lake);color:white;border-radius:50%;display:grid;place-items:center;margin-bottom:28px}.gate-place{font-size:11px;letter-spacing:3px;color:#58756c}.language-card h1{font:500 clamp(30px,5vw,42px)/1.3 var(--display);margin:18px 0 36px;max-width:450px}.language-label{font-size:14px;color:#567469}.language-options{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0 24px}.style-label{font-size:14px;color:#567469;margin:0}.style-options{display:flex;flex-direction:column;gap:8px;margin:14px 0 28px}.style-options button{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 15px;border:1px solid #b5cbc2;border-radius:12px;background:#f8faf9;color:var(--lake);text-align:left}.style-options .selected{border:2px solid var(--lake);padding:10px 14px;background:#d3e4dc}.style-options button>span{display:flex;flex-direction:column;gap:3px}.style-options strong{font-size:14px}.style-options small{font-size:11px;color:#5c7a6f}.language-options button{min-height:68px;display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border:1px solid #b5cbc2;border-radius:14px;background:#f8faf9;font-size:18px;color:var(--lake)}.language-options .selected{border:2px solid var(--lake);padding:15px 17px;background:#d3e4dc}.enter-button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:58px;border:0;border-radius:14px;padding:16px 22px;background:var(--lake);color:white;font-weight:600}.water-lines{position:absolute;right:-32vw;bottom:-30vw;width:95vw;height:95vw;border:1px solid #b5cdc3;border-radius:50%;pointer-events:none}.water-lines span{position:absolute;inset:8%;border:1px solid #b5cdc3;border-radius:50%}.water-lines span:nth-child(2){inset:17%}.water-lines span:nth-child(3){inset:27%}
 </style>

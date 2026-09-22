@@ -1,13 +1,14 @@
 import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useLiveLocation } from '../composables/useLiveLocation.ts'
 import { getRideCatalog } from './catalog.ts'
-import { isLocale, message, type MessageKey } from './i18n.ts'
+import { isLocale, isStyle, message, type MessageKey } from './i18n.ts'
 import { arrivalPolicy, distanceMeters, nearbyStop, scannedRoute, transitionJourney, type JourneyPlayback } from './progression.ts'
 import { useRideSpeech } from './useRideSpeech.ts'
-import type { Locale, RideRoute } from './types'
+import type { Locale, RideRoute, RideStyle } from './types'
 
 export function useRide() {
   const locale = shallowRef<Locale>('zh')
+  const style = shallowRef<RideStyle>('history')
   const page = shallowRef<'language' | 'map' | 'journey'>('language')
   const routes = shallowRef<RideRoute[]>([])
   const selectedId = shallowRef('')
@@ -39,17 +40,20 @@ export function useRide() {
     const param = new URLSearchParams(window.location.search).get('lang')
     try {
       const saved = localStorage.getItem('houhai:language')
+      const savedStyle = localStorage.getItem('houhai:style')
       if (isLocale(param)) locale.value = param
       else if (isLocale(saved)) locale.value = saved
+      if (isStyle(savedStyle)) style.value = savedStyle
     } catch { if (isLocale(param)) locale.value = param }
   })
 
-  async function enter(value: Locale) {
+  async function enter(value: Locale, nextStyle: RideStyle = style.value) {
     const version = ++requestVersion
     speech.stop()
     if (activeId.value) playback.value = { ...playback.value, status: 'paused', manualPause: true }
     locale.value = value
-    try { localStorage.setItem('houhai:language', value) } catch {}
+    style.value = nextStyle
+    try { localStorage.setItem('houhai:language', value); localStorage.setItem('houhai:style', nextStyle) } catch {}
     loading.value = true
     loadError.value = false
     try {
@@ -58,7 +62,7 @@ export function useRide() {
       routes.value = result.routes
       if (!scanApplied) {
         const scan = scannedRoute(window.location.search, result.routes.map(route => route.id))
-        selectedId.value = scan.id ?? result.routes[0]?.id ?? ''
+        selectedId.value = scan.id ?? result.routes.find(route => route.styleId === style.value)?.id ?? result.routes[0]?.id ?? ''
         invalidScan.value = scan.invalid
         scanApplied = true
       }
@@ -152,6 +156,6 @@ export function useRide() {
   })
 
   onUnmounted(() => { requestVersion += 1; clearTimeout(arrivalTimer) })
-  return { locale, page, routes, selectedId, activeId, selected, active, current, next, arrived, playback, loading, loadError, invalidScan,
+  return { locale, page, routes, selectedId, activeId, selected, active, current, next, arrived, playback, loading, loadError, invalidScan, style,
     location, speech, translate, enter, start, togglePlayback, selectStop, end, changeLanguage }
 }

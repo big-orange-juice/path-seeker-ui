@@ -8,6 +8,7 @@ export interface MapState {
   selectedPlaceId: string
   route?: TourRoute
   insets?: MapInsets
+  tilt?: number
 }
 
 export interface MapAdapter {
@@ -130,57 +131,133 @@ export async function createAmap(container: HTMLElement, selectPlace: SelectPlac
   let previousPlace = ''
   let insets: MapInsets = { top: 65, right: 65, bottom: 65, left: 65 }
   let previousInsets = ''
+  let baseTilt = 0
   let liveLocation: LiveLocation | undefined
   let locationOverlays: AmapOverlay[] = []
   let currentState: MapState = { places: [], selectedPlaceId: '' }
   let tourMode = false
   let tourZoom = 19
-  function tourPosition() {
-    const path = currentState.route?.geometry ?? []
-    const nearby = liveLocation && path.some(point => distanceMeters(liveLocation!.coordinate, point) <= 2000)
-    return nearby ? liveLocation!.coordinate : path[0]
+  let tourPath: Coordinate[] = []
+  let tourCumulative: number[] = [0]
+  let tourTotal = 0
+  let roamDistance = 0
+  let roamTimer: ReturnType<typeof setInterval> | undefined
+  let roamTimestamp = 0
+  let tourMarker: AmapOverlay | undefined
+  const roamPaceSeconds = 240
+
+  function rebuildTourPath() {
+    tourPath = (currentState.route?.geometry ?? []).map(wgs84ToGcj02)
+    tourCumulative = [0]
+    for (let index = 1; index < tourPath.length; index += 1) {
+      tourCumulative.push(tourCumulative[index - 1]! + distanceMeters(tourPath[index - 1]!, tourPath[index]!))
+    }
+    tourTotal = tourCumulative[tourPath.length - 1] ?? 0
+  }
+  function roamPoint(distance: number): { position?: Coordinate; bearing: number } {
+    if (!tourPath.length) return { bearing: 0 }
+    const clamped = Math.max(0, Math.min(distance, tourTotal))
+    let index = 1
+    while (index < tourCumulative.length - 1 && tourCumulative[index]! < clamped) index += 1
+    const start = tourPath[index - 1]!
+    const end = tourPath[index] ?? start
+    const span = tourCumulative[index]! - tourCumulative[index - 1]!
+    const ratio = span > 0 ? (clamped - tourCumulative[index - 1]!) / span : 0
+    return { position: [start[0] + (end[0] - start[0]) * ratio, start[1] + (end[1] - start[1]) * ratio], bearing: bearingBetween(start, end) }
+  }
+  function bearingOnPath(target: Coordinate) {
+    let nearest = 0
+    for (let index = 1; index < tourPath.length; index += 1) {
+      if (distanceMeters(target, tourPath[index]!) < distanceMeters(target, tourPath[nearest]!)) nearest = index
+    }
+    const ahead = tourPath.slice(nearest + 1).find(point => distanceMeters(tourPath[nearest]!, point) > 3)
+    return ahead ? bearingBetween(tourPath[nearest]!, ahead) : 0
+  }
+  function distanceAlongPath(target: Coordinate) {
+    let best = 0
+    let shortest = Number.POSITIVE_INFINITY
+    tourPath.forEach((point, index) => {
+      const distance = distanceMeters(target, point)
+      if (distance < shortest) { shortest = distance; best = tourCumulative[index] ?? 0 }
+    })
+    return best
+  }
+  function liveOnRoute() {
+    if (!liveLocation || !Number.isFinite(liveLocation.accuracy) || Date.now() - liveLocation.timestamp > 30000) return false
+    const position = wgs84ToGcj02(liveLocation.coordinate)
+    return tourPath.some(point => distanceMeters(position, point) <= 2000)
+  }
+  function tourTarget(): { position?: Coordinate; bearing: number } {
+    if (!tourPath.length) return { bearing: 0 }
+    if (liveOnRoute()) {
+      const position = wgs84ToGcj02(liveLocation!.coordinate)
+      return { position, bearing: bearingOnPath(position) }
+    }
+    return roamPoint(roamDistance)
   }
   function followCamera() {
-    const target = tourPosition()
-    if (!target) return
-    const path = currentState.route?.geometry ?? []
-    let nearest = 0
-    for (let index = 1; index < path.length - 1; index += 1) {
-      if (distanceMeters(target, path[index]!) < distanceMeters(target, path[nearest]!)) nearest = index
-    }
-    const ahead = path.slice(nearest + 1).find(point => distanceMeters(path[nearest]!, point) > 3)
-    const bearing = ahead ? bearingBetween(path[nearest]!, ahead) : 0
-    const position = wgs84ToGcj02(target)
-    map.setZoomAndCenter(tourZoom, position, true)
-    map.setRotation((360 - bearing) % 360, true)
-    map.setPitch(65, true)
+    const target = tourTarget()
+    if (!target.position) return
+    map.setZoomAndCenter(tourZoom, target.position, true)
+    map.setRotation((360 - target.bearing) % 360, true)
+    map.setPitch(70, true)
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const anchor = map.containerToLngLat([container.clientWidth / 2, container.clientHeight * 0.75])
       const center = map.getCenter()
-      map.setCenter([center.getLng() + position[0] - anchor.getLng(), center.getLat() + position[1] - anchor.getLat()], true)
+      map.setCenter([center.getLng() + target.position[0] - anchor.getLng(), center.getLat() + target.position[1] - anchor.getLat()], true)
     }
+  }
+  function roamTick() {
+    if (!tourMode || tourTotal <= 0) return
+    if (liveOnRoute()) {
+      roamTimestamp = performance.now()
+      roamDistance = distanceAlongPath(wgs84ToGcj02(liveLocation!.coordinate))
+      return
+    }
+    if (roamDistance >= tourTotal) return
+    const now = performance.now()
+    const delta = Math.min(now - roamTimestamp, 500)
+    roamTimestamp = now
+    roamDistance = Math.min(roamDistance + (tourTotal / roamPaceSeconds) * delta / 1000, tourTotal)
+    const point = roamPoint(roamDistance)
+    if (point.position) tourMarker?.setPosition?.(point.position)
+    followCamera()
+  }
+  function startRoam() {
+    stopRoam()
+    roamTimestamp = performance.now()
+    roamTimer = setInterval(roamTick, 80)
+  }
+  function stopRoam() {
+    if (roamTimer !== undefined) clearInterval(roamTimer)
+    roamTimer = undefined
   }
   function fit() {
     if (tourMode) { followCamera(); return }
-    if (overlays.length) map.setFitView(overlays, true, [insets.top, insets.right, insets.bottom, insets.left], 16)
+    if (overlays.length) map.setFitView(overlays, true, [insets.top, insets.right, insets.bottom + (baseTilt > 0 ? 70 : 0), insets.left], 16)
+    map.setRotation(0, true)
+    map.setPitch(baseTilt, true)
   }
   function renderLocation() {
     map.remove(locationOverlays)
     locationOverlays = []
-    const coordinate = tourMode ? tourPosition() : liveLocation?.coordinate
-    if (!coordinate) return
-    const position = wgs84ToGcj02(coordinate)
+    tourMarker = undefined
+    const position = tourMode ? tourTarget().position : liveLocation && wgs84ToGcj02(liveLocation.coordinate)
+    if (!position) return
     locationOverlays = tourMode
       ? [new sdk.Marker({ position, content: '<span class="navigation-location" role="img" aria-label="游览位置"><span></span></span>', offset: new sdk.Pixel(-25, -25), zIndex: 400 })]
       : [
           new sdk.Circle({ center: position, radius: Math.max(6, liveLocation?.accuracy ?? 6), strokeColor: '#287f91', strokeWeight: 1, strokeOpacity: 0.75, fillColor: '#54a9b7', fillOpacity: 0.14, zIndex: 250 }),
           new sdk.Marker({ position, content: '<span class="live-location-dot"><span></span></span>', offset: new sdk.Pixel(-12, -12), zIndex: 300 }),
         ]
+    if (tourMode) tourMarker = locationOverlays[0]
     map.add(locationOverlays)
   }
   function renderState(state: MapState) {
     currentState = state
     insets = state.insets ?? { top: 65, right: 65, bottom: 65, left: 65 }
+    if (state.tilt !== undefined) baseTilt = state.tilt
+    if ((state.route?.id ?? '') !== previousRoute) { rebuildTourPath(); roamDistance = 0 }
     map.remove(overlays)
     overlays = []
     if (state.route?.geometry.length) overlays.push(new sdk.Polyline({
@@ -207,6 +284,10 @@ export async function createAmap(container: HTMLElement, selectPlace: SelectPlac
     map.add(overlays)
     const insetsKey = JSON.stringify(insets)
     if (!tourMode && (previousRoute !== state.route?.id || previousPlace !== state.selectedPlaceId || previousInsets !== insetsKey)) fit()
+    if (tourMode && previousPlace !== state.selectedPlaceId && state.selectedPlaceId) {
+      const stop = state.places.find(place => place.id === state.selectedPlaceId)
+      if (stop?.coordinate) roamDistance = distanceAlongPath(wgs84ToGcj02(stop.coordinate))
+    }
     previousRoute = state.route?.id ?? ''
     previousPlace = state.selectedPlaceId
     previousInsets = insetsKey
@@ -240,14 +321,14 @@ export async function createAmap(container: HTMLElement, selectPlace: SelectPlac
       renderState(currentState)
       renderLocation()
       if (!enabled) {
-        map.setPitch(0, true)
-        map.setRotation(0, true)
+        stopRoam()
         fit()
         return true
       }
+      startRoam()
       followCamera()
       return true
     },
-    destroy() { map.remove(locationOverlays); map.destroy() },
+    destroy() { stopRoam(); map.remove(locationOverlays); map.destroy() },
   }
 }

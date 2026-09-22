@@ -1,5 +1,5 @@
 import { catalog } from '../data/catalog.ts'
-import type { Locale, RideCatalog, RideRoute } from './types.ts'
+import type { Locale, RideCatalog, RideRoute, RideStyle } from './types.ts'
 import { ridePhotos } from './media.ts'
 
 type LocalText = Record<Locale, string>
@@ -64,6 +64,12 @@ const routeTexts: Record<string, { title: LocalText; guide: LocalText; style: Lo
   },
 }
 
+const routeStyles: Record<string, RideStyle> = {
+  '2096000000000000001': 'history',
+  '2096000000000000002': 'family',
+  '2096000000000000003': 'architecture',
+}
+
 export function buildRideCatalog(locale: Locale): RideCatalog {
   const routes: RideRoute[] = catalog.routes.filter(route => route.scene === 'rickshaw' && routeTexts[route.id]).map(route => {
     const copy = routeTexts[route.id]
@@ -77,7 +83,7 @@ export function buildRideCatalog(locale: Locale): RideCatalog {
         photo: ridePhotos[place.artwork],
       }]
     })
-    return { ...route, title: copy.title[locale], subtitle: copy.style[locale], description: copy.introduction[locale], tag: copy.style[locale],
+    return { ...route, title: copy.title[locale], subtitle: copy.style[locale], description: copy.introduction[locale], tag: copy.style[locale], styleId: routeStyles[route.id] ?? 'history',
       distance: route.distance.replace('约 ', ''), transportNote: '', guideName: copy.guide[locale], specialty: copy.style[locale], introduction: copy.introduction[locale], stops }
   })
   return { locale, routes }

@@ -1,4 +1,4 @@
-import type { Locale } from './types'
+import type { Locale, RideStyle } from './types'
 
 export const languages = [
   { id: 'zh', name: '中文', speech: 'zh-CN' },
@@ -11,6 +11,7 @@ const labels = {
   area: ['什刹海', 'Shichahai', 'Шичахай', 'Shichahai'],
   welcome: ['一程湖光，沿途听北京', 'Along the lake, listen to Beijing', 'Пекин: истории у озера', 'Pekín, historias junto al lago'],
   chooseLanguage: ['选择讲解语言', 'Choose your language', 'Выберите язык', 'Elige tu idioma'],
+  chooseStyle: ['选择讲解风格', 'Choose a guide style', 'Выберите стиль рассказа', 'Elige un estilo de guía'],
   enter: ['进入', 'Enter', 'Войти', 'Entrar'],
   language: ['语言', 'Language', 'Язык', 'Idioma'],
   routes: ['选择这一程', 'Choose your journey', 'Выберите маршрут', 'Elige tu recorrido'],
@@ -49,6 +50,13 @@ const labels = {
   zoomIn: ['放大', 'Zoom in', 'Приблизить', 'Acercar'],
   zoomOut: ['缩小', 'Zoom out', 'Отдалить', 'Alejar'],
   overview: ['路线全览', 'Whole route', 'Весь маршрут', 'Ver ruta completa'],
+  follow: ['跟随视角', 'Follow view', 'Режим следования', 'Vista de seguimiento'],
+  unfollow: ['返回全览', 'Back to overview', 'Вернуться к обзору', 'Volver a la vista general'],
+  collapseStops: ['收起途经点', 'Hide stops', 'Скрыть остановки', 'Ocultar paradas'],
+  expandStops: ['展开途经点', 'Show stops', 'Показать остановки', 'Mostrar paradas'],
+  gallery: ['实景图集', 'Photo gallery', 'Фотогалерея', 'Galería de fotos'],
+  previousPhoto: ['上一张', 'Previous photo', 'Предыдущее фото', 'Foto anterior'],
+  nextPhoto: ['下一张', 'Next photo', 'Следующее фото', 'Foto siguiente'],
   locating: ['正在获取位置…', 'Finding your location…', 'Определяем местоположение…', 'Buscando tu ubicación…'],
   locationError: ['定位不可用，请允许浏览器访问位置后重试；也可手动选择途经点听讲解。', 'Location unavailable. Allow location access and retry, or select a stop manually.', 'Геолокация недоступна. Разрешите доступ или выберите остановку вручную.', 'Ubicación no disponible. Permite el acceso o elige una parada manualmente.'],
   lowAccuracy: ['定位精度不足，暂不自动切换讲解。', 'Location accuracy is low. Automatic stories are on hold.', 'Низкая точность геолокации. Автопереход приостановлен.', 'Ubicación imprecisa. Cambio automático en espera.'],
@@ -67,4 +75,12 @@ export function message(locale: Locale, key: MessageKey): string {
 }
 export function isLocale(value: unknown): value is Locale {
   return languages.some(language => language.id === value)
+}
+export const styles: { id: RideStyle; name: Record<Locale, string>; note: Record<Locale, string> }[] = [
+  { id: 'history', name: { zh: '城市历史', en: 'City history', ru: 'История города', es: 'Historia urbana' }, note: { zh: '细说北京与湖畔往事', en: 'Beijing and the lakes in detail', ru: 'Пекин и озёра в деталях', es: 'Pekín y los lagos al detalle' } },
+  { id: 'family', name: { zh: '亲子观察', en: 'Family discovery', ru: 'Семейное открытие', es: 'Descubrimiento en familia' }, note: { zh: '轻松好奇，一起发现', en: 'Easy and curious, look closer', ru: 'Легко и любопытно, наблюдаем вместе', es: 'Fácil y curioso, mira más cerca' } },
+  { id: 'architecture', name: { zh: '古建园林', en: 'Architecture', ru: 'Архитектура', es: 'Arquitectura' }, note: { zh: '看懂门道与空间', en: 'Reading buildings and space', ru: 'Читаем здания и пространство', es: 'Leer edificios y espacio' } },
+]
+export function isStyle(value: unknown): value is RideStyle {
+  return styles.some(style => style.id === value)
 }
