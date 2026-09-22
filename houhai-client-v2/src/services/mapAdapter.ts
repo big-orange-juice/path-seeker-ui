@@ -26,7 +26,7 @@ function markerElement(place: CulturalPlace, index: number, selected: boolean) {
   const marker = document.createElement('button')
   marker.type = 'button'
   marker.className = `culture-pin${selected ? ' is-selected' : ''}${place.artwork === 'hutong' ? ' label-above' : ''}`
-  marker.setAttribute('aria-label', `地图地点：${place.name}`)
+  marker.setAttribute('aria-label', place.name)
   marker.setAttribute('aria-pressed', String(selected))
   const number = document.createElement('span')
   number.className = 'pin-number'

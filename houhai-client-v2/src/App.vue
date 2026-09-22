@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import ExplorerShell from './components/ExplorerShell.vue'
+import RideExperience from './components/ride/RideExperience.vue'
 </script>
 
 <template>
-  <ExplorerShell />
+  <RideExperience />
 </template>

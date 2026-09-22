@@ -19,11 +19,14 @@ export function useLiveLocation() {
   const updatedLabel = shallowRef('')
   let timer: number | undefined
   let requesting = false
+  let generation = 0
 
   function request() {
     if (!supported || requesting || state.value === 'idle') return
     requesting = true
+    const requestGeneration = generation
     navigator.geolocation.getCurrentPosition(position => {
+      if (requestGeneration !== generation) return
       requesting = false
       location.value = {
         coordinate: [position.coords.longitude, position.coords.latitude],
@@ -34,6 +37,7 @@ export function useLiveLocation() {
       error.value = ''
       state.value = 'tracking'
     }, reason => {
+      if (requestGeneration !== generation) return
       requesting = false
       error.value = errorMessage(reason)
       state.value = 'error'
@@ -48,6 +52,8 @@ export function useLiveLocation() {
 
   function start() {
     if (!supported) return
+    generation += 1
+    requesting = false
     stopTimer()
     state.value = 'requesting'
     error.value = ''
@@ -56,6 +62,7 @@ export function useLiveLocation() {
   }
 
   function stop() {
+    generation += 1
     stopTimer()
     requesting = false
     location.value = undefined
@@ -64,7 +71,7 @@ export function useLiveLocation() {
     error.value = ''
   }
 
-  onUnmounted(stopTimer)
+  onUnmounted(stop)
 
   return {
     state,
