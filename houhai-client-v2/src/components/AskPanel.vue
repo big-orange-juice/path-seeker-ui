@@ -21,7 +21,9 @@ const messages = ref<ChatMessage[]>([
 const messageList = useTemplateRef<HTMLDivElement>('messageList')
 const supported = typeof window !== 'undefined' && 'speechSynthesis' in window
 const speakingId = shallowRef('')
-const guidePlayback = useGuidePlayback()
+const guidePlayback = (() => {
+  try { return useGuidePlayback() } catch { return undefined }
+})()
 let currentUtterance: SpeechSynthesisUtterance | undefined
 let replyTimer: number | undefined
 
@@ -45,7 +47,7 @@ function speak(message: ChatMessage) {
     stopSpeaking()
     return
   }
-  guidePlayback.narration.stop()
+  guidePlayback?.narration.stop()
   stopSpeaking()
   window.speechSynthesis.resume()
   const utterance = new SpeechSynthesisUtterance(message.text)
