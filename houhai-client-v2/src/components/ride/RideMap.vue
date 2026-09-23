@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, useTemplateRef, watch, shallowRef } from 'vue'
+import { computed, onMounted, onUnmounted, useTemplateRef, watch, shallowRef } from 'vue'
 import { Focus, ListOrdered, Minus, Navigation, Plus } from 'lucide-vue-next'
 import { createAmap, type MapAdapter } from '../../services/mapAdapter'
 import { message } from '../../ride/i18n'
@@ -16,10 +16,16 @@ let adapter: MapAdapter | undefined
 let observer: ResizeObserver | undefined
 let generation = 0
 
+const building = computed(() => {
+  const stop = props.route.stops.find(candidate => candidate.id === props.selectedId)
+  return stop?.building ? { name: stop.name, height: stop.building.height, outline: stop.building.outline } : undefined
+})
+
 function update() {
   const compact = (canvas.value?.clientWidth ?? 400) < 760
   adapter?.update({ places: props.route.stops, route: props.route, selectedPlaceId: props.selectedId ?? '',
     tilt: props.overview ? 0 : 45,
+    building: building.value,
     insets: props.overview ? { top: 90, right: compact ? 45 : 100, bottom: 290, left: compact ? 45 : 100 } : { top: 70, right: 80, bottom: 120, left: 80 } })
 }
 function toggleFollow() {

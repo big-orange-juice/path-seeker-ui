@@ -3,12 +3,18 @@ import { wgs84ToGcj02 } from '../domain/coordinates'
 import type { Coordinate, CulturalPlace, LiveLocation, TourRoute } from '../types'
 import type { MapInsets } from '../domain/mapViewport'
 
+export interface MapBuilding {
+  name: string
+  height: number
+  outline: Coordinate[]
+}
 export interface MapState {
   places: CulturalPlace[]
   selectedPlaceId: string
   route?: TourRoute
   insets?: MapInsets
   tilt?: number
+  building?: MapBuilding
 }
 
 export interface MapAdapter {
@@ -39,6 +45,17 @@ function markerElement(place: CulturalPlace, index: number, selected: boolean) {
   return marker
 }
 
+function buildingElement(name: string) {
+  const label = document.createElement('span')
+  label.className = 'building-label'
+  label.textContent = name
+  return label
+}
+
+function polygonCenter(path: Coordinate[]): Coordinate {
+  return path.reduce<Coordinate>((total, point) => [total[0] + point[0] / path.length, total[1] + point[1] / path.length], [0, 0])
+}
+
 function bearingBetween(start: Coordinate, end: Coordinate) {
   const startLatitude = start[1] * Math.PI / 180
   const endLatitude = end[1] * Math.PI / 180
@@ -62,6 +79,7 @@ interface AmapOverlay {
   setPosition?: (position: Coordinate) => void
   setCenter?: (position: Coordinate) => void
   setRadius?: (radius: number) => void
+  getPlaneHeight?: () => number
 }
 interface AmapInstance {
   add: (overlays: AmapOverlay[]) => void
@@ -83,6 +101,7 @@ interface AmapSdk {
   Map: new (element: HTMLElement, options: Record<string, unknown>) => AmapInstance
   Marker: new (options: Record<string, unknown>) => AmapOverlay
   Polyline: new (options: Record<string, unknown>) => AmapOverlay
+  Polygon: new (options: Record<string, unknown>) => AmapOverlay
   Circle: new (options: Record<string, unknown>) => AmapOverlay
   Pixel: new (horizontal: number, vertical: number) => unknown
 }
@@ -95,37 +114,56 @@ declare global {
 
 let amapPromise: Promise<AmapSdk> | undefined
 
-function loadAmap(): Promise<AmapSdk> {
-  if (!mapConfig.amapKey || (!mapConfig.amapSecurityCode && !mapConfig.amapSecurityProxy)) return Promise.reject(new Error('高德地图尚未配置，请检查本地 Key 与安全配置。'))
-  if (window.AMap) return Promise.resolve(window.AMap)
-  if (amapPromise) return amapPromise
-  amapPromise = new Promise((resolve, reject) => {
-    window._AMapSecurityConfig = mapConfig.amapSecurityProxy
-      ? { serviceHost: mapConfig.amapSecurityProxy }
-      : { securityJsCode: mapConfig.amapSecurityCode }
+function injectAmap(version: string): Promise<AmapSdk> {
+  return new Promise((resolve, reject) => {
     const script = document.createElement('script')
-    const timeout = window.setTimeout(() => fail(), 12000)
+    const timeout = window.setTimeout(() => fail(), 8000)
     function fail() {
       window.clearTimeout(timeout)
       script.remove()
-      amapPromise = undefined
-      reject(new Error('高德地图加载失败，请检查 Key、域名白名单和安全配置。'))
+      reject(new Error(`高德地图 ${version} 加载失败，请检查 Key、域名白名单和安全配置。`))
     }
-    script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(mapConfig.amapKey)}`
+    script.src = `https://webapi.amap.com/maps?v=${version}&key=${encodeURIComponent(mapConfig.amapKey)}`
     script.onerror = fail
     script.onload = () => {
       window.clearTimeout(timeout)
-      if (window.AMap) resolve(window.AMap)
+      if (window.AMap?.Map) resolve(window.AMap)
       else fail()
     }
     document.head.append(script)
   })
+}
+
+function loadAmap(): Promise<AmapSdk> {
+  if (!mapConfig.amapKey || (!mapConfig.amapSecurityCode && !mapConfig.amapSecurityProxy)) return Promise.reject(new Error('高德地图尚未配置，请检查本地 Key 与安全配置。'))
+  if (window.AMap) return Promise.resolve(window.AMap)
+  if (amapPromise) return amapPromise
+  window._AMapSecurityConfig = mapConfig.amapSecurityProxy
+    ? { serviceHost: mapConfig.amapSecurityProxy }
+    : { securityJsCode: mapConfig.amapSecurityCode }
+  amapPromise = (async () => {
+    let failure: unknown
+    for (const version of ['2.1Beta', '2.0']) {
+      try { return await injectAmap(version) } catch (error) { failure = error }
+    }
+    amapPromise = undefined
+    throw failure instanceof Error ? failure : new Error('高德地图加载失败，请检查 Key、域名白名单和安全配置。')
+  })()
   return amapPromise
 }
 
 export async function createAmap(container: HTMLElement, selectPlace: SelectPlace): Promise<MapAdapter> {
   const sdk = await loadAmap()
   const map = new sdk.Map(container, { center: wgs84ToGcj02(mapConfig.center), zoom: mapConfig.zoom, zooms: [mapConfig.minZoom, 20], viewMode: '3D', pitch: 0, rotation: 0, showBuildingBlock: true, wallColor: '#cad6e2', roofColor: '#edf3f8', skyColor: '#a9d8f7' })
+  const planeHeightSupport = (() => {
+    try {
+      const probe = new sdk.Polygon({ path: [[116.3798, 39.9358], [116.38, 39.9358], [116.38, 39.936]], height: 10 })
+      map.add([probe])
+      const supported = probe.getPlaneHeight?.() === 10
+      map.remove([probe])
+      return supported
+    } catch { return false }
+  })()
   let overlays: AmapOverlay[] = []
   let previousRoute = ''
   let previousPlace = ''
@@ -280,6 +318,21 @@ export async function createAmap(container: HTMLElement, selectPlace: SelectPlac
       const marker = new sdk.Marker({ position: wgs84ToGcj02(place.coordinate), content: markerElement(place, state.route?.stopIds.indexOf(place.id) ?? -1, place.id === state.selectedPlaceId), offset: new sdk.Pixel(-18, -42), zIndex: place.id === state.selectedPlaceId ? 200 : 100 })
       marker.on('click', () => selectPlace(place.id))
       overlays.push(marker)
+    }
+    if (state.building?.outline.length) {
+      const path = state.building.outline.map(wgs84ToGcj02)
+      const layers = planeHeightSupport ? Math.max(4, Math.min(12, Math.round(state.building.height / 1.5))) : 1
+      for (let index = 0; index < layers; index += 1) {
+        const top = index === layers - 1
+        overlays.push(new sdk.Polygon({ path, zIndex: 150 + index, bubble: false,
+          fillColor: top ? 'rgba(229,185,87,.5)' : 'rgba(229,185,87,.14)',
+          strokeColor: top ? '#c99a2e' : 'rgba(229,185,87,.45)',
+          strokeWeight: top ? 1.5 : 1,
+          strokeOpacity: top ? .95 : .8,
+          height: layers > 1 ? state.building.height * (index / (layers - 1)) : 0,
+        }))
+      }
+      overlays.push(new sdk.Marker({ position: polygonCenter(path), anchor: 'bottom-center', content: buildingElement(state.building.name), zIndex: 320, clickable: false, height: planeHeightSupport ? state.building.height + 3 : 0 }))
     }
     map.add(overlays)
     const insetsKey = JSON.stringify(insets)

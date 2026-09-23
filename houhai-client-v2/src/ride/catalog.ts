@@ -1,8 +1,18 @@
 import { catalog } from '../data/catalog.ts'
+import { offsetCoordinate } from '../domain/coordinates.ts'
 import type { Locale, RideCatalog, RideRoute, RideStyle } from './types.ts'
 import { ridePhotos } from './media.ts'
+import { rideNarrationClips } from './narrations.ts'
 
 type LocalText = Record<Locale, string>
+
+// 讲解建筑的三维示意体块：outline 为相对站点坐标的米制偏移（东 +、北 +），上线前需替换为真实建筑边界。
+const buildings: Record<string, { height: number; outline: [number, number][] }> = {
+  palace: { height: 12, outline: [[-72, -52], [24, -52], [58, -26], [58, 26], [24, 52], [-72, 52]] },
+  temple: { height: 10, outline: [[-30, -44], [18, -44], [34, -18], [34, 22], [14, 44], [-30, 44]] },
+  garden: { height: 9, outline: [[-54, -34], [30, -34], [54, -12], [54, 16], [26, 34], [-54, 34]] },
+  bridge: { height: 3, outline: [[-18, -5], [18, -5], [18, 5], [-18, 5]] },
+}
 const names: Record<string, LocalText> = {
   bridge: { zh: '银锭桥', en: 'Yinding Bridge', ru: 'Мост Иньдин', es: 'Puente Yinding' },
   hutong: { zh: '烟袋斜街', en: 'Yandai Xiejie', ru: 'Улица Яньдай Сецзе', es: 'Calle Yandai Xiejie' },
@@ -73,14 +83,22 @@ const routeStyles: Record<string, RideStyle> = {
 export function buildRideCatalog(locale: Locale): RideCatalog {
   const routes: RideRoute[] = catalog.routes.filter(route => route.scene === 'rickshaw' && routeTexts[route.id]).map(route => {
     const copy = routeTexts[route.id]
+    const clips = rideNarrationClips[copy.title.zh]
     const stops = route.stopIds.flatMap(id => {
       const place = catalog.places.find(candidate => candidate.id === id)
       if (!place) return []
       const name = names[place.artwork][locale]
       const text = stories[place.artwork][locale]
-      return [{ ...place, name, subtitle: name, intro: text, category: copy.style[locale], address: name, visitNote: '',
-        narration: [{ title: name, text: `${copy.introduction[locale]} ${text}` }], guideNarrations: undefined,
-        photo: ridePhotos[place.artwork],
+      const shape = buildings[place.artwork]
+      const building = shape && place.coordinate ? { height: shape.height, outline: shape.outline.map(([east, north]) => offsetCoordinate(place.coordinate!, east, north)) } : undefined
+      // 远程 TTS 只有中文音色：中文站点改用其文稿与音频，其他语言仍用翻译稿 + 系统语音。
+      const stopClips = locale === 'zh' ? clips?.[names[place.artwork].zh] : undefined
+      const narration = stopClips?.length
+        ? stopClips.map((clip, index) => ({ title: stopClips.length > 1 ? `${name} ${index + 1}` : name, text: clip.text }))
+        : [{ title: name, text: `${copy.introduction[locale]} ${text}` }]
+      return [{ ...place, name, subtitle: name, intro: stopClips?.length ? stopClips.map(clip => clip.text).join('\n\n') : text,
+        category: copy.style[locale], address: name, visitNote: '', narration, guideNarrations: undefined,
+        photo: ridePhotos[place.artwork], building, narrationAudio: stopClips,
       }]
     })
     return { ...route, title: copy.title[locale], subtitle: copy.style[locale], description: copy.introduction[locale], tag: copy.style[locale], styleId: routeStyles[route.id] ?? 'history',

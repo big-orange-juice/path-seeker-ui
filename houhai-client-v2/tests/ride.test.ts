@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { buildRideCatalog } from '../src/ride/catalog.ts'
 import { languages, message } from '../src/ride/i18n.ts'
-import { arrivalPolicy, distanceMeters, nearbyStop, scannedRoute, transitionJourney, type JourneyPlayback } from '../src/ride/progression.ts'
+import { advanceAfterStory, arrivalPolicy, distanceMeters, nearbyStop, scannedRoute, transitionJourney, type JourneyPlayback } from '../src/ride/progression.ts'
 
 const initial: JourneyPlayback = { current: 0, furthest: 0, status: 'playing', manualPause: false, finished: false }
 
@@ -84,9 +84,64 @@ test('four language catalogs retain string identifiers, route identity and local
   }
 })
 
+test('chinese stops carry the remote tts clips while other languages keep system speech', () => {
+  const stops = buildRideCatalog('zh').routes.flatMap(route => route.stops)
+  const withAudio = stops.filter(stop => stop.narrationAudio?.length)
+  assert.ok(withAudio.length >= 10, '多数中文站点带上远程音频')
+  for (const stop of withAudio) {
+    assert.equal(stop.narration.length, stop.narrationAudio!.length)
+    assert.ok(stop.intro.includes(stop.narrationAudio![0].text), `${stop.name} 文稿与音频一致`)
+    for (const clip of stop.narrationAudio!) {
+      assert.match(clip.audio, /^https:\/\/omaha-wenlv\.oss-cn-beijing\.aliyuncs\.com\//)
+      assert.ok(clip.durationMs > 0)
+      assert.ok(clip.text.length > 100)
+    }
+  }
+  const palace = stops.find(stop => stop.name === '恭王府')
+  assert.equal(palace?.narrationAudio?.length, 2, '恭王府保留两段远程音频')
+  for (const language of languages.filter(item => item.id !== 'zh')) {
+    const translated = buildRideCatalog(language.id).routes.flatMap(route => route.stops)
+    assert.ok(translated.every(stop => !stop.narrationAudio), '非中文不挂中文音频')
+  }
+})
+
+test('a finished story rolls on to the next stop and stops at the last one', () => {
+  const ended = advanceAfterStory(transitionJourney({ ...initial, current: 0, furthest: 0 }, { type: 'end' }), 3)
+  assert.equal(ended.current, 1)
+  assert.equal(ended.status, 'playing')
+  assert.equal(ended.finished, false)
+  assert.equal(ended.furthest, 1)
+  const last = advanceAfterStory(transitionJourney({ ...initial, current: 2, furthest: 2 }, { type: 'end' }), 3)
+  assert.equal(last.current, 2)
+  assert.equal(last.finished, true)
+  assert.equal(advanceAfterStory(transitionJourney({ ...initial, current: 0 }, { type: 'pause' }), 3).status, 'paused')
+  const queued = transitionJourney({ ...initial, current: 0, furthest: 0, pending: 2 }, { type: 'end' })
+  assert.equal(advanceAfterStory(queued, 3).current, 2, '到达排队优先于顺序接播')
+})
+
 test('scanned route ids preserve all digits and unavailable routes are explicit', () => {
   const ids = buildRideCatalog('zh').routes.map(route => route.id)
   assert.deepEqual(scannedRoute(`?routeId=${ids[2]}&lang=ru`, ids), { id: ids[2], invalid: false })
   assert.deepEqual(scannedRoute('?routeId=2096000000000000999', ids), { id: undefined, invalid: true })
   assert.deepEqual(scannedRoute('', ids), { id: undefined, invalid: false })
+})
+
+test('building highlights keep a sane footprint around their own stop', () => {
+  const highlighted: string[] = []
+  for (const language of languages) {
+    for (const route of buildRideCatalog(language.id).routes) {
+      for (const stop of route.stops) {
+        if (!stop.building) continue
+        highlighted.push(stop.name)
+        assert.ok(stop.coordinate, `${stop.name} lacks a coordinate`)
+        assert.ok(stop.building.height > 0 && stop.building.height <= 40, `${stop.name} height out of range`)
+        assert.ok(stop.building.outline.length >= 3, `${stop.name} outline needs a closed shape`)
+        for (const point of stop.building.outline) {
+          assert.ok(distanceMeters(stop.coordinate, point) <= 400, `${stop.name} outline drifts away from the stop`)
+        }
+      }
+    }
+  }
+  assert.ok(highlighted.includes('恭王府'), 'the mansion keeps its highlight')
+  assert.ok(highlighted.length > 0)
 })

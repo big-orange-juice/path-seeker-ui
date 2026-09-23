@@ -2,7 +2,7 @@ import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useLiveLocation } from '../composables/useLiveLocation.ts'
 import { getRideCatalog } from './catalog.ts'
 import { isLocale, isStyle, message, type MessageKey } from './i18n.ts'
-import { arrivalPolicy, distanceMeters, nearbyStop, scannedRoute, transitionJourney, type JourneyPlayback } from './progression.ts'
+import { advanceAfterStory, arrivalPolicy, distanceMeters, nearbyStop, scannedRoute, transitionJourney, type JourneyPlayback } from './progression.ts'
 import { useRideSpeech } from './useRideSpeech.ts'
 import type { Locale, RideRoute, RideStyle } from './types'
 
@@ -73,7 +73,8 @@ export function useRide() {
 
   function playCurrent() {
     if (!current.value) return
-    speech.play(current.value.narration.map(chapter => chapter.text).join('\n'), locale.value)
+    const clips = current.value.narrationAudio
+    speech.play(clips?.length ? clips : current.value.narration.map(chapter => chapter.text).join('\n'), locale.value)
   }
 
   function discardDistantPending() {
@@ -89,6 +90,7 @@ export function useRide() {
   function finishStory() {
     discardDistantPending()
     playback.value = transitionJourney(playback.value, { type: 'end' })
+    playback.value = advanceAfterStory(playback.value, active.value?.stops.length ?? 0)
     if (playback.value.status === 'playing') playCurrent()
   }
 

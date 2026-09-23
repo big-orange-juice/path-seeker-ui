@@ -1,5 +1,10 @@
 import type { Coordinate } from '../types.ts'
 
+export function offsetCoordinate([longitude, latitude]: Coordinate, east: number, north: number): Coordinate {
+  const metersPerLatitudeDegree = 111320
+  return [longitude + east / (metersPerLatitudeDegree * Math.cos(latitude * Math.PI / 180)), latitude + north / metersPerLatitudeDegree]
+}
+
 export function wgs84ToGcj02([longitude, latitude]: Coordinate): Coordinate {
   if (longitude < 72.004 || longitude > 137.8347 || latitude < 0.8293 || latitude > 55.8271) return [longitude, latitude]
   const offsetLongitude = longitude - 105

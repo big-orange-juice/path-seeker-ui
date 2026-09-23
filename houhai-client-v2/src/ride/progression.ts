@@ -51,6 +51,13 @@ export function transitionJourney(state: JourneyPlayback, event: JourneyEvent): 
   }
 }
 
+// 一段讲完、且没有等在前面的到达站点时，自动进入下一站（最后一站停住；手动暂停不自动接播）。
+export function advanceAfterStory(state: JourneyPlayback, stopCount: number): JourneyPlayback {
+  if (state.status !== 'idle' || state.manualPause || state.pending !== undefined) return state
+  if (state.current + 1 >= stopCount) return state
+  return transitionJourney(state, { type: 'select', index: state.current + 1 })
+}
+
 export function scannedRoute(search: string, validIds: string[]) {
   const value = new URLSearchParams(search).get('routeId')
   return { id: value && validIds.includes(value) ? value : undefined, invalid: !!value && !validIds.includes(value) }
