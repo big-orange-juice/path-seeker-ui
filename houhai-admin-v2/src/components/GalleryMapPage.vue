@@ -7,9 +7,11 @@ import MapCanvas from './MapCanvas.vue'
 interface FloorPoint { id:string; x:number; y:number; title:string; code:string; type:'exhibit'|'note'; description:string }
 const props = defineProps<{ destinations: Destination[]; places: CulturalPlace[] }>()
 const emit = defineEmits<{ notify:[message:string] }>()
-const selectedMuseumId = ref(props.destinations.find(item => item.sceneType === 'indoor')?.id ?? props.destinations[0]?.id ?? '')
-const selectedGalleryId = ref('gallery-1')
-const selectedMapId = ref('map-1')
+/** 默认展示北京·后海的真实地图（户外漫游目的地）。 */
+const defaultDestination = props.destinations.find(item => item.code === 'BJ-HH-001') ?? props.destinations.find(item => item.sceneType === 'outdoor') ?? props.destinations[0]
+const selectedMuseumId = ref(defaultDestination?.id ?? '')
+const selectedGalleryId = ref(defaultDestination?.sceneType === 'outdoor' ? 'outdoor-area' : 'gallery-1')
+const selectedMapId = ref(defaultDestination?.sceneType === 'outdoor' ? 'outdoor-map' : 'map-1')
 const selectedPointId = ref('')
 const picking = ref(false)
 const zoom = ref(1)
@@ -18,10 +20,10 @@ const floorPoints = ref<FloorPoint[]>(Array.from({ length:46 }, (_,index) => ({
   id:`floor-point-${index+1}`,
   x:7+((index*19)%86),
   y:10+((index*29)%78),
-  title:index%9===4?`展览说明 ${index+1}`:`馆藏点位 ${index+1}`,
+  title:index%9===4?`展览说明 ${index+1}`:`内容点位 ${index+1}`,
   code:`RI${String(100004038+index)}`,
   type:index%9===4?'note':'exhibit',
-  description:index%9===4?'展区主题与参观方向说明。':'关联馆藏内容，可点击查看文物详情。',
+  description:index%9===4?'展区主题与参观方向说明。':'关联内容，可点击查看文物详情。',
 })))
 const selectedMuseum = computed(() => props.destinations.find(item => item.id===selectedMuseumId.value) ?? props.destinations[0]!)
 const isOutdoor = computed(() => selectedMuseum.value.sceneType==='outdoor')
@@ -36,7 +38,7 @@ function handleStageClick(event:MouseEvent) {
   const rect=target.getBoundingClientRect()
   snapshot()
   const index=floorPoints.value.length+1
-  const point:FloorPoint={id:`floor-point-${Date.now()}`,x:(event.clientX-rect.left)/rect.width*100,y:(event.clientY-rect.top)/rect.height*100,title:`新增馆藏点位 ${index}`,code:`RI-NEW-${index}`,type:'exhibit',description:'待补充点位说明与关联馆藏。'}
+  const point:FloorPoint={id:`floor-point-${Date.now()}`,x:(event.clientX-rect.left)/rect.width*100,y:(event.clientY-rect.top)/rect.height*100,title:`新增内容点位 ${index}`,code:`RI-NEW-${index}`,type:'exhibit',description:'待补充点位说明与关联内容。'}
   floorPoints.value.push(point);selectedPointId.value=point.id;picking.value=false;emit('notify','文物点位已新增')
 }
 function removePoint() { if(!selectedFloorPoint.value)return;snapshot();floorPoints.value=floorPoints.value.filter(item=>item.id!==selectedPointId.value);selectedPointId.value='';emit('notify','点位已删除，可使用撤销恢复') }
@@ -47,8 +49,8 @@ function changeMuseum() { selectedPointId.value='';picking.value=false;zoom.valu
 <template>
   <section class="gallery-map-page">
     <section class="gallery-map-filters">
-      <label>所属博物馆<select v-model="selectedMuseumId" @change="changeMuseum"><option v-for="item in destinations" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
-      <label>展厅<select v-model="selectedGalleryId"><option :value="isOutdoor?'outdoor-area':'gallery-1'">{{ isOutdoor?'后海漫游区域':'G-FIX-60929 / 考古上海' }}</option></select></label>
+      <label>所属景点<select v-model="selectedMuseumId" @change="changeMuseum"><option v-for="item in destinations" :key="item.id" :value="item.id">{{ item.name }}</option></select></label>
+      <label>场景<select v-model="selectedGalleryId"><option :value="isOutdoor?'outdoor-area':'gallery-1'">{{ isOutdoor?'后海漫游区域':'G-FIX-60929 / 考古上海' }}</option></select></label>
       <label>地图<select v-model="selectedMapId"><option :value="isOutdoor?'outdoor-map':'map-1'">{{ isOutdoor?`后海真实地图 · ${pointCount} 个点位`:`RI00004038 · ${pointCount} 个点位` }}</option></select></label>
       <div class="gallery-map-actions"><button class="button primary" @click="picking=!picking"><MapPinned :size="15"/>{{ picking?'退出取点':'新增点位' }}</button><button class="button ghost" :disabled="!undoStack.length||isOutdoor" @click="undo"><Undo2 :size="15"/>撤销</button><button class="button ghost" @click="emit('notify','地图数据已刷新')"><RefreshCw :size="15"/>刷新</button></div>
     </section>

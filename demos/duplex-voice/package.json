@@ -1,0 +1,15 @@
+{
+  "name": "duplex-voice-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "全双工语音对话 Demo：MiniMax ASR + DeepSeek LLM + MiniMax 流式 TTS，支持随时打断与字幕同步",
+  "scripts": {
+    "start": "node server/index.js",
+    "check": "node scripts/check-providers.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

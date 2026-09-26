@@ -31,7 +31,7 @@ function editNarration(item: Narration) { editingNarration.value = cloneValue(it
   <div class="overlay" @click.self="emit('close')">
     <section class="workspace-dialog">
       <header class="dialog-head">
-        <div><span class="eyebrow">博物馆工作台</span><h2>{{ draft.name }}</h2><p>{{ draft.sceneType === 'outdoor' ? '户外漫游场景' : '场馆探索场景' }} · {{ draft.code }}</p></div>
+        <div><span class="eyebrow">景点工作台</span><h2>{{ draft.name }}</h2><p>{{ draft.sceneType === 'outdoor' ? '户外漫游场景' : '场馆探索场景' }} · {{ draft.code }}</p></div>
         <button class="icon-button" aria-label="关闭" @click="emit('close')"><X :size="19" /></button>
       </header>
       <nav class="dialog-tabs">
@@ -39,16 +39,16 @@ function editNarration(item: Narration) { editingNarration.value = cloneValue(it
         <button :class="{active:tab==='content'}" @click="tab='content'">{{ draft.sceneType === 'outdoor' ? '文化点与讲解' : '楼层与展厅' }}</button>
       </nav>
       <div v-if="tab==='basic'" class="dialog-body form-page">
-        <div class="section-heading"><div><h3>通用资料</h3><p>沿用现有博物馆基础资料与发布状态。</p></div><span class="scene-chip"><MapPinned v-if="draft.sceneType==='outdoor'" :size="14"/><Building2 v-else :size="14"/>{{ draft.sceneType==='outdoor'?'户外漫游':'场馆探索' }}</span></div>
+        <div class="section-heading"><div><h3>通用资料</h3><p>沿用现有景点基础资料与发布状态。</p></div><span class="scene-chip"><MapPinned v-if="draft.sceneType==='outdoor'" :size="14"/><Building2 v-else :size="14"/>{{ draft.sceneType==='outdoor'?'户外漫游':'场馆探索' }}</span></div>
         <div class="form-grid">
-          <label>博物馆名称<input v-model="draft.name" /></label><label>博物馆编码<input v-model="draft.code" /></label>
+          <label>景点名称<input v-model="draft.name" /></label><label>景点编码<input v-model="draft.code" /></label>
           <label class="wide">地址<input v-model="draft.address" /></label><label>开放时间<input v-model="draft.openingHours" /></label>
           <label>启用状态<select v-model="draft.status"><option value="enabled">启用</option><option value="disabled">停用</option></select></label>
           <label class="wide">简介<textarea v-model="draft.intro" rows="3" /></label>
         </div>
         <div v-if="draft.sceneType==='outdoor'" class="subsection">
-          <div class="section-heading"><div><h3>户外地图配置</h3><p>地图供应商、坐标系和服务边界仅在户外场景出现。</p></div></div>
-          <div class="form-grid"><label>地图供应商<select v-model="draft.mapProvider"><option>OpenStreetMap</option><option>Tencent</option></select></label><label>坐标系<select v-model="draft.coordinateSystem"><option>WGS84</option><option>GCJ02</option></select></label><label>中心经度<input v-model.number="draft.longitude" type="number" step="0.000001" /></label><label>中心纬度<input v-model.number="draft.latitude" type="number" step="0.000001" /></label><label class="wide">服务边界 GeoJSON<textarea v-model="draft.boundaryGeoJson" rows="3" /></label></div>
+          <div class="section-heading"><div><h3>户外地图配置</h3><p>地图供应商、坐标系和服务边界仅在户外场景出现；底图与 C 端统一使用高德。</p></div></div>
+          <div class="form-grid"><label>地图供应商<select v-model="draft.mapProvider"><option value="Amap">高德（Amap）</option><option value="Tencent">腾讯地图</option><option value="OpenStreetMap">OpenStreetMap</option></select></label><label>坐标系<select v-model="draft.coordinateSystem"><option>WGS84</option><option>GCJ02</option></select></label><label>中心经度<input v-model.number="draft.longitude" type="number" step="0.000001" /></label><label>中心纬度<input v-model.number="draft.latitude" type="number" step="0.000001" /></label><label class="wide">服务边界 GeoJSON<textarea v-model="draft.boundaryGeoJson" rows="3" /></label></div>
         </div>
         <footer class="dialog-actions"><button class="button ghost" @click="emit('close')">取消</button><button class="button primary" @click="saveBasic"><Save :size="16"/>保存资料</button></footer>
       </div>

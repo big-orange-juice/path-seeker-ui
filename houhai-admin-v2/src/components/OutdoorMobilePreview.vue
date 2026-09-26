@@ -1,39 +1,80 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
-import { Bike, Bookmark, ChevronDown, ChevronUp, Compass, Focus, Footprints, Headphones, Landmark, LocateFixed, MapPin, MessageCircle, Minus, Music2, Pause, Play, Plus, Route, Search, SlidersHorizontal } from 'lucide-vue-next'
-import type { CulturalPlace, Destination, TourRoute } from '../types'
+import { computed, onUnmounted, shallowRef, useTemplateRef, watch } from 'vue'
+import { ArrowLeft, ChevronLeft, ChevronRight, Focus, Headphones, Landmark, MapPin, MessageCircle, Minus, Navigation, Pause, Play, Plus, Video, X } from 'lucide-vue-next'
+import type { ArtifactStage, CulturalPlace, Destination, TourRoute } from '../types'
 import MapCanvas from './MapCanvas.vue'
 
-type SheetView = 'collapsed' | 'story' | 'route'
-const props = defineProps<{ route: TourRoute; destination: Destination; places: CulturalPlace[]; activeStopId: string }>()
-const emit = defineEmits<{ selectStop: [id: string] }>()
-const sheetView = shallowRef<SheetView>('collapsed')
-const selectedNarrationId = shallowRef('')
-const isPlaying = shallowRef(false)
-const query = shallowRef('')
-const routePlaces = computed(() => props.route.stops.flatMap((stop) => {
-  const place = props.places.find((item) => item.id === stop.placeId)
+const props = defineProps<{ route: TourRoute; destination: Destination; places: CulturalPlace[]; stages: ArtifactStage[]; activeStopId: string }>()
+const emit = defineEmits<{ selectStop: [id: string]; editStop: [id: string] }>()
+const phoneMap = useTemplateRef<InstanceType<typeof MapCanvas>>('phoneMap')
+/** 与 C 端一致：默认收起讲解面板，先看地图与讲解悬浮条；点“查看内容”再展开。 */
+const storyOpen = shallowRef(false)
+const chapterIndex = shallowRef(0)
+const elapsed = shallowRef(0)
+const playing = shallowRef(false)
+const finished = shallowRef(false)
+const expanded = shallowRef(false)
+let timer: ReturnType<typeof setInterval> | undefined
+
+const routeStops = computed(() => props.route.stops.flatMap(stop => {
+  const place = props.places.find(item => item.id === stop.placeId)
   return place ? [{ stop, place }] : []
 }))
-const visiblePlaces = computed(() => {
-  const keyword = query.value.trim()
-  return keyword ? routePlaces.value.filter(({ place }) => `${place.name}${place.category}${place.address}`.includes(keyword)) : routePlaces.value
+const stopIndex = computed(() => Math.max(0, props.route.stops.findIndex(item => item.id === props.activeStopId)))
+const activeStop = computed(() => props.route.stops[stopIndex.value] ?? null)
+const activeEntry = computed(() => routeStops.value.find(item => item.stop.id === activeStop.value?.id) ?? routeStops.value[0] ?? null)
+const activeStage = computed(() => props.stages.find(item => item.placeId === activeEntry.value?.place.id) ?? null)
+const nextPlace = computed(() => props.places.find(item => item.id === props.route.stops[stopIndex.value + 1]?.placeId) ?? null)
+const segment = computed(() => activeStage.value?.segments[chapterIndex.value] ?? null)
+const segmentSeconds = computed(() => segment.value?.durationSeconds ?? 0)
+const cover = computed(() => activeStage.value?.images[0] ?? null)
+const isLastSegment = computed(() => chapterIndex.value >= (activeStage.value?.segments.length ?? 1) - 1)
+const playLabel = computed(() => playing.value ? '暂停讲解' : elapsed.value > 0 ? '继续讲解' : '播放讲解')
+const playbackNote = computed(() => {
+  if (playing.value) return ''
+  if (elapsed.value > 0) return '已暂停，点击继续后恢复讲解'
+  if (finished.value && !nextPlace.value) return '这一程的故事已讲完，感谢同行。'
+  return '留意沿途风景，到下一站附近继续讲解。'
 })
-const activeEntry = computed(() => routePlaces.value.find((item) => item.stop.id === props.activeStopId) ?? routePlaces.value[0] ?? null)
-const activeNarration = computed(() => activeEntry.value?.place.narrations.find((item) => item.id === selectedNarrationId.value) ?? activeEntry.value?.place.narrations[0] ?? null)
-const activePlaceId = computed(() => activeEntry.value?.place.id)
 
-watch(activeEntry, (entry) => {
-  selectedNarrationId.value = entry?.place.narrations[0]?.id ?? ''
-  isPlaying.value = false
-}, { immediate: true })
+watch(() => activeStage.value?.id, () => { chapterIndex.value = 0; elapsed.value = 0; playing.value = false; finished.value = false; expanded.value = false; syncTimer() })
+onUnmounted(() => clearInterval(timer))
 
-function selectPlace(placeId: string) {
-  const stopId = props.route.stops.find((stop) => stop.placeId === placeId)?.id
-  if (stopId) emit('selectStop', stopId)
+function syncTimer() {
+  clearInterval(timer)
+  if (!playing.value) return
+  timer = setInterval(() => {
+    elapsed.value += 1
+    if (elapsed.value < segmentSeconds.value) return
+    elapsed.value = 0
+    if (!isLastSegment.value) { chapterIndex.value += 1; return }
+    playing.value = false
+    finished.value = true
+    syncTimer()
+  }, 1000)
 }
-function formatDuration(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
+function togglePlay() {
+  if (!segmentSeconds.value) return
+  playing.value = !playing.value
+  if (playing.value) finished.value = false
+  syncTimer()
+}
+function pickStop(stopId: string) {
+  emit('selectStop', stopId)
+}
+/** 站点名称跟随站点语言内容。 */
+function stopName(placeId: string) {
+  return props.stages.find(item => item.placeId === placeId)?.name ?? props.places.find(item => item.id === placeId)?.name ?? ''
+}
+function selectPlace(placeId: string) {
+  const stop = props.route.stops.find(item => item.placeId === placeId)
+  if (stop) pickStop(stop.id)
+}
+function editPlace(placeId: string) {
+  const stop = props.route.stops.find(item => item.placeId === placeId)
+  if (!stop) return
+  emit('selectStop', stop.id)
+  emit('editStop', stop.id)
 }
 </script>
 
@@ -41,41 +82,118 @@ function formatDuration(seconds: number) {
   <section class="outdoor-phone" aria-label="移动端路线预览">
     <div class="phone-screen-map">
       <div class="phone-status"><strong>9:41</strong><span>▮▮▮</span></div><div class="phone-island" />
-      <header class="client-header">
-        <div class="client-brand"><span>径</span><div><strong>秘径寻踪</strong><small>PATH SEEKER</small></div></div>
-        <button class="destination-button"><MapPin :size="12" /><span><small>当前探索地</small><strong>{{ destination.name.replace('北京·', '北京 · ') }}</strong></span><ChevronDown :size="12" /></button>
-        <nav class="scene-switch"><button class="active"><Bike :size="14" />黄包车慢游<i>新</i></button><button><Landmark :size="13" />场馆探索</button></nav>
+      <header class="client-head">
+        <button class="head-button"><ArrowLeft :size="14" />返回地图</button>
+        <span class="head-route">{{ route.name }}</span>
+        <button class="head-button end">结束行程</button>
       </header>
-      <main class="client-map">
-        <MapCanvas show-marker-labels :destination="destination" :places="places" :route="route" :active-place-id="activePlaceId" @select-place="selectPlace" />
-        <div class="discovery-tools">
-          <label><Search :size="15" /><input v-model="query" aria-label="搜索文化地点" placeholder="寻找一处风景、一段故事" /></label><button aria-label="地点分类筛选"><SlidersHorizontal :size="16" /></button>
-          <div class="place-chips"><button v-for="entry in visiblePlaces" :key="entry.stop.id" :class="{ active: entry.stop.id === activeEntry?.stop.id }" @click="emit('selectStop', entry.stop.id)"><MapPin v-if="entry.stop.id === activeEntry?.stop.id" :size="10" />{{ entry.place.name }}</button></div>
-        </div>
-        <div class="map-controls"><button aria-label="显示完整路线"><Focus :size="15" /></button><button aria-label="开启实时定位"><LocateFixed :size="15" /></button><button aria-label="放大地图"><Plus :size="15" /></button><button aria-label="缩小地图"><Minus :size="15" /></button></div>
-        <div class="quick-actions"><button :class="{ playing: isPlaying }" :aria-label="isPlaying ? '暂停当前讲解' : '播放当前讲解'" @click="isPlaying = !isPlaying"><Music2 :size="16" /></button><button aria-label="打开聊天对话框"><MessageCircle :size="16" /></button></div>
-        <section v-if="activeEntry" :class="['client-sheet', { expanded: sheetView !== 'collapsed' }]">
-          <button class="sheet-handle" aria-label="调整详情高度" @click="sheetView = sheetView === 'collapsed' ? 'story' : 'collapsed'"><span /></button>
-          <div class="sheet-heading"><div><h3>{{ activeEntry.place.name }}</h3><p>{{ activeEntry.place.category }} · {{ activeEntry.place.narrations.length }} 位导游，听不同的故事</p></div><button @click="sheetView = sheetView === 'collapsed' ? 'story' : 'collapsed'"><ChevronDown v-if="sheetView !== 'collapsed'" :size="16" /><ChevronUp v-else :size="16" /></button></div>
-          <div v-if="sheetView === 'collapsed'" class="sheet-actions"><button @click="sheetView = 'story'"><Headphones :size="14" />听这里的故事</button><button @click="sheetView = 'route'"><Route :size="14" />游览路线</button></div>
-          <div v-else-if="sheetView === 'story'" class="story-panel">
-            <div class="guide-options"><button v-for="narration in activeEntry.place.narrations" :key="narration.id" :class="{ active: narration.id === activeNarration?.id }" @click="selectedNarrationId = narration.id; isPlaying = false"><span>{{ narration.guideName.slice(0, 1) }}</span><div><strong>{{ narration.guideName }}</strong><small>{{ narration.guideStyle }}</small></div></button></div>
-            <div v-if="activeNarration" class="audio-card"><button @click="isPlaying = !isPlaying"><Pause v-if="isPlaying" :size="15" fill="currentColor" /><Play v-else :size="15" fill="currentColor" /></button><div><small>{{ isPlaying ? '正在讲解' : '点击播放讲解' }}</small><strong>{{ activeNarration.title }}</strong></div><span>{{ formatDuration(activeNarration.durationSeconds) }}</span></div><p class="story-script">{{ activeNarration?.script }}</p>
+      <main class="client-journey">
+        <div class="journey-stage">
+          <MapCanvas ref="phoneMap" show-marker-labels route-style="journey" view-mode="3D" :pitch="50" :zoom="17" hide-zoom-controls :destination="destination" :places="places" :route="route" :active-place-id="activeEntry?.place.id" :max-fit-zoom="16" @select-place="selectPlace" @edit-place="editPlace" />
+          <nav class="journey-toolbar" aria-label="路线工具">
+            <button aria-label="缩小地图" @click="phoneMap?.zoomBy(-1)"><Minus :size="15" /></button>
+            <button aria-label="路线全览" @click="phoneMap?.fit()"><Focus :size="15" /></button>
+            <button disabled aria-label="跟随视角"><Navigation :size="15" /></button>
+            <button aria-label="放大地图" @click="phoneMap?.zoomBy(1)"><Plus :size="15" /></button>
+            <span class="toolbar-divider" aria-hidden="true" />
+            <button disabled aria-label="问一问"><MessageCircle :size="16" /></button>
+          </nav>
+          <div class="story-dock">
+            <button type="button" class="dock-play" :aria-label="playLabel" @click="togglePlay"><Pause v-if="playing" :size="15" fill="currentColor" /><Play v-else :size="15" fill="currentColor" /></button>
+            <button type="button" class="dock-open" aria-controls="preview-story" :aria-expanded="storyOpen" @click="storyOpen = !storyOpen">
+              <span class="dock-heading"><Headphones :size="11" /><small>{{ storyOpen ? '正在查看' : '查看内容' }}</small></span>
+              <span class="dock-line"><strong>{{ activeStage?.name ?? activeEntry?.place.name }}</strong><span>{{ stopIndex + 1 }} / {{ route.stops.length }}</span></span>
+              <ChevronLeft v-if="storyOpen" :size="14" /><ChevronRight v-else :size="14" />
+            </button>
           </div>
-          <div v-else class="route-panel"><div class="route-summary"><strong>{{ route.name }}</strong><span>{{ route.distanceKm }} km · {{ route.estimatedMinutes }} 分钟</span></div><button v-for="(entry, index) in routePlaces" :key="entry.stop.id" :class="{ active: entry.stop.id === activeEntry.stop.id }" @click="emit('selectStop', entry.stop.id)"><span>{{ index + 1 }}</span><div><strong>{{ entry.place.name }}</strong><small>{{ entry.stop.arrivalNote }}</small></div></button></div>
-        </section>
+          <aside id="preview-story" class="story-panel" :class="{ open: storyOpen }" aria-label="此刻，听这里">
+            <header class="story-head">
+              <div class="story-head-main"><span class="story-eyebrow"><Headphones :size="14" />此刻，听这里</span><button type="button" class="story-close" aria-label="收起内容，看看路线" @click="storyOpen = false"><X :size="16" /></button></div>
+              <nav class="story-stops" aria-label="途经点"><button v-for="(item, index) in routeStops" :key="item.stop.id" type="button" :class="{ active: item.stop.id === activeStop?.id }" @click="pickStop(item.stop.id)"><span>{{ index + 1 }}</span>{{ stopName(item.place.id) }}</button></nav>
+            </header>
+            <div class="story-body">
+              <figure class="story-photo">
+                <img v-if="cover" :src="cover.url" :alt="cover.caption" />
+                <div v-else class="story-artwork"><Landmark :size="42" :stroke-width="1" /></div>
+                <div class="photo-shade" />
+                <figcaption><span>{{ activeStage?.guideStyle ?? '讲解导览' }}</span><h2>{{ activeStage?.name ?? activeEntry?.place.name }}</h2></figcaption>
+                <span v-if="cover" class="photo-credit">{{ cover.caption }}</span>
+              </figure>
+              <button type="button" class="story-play" :aria-label="playLabel" @click="togglePlay"><Pause v-if="playing" :size="14" fill="currentColor" /><Play v-else :size="14" fill="currentColor" /><span>{{ playLabel }}</span></button>
+              <p class="story-text" :class="{ expanded }">{{ segment?.text ?? '该站点还没有解说词，可在编辑弹窗中补充。' }}</p>
+              <div class="story-links">
+                <button type="button" @click="expanded = !expanded">{{ expanded ? '收起介绍' : '展开介绍' }}</button>
+                <button v-if="activeStage?.videoUrl" type="button"><Video :size="14" />观看视频</button>
+              </div>
+              <p v-if="playbackNote" class="playback-note">{{ playbackNote }}</p>
+              <p v-if="nextPlace" class="next-stop"><span>接下来看</span><strong>{{ nextPlace.name }}</strong></p>
+            </div>
+          </aside>
+        </div>
+        <div class="location-bar" role="status"><MapPin :size="13" /><span>沿途定位已开启</span></div>
       </main>
-      <footer class="client-footer"><button class="active"><Compass :size="15" /><span>发现</span></button><button><Bookmark :size="14" /><span>我的收藏</span></button><button><Footprints :size="15" /><span>我的足迹</span></button><button><MessageCircle :size="15" /><span>问</span></button></footer>
     </div>
   </section>
 </template>
 
 <style scoped>
-.outdoor-phone{height:100%;min-height:0;border:1px solid #373b41;border-radius:34px;background:#20242a;padding:8px;box-shadow:inset 0 0 0 2px #090b0d,0 16px 38px #0006;overflow:hidden}.phone-screen-map{height:100%;position:relative;border-radius:27px;background:#f8faf9;color:#2b4039;overflow:hidden;display:flex;flex-direction:column}.phone-status{position:absolute;z-index:900;top:10px;left:17px;right:16px;display:flex;justify-content:space-between;color:#263b35;font-size:8px}.phone-island{position:absolute;z-index:901;top:7px;left:50%;width:72px;height:18px;transform:translateX(-50%);border-radius:12px;background:#080909}
-.client-header{height:105px;flex:none;padding:29px 11px 7px;display:grid;grid-template-columns:1fr auto;gap:7px 8px;background:#f8faf9;border-bottom:1px solid #e5eae7}.client-brand{display:flex;align-items:center;gap:7px;min-width:0}.client-brand>span{width:28px;height:29px;display:grid;place-items:center;border-radius:9px 3px;background:#183e43;color:#fff;font-family:Georgia,serif;font-size:17px}.client-brand strong,.client-brand small{display:block}.client-brand strong{font-family:Georgia,'Noto Serif SC',serif;font-size:12px;letter-spacing:2px;white-space:nowrap}.client-brand small{font-size:5px;letter-spacing:2px;margin-top:2px}.destination-button{height:34px;display:flex;align-items:center;gap:4px;border:0;border-radius:8px;background:#edf2ef;color:#27433b;padding:4px 7px}.destination-button span{text-align:left}.destination-button small,.destination-button strong{display:block;white-space:nowrap}.destination-button small{font-size:5px;color:#89978e}.destination-button strong{font-size:7px;margin-top:1px}.scene-switch{grid-column:1/-1;height:34px;display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:3px;border-radius:9px;background:#e9efec}.scene-switch button{border:0;border-radius:7px;background:transparent;color:#7b8a80;display:flex;align-items:center;justify-content:center;gap:5px;font-size:8px}.scene-switch button.active{background:#fff;color:#183e43;font-weight:700;box-shadow:0 1px 6px #183e4310}.scene-switch i{padding:1px 3px;border-radius:2px;background:#e5b957;color:#513f18;font-size:5px;font-style:normal}
-.client-map{position:relative;flex:1;min-height:0;overflow:hidden}.client-map :deep(.map-canvas){position:absolute;inset:0}.client-map :deep(.leaflet-control-attribution){font-size:5px!important}.client-map :deep(.leaflet-control-container){display:none}.client-map :deep(.map-marker-wrap){position:relative;display:flex;justify-content:center}.client-map :deep(.map-pin){width:26px;height:26px;border-width:2px;background:#183e43;font-size:7px}.client-map :deep(.map-pin.is-active){background:#e5b957;color:#493f24;transform:scale(1.08)}.client-map :deep(.map-pin-label){position:absolute;top:29px;left:50%;transform:translateX(-50%);padding:4px 6px;border:1px solid #dce5de;border-radius:4px;background:#ffffffed;color:#355149;font-size:7px;font-weight:600;white-space:nowrap;box-shadow:0 2px 7px #183e4315}.client-map :deep(.map-pin-label.is-active){background:#183e43;color:#fff;border-color:#183e43}
-.discovery-tools{position:absolute;z-index:700;top:8px;left:10px;right:10px;display:grid;grid-template-columns:1fr 35px;gap:6px}.discovery-tools>label{height:35px;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid #fff;border-radius:10px;background:#fffffff4;color:#65796e;box-shadow:0 3px 14px #183e4318}.discovery-tools input{min-width:0;width:100%;border:0;outline:0;background:transparent;color:#2b4039;font-size:8px}.discovery-tools>button{border:1px solid #fff;border-radius:10px;background:#fffffff4;color:#183e43;display:grid;place-items:center}.place-chips{grid-column:1/-1;display:flex;gap:5px;overflow:hidden}.place-chips button{flex:none;display:flex;align-items:center;gap:3px;border:1px solid #fff;border-radius:14px;background:#fffffff2;color:#2b4039;padding:6px 8px;font-size:7px;box-shadow:0 2px 8px #183e4312}.place-chips button.active{background:#183e43;color:#fff;border-color:#183e43}.map-controls{position:absolute;z-index:700;right:10px;top:103px;display:flex;flex-direction:column;border-radius:9px;overflow:hidden;box-shadow:0 3px 14px #183e4320}.map-controls button{width:30px;height:30px;border:0;border-bottom:1px solid #edf0ee;background:#fffffff4;color:#40564f;display:grid;place-items:center}.quick-actions{position:absolute;z-index:700;right:10px;top:232px;display:grid;gap:6px}.quick-actions button{width:31px;height:31px;border:1px solid #dce6df;border-radius:50%;background:#fcfdfcf4;color:#183e43;display:grid;place-items:center;box-shadow:0 3px 12px #183e4320}.quick-actions button.playing{background:#183e43;color:#fff}
-.client-sheet{position:absolute;z-index:710;left:8px;right:8px;bottom:9px;height:111px;border:1px solid #ffffffd9;border-radius:18px;background:#fcfdfc;box-shadow:0 7px 27px #183e4328;overflow:hidden;transition:height .24s ease}.client-sheet.expanded{height:56%}.sheet-handle{height:18px;width:100%;border:0;background:transparent;display:grid;place-items:center}.sheet-handle span{width:29px;height:3px;border-radius:3px;background:#ccd7cf}.sheet-heading{display:flex;align-items:center;gap:8px;padding:0 12px 7px}.sheet-heading>div{flex:1;min-width:0}.sheet-heading h3{margin:0;font-family:Georgia,'Noto Serif SC',serif;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sheet-heading p{margin:3px 0 0;color:#75857b;font-size:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sheet-heading>button{width:26px;height:26px;border:0;border-radius:50%;display:grid;place-items:center;background:#eef3ef;color:#183e43}.sheet-actions{display:flex;gap:6px;padding:0 10px}.sheet-actions button{height:29px;flex:1;display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid #dce6df;border-radius:9px;background:#fff;color:#183e43;font-size:7px}.sheet-actions button:first-child{background:#183e43;color:#fff;border-color:#183e43}
-.story-panel,.route-panel{padding:1px 11px 10px;overflow:auto;height:calc(100% - 61px)}.guide-options{display:flex;gap:5px;overflow-x:auto;padding-bottom:5px}.guide-options button{flex:none;display:flex;align-items:center;gap:5px;border:1px solid #dce3de;border-radius:7px;background:#fff;padding:5px 7px;color:#2b4039}.guide-options button>span{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;background:#e6efea;color:#285b52;font-size:7px}.guide-options strong,.guide-options small{display:block}.guide-options strong{font-size:7px}.guide-options small{font-size:5px;color:#86928a}.guide-options button.active{border-color:#c88c3c;background:#fff8eb}.audio-card{display:grid;grid-template-columns:29px 1fr auto;gap:6px;align-items:center;margin-top:4px;padding:7px;border-radius:8px;background:#183e43;color:#fff}.audio-card>button{width:29px;height:29px;border:0;border-radius:50%;display:grid;place-items:center;background:#e5b957;color:#26372f}.audio-card small,.audio-card strong{display:block}.audio-card small{font-size:5px;color:#aac0b8}.audio-card strong{font-size:7px;margin-top:2px}.audio-card>span{font-size:6px}.story-script{font-size:7px;line-height:1.55;color:#65756d}.route-summary{display:flex;justify-content:space-between;padding:0 2px 5px}.route-summary strong{font-size:8px}.route-summary span{font-size:6px;color:#7b8a80}.route-panel>button{width:100%;display:grid;grid-template-columns:19px 1fr;gap:6px;align-items:center;border:0;border-top:1px solid #e7ebe8;background:transparent;padding:6px 2px;color:#344a42;text-align:left}.route-panel>button>span{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;background:#e6ebe7;font-size:6px}.route-panel>button strong,.route-panel>button small{display:block}.route-panel>button strong{font-size:7px}.route-panel>button small{font-size:6px;color:#87938c;margin-top:2px}.route-panel>button.active>span{background:#e5b957;color:#4b3e1e}
-.client-footer{height:51px;flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid #e5eae7;background:#f8faf9}.client-footer button{position:relative;border:0;background:transparent;color:#8c998f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:6px}.client-footer button.active{color:#183e43;font-weight:700}.client-footer button.active::before{content:'';position:absolute;top:0;left:16px;right:16px;height:2px;background:#183e43}
+.outdoor-phone{height:100%;min-height:0;border:1px solid #373b41;border-radius:34px;background:#20242a;padding:8px;box-shadow:inset 0 0 0 2px #090b0d,0 16px 38px #0006;overflow:hidden}
+.phone-screen-map{position:relative;isolation:isolate;height:100%;display:flex;flex-direction:column;border-radius:27px;background:#f8faf9;color:#2b4039;overflow:hidden}
+.phone-status{position:absolute;z-index:30;top:8px;left:16px;right:16px;display:flex;justify-content:space-between;color:#263b35;font-size:8px}
+.phone-island{position:absolute;z-index:31;top:6px;left:50%;width:70px;height:17px;transform:translateX(-50%);border-radius:12px;background:#080909}
+.client-head{height:50px;flex:none;padding:20px 11px 6px;display:flex;align-items:center;justify-content:space-between;gap:9px;background:#f8faf9;border-bottom:1px solid #e5eae7}
+.head-button{display:flex;align-items:center;gap:5px;border:0;background:none;color:#183e43;font-size:10px;padding:4px 0}
+.head-button.end{color:#697e71}
+.head-route{flex:1;min-width:0;text-align:center;font-size:10.5px;color:#617a6b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.client-journey{flex:1;min-height:0;display:flex;flex-direction:column}
+.journey-stage{position:relative;isolation:isolate;flex:1;min-height:0;overflow:hidden}
+.journey-stage :deep(.map-canvas){position:absolute;inset:0}
+.journey-stage :deep(.map-zoom){display:none}
+.journey-stage :deep(.map-marker-wrap){position:relative;display:flex;justify-content:center}
+.journey-stage :deep(.map-pin){width:24px;height:24px;border-width:2px;background:#183e43;font-size:7px}
+.journey-stage :deep(.map-pin.is-active){background:#e5b957;color:#493f24;transform:scale(1.08)}
+.journey-stage :deep(.map-pin-label){position:absolute;top:27px;left:50%;transform:translateX(-50%);padding:3px 5px;border:1px solid #dce5de;border-radius:4px;background:#ffffffed;color:#355149;font-size:6.5px;font-weight:600;white-space:nowrap;box-shadow:0 2px 7px #183e4315}
+.journey-stage :deep(.map-pin-label.is-active){background:#183e43;color:#fff;border-color:#183e43}
+.journey-toolbar{position:absolute;left:9px;top:50%;z-index:10;display:flex;flex-direction:column;align-items:center;gap:2px;width:40px;padding:3px;border:1px solid #dbe5df;border-radius:13px;background:#fffffff2;box-shadow:0 6px 20px #183e4330;transform:translateY(-50%)}
+.journey-toolbar button{display:flex;align-items:center;justify-content:center;width:32px;height:29px;border:0;border-radius:8px;background:transparent;color:#183e43;padding:0}
+.journey-toolbar button:disabled{opacity:.45}
+.toolbar-divider{width:22px;height:1px;background:#dbe5df;margin:2px 0}
+.story-dock{position:absolute;left:9px;bottom:14px;z-index:8;display:flex;align-items:stretch;overflow:hidden;border:1px solid #c8ddd2;border-radius:13px;background:#fffffff5;box-shadow:0 6px 20px #183e4330}
+.dock-play{display:grid;place-items:center;width:38px;border:0;background:#183e43;color:#fff}
+.dock-open{position:relative;display:flex;align-items:flex-start;gap:8px;min-width:126px;padding:17px 25px 7px 9px;border:0;background:none;color:#183e43;text-align:left}
+.dock-heading{position:absolute;left:9px;top:4px;display:flex;align-items:center;gap:3px;font-size:8.5px;color:#5e7b6c}
+.dock-line{display:flex;align-items:baseline;gap:6px;min-width:0}
+.dock-line strong{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.dock-line span{font:9px monospace;color:#6b8377}
+.dock-open>svg{position:absolute;right:7px;top:50%;transform:translateY(-50%)}
+.story-panel{position:absolute;right:0;top:0;bottom:0;z-index:7;display:flex;flex-direction:column;width:min(88%,286px);background:#f7faf8;box-shadow:-14px 0 36px #0d252b4d;transform:translateX(101%);visibility:hidden;transition:transform .24s ease,visibility 0s linear .24s}
+.story-panel.open{transform:translateX(0);visibility:visible;transition:transform .24s ease}
+.story-head{padding:9px 9px 7px 14px;border-bottom:1px solid #dbe5df}
+.story-head-main{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.story-eyebrow{display:flex;align-items:center;gap:6px;color:#183e43;font-size:10px}
+.story-close{display:grid;place-items:center;width:28px;height:28px;border:0;background:none;color:#183e43}
+.story-stops{display:flex;gap:5px;overflow-x:auto;padding:7px 0 1px;scrollbar-width:none}
+.story-stops::-webkit-scrollbar{display:none}
+.story-stops button{display:flex;align-items:center;gap:4px;flex:0 0 auto;max-width:132px;padding:5px 8px;border:1px solid #d4e1d9;border-radius:999px;background:#fff;color:#5c776a;font-size:9px;white-space:nowrap}
+.story-stops button span{display:grid;place-items:center;width:15px;height:15px;border-radius:50%;background:#e6eee8;font:9px monospace}
+.story-stops button.active{border-color:#183e43;background:#e4f0ea;color:#183e43;font-weight:700}
+.story-stops button.active span{background:#183e43;color:#fff}
+.story-body{flex:1;min-height:0;overflow-y:auto;padding:12px 13px 14px}
+.story-photo{position:relative;margin:0 0 11px;height:132px;border-radius:12px;overflow:hidden;background:#dfe9e4}
+.story-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.story-artwork{display:grid;place-items:center;height:100%;background:radial-gradient(circle at 50% 30%,#e8f0ea,#d7e4dc 70%);color:#5d7d6d}
+.photo-shade{position:absolute;inset:0;background:linear-gradient(#123b3800 40%,#173f39cc)}
+.story-photo figcaption{position:absolute;left:0;right:0;bottom:0;padding:10px 12px;color:#fff}
+.story-photo figcaption span{font-size:9px;opacity:.88}
+.story-photo figcaption h2{margin:4px 0 0;font-size:16px}
+.photo-credit{position:absolute;right:8px;top:7px;padding:2px 6px;border-radius:4px;background:#0d252bb8;color:#e9f1ed;font-size:8px}
+.story-play{display:flex;align-items:center;gap:6px;margin:0 0 10px;padding:7px 13px;border:0;border-radius:999px;background:#183e43;color:#fff;font-size:11px}
+.story-text{margin:0 0 7px;max-height:118px;overflow-y:auto;font-size:11px;line-height:1.8;color:#4c6156;scrollbar-width:thin}
+.story-text.expanded{max-height:none}
+.story-links{display:flex;gap:14px;margin-bottom:8px}
+.story-links button{display:flex;align-items:center;gap:4px;padding:0;border:0;background:none;color:#3f6956;font-size:10.5px}
+.playback-note{margin:8px 0 0;font-size:9.5px;line-height:1.7;color:#597164}
+.next-stop{display:flex;gap:10px;align-items:baseline;margin:11px 0 0;padding-top:10px;border-top:1px solid #e2ebe5;font-size:10px;color:#4f6b5d}
+.next-stop strong{font-weight:600;color:#172522}
+.location-bar{display:flex;align-items:center;gap:7px;padding:9px 14px max(11px,env(safe-area-inset-bottom));border-top:1px solid #e5eae7;background:#f8faf9;font-size:9.5px;color:#587367}
 </style>

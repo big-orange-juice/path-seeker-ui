@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <title>双工语音对话 Demo</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="data:," />
+  </head>
+  <body data-phase="idle">
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <p class="eyebrow">FULL-DUPLEX VOICE</p>
+          <h1>双工语音对话</h1>
+          <p class="sub">边说边听，随时插话；字幕跟着声音走。</p>
+        </div>
+        <div class="pills">
+          <span class="pill" id="conn-pill">连接中…</span>
+          <span class="pill ghost" id="model-pill">—</span>
+        </div>
+      </header>
+
+      <section class="tape-wrap">
+        <canvas id="tape" aria-hidden="true"></canvas>
+        <div class="tape-legend">
+          <span><i class="dot assistant"></i>助手声音</span>
+          <span><i class="dot user"></i>你的声音</span>
+        </div>
+      </section>
+
+      <main class="thread" id="thread">
+        <div class="empty" id="empty">
+          <p class="big">点"开始对话"，然后直接说话。</p>
+          <p>助手说话的时候你也能开口——它会立刻停下，听你说完再答。</p>
+          <p class="small">没有麦克风权限也没关系，下面的输入框同样走完整的流式语音链路。</p>
+        </div>
+      </main>
+
+      <section class="hud">
+        <div class="metric"><span id="m-interrupts">0</span><label>打断次数</label></div>
+        <div class="metric"><span id="m-asr">—</span><label>识别耗时</label></div>
+        <div class="metric"><span id="m-first-text">—</span><label>首字延迟</label></div>
+        <div class="metric"><span id="m-first-audio">—</span><label>首音延迟</label></div>
+      </section>
+
+      <section class="controls">
+        <button id="toggle" class="primary" type="button">开始对话</button>
+        <form id="text-form" class="text-form" autocomplete="off">
+          <input id="text-input" type="text" placeholder="也可以打字提问，回答照样会朗读出来" aria-label="文字提问" />
+          <button type="submit">发送</button>
+        </form>
+        <p class="hint" id="hint">开始后直接说话；助手说话时也可以开口打断。</p>
+      </section>
+
+      <details class="logbox">
+        <summary>事件日志</summary>
+        <pre id="log"></pre>
+      </details>
+    </div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

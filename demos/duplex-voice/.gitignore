@@ -1,0 +1,4 @@
+# 真实密钥只放在本机 config.json，不要提交
+config.json
+node_modules/
+.DS_Store
