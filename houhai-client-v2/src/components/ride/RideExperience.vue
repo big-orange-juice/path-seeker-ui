@@ -60,7 +60,7 @@ watch(page, value => { if (value !== 'journey') storyOpen.value = false })
       </div>
       <div class="location-bar" role="status"><MapPin :size="16" /><span>{{ translate(locationState === 'error' || locationState === 'unsupported' ? 'locationError' : locationState === 'requesting' ? 'locating' : location && location.accuracy > arrivalPolicy.maxAccuracy ? 'lowAccuracy' : 'tracking') }}</span><button v-if="locationState === 'error'" @click="ride.location.start">{{ translate('retry') }}</button></div>
     </main>
-    <AskPanel v-if="askOpen && page === 'journey'" destination-name="后海路线" :selected-place-name="current?.name" scene="rickshaw" @close="askOpen = false" @select-place="askOpen = false" />
+    <AskPanel v-if="askOpen && page === 'journey'" destination-name="后海路线" :selected-place-name="current?.name" scene="rickshaw" @close="askOpen = false" @select-place="askOpen = false" @voice-start="ride.speech.pause" />
     <aside v-if="arrived" class="arrival-toast" role="status"><MapPin :size="22" /><div><span>{{ translate('approaching') }}</span><strong>{{ arrived.name }}</strong><p>{{ translate(playback.manualPause ? 'paused' : 'uninterrupted') }}</p></div></aside>
   </div>
 </template>
