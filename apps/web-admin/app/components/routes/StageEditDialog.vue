@@ -11,6 +11,7 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import GuideSelectDialog from '@/components/guides/GuideSelectDialog.vue'
 import NarrationPronunciationPanel from '@/components/routes/NarrationPronunciationPanel.vue'
+import NarrationSegmentsEditor from '@/components/routes/NarrationSegmentsEditor.vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue'
@@ -48,6 +49,7 @@ interface Props {
   routeId: string
   node: RouteNodeResponse | null
   canEdit?: boolean
+  locale?: string
   referencedAttachmentIds?: string[]
 }
 
@@ -109,6 +111,8 @@ const { request } = useApiClient()
 const { uploadAttachment } = useUploadAttachment()
 
 const saving = ref(false)
+const segmentsEditor = useTemplateRef<InstanceType<typeof NarrationSegmentsEditor>>('segmentsEditor')
+const segmentsUploading = shallowRef(false)
 const generatingAudio = ref(false)
 /** 手动刷新音频状态中 */
 const refreshingAudio = ref(false)
@@ -207,7 +211,7 @@ const interactionTypeLabel = computed(
 const headerDescription = computed(() => `${nodeTitle.value} · ${interactionTypeLabel.value}`)
 const selectedGuideLabel = computed(() => form.guideName || (form.guideId ? '已选择导游' : '未选择导游'))
 const canSave = computed(() => Boolean(
-  props.canEdit && isSupported.value && stageId.value && props.routeId && !saving.value,
+  props.canEdit && isSupported.value && stageId.value && props.routeId && !saving.value && !segmentsUploading.value,
 ))
 /** 解说节点稍宽；整体固定高度避免切换内容时弹窗抖动 */
 const dialogContentClass = computed(() =>
@@ -264,6 +268,7 @@ const audioStatusLabel = computed(() => {
 const canGenerateAudio = computed(() => Boolean(
   props.canEdit
   && isNarration.value
+  && (narrationDetail.value?.locale || props.locale || 'zh') === 'zh'
   && stageId.value
   && form.narrationText.trim()
   && !generatingAudio.value
@@ -1698,7 +1703,7 @@ const handleGenerateAudio = async () => {
 }
 
 const closeDialog = () => {
-  if (saving.value || generatingAudio.value || imageBusy.value || generatingImage.value) return
+  if (saving.value || segmentsUploading.value || generatingAudio.value || imageBusy.value || generatingImage.value) return
   closeImageLightbox()
   isOpen.value = false
 }
@@ -1715,6 +1720,7 @@ const handleSave = async () => {
   try {
     const saved = isNarration.value ? (await saveNarrationStage(), true) : await saveRegularStage()
     if (!saved) return
+    if (isNarration.value) await segmentsEditor.value?.save()
     emit('saved')
     isOpen.value = false
   } catch (error) {
@@ -2027,6 +2033,16 @@ const handleSave = async () => {
 
           <!-- type 11：三块清晰分区 — 正文 / 讲解与音频 / 配图 -->
           <template v-else-if="isNarration">
+            <NarrationSegmentsEditor
+              v-if="narrationDetail"
+              :key="stageId"
+              ref="segmentsEditor"
+              :stage-id="stageId"
+              :detail="narrationDetail"
+              :can-edit="props.canEdit"
+              :disabled="saving"
+              @busy="segmentsUploading = $event"
+              @saved="emit('preview-refresh')" />
             <div class="space-y-5">
               <!-- 正文 + 讲解侧栏 -->
               <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">

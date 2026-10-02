@@ -30,7 +30,7 @@ const draftState = shallowRef<MuseumDraft>(createEmptyDraft());
 const dialogOpen = shallowRef(false);
 const detailDialogOpen = shallowRef(false);
 const detailRecord = shallowRef<MuseumRecord | null>(null);
-const workspaceTab = shallowRef<'basic' | 'floors' | 'facilities'>('basic');
+const workspaceTab = shallowRef<'basic' | 'floors' | 'facilities' | 'places'>('basic');
 
 const startCreate = () => {
   formMode.value = 'create';
@@ -66,7 +66,7 @@ const handleSave = async (draft: MuseumDraft) => {
       id: savedId,
     };
     if (workspaceTab.value === 'basic') {
-      workspaceTab.value = 'floors';
+      workspaceTab.value = (draftState.value.venueType ?? 1) === 1 ? 'floors' : 'places';
     }
     actionFeedback.success(wasEdit ? '博物馆已保存。' : '博物馆已创建。');
   } catch (caughtError) {

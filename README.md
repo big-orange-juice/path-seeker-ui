@@ -25,6 +25,10 @@
 - `packages/*`：共享类型、玩法运行时、题型渲染器、UI 与状态能力。
 - `docs/`：产品方案、接口约定与对齐进度文档。
 
+正式后台与 H5 已接入户外文化点、路线编排和中英俄西四语言游览。H5 默认入口为 `/ride`（部署路径 `/path-seeker/client/ride`），原 `/venues` 和室内任务流程继续可用。后台可通过「文化点编排」创建户外草稿，在路线详情维护地图、站点顺序及分段讲解，并创建语言版本。
+
+入口、接口映射、高德配置和联调说明见 [后海 demo 与正式项目功能对齐](docs/66-houhai-demo-production-alignment.md)。运行前按两个正式项目的 `.env.example` 配置后端地址与高德 JS API Key。
+
 ## 技术栈
 
 ### Workspace

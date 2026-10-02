@@ -1,4 +1,4 @@
 import type { ApiResponse } from '~~/app/types/api'
 import type { RouteMapDetail } from '~~/app/types/route-map'
 import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend'
-export default defineEventHandler(async event => unwrapApiResponse(await backendFetch<ApiResponse<RouteMapDetail>>(event, '/RouteMap/UpdateStation', { method: 'POST', body: await readBody<{ routeId: string; stationId: string; longitude: number; latitude: number }>(event) })))
+export default defineEventHandler(async event => unwrapApiResponse(await backendFetch<ApiResponse<RouteMapDetail>>(event, '/RouteMap/UpdateStation', { method: 'POST', body: await readBody<{ routeId: string; stationId: string; longitude?: number; latitude?: number; coordinateSystem?: number; title?: string; arrivalNote?: string; transportMode?: string; stayMinutes?: number | null }>(event) })))

@@ -65,7 +65,10 @@ export default defineNuxtConfig({
     backendBaseUrl: process.env.NUXT_BACKEND_BASE_URL || '',
     public: {
       museumId: process.env.NUXT_PUBLIC_MUSEUM_ID || '1',
-      tencentMapKey: process.env.NUXT_PUBLIC_TENCENT_MAP_KEY || ''
+      tencentMapKey: process.env.NUXT_PUBLIC_TENCENT_MAP_KEY || '',
+      amapKey: process.env.NUXT_PUBLIC_AMAP_KEY || '',
+      amapSecurityCode: process.env.NUXT_PUBLIC_AMAP_SECURITY_CODE || '',
+      amapSecurityProxy: process.env.NUXT_PUBLIC_AMAP_SECURITY_PROXY || '',
     }
   },
   modules: [

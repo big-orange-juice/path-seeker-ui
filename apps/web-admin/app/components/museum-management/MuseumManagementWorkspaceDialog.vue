@@ -7,6 +7,8 @@ import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue'
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import MuseumWorkbenchPanels from '@/components/museum-management/MuseumWorkbenchPanels.vue';
+import MuseumManagementForm from '@/components/museum-management/MuseumManagementForm.vue';
+import CulturalPlacePanel from '@/components/museum-management/CulturalPlacePanel.vue';
 import type { MuseumDraft } from '@/types/museum';
 
 interface Props {
@@ -25,7 +27,7 @@ const emit = defineEmits<{
   save: [value: MuseumDraft];
 }>();
 
-const activeTab = defineModel<'basic' | 'floors' | 'facilities'>('activeTab', {
+const activeTab = defineModel<'basic' | 'floors' | 'facilities' | 'places'>('activeTab', {
   default: 'basic',
 });
 
@@ -59,11 +61,12 @@ const dialogDescription = computed(() =>
     : '在同一个博物馆工作台中维护基础信息、楼层和设施。'
 );
 
-const tabItems = [
+const tabItems = computed(() => [
   { key: 'basic', label: '基础信息' },
-  { key: 'floors', label: '楼层地图' },
+  ...((formState.venueType ?? 1) === 1 || formState.venueType === 3 ? [{ key: 'floors' as const, label: '楼层地图' }] : []),
+  ...((formState.venueType ?? 1) !== 1 ? [{ key: 'places' as const, label: '文化点' }] : []),
   { key: 'facilities', label: '设施' },
-] as const;
+] as const);
 
 const syncFormState = (value: MuseumDraft) => {
   formState.id = value.id;
@@ -87,6 +90,10 @@ const syncFormState = (value: MuseumDraft) => {
   formState.coverImageUrl = value.coverImageUrl;
   formState.coverImageFileId = value.coverImageFileId;
   formState.status = value.status;
+  formState.venueType = value.venueType ?? 1;
+  formState.coordinateSystem = value.coordinateSystem ?? 1;
+  formState.mapProvider = value.mapProvider ?? null;
+  formState.boundaryGeoJson = value.boundaryGeoJson ?? null;
 };
 
 watch(
@@ -172,6 +179,8 @@ const activeWorkbenchSection = computed<'floors' | 'facilities'>(() => {
             :submitting="props.submitting"
             @save="submitBasic"
             @reset="syncFormState(props.initialValue)" />
+
+          <CulturalPlacePanel v-else-if="activeTab === 'places'" :museum-id="formState.id || ''" :disabled="props.submitting" />
 
           <MuseumWorkbenchPanels
             v-else

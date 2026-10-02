@@ -10,6 +10,9 @@ export interface RoutePageRequest {
   /** 路线创建人姓名/用户名模糊搜索（导游账号归属） */
   ownerName?: string | null;
   keyword?: string | null;
+  sceneType?: number | null;
+  locale?: string | null;
+  routeFamilyCode?: string | null;
 }
 
 export interface BuildRouteFromThemePayload {
@@ -120,6 +123,13 @@ export interface RouteAdminResponseListTotalPageResult<T> {
 }
 
 export interface RouteAdminResponse {
+  sceneType?: number;
+  locale?: string | null;
+  sourceRouteId?: string | null;
+  routeFamilyCode?: string | null;
+  distanceMeters?: number | null;
+  transportMode?: string | null;
+  guideId?: string | null;
   id: string | null;
   routeCode: string | null;
   routeType: number;
@@ -195,6 +205,13 @@ export interface RouteTaskSummaryResponse {
 }
 
 export interface RouteRecord {
+  sceneType?: number;
+  locale?: string;
+  sourceRouteId?: string | null;
+  routeFamilyCode?: string;
+  distanceMeters?: number | null;
+  transportMode?: string;
+  guideId?: string | null;
   id: string;
   routeCode: string;
   routeType: number;
@@ -236,4 +253,39 @@ export interface RouteAuditPayload {
 
 export interface RouteIdPayload {
   id: string;
+}
+
+export interface CreateRouteTranslationPayload {
+  routeId: string;
+  locale: 'en' | 'ru' | 'es';
+  routeCode?: string | null;
+}
+
+export interface RouteTranslationResponse {
+  routeId: string | null;
+  sourceRouteId: string | null;
+  routeFamilyCode: string | null;
+  locale: string | null;
+  stageCount: number;
+  reused: boolean;
+}
+
+export interface BuildOutdoorRouteDraftPayload {
+  museumId: string;
+  title: string;
+  theme?: string | null;
+  intro?: string | null;
+  placeIds: string[];
+  locale: 'zh';
+  transportMode: string;
+  guideId?: string | null;
+  estimatedMinutes?: number | null;
+  distanceMeters?: number | null;
+}
+
+export interface BuildOutdoorRouteDraftResponse {
+  routeId: string | null;
+  routeCode: string | null;
+  stageCount: number;
+  stageIds: string[] | null;
 }

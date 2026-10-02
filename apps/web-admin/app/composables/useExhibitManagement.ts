@@ -61,7 +61,8 @@ const toPayload = (draft: ExhibitDraft): CreateExhibitPayload => ({
 });
 
 export const useExhibitManagement = (
-  museumIdSource?: string | null | undefined | (() => string | null | undefined)
+  museumIdSource?: string | null | undefined | (() => string | null | undefined),
+  placeModeSource: () => boolean = () => false
 ) => {
   const runtimeConfig = useRuntimeConfig();
   const museumId = computed(() => {
@@ -88,9 +89,9 @@ export const useExhibitManagement = (
     pageIndex: pageIndex.value,
     pageSize: pageSize.value,
     museumId: museumId.value,
-    galleryId: filters.galleryId.trim() || null,
-    dynasty: filters.dynasty.trim() || null,
-    isHighlight: filters.isHighlight < 0 ? null : filters.isHighlight,
+    galleryId: placeModeSource() ? null : filters.galleryId.trim() || null,
+    dynasty: placeModeSource() ? null : filters.dynasty.trim() || null,
+    isHighlight: placeModeSource() || filters.isHighlight < 0 ? null : filters.isHighlight,
     keyword: filters.keyword.trim() || null,
   }));
 
@@ -123,11 +124,17 @@ export const useExhibitManagement = (
     if (import.meta.client) void refresh();
   }, { immediate: true });
 
-  const rows = computed<ExhibitRecord[]>(() => {
-    const list = (data.value.list ?? []).map((item) => {
+  const mapRecord = (item: ExhibitResponse): ExhibitRecord => {
       const rawItem = item as ExhibitResponse & Record<string, unknown>;
 
       return {
+        contentType: item.contentType ?? 'exhibit',
+        placeId: item.placeId,
+        placeStatus: item.placeStatus,
+        addressText: item.addressText,
+        longitude: item.longitude,
+        latitude: item.latitude,
+        coordinateSystem: item.coordinateSystem,
         id: item.id ?? uuidv4(),
         museumId: item.museumId ?? museumId.value,
         galleryId: item.galleryId ?? null,
@@ -138,7 +145,7 @@ export const useExhibitManagement = (
         category: item.category ?? '',
         description: item.description ?? '',
         imageUrl: item.imageUrl,
-        imageFileId: toNullableId(item.imageUrl),
+        imageFileId: item.contentType === 'place' ? toNullableId(item.imageAttachmentId) : toNullableId(item.imageUrl),
         qrCode: item.qrCode ?? '',
         isHighlight: item.isHighlight ?? 0,
         showcaseNo: item.showcaseNo ?? '',
@@ -148,7 +155,12 @@ export const useExhibitManagement = (
         mediaList: item.mediaList ?? [],
         aiArchive: item.aiArchive ?? rawItem.aiAchive ?? rawItem.AIachive ?? null,
       };
-    });
+  };
+
+  const getRecord = async (id: string) => mapRecord(await request<ExhibitResponse>('/api/exhibit/' + id));
+
+  const rows = computed<ExhibitRecord[]>(() => {
+    const list = (data.value.list ?? []).map(mapRecord);
 
     const currentSorting = sorting.value[0];
     if (!currentSorting) {
@@ -301,6 +313,7 @@ export const useExhibitManagement = (
     totalPages: computed(() => data.value.totalPages ?? 0),
     createEmptyDraft,
     createDraftFromRecord,
+    getRecord,
     saveDraft,
     deleteExhibit,
     setPage,

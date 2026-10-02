@@ -14,6 +14,9 @@ interface ImportMetaEnv {
   readonly VITE_API_BASE_URL?: string
   readonly VITE_MUSEUM_ID?: string
   readonly VITE_TENCENT_MAP_KEY?: string
+  readonly VITE_AMAP_KEY?: string
+  readonly VITE_AMAP_SECURITY_CODE?: string
+  readonly VITE_AMAP_SECURITY_PROXY?: string
   /** 问一问未选导游音色时的默认 voiceId */
   readonly VITE_ASK_DEFAULT_VOICE_ID?: string
 }

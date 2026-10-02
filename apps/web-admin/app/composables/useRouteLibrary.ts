@@ -96,6 +96,8 @@ export const useRouteLibrary = (
     ownerName: '',
     publishStatus: -1,
     auditStatus: -1,
+    locale: '',
+    sceneType: -1,
   });
 
   const pageIndex = shallowRef(1);
@@ -112,6 +114,8 @@ export const useRouteLibrary = (
     auditStatus: filters.auditStatus < 0 ? null : filters.auditStatus,
     ownerName: appliedOwnerName.value || null,
     keyword: appliedKeyword.value || null,
+    locale: filters.locale || null,
+    sceneType: filters.sceneType < 0 ? null : filters.sceneType,
   }));
 
   const data = shallowRef(createEmptyPageResult());
@@ -239,6 +243,13 @@ export const useRouteLibrary = (
         id,
         routeCode: normalizeText(item.routeCode),
         routeType: item.routeType ?? 0,
+        sceneType: item.sceneType ?? 1,
+        locale: normalizeText(item.locale) || 'zh',
+        sourceRouteId: normalizeText(item.sourceRouteId) || null,
+        routeFamilyCode: normalizeText(item.routeFamilyCode),
+        distanceMeters: item.distanceMeters ?? null,
+        transportMode: normalizeText(item.transportMode),
+        guideId: normalizeText(item.guideId) || null,
         museumId: normalizeText(item.museumId) || null,
         title: normalizeText(item.title),
         theme: normalizeText(item.theme),
@@ -308,6 +319,8 @@ export const useRouteLibrary = (
     filters.ownerName = '';
     filters.publishStatus = -1;
     filters.auditStatus = -1;
+    filters.locale = '';
+    filters.sceneType = -1;
     pageIndex.value = 1;
   };
 
@@ -374,7 +387,7 @@ export const useRouteLibrary = (
     });
 
   watch(
-    [museumId, () => filters.publishStatus, () => filters.auditStatus],
+    [museumId, () => filters.publishStatus, () => filters.auditStatus, () => filters.locale, () => filters.sceneType],
     () => {
       pageIndex.value = 1;
     }

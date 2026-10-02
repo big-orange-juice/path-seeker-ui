@@ -185,6 +185,14 @@ export interface ExhibitResponseListTotalPageResult<T> {
 }
 
 export interface ExhibitResponse {
+  contentType?: 'exhibit' | 'place';
+  placeId?: string | null;
+  placeStatus?: number | null;
+  addressText?: string | null;
+  longitude?: number | null;
+  latitude?: number | null;
+  coordinateSystem?: number | null;
+  imageAttachmentId?: string | null;
   id: string | null;
   museumId: string | null;
   galleryId: string | null;
@@ -230,6 +238,13 @@ export interface UpdateExhibitPayload extends CreateExhibitPayload {
 }
 
 export interface ExhibitRecord {
+  contentType?: 'exhibit' | 'place';
+  placeId?: string | null;
+  placeStatus?: number | null;
+  addressText?: string | null;
+  longitude?: number | null;
+  latitude?: number | null;
+  coordinateSystem?: number | null;
   id: string;
   museumId: string;
   galleryId: string | null;

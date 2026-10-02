@@ -80,6 +80,7 @@ const knownArchiveKeys = new Set([
 ])
 
 const currentRecord = computed(() => props.record)
+const isPlace = computed(() => currentRecord.value?.contentType === 'place')
 
 const formatValue = (value: unknown, fallback = '未填写') => {
   const text = String(value ?? '')
@@ -153,6 +154,20 @@ const detailFields = computed<DisplayField[]>(() => {
   const record = currentRecord.value
   if (!record) {
     return []
+  }
+
+  if (isPlace.value) {
+    return [
+      { label: '景点编码', value: formatValue(record.exhibitCode) },
+      { label: '分类', value: formatValue(record.category) },
+      { label: '地址', value: formatValue(record.addressText) },
+      { label: '经度', value: formatValue(record.longitude) },
+      { label: '纬度', value: formatValue(record.latitude) },
+      { label: '坐标系', value: ({ 1: 'WGS84', 2: 'GCJ-02', 3: 'BD-09' } as Record<number, string>)[record.coordinateSystem ?? 0] ?? '未设置' },
+      { label: '推荐停留时长', value: record.recommendedMinutes == null ? '未设置' : `${record.recommendedMinutes} 分钟` },
+      { label: '状态', value: record.placeStatus === 1 ? '启用' : record.placeStatus === 2 ? '停用' : '未设置' },
+      { label: '排序号', value: String(record.sortOrder ?? 0) },
+    ]
   }
 
   const fields: DisplayField[] = [
@@ -313,11 +328,11 @@ const updateOpen = (...args: unknown[]) =>
       <div class="flex shrink-0 items-center border-b border-border/70 px-5 py-3 pr-12">
         <DialogHeader class="min-w-0 space-y-0.5">
           <DialogTitle class="truncate text-[1.2rem] font-semibold tracking-tight text-foreground">
-            {{ currentRecord?.name || '馆藏详情' }}
+            {{ currentRecord?.name || (isPlace ? '景点详情' : '馆藏详情') }}
           </DialogTitle>
           <DialogDescription class="truncate text-xs text-muted-foreground">
             <template v-if="currentRecord">
-              {{ getGalleryName(currentRecord) }}
+              {{ isPlace ? '景点详情' : getGalleryName(currentRecord) }}
               <span v-if="currentRecord.exhibitCode"> · {{ currentRecord.exhibitCode }}</span>
             </template>
             <template v-else>
@@ -336,7 +351,7 @@ const updateOpen = (...args: unknown[]) =>
             <img
               v-if="currentRecord.imageUrl"
               :src="currentRecord.imageUrl"
-              :alt="currentRecord.name || '馆藏图片'"
+              :alt="currentRecord.name || (isPlace ? '景点图片' : '馆藏图片')"
               class="h-full w-full object-cover"
             >
             <div
@@ -349,7 +364,7 @@ const updateOpen = (...args: unknown[]) =>
 
           <div class="min-w-0 flex-1 space-y-3">
             <div
-              v-if="archiveTags.length"
+              v-if="!isPlace && archiveTags.length"
               class="flex flex-wrap gap-1"
             >
               <span
@@ -363,7 +378,8 @@ const updateOpen = (...args: unknown[]) =>
 
             <p
               v-if="currentRecord.description"
-              class="form-value line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-muted-foreground"
+              class="form-value whitespace-pre-wrap text-sm leading-6 text-muted-foreground"
+              :class="{ 'line-clamp-4': !isPlace }"
             >
               {{ currentRecord.description }}
             </p>
@@ -371,7 +387,7 @@ const updateOpen = (...args: unknown[]) =>
               v-else
               class="text-sm text-muted-foreground"
             >
-              暂无馆藏描述
+              {{ isPlace ? '暂无景点简介' : '暂无馆藏描述' }}
             </p>
           </div>
         </section>
@@ -407,7 +423,7 @@ const updateOpen = (...args: unknown[]) =>
         </section>
 
         <section
-          v-if="mediaItems.length"
+          v-if="!isPlace && mediaItems.length"
           class="space-y-2 border-t border-border/60 pt-4"
         >
           <p class="form-label text-sm font-medium">
@@ -436,7 +452,7 @@ const updateOpen = (...args: unknown[]) =>
         </section>
 
         <section
-          v-if="hasArchiveContent"
+          v-if="!isPlace && hasArchiveContent"
           class="rounded-lg border border-border/60"
         >
           <button

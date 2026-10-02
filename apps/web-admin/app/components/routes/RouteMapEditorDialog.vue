@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue'
+import { computed, reactive, shallowRef, watch } from 'vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue'
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue'
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue'
 import RouteMapCanvas from '@/components/routes/RouteMapCanvas.vue'
-import type { RouteMapDetail, RouteMapSegment } from '@/types/route-map'
+import Input from '@/components/shadcn/input/Input.vue'
+import Select from '@/components/shadcn/select/Select.vue'
+import Textarea from '@/components/shadcn/textarea/Textarea.vue'
+import type { RouteMapDetail, RouteMapSegment, RouteMapStation } from '@/types/route-map'
 
 const props = defineProps<{ open: boolean; routeId: string; canEdit: boolean }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
@@ -17,6 +20,7 @@ const error = shallowRef('')
 const editStationId = shallowRef('')
 const drawingSegmentNo = shallowRef<number | null>(null)
 const draftCoordinates = shallowRef<number[][]>([])
+const stationDraft = reactive({ id: '', title: '', arrivalNote: '', transportMode: 'rickshaw', stayMinutes: '10' })
 const { request } = useApiClient()
 
 const statusText = computed(() => detail.value?.confirmed ? '已确认' : detail.value?.geometryStatus === 'ready' ? '待确认' : '待完善')
@@ -46,8 +50,17 @@ async function act(path: string, body: Record<string, unknown> = {}) {
 }
 
 async function moveStation(payload: { stationId: string; longitude: number; latitude: number }) {
-  await act('/api/route-map/update-station', payload)
+  await act('/api/route-map/update-station', { ...payload, coordinateSystem: 1 })
   editStationId.value = ''
+}
+
+function editStation(station: RouteMapStation) {
+  Object.assign(stationDraft, { id: station.id, title: station.title, arrivalNote: station.arrivalNote || '', transportMode: station.transportMode || 'rickshaw', stayMinutes: String(station.stayMinutes ?? 10) })
+}
+
+async function saveStation() {
+  await act('/api/route-map/update-station', { stationId: stationDraft.id, title: stationDraft.title, arrivalNote: stationDraft.arrivalNote, transportMode: stationDraft.transportMode, stayMinutes: stationDraft.stayMinutes ? Number(stationDraft.stayMinutes) : null })
+  if (!error.value) stationDraft.id = ''
 }
 
 async function saveDrawing() {
@@ -93,6 +106,15 @@ watch(() => [props.open, props.routeId] as const, ([open]) => { if (open) void l
             <li v-for="station in detail?.stations ?? []" :key="station.id" class="rounded-md border p-2.5 text-sm">
               <div class="flex items-start justify-between gap-2"><strong>{{ station.stationNo }}. {{ station.title }}</strong><Button v-if="canEdit" class="h-7 px-2 text-xs" size="sm" variant="ghost" @click="editStationId = station.id">调整入口</Button></div>
               <p class="mt-1 text-xs text-muted-foreground">{{ station.longitude.toFixed(6) }}, {{ station.latitude.toFixed(6) }}</p>
+              <p v-if="station.arrivalNote" class="mt-1 text-xs text-muted-foreground">{{ station.arrivalNote }}</p>
+              <Button v-if="canEdit" class="mt-2 h-7 px-2 text-xs" size="sm" variant="outline" :disabled="pending" @click="editStation(station)">停靠信息</Button>
+              <form v-if="stationDraft.id === station.id" class="mt-3 space-y-2 border-t pt-3" @submit.prevent="saveStation">
+                <label class="block text-xs">站点名称<Input v-model="stationDraft.title" :disabled="pending" /></label>
+                <label class="block text-xs">抵达说明<Textarea v-model="stationDraft.arrivalNote" rows="3" :disabled="pending" /></label>
+                <label class="block text-xs">交通方式<Select v-model="stationDraft.transportMode" :disabled="pending"><option value="rickshaw">黄包车</option><option value="walk">步行</option><option value="indoor">馆内</option><option value="mixed">混合接驳</option></Select></label>
+                <label class="block text-xs">停留时长（分钟）<Input v-model="stationDraft.stayMinutes" type="number" min="0" :disabled="pending" /></label>
+                <div class="flex gap-2"><Button type="submit" size="sm" :disabled="pending">保存</Button><Button type="button" size="sm" variant="ghost" :disabled="pending" @click="stationDraft.id = ''">取消</Button></div>
+              </form>
             </li>
           </ol>
           <p class="mb-2 mt-5 text-xs font-medium text-muted-foreground">路段（{{ Math.max(0, (detail?.stations.length ?? 0) - 1) }}）</p>

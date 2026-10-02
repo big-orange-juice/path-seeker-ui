@@ -6,6 +6,8 @@ import Select from '@/components/shadcn/select/Select.vue';
 import CollectionExhibitDialog from '@/components/collections/CollectionExhibitDialog.vue';
 import CollectionExhibitDetailDialog from '@/components/collections/CollectionExhibitDetailDialog.vue';
 import CollectionExhibitTable from '@/components/collections/CollectionExhibitTable.vue';
+import CulturalPlaceFormDialog from '@/components/museum-management/CulturalPlaceFormDialog.vue';
+import type { CulturalPlaceDraft, CulturalPlaceRecord } from '@/types/cultural-place';
 import type {
   ExhibitDraft,
   ExhibitRecord,
@@ -56,6 +58,10 @@ const museumOptions = computed(() =>
     }))
 );
 
+const selectedMuseum = computed(() => museumData.value.list.find((museum) => String(museum.id) === selectedMuseumId.value));
+const isOutdoor = computed(() => [2, 3, 4].includes(selectedMuseum.value?.venueType ?? 1));
+const contentLabel = computed(() => isOutdoor.value ? '景点' : '馆藏');
+
 watch(
   museumOptions,
   (options) => {
@@ -87,13 +93,14 @@ const {
   totalPages,
   createEmptyDraft,
   createDraftFromRecord,
+  getRecord,
   saveDraft,
   deleteExhibit,
   setPage,
   setPageSize,
   resetFilters,
   toggleSort,
-} = useExhibitManagement(() => selectedMuseumId.value);
+} = useExhibitManagement(() => selectedMuseumId.value, () => isOutdoor.value);
 
 const { data: galleryData } = useAsyncData(
   computed(() => `exhibit-management:galleries:${museumId.value}`),
@@ -153,24 +160,98 @@ const draftState = shallowRef<ExhibitDraft>(createEmptyDraft());
 const dialogOpen = shallowRef(false);
 const detailRecord = shallowRef<ExhibitRecord | null>(null);
 const detailDialogOpen = shallowRef(false);
+const placeDialogOpen = shallowRef(false);
+const placeRecord = shallowRef<CulturalPlaceRecord | null>(null);
+const placeError = shallowRef('');
+const contentLoading = shallowRef(false);
+let contentRequestVersion = 0;
+
+watch(selectedMuseumId, () => {
+  contentRequestVersion += 1;
+  contentLoading.value = false;
+  dialogOpen.value = false;
+  placeDialogOpen.value = false;
+  detailDialogOpen.value = false;
+  resetFilters();
+});
+
+const toPlaceRecord = (record: ExhibitRecord): CulturalPlaceRecord => ({
+  id: record.placeId ?? record.id,
+  museumId: record.museumId,
+  code: record.exhibitCode,
+  name: record.name,
+  category: record.category || null,
+  address: record.addressText ?? null,
+  description: record.description || null,
+  recommendedMinutes: record.recommendedMinutes,
+  longitude: record.longitude ?? null,
+  latitude: record.latitude ?? null,
+  coordinateSystem: record.coordinateSystem ?? 1,
+  status: record.placeStatus ?? 1,
+  coverAttachmentId: record.imageFileId,
+  coverUrl: record.imageUrl,
+  sortOrder: record.sortOrder,
+});
 
 const startCreate = () => {
+  if (isOutdoor.value) {
+    placeRecord.value = null;
+    placeError.value = '';
+    placeDialogOpen.value = true;
+    return;
+  }
   formMode.value = 'create';
   activeRecordId.value = '';
   draftState.value = createEmptyDraft();
   dialogOpen.value = true;
 };
 
-const startEdit = (record: ExhibitRecord) => {
-  formMode.value = 'edit';
-  activeRecordId.value = record.id;
-  draftState.value = createDraftFromRecord(record);
-  dialogOpen.value = true;
+const loadContent = async (record: ExhibitRecord, mode: 'detail' | 'edit') => {
+  if (submitting.value || contentLoading.value) return;
+  const version = ++contentRequestVersion;
+  contentLoading.value = true;
+  try {
+    const fullRecord = await getRecord(record.id);
+    if (version !== contentRequestVersion) return;
+    if (mode === 'detail') {
+      detailRecord.value = fullRecord;
+      detailDialogOpen.value = true;
+    } else if (fullRecord.contentType === 'place') {
+      placeRecord.value = toPlaceRecord(fullRecord);
+      placeError.value = '';
+      placeDialogOpen.value = true;
+    } else {
+      formMode.value = 'edit';
+      activeRecordId.value = fullRecord.id;
+      draftState.value = createDraftFromRecord(fullRecord);
+      dialogOpen.value = true;
+    }
+  } catch (caughtError) {
+    if (version === contentRequestVersion) actionFeedback.errorFrom(caughtError, '详情加载失败。');
+  } finally {
+    if (version === contentRequestVersion) contentLoading.value = false;
+  }
 };
 
-const openDetail = (record: ExhibitRecord) => {
-  detailRecord.value = record;
-  detailDialogOpen.value = true;
+const startEdit = (record: ExhibitRecord) => loadContent(record, 'edit');
+const openDetail = (record: ExhibitRecord) => loadContent(record, 'detail');
+
+const handlePlaceSave = async (draft: CulturalPlaceDraft) => {
+  submitting.value = true;
+  placeError.value = '';
+  try {
+    await request(draft.id ? '/api/cultural-place/update' : '/api/cultural-place/create', {
+      method: 'POST',
+      body: draft,
+    });
+    placeDialogOpen.value = false;
+    actionFeedback.success('景点已保存。');
+    await refresh();
+  } catch (caughtError) {
+    placeError.value = caughtError instanceof Error ? caughtError.message : '景点保存失败。';
+  } finally {
+    submitting.value = false;
+  }
 };
 
 const handleSave = async (draft: ExhibitDraft) => {
@@ -194,7 +275,9 @@ const handleSave = async (draft: ExhibitDraft) => {
 };
 
 const handleRemove = async (record: ExhibitRecord) => {
-  const confirmed = window.confirm('确认删除馆藏“' + (record.name || record.exhibitCode || record.id) + '”吗？');
+  if (submitting.value || contentLoading.value) return;
+  const label = record.contentType === 'place' ? '景点' : '馆藏';
+  const confirmed = window.confirm('确认删除' + label + '“' + (record.name || record.exhibitCode || record.id) + '”吗？');
   if (!confirmed) {
     return;
   }
@@ -203,9 +286,9 @@ const handleRemove = async (record: ExhibitRecord) => {
 
   try {
     await deleteExhibit(record.id);
-    actionFeedback.success('馆藏已删除。');
+    actionFeedback.success(label + '已删除。');
   } catch (caughtError) {
-    actionFeedback.errorFrom(caughtError, '馆藏删除失败。');
+    actionFeedback.errorFrom(caughtError, label + '删除失败。');
   } finally {
     submitting.value = false;
   }
@@ -221,8 +304,8 @@ const handleRemove = async (record: ExhibitRecord) => {
     <section class="warm-panel warm-outline rounded-[0.95rem] border border-border/70 px-4 py-4">
       <div class="flex flex-wrap items-end gap-3">
         <div class="w-[280px] space-y-2">
-          <label class="text-sm font-medium">所属博物馆</label>
-          <Select :model-value="selectedMuseumId" :disabled="museumPending || !museumOptions.length" @update:model-value="selectedMuseumId = $event">
+          <label class="text-sm font-medium">所属场馆 / 目的地</label>
+          <Select :model-value="selectedMuseumId" :disabled="submitting || museumPending || !museumOptions.length" @update:model-value="selectedMuseumId = $event">
             <option v-for="option in museumOptions" :key="option.value" :value="option.value">
               {{ option.label }}
             </option>
@@ -230,13 +313,13 @@ const handleRemove = async (record: ExhibitRecord) => {
         </div>
         <div class="min-w-[260px] flex-1 space-y-2">
           <label class="text-sm font-medium">关键词</label>
-          <Input v-model="filters.keyword" placeholder="搜索馆藏名称、编码、类别" />
+          <Input v-model="filters.keyword" :placeholder="'搜索' + contentLabel + '名称、编码、类别'" />
         </div>
-        <div class="w-[180px] space-y-2">
+        <div v-if="!isOutdoor" class="w-[180px] space-y-2">
           <label class="text-sm font-medium">年代筛选</label>
           <Input v-model="filters.dynasty" placeholder="如 商晚期 / 北宋" />
         </div>
-        <div class="w-[260px] space-y-2">
+        <div v-if="!isOutdoor" class="w-[260px] space-y-2">
           <label class="text-sm font-medium">展厅筛选</label>
           <Select :model-value="filters.galleryId" @update:model-value="filters.galleryId = $event">
             <option value="">全部展厅</option>
@@ -246,7 +329,7 @@ const handleRemove = async (record: ExhibitRecord) => {
             </option>
           </Select>
         </div>
-        <div class="w-[180px] space-y-2">
+        <div v-if="!isOutdoor" class="w-[180px] space-y-2">
           <label class="text-sm font-medium">重点筛选</label>
           <Select :model-value="String(filters.isHighlight)" @update:model-value="filters.isHighlight = Number($event)">
             <option value="-1">全部类型</option>
@@ -261,14 +344,15 @@ const handleRemove = async (record: ExhibitRecord) => {
           <Button variant="outline" :disabled="submitting" @click="refresh()">
             刷新
           </Button>
-          <Button :disabled="submitting || !museumId" @click="startCreate">
-            新增馆藏
+          <Button :disabled="submitting || contentLoading || museumPending || !museumId" @click="startCreate">
+            新增{{ contentLabel }}
           </Button>
         </div>
       </div>
     </section>
 
     <section class="space-y-3">
+      <p v-if="contentLoading" class="text-sm text-muted-foreground" role="status">正在加载详情…</p>
       <div class="flex items-center justify-between gap-3 px-1">
         <div class="min-w-0 truncate text-sm text-muted-foreground">
           共 {{ total }} 条，当前第 {{ pageIndex }} / {{ Math.max(totalPages, 1) }} 页
@@ -294,6 +378,8 @@ const handleRemove = async (record: ExhibitRecord) => {
         :pending="pending"
         :sorting="sorting"
         :gallery-label-by-id="galleryLabelById"
+        :place-mode="isOutdoor"
+        :busy="submitting || contentLoading"
         @sort="toggleSort"
         @detail="openDetail"
         @edit="startEdit"
@@ -314,5 +400,15 @@ const handleRemove = async (record: ExhibitRecord) => {
       :record="detailRecord"
       :gallery-label-by-id="galleryLabelById"
       @update:open="detailDialogOpen = $event" />
+
+    <CulturalPlaceFormDialog
+      :open="placeDialogOpen"
+      :museum-id="museumId"
+      :record="placeRecord"
+      :pending="submitting"
+      :error="placeError"
+      :require-coordinates="false"
+      @update:open="placeDialogOpen = $event"
+      @save="handlePlaceSave" />
   </div>
 </template>

@@ -5,6 +5,8 @@ import RouteCreateDialog from '@/components/routes/RouteCreateDialog.vue';
 import RouteDataTable from '@/components/routes/RouteDataTable.vue';
 import RouteDetailDialog from '@/components/routes/RouteDetailDialog.vue';
 import RoutePosterDialog from '@/components/routes/RoutePosterDialog.vue';
+import RouteLocalizationDialog from '@/components/routes/RouteLocalizationDialog.vue';
+import { TOUR_LANGUAGES } from '@path-seeker/ts-shared';
 import Button from '@/components/shadcn/button/Button.vue';
 import Dialog from '@/components/shadcn/dialog/Dialog.vue';
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue';
@@ -41,6 +43,12 @@ const actionFeedback = useActionFeedback();
 const selectedMuseumId = shallowRef('');
 const { request } = useApiClient();
 const createDialogOpen = shallowRef(false);
+const localizationOpen = shallowRef(false);
+const localizationRecord = shallowRef<RouteRecord | null>(null);
+const selectedMuseumOutdoor = computed(() => {
+  const museum = museumData.value.list.find(item => item.id === selectedMuseumId.value);
+  return museum?.venueType === 2 || museum?.venueType === 3;
+});
 const actionPendingIds = shallowRef<string[]>([]);
 const confirmDialogOpen = shallowRef(false);
 const confirmActionType = shallowRef<'publish' | 'unpublish' | 'delete' | 'submit-audit'>('publish');
@@ -637,6 +645,8 @@ const detailActions = computed(() => {
             </option>
           </Select>
         </div>
+        <div class="w-[140px] space-y-1.5"><label class="text-sm font-medium">路线语言</label><Select v-model="filters.locale"><option value="">全部语言</option><option v-for="language in TOUR_LANGUAGES" :key="language.value" :value="language.value">{{ language.label }}</option></Select></div>
+        <div class="w-[140px] space-y-1.5"><label class="text-sm font-medium">场景</label><Select :model-value="String(filters.sceneType)" @update:model-value="filters.sceneType = Number($event)"><option value="-1">全部场景</option><option value="1">场馆探索</option><option value="2">户外漫游</option></Select></div>
         <div class="flex flex-wrap items-end gap-2 xl:ml-auto">
           <Button
             v-if="authStore.isAdmin"
@@ -689,6 +699,7 @@ const detailActions = computed(() => {
         @sort="toggleSort"
         @detail="handleDetail"
         @poster="handlePoster"
+        @localize="localizationRecord = $event; localizationOpen = true"
         @publish="handlePublish"
         @unpublish="handleUnpublish"
         @submit-audit="handleSubmitAudit"
@@ -698,9 +709,13 @@ const detailActions = computed(() => {
 
     <RouteCreateDialog
       v-model:open="createDialogOpen"
+      :museum-id="selectedMuseumId"
+      :outdoor="selectedMuseumOutdoor"
       @route-changed="handleChatRouteChanged"
       @route-published="handleChatRoutePublished"
       @run-completed="handleCreateRunCompleted" />
+
+    <RouteLocalizationDialog :open="localizationOpen" :record="localizationRecord" @update:open="localizationOpen = $event" @created="refresh" />
 
     <!-- v-if + key：关闭即销毁内部状态；换路线强制重挂载 -->
     <RouteDetailDialog

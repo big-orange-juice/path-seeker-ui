@@ -8,9 +8,13 @@ import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import RouteChatWorkspace from '@/components/routes/RouteChatWorkspace.vue';
+import OutdoorRouteDraftForm from '@/components/routes/OutdoorRouteDraftForm.vue';
+import { shallowRef } from 'vue';
 
 interface Props {
   open: boolean;
+  museumId?: string;
+  outdoor?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -24,6 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const chatWorkspaceRef = ref<InstanceType<typeof RouteChatWorkspace> | null>(null);
+const activeTab = shallowRef<'theme' | 'outdoor'>('theme');
 
 const isOpen = computed({
   get: () => props.open,
@@ -38,6 +43,7 @@ watch(
   () => props.open,
   (open) => {
     if (open) {
+      activeTab.value = props.outdoor ? 'outdoor' : 'theme';
       resetForm();
       return;
     }
@@ -65,7 +71,10 @@ watch(
       </div>
 
       <div class="flex min-h-0 flex-1 flex-col">
+        <nav v-if="props.outdoor" class="flex gap-2 border-b px-5 py-2"><Button variant="outline" size="sm" @click="activeTab = 'theme'">主题生成</Button><Button variant="outline" size="sm" @click="activeTab = 'outdoor'">文化点编排</Button></nav>
+        <OutdoorRouteDraftForm v-if="activeTab === 'outdoor'" :museum-id="props.museumId || ''" @created="emit('routeChanged', $event)" />
         <RouteChatWorkspace
+          v-else
           ref="chatWorkspaceRef"
           :active="props.open"
           @route-changed="emit('routeChanged', $event)"

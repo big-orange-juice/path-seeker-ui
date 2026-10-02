@@ -25,6 +25,8 @@ import Input from '@/components/shadcn/input/Input.vue';
 import AdminStageSimulator from '@/components/routes/AdminStageSimulator.vue';
 import RouteEditChatPane from '@/components/routes/RouteEditChatPane.vue';
 import RouteMapEditorDialog from '@/components/routes/RouteMapEditorDialog.vue';
+import OutdoorRouteWorkspace from '@/components/routes/OutdoorRouteWorkspace.vue';
+import OutdoorRoutePreview from '@/components/routes/OutdoorRoutePreview.vue';
 import StageEditDialog from '@/components/routes/StageEditDialog.vue';
 import { useActionFeedback } from '@/composables/useActionFeedback';
 import type { ChatAttachmentReference } from '@/types/chat';
@@ -630,7 +632,16 @@ async function saveRouteTitle() {
         v-else
         class="admin-dialog-workspace px-5 py-4">
         <!-- 左：画布 ~2；窄屏由 .admin-dialog-workspace 降为单栏 -->
-        <section class="flex min-h-[18rem] min-w-0 flex-col lg:min-h-0">
+        <OutdoorRouteWorkspace
+          v-if="props.record?.sceneType === 2"
+          :route-id="routeId"
+          :nodes="sortedNodes"
+          :selected-stage-id="selectedStageId"
+          :can-edit="props.canEdit"
+          @select="selectedStageId = $event"
+          @edit="selectedStageId = $event; stageEditOpen = true"
+          @changed="emit('refresh-silent')" />
+        <section v-else class="flex min-h-[18rem] min-w-0 flex-col lg:min-h-0">
           <div
             class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background/70">
             <div
@@ -690,7 +701,17 @@ async function saveRouteTitle() {
 
         <!-- 中：手机模拟器外框（画面铺满，灵动岛叠在上方） -->
         <aside class="flex min-h-[22rem] min-w-0 flex-col overflow-hidden lg:min-h-0">
+          <OutdoorRoutePreview
+            v-if="props.record?.sceneType === 2"
+            :route-id="routeId"
+            :title="routeTitle"
+            :locale="props.record?.locale || 'zh'"
+            :nodes="sortedNodes"
+            :selected-stage-id="previewNode?.stageId || ''"
+            :narration="narrationDetail"
+            @select="selectedStageId = $event" />
           <AdminStageSimulator
+            v-else
             :stage="previewStage" />
         </aside>
 
@@ -777,6 +798,7 @@ async function saveRouteTitle() {
     :node="selectedNode"
     :can-edit="props.canEdit"
     :referenced-attachment-ids="chatReferenceIds"
+    :locale="props.record?.locale || 'zh'"
     @saved="handleStageSaved"
     @reference="addChatReference"
     @preview-refresh="handleNarrationPreviewRefresh" />

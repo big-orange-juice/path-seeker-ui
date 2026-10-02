@@ -31,6 +31,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   detail: []
   poster: []
+  localize: []
   publish: []
   unpublish: []
   submitAudit: []
@@ -93,10 +94,13 @@ const openVariant = computed(() => {
 /** 更多菜单项：海报始终；删除按权限 */
 const moreItems = computed(() => {
   const items: Array<{
-    key: 'poster' | 'remove'
+    key: 'poster' | 'remove' | 'localize'
     label: string
     danger?: boolean
   }> = [{ key: 'poster', label: '海报' }]
+  if ((props.actions.canDelete || props.actions.canEditContent) && ((props.record.locale || 'zh') === 'zh' || props.record.sourceRouteId)) {
+    items.push({ key: 'localize', label: '多语言转换' })
+  }
   if (props.actions.canDelete) {
     items.push({ key: 'remove', label: '删除', danger: true })
   }
@@ -145,10 +149,11 @@ const runPrimary = () => {
   else if (action.key === 'unpublish') emit('unpublish')
 }
 
-const runMore = (key: 'poster' | 'remove') => {
+const runMore = (key: 'poster' | 'remove' | 'localize') => {
   if (props.acting) return
   menuOpen.value = false
   if (key === 'poster') emit('poster')
+  else if (key === 'localize') emit('localize')
   else emit('remove')
 }
 

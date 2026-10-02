@@ -24,7 +24,7 @@ const router = createRouter({
   routes: [
     {
       path: "/",
-      redirect: "/venues",
+      redirect: "/ride",
     },
     {
       path: "/auth",
@@ -39,6 +39,7 @@ const router = createRouter({
       path: "/",
       component: MobileShellLayout,
       children: [
+        { path: "ride", name: "tour-entry", component: OutdoorMapPage, meta: { title: "游览路线", showTabBar: false } },
         { path: "venues", name: "venues", component: VenueExplorerPage, meta: { shellTab: "hall", title: "探索地点", showTabBar: true } },
         { path: "venues/:venueId", name: "venue-detail", component: VenueDetailPage, meta: { shellTab: "hall", title: "展馆详情", showTabBar: true } },
         { path: "museums/:museumId/map", name: "outdoor-map", component: OutdoorMapPage, meta: { title: "景区地图", showTabBar: false } },

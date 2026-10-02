@@ -47,6 +47,11 @@ export interface DeleteNarrationPronunciationRequest {
 
 /** GET /api/Narration/detail 响应（ID 一律按 string 处理） */
 export interface NarrationDetailResponse {
+  locale?: string | null
+  translationOfStageId?: string | null
+  segments?: NarrationSegmentResponse[] | null
+  videoAttachmentId?: string | null
+  videoUrl?: string | null
   stageId?: string | null
   guideId?: string | null
   guideName?: string | null
@@ -69,6 +74,23 @@ export interface NarrationDetailResponse {
   matchedPronunciations?: NarrationPronunciationMatchResponse[] | null
   version?: number
   images?: RouteStageNarrationImageResponse[] | null
+}
+
+export interface NarrationSegmentResponse {
+  segmentNo: number
+  title: string | null
+  text: string | null
+  audioAttachmentId: string | null
+  audioUrl: string | null
+  audioStatus: number
+  durationMs: number | null
+}
+
+export interface SaveNarrationSegmentsRequest {
+  stageId: string
+  segments: { segmentNo: number; title: string | null; text: string; audioAttachmentId: string | null; durationMs: number | null }[]
+  videoAttachmentId?: string | null
+  expectedUpdatedAt?: string | null
 }
 
 /**

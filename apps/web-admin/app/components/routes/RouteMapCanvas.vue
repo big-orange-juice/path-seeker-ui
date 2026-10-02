@@ -1,119 +1,93 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, watch } from 'vue'
+import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
+import { gcj02ToWgs84, toGcj02 } from '@path-seeker/ts-shared'
+import { loadAdminAMap } from '@/utils/amap'
 import type { RouteMapDetail } from '@/types/route-map'
 
-const props = defineProps<{ detail: RouteMapDetail | null; editStationId: string; drawingSegmentNo: number | null }>()
-const emit = defineEmits<{
-  error: [message: string]
-  stationMove: [payload: { stationId: string; longitude: number; latitude: number }]
-  drawChange: [coordinates: number[][]]
-}>()
-const container = shallowRef<HTMLElement | null>(null)
+const props = withDefaults(defineProps<{ detail: RouteMapDetail | null; editStationId?: string; drawingSegmentNo?: number | null; focusedStageId?: string; journey?: boolean }>(), { editStationId: '', drawingSegmentNo: null, focusedStageId: '', journey: false })
+const emit = defineEmits<{ error: [message: string]; stationMove: [payload: { stationId: string; longitude: number; latitude: number }]; drawChange: [coordinates: number[][]]; select: [stageId: string]; edit: [stageId: string] }>()
+const container = useTemplateRef<HTMLDivElement>('container')
 const map = shallowRef<any>(null)
-const stationLayer = shallowRef<any>(null)
-const routeLayer = shallowRef<any>(null)
-const draftLayer = shallowRef<any>(null)
-const draft = shallowRef<number[][]>([])
 const runtimeConfig = useRuntimeConfig()
-let clickListener: any = null
+let sdk: any
+let layers: any[] = []
+let draftLayer: any
+let draft: number[][] = []
+let alive = true
 
-function loadSdk(key: string) {
-  if ((window as any).TMap) return Promise.resolve((window as any).TMap)
-  const id = 'tencent-map-gl-admin-sdk'
-  return new Promise<any>((resolve, reject) => {
-    const existing = document.getElementById(id) as HTMLScriptElement | null
-    if (existing) {
-      existing.addEventListener('load', () => resolve((window as any).TMap), { once: true })
-      existing.addEventListener('error', () => reject(new Error('地图服务加载失败')), { once: true })
-      return
-    }
-    const script = document.createElement('script')
-    script.id = id
-    script.src = `https://map.qq.com/api/gljs?v=1.exp&key=${encodeURIComponent(key)}`
-    script.onload = () => resolve((window as any).TMap)
-    script.onerror = () => reject(new Error('地图服务加载失败'))
-    document.head.appendChild(script)
-  })
+function position(longitude: number, latitude: number, coordinateSystem = props.detail?.coordinateSystem ?? 1) {
+  const converted = toGcj02({ longitude, latitude }, coordinateSystem)
+  return [converted.longitude, converted.latitude]
 }
 
-function parseLines(geoJson: string | null) {
-  if (!geoJson) return [] as number[][][]
+function parseLines(source: string | null | undefined): number[][][] {
+  if (!source) return []
   try {
-    const geometry = JSON.parse(geoJson) as { type: string; coordinates: number[][] | number[][][] }
-    return geometry.type === 'LineString' ? [geometry.coordinates as number[][]] : geometry.type === 'MultiLineString' ? geometry.coordinates as number[][][] : []
-  } catch {
-    return [] as number[][][]
-  }
+    const parsed = JSON.parse(source)
+    const geometry = parsed.type === 'Feature' ? parsed.geometry : parsed
+    const lines = geometry.type === 'LineString' ? [geometry.coordinates] : geometry.type === 'MultiLineString' ? geometry.coordinates : []
+    return lines.filter((line: unknown) => Array.isArray(line) && line.every(point => Array.isArray(point) && Number.isFinite(point[0]) && Number.isFinite(point[1])))
+  } catch { return [] }
 }
 
-function render() {
-  const TMap = (window as any).TMap
-  if (!map.value || !TMap || !props.detail) return
-  stationLayer.value?.setMap(null)
-  routeLayer.value?.setMap(null)
-  const geometries = props.detail.stations.map(station => ({ id: station.id, styleId: 'station', position: new TMap.LatLng(station.latitude, station.longitude) }))
-  if (geometries.length) {
-    stationLayer.value = new TMap.MultiMarker({
-      map: map.value,
-      styles: { station: new TMap.MarkerStyle({ width: 22, height: 22, anchor: { x: 11, y: 11 }, src: 'https://mapapi.qq.com/web/lbs/javascriptGL/demo/img/markerDefault.png' }) },
-      geometries,
-    })
+function render(fit = true) {
+  if (!map.value || !sdk) return
+  map.value.remove(layers)
+  layers = []
+  for (const station of props.detail?.stations ?? []) {
+    const stageId = station.stageId || station.id
+    const content = document.createElement('button')
+    content.type = 'button'
+    content.textContent = `${station.stationNo}. ${station.title}`
+    content.className = stageId === props.focusedStageId ? 'route-map-marker active' : 'route-map-marker'
+    const marker = new sdk.Marker({ position: position(station.longitude, station.latitude), content, anchor: 'bottom-center' })
+    marker.on('click', () => emit('select', stageId))
+    marker.on('dblclick', () => emit('edit', stageId))
+    layers.push(marker)
   }
-  const lines = parseLines(props.detail.geometryGeoJson)
-  if (lines.length) {
-    routeLayer.value = new TMap.MultiPolyline({
-      map: map.value,
-      styles: { route: new TMap.PolylineStyle({ color: '#d6aa54', width: 7, borderWidth: 2, borderColor: '#2e2415', lineCap: 'round' }) },
-      geometries: lines.map((line, index) => ({ id: `route-${index}`, styleId: 'route', paths: line.map(point => new TMap.LatLng(point[1], point[0])) })),
-    })
-  }
-  const bounds = new TMap.LatLngBounds()
-  props.detail.stations.forEach(station => bounds.extend(new TMap.LatLng(station.latitude, station.longitude)))
-  if (props.detail.stations.length) map.value.fitBounds(bounds, { padding: 70 })
+  for (const line of parseLines(props.detail?.geometryGeoJson)) layers.push(new sdk.Polyline({ path: line.map(point => position(point[0]!, point[1]!)), strokeColor: '#327dce', strokeWeight: 7 }))
+  map.value.add(layers)
+  if (fit && layers.length) map.value.setFitView(layers, false, [70, 50, 70, 50])
+  map.value.setPitch(props.journey ? 50 : 0)
+  const selected = props.detail?.stations.find(station => (station.stageId || station.id) === props.focusedStageId)
+  if (selected && props.journey) map.value.setZoomAndCenter(18, position(selected.longitude, selected.latitude))
 }
 
 function renderDraft() {
-  const TMap = (window as any).TMap
-  draftLayer.value?.setMap(null)
-  if (!map.value || !TMap || draft.value.length < 2) return
-  draftLayer.value = new TMap.MultiPolyline({
-    map: map.value,
-    styles: { draft: new TMap.PolylineStyle({ color: '#2563eb', width: 5, borderWidth: 1, borderColor: '#ffffff' }) },
-    geometries: [{ id: 'draft', styleId: 'draft', paths: draft.value.map(point => new TMap.LatLng(point[1], point[0])) }],
-  })
-}
-
-function handleMapClick(event: any) {
-  const longitude = Number(event.latLng.getLng())
-  const latitude = Number(event.latLng.getLat())
-  if (props.editStationId) {
-    emit('stationMove', { stationId: props.editStationId, longitude, latitude })
-    return
-  }
-  if (props.drawingSegmentNo !== null) {
-    draft.value = [...draft.value, [longitude, latitude]]
-    renderDraft()
-    emit('drawChange', draft.value)
+  if (!map.value || !sdk) return
+  if (draftLayer) map.value.remove(draftLayer)
+  draftLayer = null
+  if (draft.length > 1) {
+    draftLayer = new sdk.Polyline({ path: draft.map(point => position(point[0]!, point[1]!, 1)), strokeColor: '#d6aa54', strokeWeight: 5, strokeStyle: 'dashed' })
+    map.value.add(draftLayer)
   }
 }
 
-watch(() => props.detail, render, { deep: false })
-watch(() => props.drawingSegmentNo, () => { draft.value = []; draftLayer.value?.setMap(null); emit('drawChange', []) })
+function mapClick(event: { lnglat: { getLng: () => number; getLat: () => number } }) {
+  const point = gcj02ToWgs84({ longitude: event.lnglat.getLng(), latitude: event.lnglat.getLat() })
+  if (props.editStationId) emit('stationMove', { stationId: props.editStationId, ...point })
+  else if (props.drawingSegmentNo !== null) { draft = [...draft, [point.longitude, point.latitude]]; renderDraft(); emit('drawChange', draft) }
+}
+
 onMounted(async () => {
-  const key = String(runtimeConfig.public.tencentMapKey || '').trim()
-  if (!key) { emit('error', '请配置后台地图浏览 Key'); return }
   try {
-    const TMap = await loadSdk(key)
-    const first = props.detail?.stations[0]
-    map.value = new TMap.Map(container.value, { center: new TMap.LatLng(first?.latitude ?? 31.23, first?.longitude ?? 121.47), zoom: 15 })
-    clickListener = TMap.event.addListener(map.value, 'click', handleMapClick)
+    sdk = await loadAdminAMap({ key: String(runtimeConfig.public.amapKey || ''), securityCode: String(runtimeConfig.public.amapSecurityCode || ''), securityProxy: String(runtimeConfig.public.amapSecurityProxy || '') })
+    if (!alive || !container.value) return
+    map.value = new sdk.Map(container.value, { center: [116.38, 39.94], zoom: 16, viewMode: '3D' })
+    map.value.on('click', mapClick)
     render()
-  } catch (error) { emit('error', error instanceof Error ? error.message : '地图初始化失败') }
+  } catch (caught) { if (alive) emit('error', caught instanceof Error ? caught.message : '地图初始化失败。') }
 })
-onBeforeUnmount(() => {
-  if (clickListener) (window as any).TMap?.event.removeListener(clickListener)
-  stationLayer.value?.setMap(null); routeLayer.value?.setMap(null); draftLayer.value?.setMap(null); map.value?.destroy()
-})
+watch(() => props.detail, () => render())
+watch(() => [props.focusedStageId, props.journey], () => render(false))
+watch(() => props.drawingSegmentNo, () => { draft = []; renderDraft(); emit('drawChange', []) })
+onBeforeUnmount(() => { alive = false; map.value?.destroy(); map.value = null })
 </script>
 
-<template><div ref="container" class="h-full min-h-[420px] w-full bg-muted" /></template>
+<template><div ref="container" class="route-map-canvas" /></template>
+
+<style scoped>
+.route-map-canvas{height:100%;min-height:280px;width:100%;background:#ddd8cc}
+.route-map-canvas :deep(.route-map-marker){max-width:180px;padding:6px 10px;border:2px solid #fff;border-radius:8px;background:#fff;color:#273744;font-size:12px;white-space:nowrap;box-shadow:0 3px 12px #0003}
+.route-map-canvas :deep(.route-map-marker.active){background:#327dce;color:#fff}
+</style>

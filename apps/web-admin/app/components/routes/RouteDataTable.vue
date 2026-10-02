@@ -10,6 +10,7 @@ import {
   type RouteWorkflowContext
 } from '@/constants/routeWorkflow';
 import type { RouteRecord } from '@/types/route';
+import { tourLanguageLabel } from '@path-seeker/ts-shared';
 
 interface Props {
   rows: RouteRecord[];
@@ -31,6 +32,7 @@ const emit = defineEmits<{
   detail: [record: RouteRecord];
   /** 海报管理：生成 / 查看路线海报 */
   poster: [record: RouteRecord];
+  localize: [record: RouteRecord];
   publish: [record: RouteRecord];
   unpublish: [record: RouteRecord];
   submitAudit: [record: RouteRecord];
@@ -99,6 +101,14 @@ const renderStatus = (record: RouteRecord) => {
 };
 
 const columns = computed<ColumnDef<RouteRecord>[]>(() => [
+  {
+    id: 'locale',
+    header: () => '场景 / 语言',
+    cell: ({ row }) => h('div', { class: 'space-y-1 text-xs' }, [
+      h('p', row.original.sceneType === 2 ? '户外漫游' : '场馆探索'),
+      h('p', tourLanguageLabel(row.original.locale || 'zh')),
+    ]),
+  },
   {
     id: 'coverImageUrl',
     header: () =>
@@ -285,6 +295,7 @@ const columns = computed<ColumnDef<RouteRecord>[]>(() => [
         acting,
         onDetail: () => emit('detail', record),
         onPoster: () => emit('poster', record),
+        onLocalize: () => emit('localize', record),
         onPublish: () => emit('publish', record),
         onUnpublish: () => emit('unpublish', record),
         onSubmitAudit: () => emit('submitAudit', record),

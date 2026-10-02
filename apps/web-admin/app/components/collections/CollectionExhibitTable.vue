@@ -11,12 +11,16 @@ interface Props {
   pending?: boolean;
   sorting?: SortingState;
   galleryLabelById?: Record<string, string>;
+  placeMode?: boolean;
+  busy?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   pending: false,
   sorting: () => [],
   galleryLabelById: () => ({}),
+  placeMode: false,
+  busy: false,
 });
 
 const emit = defineEmits<{
@@ -57,7 +61,7 @@ const renderHeader = (label: string, columnId: string) => () =>
 const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
   {
     accessorKey: 'name',
-    header: renderHeader('馆藏', 'name'),
+    header: renderHeader(props.placeMode ? '景点' : '馆藏', 'name'),
     cell: ({ row }) => {
       const record = row.original;
       return h('div', { class: 'min-w-0 space-y-1' }, [
@@ -69,7 +73,7 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
               // 编码仅 hover 可见，列表主文案不强调（M-03）
               title: record.exhibitCode ? `编码：${record.exhibitCode}` : undefined,
             },
-            record.name || '未命名馆藏'
+            record.name || (record.contentType === 'place' ? '未命名景点' : '未命名馆藏')
           ),
           h(
             'span',
@@ -78,12 +82,29 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
                 ? 'rounded-full bg-amber-500/12 px-2 py-0.5 text-[11px] text-amber-200'
                 : 'rounded-full bg-secondary px-2 py-0.5 text-[11px] text-muted-foreground',
             },
-            record.isHighlight === 1 ? '重点展品' : '普通馆藏'
+            record.contentType === 'place' ? '景点' : record.isHighlight === 1 ? '重点展品' : '普通馆藏'
           ),
         ]),
       ]);
     },
   },
+  ...(props.placeMode ? [
+    {
+      accessorKey: 'category',
+      header: renderHeader('分类', 'category'),
+      cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, row.original.category || '未填写'),
+    },
+    {
+      accessorKey: 'addressText',
+      header: renderHeader('地址', 'addressText'),
+      cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, row.original.addressText || '未填写'),
+    },
+    {
+      accessorKey: 'placeStatus',
+      header: renderHeader('状态', 'placeStatus'),
+      cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, row.original.placeStatus === 1 ? '启用' : row.original.placeStatus === 2 ? '停用' : '未设置'),
+    },
+  ] satisfies ColumnDef<ExhibitRecord>[] : [
   {
     accessorKey: 'galleryId',
     header: renderHeader('展厅', 'galleryId'),
@@ -99,6 +120,7 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
     header: renderHeader('材质', 'material'),
     cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, row.original.material || '未填写'),
   },
+  ] satisfies ColumnDef<ExhibitRecord>[]),
   {
     accessorKey: 'recommendedMinutes',
     header: renderHeader('停留时长', 'recommendedMinutes'),
@@ -111,17 +133,17 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
       h('div', { class: 'flex flex-wrap items-center justify-start gap-1.5' }, [
         h(
           Button,
-          { variant: 'ghost', size: 'sm', onClick: () => emit('detail', row.original) },
+          { variant: 'ghost', size: 'sm', disabled: props.busy, onClick: () => emit('detail', row.original) },
           { default: () => '详情' }
         ),
         h(
           Button,
-          { variant: 'secondary', size: 'sm', onClick: () => emit('edit', row.original) },
+          { variant: 'secondary', size: 'sm', disabled: props.busy, onClick: () => emit('edit', row.original) },
           { default: () => '编辑' }
         ),
         h(
           Button,
-          { variant: 'ghost', size: 'sm', onClick: () => emit('remove', row.original) },
+          { variant: 'ghost', size: 'sm', disabled: props.busy, onClick: () => emit('remove', row.original) },
           { default: () => '删除' }
         ),
       ]),
@@ -135,5 +157,5 @@ const columns = computed<ColumnDef<ExhibitRecord>[]>(() => [
     :data="props.rows"
     :sorting="props.sorting"
     :pending="props.pending"
-    empty-text="当前筛选条件下没有馆藏数据。" />
+    :empty-text="props.placeMode ? '当前筛选条件下没有景点数据。' : '当前筛选条件下没有馆藏数据。'" />
 </template>
