@@ -1,4 +1,4 @@
-import { computed, shallowRef } from "vue"
+import { computed, shallowRef, watch } from "vue"
 import { acceptHMRUpdate, defineStore } from "pinia"
 import { v4 as uuidv4 } from "uuid"
 import {
@@ -31,9 +31,10 @@ import { parseExhibitChatEventData } from "@/utils/exhibitChatEvent"
 import { createSseAudioAssembler } from "@/utils/sseAudioAssembler"
 import { createSseParser } from "@/utils/sse"
 import {
-  getSharedStreamAudioQueue,
-  type StreamAudioQueueStatus,
-} from "@/utils/streamAudioQueue"
+  getSharedAskSpeechPlayer,
+  type AskSpeechStatus,
+} from "@/utils/askSpeechPlayer"
+import { usePlaybackBargeIn } from "@/composables/usePlaybackBargeIn"
 
 /** 问一问交互模式：默认语音；语音模式仍打字输入，音频由后端 SSE 下发 */
 export type AskInteractionMode = "text" | "voice"
@@ -71,6 +72,21 @@ export function formatStageContextChipLabel(context: AskStageContext | null | un
 
 const ASK_CONTEXT_MARKER = "【上下文】"
 const ASK_INSTRUCTION_MARKER = "【用户指令】"
+
+/**
+ * 字幕文案清洗：去掉 Markdown 标记。
+ * 句子原文里可能带 `**重点**`、链接等标记，直接显示在跟读字幕里会露出符号。
+ */
+export function toCaptionText(text: string) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^[\s>*+-]+/gm, "")
+    .replace(/[*_#>~|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
 
 /** 将站点上下文与用户问题拼成发给后端的完整提示词（仍传 id） */
 export function buildAskMessageWithStageContext(
@@ -173,26 +189,60 @@ export const useAskStore = defineStore("ask", () => {
   /** 本轮是否走 send-with-audio（语音模式） */
   const sseAudioEnabled = shallowRef(false)
   /** SSE 音频播放状态，供语音 UI 展示 */
-  const sseAudioStatus = shallowRef<StreamAudioQueueStatus>("idle")
+  const sseAudioStatus = shallowRef<AskSpeechStatus>("idle")
   const sseAudioError = shallowRef("")
   /** 服务端 audio.error 文案（文字仍继续） */
   const audioErrorMessage = shallowRef("")
+  /** 正在朗读的短句序号与句内进度，用于字幕跟读 */
+  const speakingIndex = shallowRef<number | null>(null)
+  const speakingProgress = shallowRef(0)
 
   let abortController: AbortController | null = null
   let activeAssistantId = ""
   /** 本轮 SSE 音频短句组装器；仅 enableAudio 时使用 */
   let audioAssembler = createSseAudioAssembler()
-  const streamAudio = getSharedStreamAudioQueue()
+  const speechPlayer = getSharedAskSpeechPlayer()
   let unsubscribeAudio: (() => void) | null = null
+  /** 已切分好的短句数，决定下一句的序号 */
+  let sentenceCount = 0
+  /** 当前这一句已收到的正文；遇到音频 isFinal 才收口 */
+  let pendingSentenceText = ""
+  /** 本轮是被「说话打断」中止的，而不是用户取消 */
+  let bargeInAborted = false
 
-  function syncStreamAudioUi() {
-    sseAudioStatus.value = streamAudio.getStatus()
-    sseAudioError.value = streamAudio.getErrorMessage()
+  const bargeIn = usePlaybackBargeIn({ onBargeIn: () => interruptRun() })
+
+  function syncSpeechAudioUi() {
+    sseAudioStatus.value = speechPlayer.getStatus()
+    sseAudioError.value = speechPlayer.getError()
+    const progress = speechPlayer.getProgress()
+    speakingIndex.value = progress.index
+    speakingProgress.value = progress.progress
   }
 
   if (!unsubscribeAudio) {
-    unsubscribeAudio = streamAudio.subscribe(syncStreamAudioUi)
+    unsubscribeAudio = speechPlayer.subscribe(syncSpeechAudioUi)
   }
+
+  /** 正在朗读（或刚朗读过）的那条助手消息，字幕从它身上取 */
+  const speechMessage = computed(() => {
+    for (let index = messages.value.length - 1; index >= 0; index -= 1) {
+      const item = messages.value[index]
+      if (item?.role === "assistant" && item.sentences?.length) {
+        return item
+      }
+    }
+    return null
+  })
+
+  /** 当前朗读中的短句原文；没有在播时为空 */
+  const speakingSentence = computed(() => {
+    const index = speakingIndex.value
+    if (index === null || index < 0) {
+      return ""
+    }
+    return String(speechMessage.value?.sentences?.[index] ?? "")
+  })
 
   const hasMessages = computed(() => messages.value.length > 0)
   const isRunning = computed(() => typing.value)
@@ -216,30 +266,125 @@ export const useAskStore = defineStore("ask", () => {
     return getDefaultAskVoiceId()
   }
 
+  /** 本轮音频与短句切分全部归零 */
+  function resetSentenceTracking() {
+    sentenceCount = 0
+    pendingSentenceText = ""
+  }
+
+  /**
+   * 收口一句：把累计的正文按序号记到消息上，并把同一序号的音频交给播放器。
+   * 序号由 SSE 的句子顺序决定，正文与音频因此能一一对应。
+   */
+  function closeSentence(blob: Blob | null) {
+    const text = toCaptionText(pendingSentenceText)
+    pendingSentenceText = ""
+    if (!text && !blob) {
+      return
+    }
+
+    const index = sentenceCount
+    sentenceCount += 1
+
+    if (activeAssistantId) {
+      const target = messages.value.find((item) => item.id === activeAssistantId)
+      updateMessage(activeAssistantId, {
+        sentences: [...(target?.sentences ?? []), text],
+      })
+    }
+
+    speechPlayer.enqueue(index, blob)
+  }
+
   function resetSseAudioPipeline(runKey?: string) {
     audioAssembler = createSseAudioAssembler()
     audioErrorMessage.value = ""
+    resetSentenceTracking()
     if (runKey) {
-      streamAudio.bindRun(runKey)
+      speechPlayer.beginRun()
     } else {
-      streamAudio.cancel()
+      speechPlayer.stop()
     }
-    syncStreamAudioUi()
+    syncSpeechAudioUi()
   }
 
   function stopSseAudio() {
-    streamAudio.cancel()
+    speechPlayer.stop()
     audioAssembler = createSseAudioAssembler()
-    syncStreamAudioUi()
+    syncSpeechAudioUi()
   }
 
   function unlockSseAudio() {
-    streamAudio.unlock()
+    speechPlayer.unlock()
+  }
+
+  /**
+   * 说话打断：立刻停播并中止本轮 SSE。
+   * 正文保留半截，标记为 interrupted 而不是失败——用户是「不想听了」，不是出错了。
+   */
+  function interruptRun() {
+    if (!activeAssistantId && !typing.value) {
+      return
+    }
+    const targetId = activeAssistantId
+    bargeInAborted = true
+    speechPlayer.stop()
+    abortActiveRun()
+    typing.value = false
+    if (targetId) {
+      updateMessage(targetId, { status: "completed", interrupted: true })
+      activeAssistantId = ""
+    }
+    sseAudioEnabled.value = false
+    syncSpeechAudioUi()
+  }
+
+  /** 语音模式下按可朗读短句切分；文字模式仍是原始流式文本 */
+  function appendSentenceDelta(content: string) {
+    if (!sseAudioEnabled.value) {
+      return
+    }
+    pendingSentenceText += content
+  }
+
+  /** 在用户手势里申请麦克风；成功后若正在播则立即进入监听 */
+  async function armBargeIn() {
+    const ready = await bargeIn.arm()
+    if (ready && isSseAudioBusy.value) {
+      bargeIn.listen()
+    }
+    return ready
+  }
+
+  /**
+   * 自动启用说话打断：只有之前授权过麦克风才自动开，
+   * 避免在一次回答中间突然弹权限框；首次使用由用户点开关触发。
+   */
+  async function autoArmBargeIn() {
+    if (!bargeIn.enabled.value || !bargeIn.supported.value) return false
+    if (!(await bargeIn.hasPermission())) return false
+    return armBargeIn()
   }
 
   function setInteractionMode(mode: AskInteractionMode) {
     interactionMode.value = mode === "voice" ? "voice" : "text"
+    if (interactionMode.value !== "voice") {
+      // 离开语音模式就不再听麦克风
+      bargeIn.hold()
+    }
   }
+
+  /**
+   * 只在「有音频在播」的窗口里消费麦克风帧。
+   * 播放开始才 listen，播放结束立刻 hold，空闲时 worklet 直接丢弃音频帧。
+   */
+  watch(isSseAudioBusy, (busy) => {
+    if (busy && bargeIn.enabled.value && interactionMode.value === "voice") {
+      bargeIn.listen()
+      return
+    }
+    bargeIn.hold()
+  })
 
   /** 写入用户全局助手音色；空值等价于清除 */
   function setVoiceId(next: string | null | undefined) {
@@ -330,7 +475,7 @@ export const useAskStore = defineStore("ask", () => {
     }
 
     const created = await createExhibitChatSession({
-      title: seedTitle?.slice(0, 256) || "馆内问答",
+      title: seedTitle?.slice(0, 256) || "户外问答",
     })
     sessionId.value = created.id
     return sessionId.value
@@ -378,14 +523,12 @@ export const useAskStore = defineStore("ask", () => {
   }
 
   function handleAudioEvent(event: ExhibitChatEvent) {
-    const runKey = activeAssistantId || String(event.runId || "") || "local"
-
     switch (event.type) {
       case "audio.started": {
         const payload = (event.payload ?? {}) as ExhibitChatAudioStartedPayload
-        // 新一轮短句流水线开始：清空组装缓冲，绑定播放 run
+        // 新一轮短句流水线开始：清空组装缓冲，同步音频格式并重置播放器
         audioAssembler.reset(payload)
-        streamAudio.bindRun(runKey)
+        speechPlayer.configure(payload)
         audioErrorMessage.value = ""
         break
       }
@@ -393,14 +536,15 @@ export const useAskStore = defineStore("ask", () => {
       case "audio.delta": {
         const payload = (event.payload ?? {}) as ExhibitChatAudioDeltaPayload
         const blob = audioAssembler.pushDelta(payload)
-        if (blob) {
-          streamAudio.enqueueBlob(blob, runKey)
+        // isFinal 才是句子边界：即使这一句没有音频也要收口，否则序号会错位
+        if (payload?.isFinal) {
+          closeSentence(blob)
         }
         break
       }
 
       case "audio.done": {
-        // 本轮服务端合成结束；播放队列可能仍在播已入队短句
+        // 本轮服务端合成结束；播放器可能仍在播已排期的短句
         break
       }
 
@@ -408,6 +552,8 @@ export const useAskStore = defineStore("ask", () => {
         const payload = (event.payload ?? {}) as ExhibitChatAudioErrorPayload
         const detail = String(payload.message || "语音合成暂时不可用，文字回答不受影响")
         audioErrorMessage.value = detail
+        // 合成失败不会再下发 isFinal，这里补一次收口，保住后续句子的序号
+        closeSentence(null)
         // 文字继续；不中断 SSE
         break
       }
@@ -461,6 +607,7 @@ export const useAskStore = defineStore("ask", () => {
         const content = String(payload?.content ?? "")
         if (content) {
           appendAssistantDelta(content)
+          appendSentenceDelta(content)
         }
         break
       }
@@ -493,6 +640,9 @@ export const useAskStore = defineStore("ask", () => {
       case "done": {
         const payload = (event.payload ?? {}) as ExhibitChatDonePayload
         typing.value = false
+        // 收尾：把最后一句（可能没有音频）收口，并告诉播放器不会再有新句子
+        closeSentence(null)
+        speechPlayer.finishRun()
         if (activeAssistantId) {
           const sources = Array.isArray(payload.sources)
             ? (payload.sources as ExhibitChatSource[])
@@ -606,8 +756,12 @@ export const useAskStore = defineStore("ask", () => {
     // 语音模式：走 send-with-audio，音频随 SSE 下发；文字模式仍用原 send
     const useAudio = interactionMode.value === "voice"
     sseAudioEnabled.value = useAudio
+    bargeInAborted = false
     if (useAudio) {
       resetSseAudioPipeline(assistantMessage.id)
+      // 在用户手势里解锁播放，否则默认语音模式下首轮会静音
+      speechPlayer.unlock()
+      void autoArmBargeIn()
     } else {
       stopSseAudio()
     }
@@ -666,10 +820,15 @@ export const useAskStore = defineStore("ask", () => {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         typing.value = false
-        updateMessage(assistantMessage.id, {
-          status: "failed",
-          errorMessage: "已取消发送。",
-        })
+        if (bargeInAborted) {
+          // 说话打断：正文保留半截，不算失败
+          updateMessage(assistantMessage.id, { status: "completed", interrupted: true })
+        } else {
+          updateMessage(assistantMessage.id, {
+            status: "failed",
+            errorMessage: "已取消发送。",
+          })
+        }
         stopSseAudio()
         return
       }
@@ -684,10 +843,12 @@ export const useAskStore = defineStore("ask", () => {
       stopSseAudio()
     } finally {
       abortController = null
+      bargeInAborted = false
       if (activeAssistantId === assistantMessage.id) {
         activeAssistantId = ""
       }
       sseAudioEnabled.value = false
+      closeSentence(null)
     }
   }
 
@@ -728,6 +889,9 @@ export const useAskStore = defineStore("ask", () => {
     typing.value = false
     activeAssistantId = ""
     sseAudioEnabled.value = false
+    bargeInAborted = false
+    resetSentenceTracking()
+    bargeIn.hold()
     stopSseAudio()
   }
 
@@ -745,6 +909,19 @@ export const useAskStore = defineStore("ask", () => {
     sseAudioStatus,
     sseAudioError,
     audioErrorMessage,
+    speakingIndex,
+    speakingProgress,
+    speakingSentence,
+    bargeInEnabled: bargeIn.enabled,
+    bargeInSupported: bargeIn.supported,
+    bargeInArmed: bargeIn.armed,
+    bargeInListening: bargeIn.listening,
+    bargeInPermissionDenied: bargeIn.permissionDenied,
+    bargeInError: bargeIn.error,
+    setBargeInEnabled: bargeIn.setEnabled,
+    armBargeIn,
+    autoArmBargeIn,
+    interruptRun,
     hasStageContext,
     hasMessages,
     isRunning,

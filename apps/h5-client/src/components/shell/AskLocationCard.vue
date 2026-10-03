@@ -117,7 +117,7 @@ function statusClass(item: ExhibitChatLocationItem) {
       :disabled="!isOpenable(item)"
       :aria-label="
         isOpenable(item)
-          ? `查看「${exhibitTitle(item)}」展厅位置`
+          ? `查看「${exhibitTitle(item)}」位置`
           : `${exhibitTitle(item)}，${statusHint(item)}`
       "
       @click="openMap(item)"
@@ -182,14 +182,14 @@ function statusClass(item: ExhibitChatLocationItem) {
   gap: 0.4rem;
   margin-top: 0.55rem;
   padding-top: 0.45rem;
-  border-top: 1px solid rgba(255, 248, 230, 0.06);
+  border-top: 1px solid #e5eae7;
 }
 
 .ask-loc-label {
   font-size: 0.62rem;
   font-weight: 650;
   letter-spacing: 0.08em;
-  color: rgba(242, 235, 224, 0.45);
+  color: #65766d;
 }
 
 .ask-loc-card {
@@ -199,13 +199,9 @@ function statusClass(item: ExhibitChatLocationItem) {
   gap: 0.55rem;
   margin: 0;
   padding: 0.5rem 0.55rem;
-  border: 1px solid rgba(209, 178, 111, 0.22);
+  border: 1px solid #d6e2d9;
   border-radius: 0.75rem;
-  background: linear-gradient(
-    135deg,
-    rgba(209, 178, 111, 0.12),
-    rgba(209, 178, 111, 0.04)
-  );
+  background: #fff;
   color: inherit;
   font: inherit;
   text-align: left;
@@ -218,12 +214,8 @@ function statusClass(item: ExhibitChatLocationItem) {
 }
 
 .ask-loc-card.is-openable:active {
-  border-color: rgba(209, 178, 111, 0.42);
-  background: linear-gradient(
-    135deg,
-    rgba(209, 178, 111, 0.18),
-    rgba(209, 178, 111, 0.08)
-  );
+  border-color: #8eaaa0;
+  background: #edf3ef;
 }
 
 .ask-loc-card:disabled {
@@ -232,12 +224,12 @@ function statusClass(item: ExhibitChatLocationItem) {
 
 .ask-loc-card.is-unbound,
 .ask-loc-card.is-map_unavailable {
-  border-color: rgba(255, 248, 230, 0.1);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: #e5eae7;
+  background: #f3f7f4;
 }
 
 .ask-loc-card.is-gallery_only {
-  border-color: rgba(209, 178, 111, 0.16);
+  border-color: #d6e2d9;
 }
 
 .ask-loc-card__thumb {
@@ -247,8 +239,8 @@ function statusClass(item: ExhibitChatLocationItem) {
   height: 2.6rem;
   overflow: hidden;
   border-radius: 0.5rem;
-  border: 1px solid rgba(209, 178, 111, 0.28);
-  background: rgba(12, 10, 8, 0.55);
+  border: 1px solid #d6e2d9;
+  background: #f3f7f4;
 }
 
 .ask-loc-card__thumb img {
@@ -265,9 +257,9 @@ function statusClass(item: ExhibitChatLocationItem) {
   width: 2.6rem;
   height: 2.6rem;
   border-radius: 0.5rem;
-  border: 1px solid rgba(209, 178, 111, 0.28);
-  background: rgba(12, 10, 8, 0.35);
-  color: #d1b26f;
+  border: 1px solid #d6e2d9;
+  background: #edf3ef;
+  color: #183e43;
 }
 
 .ask-loc-card__pin svg {
@@ -283,7 +275,7 @@ function statusClass(item: ExhibitChatLocationItem) {
 }
 
 .ask-loc-card__title {
-  color: #f3e6c4;
+  color: #2b4039;
   font-size: 0.78rem;
   font-weight: 650;
   line-height: 1.3;
@@ -294,7 +286,7 @@ function statusClass(item: ExhibitChatLocationItem) {
 
 .ask-loc-card__place,
 .ask-loc-card__meta {
-  color: rgba(242, 235, 224, 0.58);
+  color: #7b8a80;
   font-size: 0.66rem;
   line-height: 1.35;
   overflow: hidden;
@@ -305,16 +297,16 @@ function statusClass(item: ExhibitChatLocationItem) {
 .ask-loc-card.is-unbound .ask-loc-card__place,
 .ask-loc-card.is-map_unavailable .ask-loc-card__place,
 .ask-loc-card.is-gallery_only .ask-loc-card__place {
-  color: rgba(232, 201, 138, 0.72);
+  color: #8b733b;
 }
 
 .ask-loc-card__cta {
   flex-shrink: 0;
   border-radius: 999px;
-  border: 1px solid rgba(209, 178, 111, 0.32);
-  background: rgba(209, 178, 111, 0.12);
+  border: 1px solid #d6e2d9;
+  background: #edf3ef;
   padding: 0.2rem 0.48rem;
-  color: #efd391;
+  color: #496657;
   font-size: 0.62rem;
   font-weight: 650;
   letter-spacing: 0.02em;
@@ -322,9 +314,9 @@ function statusClass(item: ExhibitChatLocationItem) {
 }
 
 .ask-loc-card__cta.is-muted {
-  border-color: rgba(255, 248, 230, 0.1);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(242, 235, 224, 0.48);
+  border-color: #e5eae7;
+  background: #f3f7f4;
+  color: #7b8a80;
   font-weight: 550;
 }
 </style>

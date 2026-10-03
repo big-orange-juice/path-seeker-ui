@@ -11,22 +11,21 @@ import {
 import type { CSSProperties } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { gsap } from 'gsap';
-import { Compass, Map, MessageCircle, Play, User, Users } from 'lucide-vue-next';
+import { Map, MessageCircle, User } from 'lucide-vue-next';
 import { useAskStore } from '@/stores/useAskStore';
-import { useMissionStore } from '@/stores/useMissionStore';
 import type { ShellTab } from '@/types/mission';
 
 interface FabActionItem {
   key: string;
   label: string;
-  icon: typeof Compass;
+  icon: typeof Map;
   to?: string;
   active?: boolean;
   action?: 'ask';
 }
 
 /**
- * 收缩/展开 item 同宽。固定 4 项（约 320px），避免任务流再塞第 5 项超宽。
+ * 收缩/展开 item 同宽。当前固定 3 项（户外 / 我的 / 问），留出余量不顶边。
  */
 const ITEM_WIDTH = 72;
 const ITEM_HEIGHT = 36;
@@ -39,33 +38,23 @@ const ISLAND_HEIGHT = ITEM_HEIGHT + CONTAINER_PADDING * 2;
 
 const route = useRoute();
 const router = useRouter();
-const missionStore = useMissionStore();
 const askStore = useAskStore();
 const fabRoot = useTemplateRef<HTMLElement>('fabRoot');
 
-/** 壳层固定四格：展厅 | 导游 | 我的 | 问 */
+/** 壳层固定两格：户外主线 | 我的 */
 const shellItems: Array<{
   label: string;
   value: ShellTab;
   to: string;
-  icon: typeof Compass;
+  icon: typeof Map;
 }> = [
-  { label: '展厅', value: 'hall', to: '/shell/hall', icon: Compass },
-  { label: '导游', value: 'guides', to: '/shell/guides', icon: Users },
+  { label: '户外', value: 'tour', to: '/ride', icon: Map },
   { label: '我的', value: 'me', to: '/shell/me', icon: User }
 ];
 
-const routeId = computed(() => String(route.params.routeId || ''));
-const onMissionRoute = computed(() => route.path.startsWith('/missions/'));
 const onShellRoute = computed(() => route.path.startsWith('/shell/'));
 const onAuthRoute = computed(() => route.path.startsWith('/auth'));
-const shellTab = computed(() => String(route.meta.shellTab || 'hall'));
-const resumePath = computed(() => missionStore.resolveResumeRoutePath());
-const activeChapterMapPath = computed(() =>
-  missionStore.activeSession
-    ? `/missions/${missionStore.activeSession.routeId}/map`
-    : '/shell/playing'
-);
+const shellTab = computed(() => String(route.meta.shellTab || 'me'));
 
 const askAction = computed<FabActionItem>(() => ({
   key: 'ask',
@@ -76,79 +65,23 @@ const askAction = computed<FabActionItem>(() => ({
 }));
 
 /**
- * 始终最多 4 项，防止展开超宽：
- * - 壳层：展厅 / 导游 / 我的 / 问
- * - 任务流：路线·继续（合一项上下文） / 展厅 / 导游 / 问（不含「我的」）
+ * 户外主线是整屏地图、不显示底部导航，因此这里只服务 /shell/* 外壳与问一问。
  */
 const actions = computed<FabActionItem[]>(() => {
-  if (onAuthRoute.value) {
+  if (onAuthRoute.value || !onShellRoute.value) {
     return [];
   }
 
-  if (onShellRoute.value) {
-    return [
-      ...shellItems.map((item) => ({
-        key: item.value,
-        label: item.label,
-        icon: item.icon,
-        to: item.to,
-        active: shellTab.value === item.value && !askStore.open
-      })),
-      askAction.value
-    ];
-  }
-
-  if (onMissionRoute.value) {
-    const onMapPage = route.path.endsWith('/map');
-    const onPuzzleFlowPage = route.path.includes('/chapters/');
-    const mapPath = routeId.value
-      ? `/missions/${routeId.value}/map`
-      : activeChapterMapPath.value;
-    const resume = resumePath.value || activeChapterMapPath.value;
-
-    /**
-     * 任务流只保留 1 个上下文入口（不再「路线+继续」双开）：
-     * - 在地图 →「继续」进当前站
-     * - 在站点内 →「路线」回总览
-     * 再加 展厅 / 导游 / 问 = 固定 4 项
-     */
-    const missionNav: FabActionItem = onMapPage
-      ? {
-          key: 'resume',
-          label: '继续',
-          icon: Play,
-          to: resume,
-          active: false
-        }
-      : {
-          key: 'map',
-          label: '路线',
-          icon: Map,
-          to: mapPath,
-          active: onPuzzleFlowPage && !askStore.open
-        };
-
-    return [
-      missionNav,
-      {
-        key: 'hall',
-        label: '展厅',
-        icon: Compass,
-        to: '/shell/hall',
-        active: false
-      },
-      {
-        key: 'guides',
-        label: '导游',
-        icon: Users,
-        to: '/shell/guides',
-        active: false
-      },
-      askAction.value
-    ];
-  }
-
-  return [];
+  return [
+    ...shellItems.map((item) => ({
+      key: item.value,
+      label: item.label,
+      icon: item.icon,
+      to: item.to,
+      active: shellTab.value === item.value && !askStore.open
+    })),
+    askAction.value
+  ];
 });
 
 const showFab = computed(() => actions.value.length > 0);

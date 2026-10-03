@@ -18,7 +18,7 @@ export function useTourJourney() {
   const stopPending = shallowRef(false)
   const busy = computed(() => pending.value || stopPending.value)
   const error = shallowRef('')
-  const location = shallowRef<{ longitude: number; latitude: number; accuracy: number; timestamp: number } | null>(null)
+  const location = shallowRef<{ longitude: number; latitude: number; accuracy: number; heading: number | null; timestamp: number } | null>(null)
   const locationError = shallowRef(false)
   const tracking = shallowRef(false)
   const stops = computed(() => [...(active.value?.stops ?? [])].sort((left, right) => left.order - right.order))
@@ -181,7 +181,15 @@ export function useTourJourney() {
     tracking.value = true
     locationError.value = false
     watchId = navigator.geolocation.watchPosition(position => {
-      location.value = { longitude: position.coords.longitude, latitude: position.coords.latitude, accuracy: position.coords.accuracy, timestamp: position.timestamp }
+      // heading 只有移动中才有效，静止时浏览器会给 null/NaN，交给地图保持当前朝向
+      const heading = Number(position.coords.heading)
+      location.value = {
+        longitude: position.coords.longitude,
+        latitude: position.coords.latitude,
+        accuracy: position.coords.accuracy,
+        heading: Number.isFinite(heading) ? heading : null,
+        timestamp: position.timestamp,
+      }
       locationError.value = false
       const queued = stops.value[queuedIndex]
       if (queued?.longitude != null && queued.latitude != null

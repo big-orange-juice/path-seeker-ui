@@ -44,7 +44,7 @@ const html = computed(() => {
   display: inline-block;
   width: 0.35em;
   margin-left: 0.08em;
-  color: #e8c98a;
+  color: #527567;
   animation: ask-md-caret 0.9s steps(1) infinite;
 }
 
@@ -67,7 +67,7 @@ const html = computed(() => {
   margin: 0.55em 0 0.22em;
   font-weight: 650;
   line-height: 1.35;
-  color: #f7f0e4;
+  color: #2b4039;
 }
 
 .ask-md :deep(h1) {
@@ -102,18 +102,18 @@ const html = computed(() => {
 }
 
 .ask-md :deep(li::marker) {
-  color: rgba(209, 178, 111, 0.7);
+  color: #527567;
 }
 
 .ask-md :deep(blockquote) {
   margin: 0.4em 0;
-  border-left: 2px solid rgba(209, 178, 111, 0.4);
+  border-left: 2px solid #b8d0c4;
   padding-left: 0.65rem;
-  color: rgba(242, 235, 224, 0.72);
+  color: #65766d;
 }
 
 .ask-md :deep(a) {
-  color: #e8c98a;
+  color: #183e43;
   text-decoration: underline;
   text-underline-offset: 2px;
   word-break: break-all;
@@ -121,19 +121,19 @@ const html = computed(() => {
 
 .ask-md :deep(code) {
   border-radius: 0.3rem;
-  background: rgba(209, 178, 111, 0.12);
+  background: #edf3ef;
   padding: 0.08em 0.32em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.84em;
-  color: #f0e2bc;
+  color: #496657;
 }
 
 .ask-md :deep(pre) {
   margin: 0.45em 0;
   overflow-x: auto;
   border-radius: 0.55rem;
-  border: 1px solid rgba(209, 178, 111, 0.12);
-  background: rgba(8, 9, 11, 0.55);
+  border: 1px solid #d6e2d9;
+  background: #f3f7f4;
   padding: 0.55rem 0.65rem;
 }
 
@@ -147,12 +147,12 @@ const html = computed(() => {
 .ask-md :deep(hr) {
   margin: 0.55em 0;
   border: 0;
-  border-top: 1px solid rgba(209, 178, 111, 0.16);
+  border-top: 1px solid #e5eae7;
 }
 
 .ask-md :deep(strong) {
   font-weight: 650;
-  color: #f4e7c4;
+  color: #2b4039;
 }
 
 .ask-md :deep(table) {
@@ -164,13 +164,13 @@ const html = computed(() => {
 
 .ask-md :deep(th),
 .ask-md :deep(td) {
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #e5eae7;
   padding: 0.28rem 0.4rem;
   text-align: left;
 }
 
 .ask-md :deep(th) {
-  background: rgba(209, 178, 111, 0.08);
+  background: #edf3ef;
   font-weight: 600;
 }
 

@@ -75,8 +75,8 @@ onMounted(() => {
             v-else
             title="暂无已完成路线"
             description="完成路线后会出现在这里，可回看结算。"
-            action-text="去展厅"
-            @action="router.push('/shell/hall')"
+            action-text="去户外"
+            @action="router.push('/ride')"
           />
         </ClientTabsContent>
 
@@ -93,8 +93,8 @@ onMounted(() => {
             v-else
             title="暂无足迹"
             description="完成路线后会留下足迹记录。"
-            action-text="去展厅"
-            @action="router.push('/shell/hall')"
+            action-text="去户外"
+            @action="router.push('/ride')"
           />
         </ClientTabsContent>
       </ClientTabs>

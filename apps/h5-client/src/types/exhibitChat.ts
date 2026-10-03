@@ -222,4 +222,11 @@ export interface AskUiMessage {
   locations?: ExhibitChatLocationItem[]
   /** 本轮 done 前下发的后续建议，以 chip 展示 */
   suggestions?: string[]
+  /**
+   * 语音模式下按可朗读短句切分的正文，顺序与句子音频一一对应。
+   * 仅用于字幕跟读定位；文字模式没有这个字段，正文仍看 content。
+   */
+  sentences?: string[]
+  /** 被「说话打断」中止：正文是半截，但不是失败 */
+  interrupted?: boolean
 }

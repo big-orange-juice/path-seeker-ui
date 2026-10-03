@@ -17,7 +17,8 @@ export type { AgeBand, DifficultyLevel, ScaleTypeCode }
 /** @deprecated 规模请用 ScaleTypeCode；保留兼容旧存档字段 */
 export type TaskKind = "family_adventure" | "story_detective" | "deep_reasoning"
 
-export type ShellTab = "hall" | "playing" | "archive" | "guides" | "me"
+/** 底部导航归属；tour 为户外主线，hall/guides 为已下线的展厅入口 */
+export type ShellTab = "tour" | "hall" | "playing" | "archive" | "guides" | "me"
 
 export interface SchemaMappedOption<TValue extends string> {
   label: string

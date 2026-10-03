@@ -8,21 +8,14 @@ import {
   ClientInput,
 } from "@/components/ui"
 import { useAuthStore } from "@/stores/useAuthStore"
-import { useMissionStore } from "@/stores/useMissionStore"
 
 type AuthMode = "guest" | "login" | "register"
 
 const authStore = useAuthStore()
-const missionStore = useMissionStore()
 const toastStore = useToastStore()
 const route = useRoute()
 const router = useRouter()
 const mode = shallowRef<AuthMode>("guest")
-
-/** 登录成功后拉展厅列表；游玩历史/进行中走服务端接口 */
-async function afterAuthSuccess() {
-  void missionStore.loadRouteCards({ force: true })
-}
 
 const loginForm = reactive({
   account: "",
@@ -45,11 +38,11 @@ const canSubmitRegister = computed(() => {
 
 const redirectPath = computed(() => {
   const redirect = route.query.redirect
-  return typeof redirect === "string" && redirect.startsWith("/") ? redirect : "/shell/hall"
+  return typeof redirect === "string" && redirect.startsWith("/") ? redirect : "/ride"
 })
 
 const modeHint = computed(() => {
-  if (mode.value === "guest") return "无需注册，以游客身份浏览展厅路线。"
+  if (mode.value === "guest") return "无需注册，以游客身份浏览户外路线与讲解。"
   if (mode.value === "login") return "使用已有账号登录，进度将同步到本机。"
   return "创建账号后可在多设备间同步进度。"
 })
@@ -75,7 +68,7 @@ function goBack() {
     void router.back()
     return
   }
-  void router.replace("/shell/hall")
+  void router.replace("/ride")
 }
 
 const canGoBack = computed(() => {
@@ -93,7 +86,6 @@ async function submitLogin() {
   const result = await authStore.login(loginForm.account, loginForm.password)
   if (result) {
     toastStore.success("登录成功", "进度已同步到本机。")
-    await afterAuthSuccess()
     await backHome()
   }
 }
@@ -114,7 +106,6 @@ async function submitRegister() {
 
   if (result) {
     toastStore.success("注册成功", "账号已创建并登录。")
-    await afterAuthSuccess()
     await backHome()
   }
 }
@@ -123,7 +114,6 @@ async function submitGuestLogin() {
   const result = await authStore.loginAsGuest()
   if (result) {
     toastStore.success("已进入", "当前为游客身份。")
-    await afterAuthSuccess()
     await backHome()
   }
 }
@@ -182,7 +172,7 @@ function logout() {
           </div>
 
           <div class="auth-actions">
-            <ClientButton class="w-full" @click="backHome()">进入展厅</ClientButton>
+            <ClientButton class="w-full" @click="backHome()">开始游览</ClientButton>
             <ClientButton variant="outline" class="w-full" @click="logout()">退出登录</ClientButton>
           </div>
         </section>
@@ -190,7 +180,7 @@ function logout() {
         <!-- 未登录：功能优先，无装饰印章 / 无装饰开场 -->
         <template v-else>
           <section class="auth-intro">
-            <p class="auth-lead">选择进入方式，浏览展厅路线与讲解内容。</p>
+            <p class="auth-lead">选择进入方式，浏览户外路线与讲解内容。</p>
           </section>
 
           <section class="auth-panel" aria-label="进入方式">

@@ -59,10 +59,10 @@ onMounted(() => {
       :description="
         failed
           ? missionStore.playingHistoryError || '请检查网络后重试。'
-          : '从展厅选择一条路线开始探索。'
+          : '从户外地图选择一条路线开始探索。'
       "
-      :action-text="failed ? '重新加载' : '去展厅'"
-      @action="failed ? refresh(true) : router.push('/shell/hall')"
+      :action-text="failed ? '重新加载' : '去户外'"
+      @action="failed ? refresh(true) : router.push('/ride')"
     />
   </div>
 </template>

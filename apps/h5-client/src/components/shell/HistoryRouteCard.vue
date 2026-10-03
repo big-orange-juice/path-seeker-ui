@@ -12,7 +12,7 @@ import type { MissionRouteHistoryItem } from "@/types/mission"
 
 interface Props {
   item: MissionRouteHistoryItem
-  /** map：继续探索；finale：查看结算 */
+  /** map：继续探索；finale：查看结算。室内闯关已下线，两种模式都回到户外地图 */
   mode?: "map" | "finale"
 }
 
@@ -47,12 +47,11 @@ const timeLine = computed(() => {
   return formatHistoryTime(props.item.startedAt)
 })
 
-const targetPath = computed(() => {
-  if (props.mode === "finale") {
-    return `/missions/${props.item.routeId}/finale`
-  }
-  return `/missions/${props.item.routeId}/map`
-})
+/** 室内闯关入口已下线：历史条目统一回到户外地图，能预选就预选该路线 */
+const targetPath = computed(() => ({
+  path: "/ride",
+  query: { routeId: props.item.routeId },
+}))
 </script>
 
 <template>

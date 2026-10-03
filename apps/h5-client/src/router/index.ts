@@ -2,22 +2,17 @@ import { createRouter, createWebHistory } from "vue-router"
 import { useAuthStore } from "@/stores/useAuthStore"
 import MobileShellLayout from "@/layouts/MobileShellLayout.vue"
 import AuthPage from "@/pages/AuthPage.vue"
-import ChapterBriefPage from "@/pages/ChapterBriefPage.vue"
-import ChapterMapPage from "@/pages/ChapterMapPage.vue"
-import ChapterResultPage from "@/pages/ChapterResultPage.vue"
-import FinalePage from "@/pages/FinalePage.vue"
-import NarrationChapterPage from "@/pages/NarrationChapterPage.vue"
 import ShellArchivePage from "@/pages/ShellArchivePage.vue"
 import ShellAskPage from "@/pages/ShellAskPage.vue"
-import ShellGuideDetailPage from "@/pages/ShellGuideDetailPage.vue"
-import ShellGuidesPage from "@/pages/ShellGuidesPage.vue"
-import ShellPlayingPage from "@/pages/ShellPlayingPage.vue"
 import ShellMePage from "@/pages/ShellMePage.vue"
+import ShellPlayingPage from "@/pages/ShellPlayingPage.vue"
 import OutdoorMapPage from "@/pages/OutdoorMapPage.vue"
-import HeritageAssetDetailPage from "@/pages/HeritageAssetDetailPage.vue"
-import VenueExplorerPage from "@/pages/VenueExplorerPage.vue"
-import VenueDetailPage from "@/pages/VenueDetailPage.vue"
 
+/**
+ * 当前只保留户外游览主线与「我的 / 足迹」外壳。
+ * 展馆浏览（/venues、/museums/:id/assets/…）与室内闯关（/missions/*）暂时下线：
+ * 页面文件仍在仓库中，恢复时把它们重新挂回这里即可。
+ */
 const router = createRouter({
   // 与 vite.config base 对齐，否则访问 /path-seeker/client/ 会报 No match found
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -40,28 +35,26 @@ const router = createRouter({
       component: MobileShellLayout,
       children: [
         { path: "ride", name: "tour-entry", component: OutdoorMapPage, meta: { title: "游览路线", showTabBar: false } },
-        { path: "venues", name: "venues", component: VenueExplorerPage, meta: { shellTab: "hall", title: "探索地点", showTabBar: true } },
-        { path: "venues/:venueId", name: "venue-detail", component: VenueDetailPage, meta: { shellTab: "hall", title: "展馆详情", showTabBar: true } },
         { path: "museums/:museumId/map", name: "outdoor-map", component: OutdoorMapPage, meta: { title: "景区地图", showTabBar: false } },
         { path: "map", redirect: (to) => ({ path: `/museums/${String(to.query.museumId || import.meta.env.VITE_MUSEUM_ID || '1')}/map`, query: to.query }) },
-        { path: "museums/:museumId/assets/:assetId", name: "heritage-asset", component: HeritageAssetDetailPage, meta: { title: "文化资产", showTabBar: false } },
         {
           path: "shell",
           children: [
             {
               path: "",
-              redirect: "/shell/hall",
+              redirect: "/shell/me",
             },
             {
+              // 展厅入口已下线，旧链接统一回到户外主线
               path: "hall",
-              redirect: "/venues",
+              redirect: "/ride",
             },
             {
               path: "playing",
               name: "shell-playing",
               component: ShellPlayingPage,
               meta: {
-                shellTab: "playing",
+                shellTab: "me",
                 title: "探索",
                 showTabBar: true,
               },
@@ -71,7 +64,7 @@ const router = createRouter({
               name: "shell-archive",
               component: ShellArchivePage,
               meta: {
-                shellTab: "archive",
+                shellTab: "me",
                 title: "探索记录",
                 showTabBar: true,
               },
@@ -87,105 +80,22 @@ const router = createRouter({
               },
             },
             {
-              path: "guides",
-              name: "shell-guides",
-              component: ShellGuidesPage,
-              meta: {
-                shellTab: "guides",
-                title: "导游",
-                showTabBar: false,
-              },
-            },
-            {
-              path: "guides/:guideId",
-              name: "shell-guide-detail",
-              component: ShellGuideDetailPage,
-              meta: {
-                shellTab: "guides",
-                title: "导游详情",
-                showTabBar: false,
-              },
-            },
-            {
               path: "ask",
               name: "shell-ask",
               component: ShellAskPage,
               meta: {
-                shellTab: "hall",
                 title: "问一问",
                 showTabBar: false,
               },
             },
           ],
         },
-        {
-          // 兼容旧链接：任务详情已并入路线 map
-          path: "tasks/:routeId",
-          redirect: (to) => `/missions/${String(to.params.routeId || "")}/map`,
-        },
-        {
-          // 旧介绍页：统一并入 map 选站，避免「预览 → 介绍 → 再选站」重复
-          path: "missions/:routeId/prologue",
-          redirect: (to) => `/missions/${String(to.params.routeId || "")}/map`,
-        },
-        {
-          path: "missions/:routeId/map",
-          component: ChapterMapPage,
-          meta: {
-            title: "路线",
-            showTabBar: false,
-          },
-        },
-        {
-          // brief 仅承载 1/6 题面与 10 的扫码播片；11 由独立解说页处理。
-          path: "missions/:routeId/chapters/:chapterId/brief",
-          component: ChapterBriefPage,
-          meta: {
-            title: "本站",
-            showTabBar: false,
-          },
-        },
-        {
-          // 兼容旧链接：clue / video / puzzle 均并入 brief
-          path: "missions/:routeId/chapters/:chapterId/clue",
-          redirect: (to) =>
-            `/missions/${String(to.params.routeId || "")}/chapters/${String(to.params.chapterId || "")}/brief`,
-        },
-        {
-          path: "missions/:routeId/chapters/:chapterId/video",
-          redirect: (to) =>
-            `/missions/${String(to.params.routeId || "")}/chapters/${String(to.params.chapterId || "")}/brief`,
-        },
-        {
-          path: "missions/:routeId/chapters/:chapterId/puzzle",
-          redirect: (to) =>
-            `/missions/${String(to.params.routeId || "")}/chapters/${String(to.params.chapterId || "")}/brief`,
-        },
-        {
-          path: "missions/:routeId/chapters/:chapterId/narration",
-          component: NarrationChapterPage,
-          meta: {
-            title: "解说导览",
-            showTabBar: false,
-          },
-        },
-        {
-          path: "missions/:routeId/chapters/:chapterId/result",
-          component: ChapterResultPage,
-          meta: {
-            title: "本站结果",
-            showTabBar: false,
-          },
-        },
-        {
-          path: "missions/:routeId/finale",
-          component: FinalePage,
-          meta: {
-            title: "探索完成",
-            showTabBar: false,
-          },
-        },
       ],
+    },
+    {
+      // 下线路由与未知地址统一回到户外主线，避免手机端停在空白页
+      path: "/:pathMatch(.*)*",
+      redirect: "/ride",
     },
   ],
 })
@@ -197,30 +107,17 @@ router.beforeEach(async (to) => {
     return true
   }
 
-  if (!authStore.isLoggedIn) {
-    return {
-      path: "/auth",
-      query: {
-        redirect: to.fullPath,
-      },
-    }
+  // 默认游客身份：没有可用 token 时静默签发游客会话，失败才回落到登录页
+  if (await authStore.ensureGuestSession()) {
+    return true
   }
 
-  if (authStore.isTokenExpired) {
-    const refreshed = await authStore.refreshTokenIfNeeded(true)
-
-    if (!refreshed) {
-      return {
-        path: "/auth",
-        query: {
-          redirect: to.fullPath,
-        },
-      }
-    }
+  return {
+    path: "/auth",
+    query: {
+      redirect: to.fullPath,
+    },
   }
-
-  // 路由切换不再压暗过场，直接进入目标页
-  return true
 })
 
 export default router

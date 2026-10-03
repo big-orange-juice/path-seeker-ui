@@ -135,7 +135,7 @@ onMounted(() => {
         />
       </template>
       <p v-else class="text-xs text-muted-foreground">
-        暂无进行中的探索，去展厅挑一条路线。
+        暂无进行中的探索，去挑一条户外路线。
       </p>
     </section>
 

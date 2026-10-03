@@ -5,6 +5,8 @@ import {
   AudioLines,
   Maximize2,
   MessageCircle,
+  Mic,
+  MicOff,
   Minimize2,
   RefreshCw,
   Send,
@@ -60,6 +62,14 @@ const voicePhaseLabel = computed(() => {
     default:
       return "就绪"
   }
+})
+
+/** 说话打断的状态说明；只在播放期真正监听，其余时间不消费麦克风 */
+const bargeInTitle = computed(() => {
+  if (!speech.bargeInEnabled.value) return "已关闭：不会使用麦克风"
+  if (speech.bargeInListening.value) return "正在监听：开口即打断朗读"
+  if (speech.bargeInArmed.value) return "已就绪：朗读开始后开口即可打断"
+  return "点击开启：只在朗读期间使用麦克风，音频不上传、不录制"
 })
 
 async function scrollToBottom() {
@@ -140,17 +150,22 @@ function maximize() {
 
 function minifyToSheet() {
   askStore.openAsk()
-  void router.push("/shell/hall")
+  // 全页问一问收回底部面板：有历史就回上一页，否则回户外主线
+  if (window.history.length > 1) {
+    void router.back()
+    return
+  }
+  void router.replace("/ride")
 }
 
 function close() {
   if (props.fullPage) {
-    // 优先回上一页（如从路线 map 最大化进入），无历史再回展厅
+    // 优先回上一页（如从路线 map 最大化进入），无历史再回户外主线
     if (window.history.length > 1) {
       void router.back()
       return
     }
-    void router.replace("/shell/hall")
+    void router.replace("/ride")
     return
   }
   askStore.closeAsk()
@@ -220,7 +235,7 @@ function handleSuggestion(text: string) {
             <MessageCircle v-else class="h-4 w-4" />
           </span>
           <div class="min-w-0">
-            <p class="ask-kicker">馆内小助手</p>
+            <p class="ask-kicker">户外小助手</p>
             <h2 class="ask-title">
               {{ isVoiceMode ? "语音模式" : "问一问" }}
             </h2>
@@ -283,23 +298,57 @@ function handleSuggestion(text: string) {
       </div>
 
       <!--
-        语音模式：仍渲染气泡（位置卡可点），仅顶部状态条。
-        朗读只走 SSE 音频，不把气泡当字幕/朗读稿。
+        语音模式：仍渲染气泡（位置卡可点），顶部状态条负责相位、字幕跟读与打断开关。
+        朗读只走 SSE 音频，不把气泡当朗读稿。
       -->
       <div
         v-if="isVoiceMode"
         class="ask-voice-bar"
         aria-live="polite"
       >
-        <p class="ask-voice-phase">{{ voicePhaseLabel }}</p>
+        <div class="ask-voice-head">
+          <p class="ask-voice-phase">{{ voicePhaseLabel }}</p>
+          <button
+            v-if="speech.bargeInSupported.value"
+            type="button"
+            class="ask-bargein-toggle"
+            :class="{ 'is-on': speech.bargeInEnabled.value, 'is-live': speech.bargeInListening.value }"
+            :aria-pressed="speech.bargeInEnabled.value"
+            :title="bargeInTitle"
+            @click="speech.toggleBargeIn(!speech.bargeInEnabled.value)"
+          >
+            <Mic v-if="speech.bargeInEnabled.value" class="h-3 w-3" />
+            <MicOff v-else class="h-3 w-3" />
+            说话打断
+          </button>
+        </div>
+
+        <!-- 字幕跟读：当前正在朗读的那一句 + 句内进度 -->
+        <p v-if="speech.speakingSentence.value" class="ask-voice-caption">
+          {{ speech.speakingSentence.value }}
+        </p>
+        <span
+          v-if="speech.speakingSentence.value"
+          class="ask-voice-progress"
+          aria-hidden="true"
+        >
+          <i :style="{ transform: `scaleX(${speech.speakingProgress.value})` }" />
+        </span>
+
         <p class="ask-voice-hint">
           {{
             speech.voicePhase.value === "speaking"
-              ? "正在朗读回复"
+              ? "正在朗读回复，开口说话可打断"
               : speech.voicePhase.value === "thinking"
                 ? "正在组织回答…"
                 : "回复会出现在下方气泡，可点位置卡"
           }}
+        </p>
+        <p
+          v-if="speech.bargeInError.value"
+          class="ask-voice-note"
+        >
+          {{ speech.bargeInError.value }}
         </p>
         <button
           v-if="speech.isSpeaking.value"
@@ -317,12 +366,12 @@ function handleSuggestion(text: string) {
           v-if="!messages.length && !historyPending"
           class="ask-welcome"
         >
-          <p class="ask-welcome-title">你好，我在展厅里。</p>
+          <p class="ask-welcome-title">你好，我在路上。</p>
           <p class="ask-welcome-copy">
             {{
               isVoiceMode
                 ? "打字提问，我会朗读回复；位置等信息可在气泡里点开。"
-                : "想找展品、听故事，或问这一站怎么走，都可以跟我说。"
+                : "想了解这一站的故事、路线怎么走，都可以跟我说。"
             }}
           </p>
         </div>
@@ -364,6 +413,14 @@ function handleSuggestion(text: string) {
               </span>
               <span v-else-if="msg.status === 'failed'" class="ask-fail-text">
                 {{ msg.errorMessage || "回复失败" }}
+              </span>
+
+              <span
+                v-if="msg.interrupted"
+                class="ask-interrupted-tag"
+              >
+                <MicOff class="h-3 w-3" />
+                已被说话打断
               </span>
 
               <div

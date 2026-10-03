@@ -53,6 +53,12 @@ function syncAccessTokenSession(token: string) {
   clearAccessToken()
 }
 
+/**
+ * 静默游客登录的并发闸门。
+ * 路由守卫与启动引导会同时要求会话，共用一个在途请求，避免重复签发游客账号。
+ */
+let guestSessionPromise: Promise<boolean> | null = null
+
 export const useAuthStore = defineStore(
   "auth",
   () => {
@@ -141,6 +147,37 @@ export const useAuthStore = defineStore(
       } finally {
         pending.value = false
       }
+    }
+
+    /**
+     * 保证存在可用会话：已有未过期 token 直接放行，过期则先续期，
+     * 都没有时静默签发游客身份。返回是否拿到可用会话。
+     */
+    async function ensureGuestSession() {
+      if (isLoggedIn.value && !isTokenExpired.value) {
+        return true
+      }
+
+      if (guestSessionPromise) {
+        return guestSessionPromise
+      }
+
+      guestSessionPromise = (async () => {
+        try {
+          if (isLoggedIn.value && refreshToken.value) {
+            const refreshed = await refreshTokenIfNeeded(true)
+            if (refreshed) {
+              return true
+            }
+          }
+
+          return Boolean(await loginAsGuest())
+        } finally {
+          guestSessionPromise = null
+        }
+      })()
+
+      return guestSessionPromise
     }
 
     async function refreshTokenIfNeeded(force = false) {
@@ -240,6 +277,7 @@ export const useAuthStore = defineStore(
       login,
       register,
       loginAsGuest,
+      ensureGuestSession,
       refreshTokenIfNeeded,
       loadProfile,
       updateProfile,

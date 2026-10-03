@@ -160,6 +160,16 @@ function notifySessionExpiredIfNeeded(error: ApiRequestError) {
         return
       }
     }
+
+    // 游客身份过期是常态：直接换一个新游客会话，不打断游览
+    const currentProfile = authStore.profile
+    const isGuestIdentity = !currentProfile?.id || Number(currentProfile.registerChannel) === 5
+    if (isGuestIdentity) {
+      authStore.logout()
+      void authStore.ensureGuestSession()
+      return
+    }
+
     authStore.openSessionExpiredDialog(error.message)
   } catch {
     // Pinia 未就绪时忽略

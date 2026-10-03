@@ -4,7 +4,6 @@ import piniaPluginPersistedstate from "pinia-plugin-persistedstate"
 import App from "./App.vue"
 import router from "./router"
 import { useAuthStore } from "@/stores/useAuthStore"
-import { useMissionStore } from "@/stores/useMissionStore"
 import "./assets/styles/index.css"
 
 const app = createApp(App)
@@ -17,30 +16,22 @@ setActivePinia(pinia)
 app.use(router)
 
 /**
- * 启动顺序：鉴权就绪 → 列表 / 会话恢复。
- * 避免 Published 列表与 token 刷新竞态导致列表被清空且不再重试。
+ * 启动只保证会话可用：有 token 复用，没有就静默游客登录。
+ * 业务数据由各页面自己按需拉取，避免启动阶段与路由守卫互相抢 token。
  */
 async function bootstrapClient() {
   // 确保任意异步回调里 useStore 都能拿到同一 pinia
   setActivePinia(pinia)
 
   const authStore = useAuthStore(pinia)
-  const missionStore = useMissionStore(pinia)
 
-  if (!authStore.isLoggedIn) {
+  if (!(await authStore.ensureGuestSession())) {
     return
   }
 
-  if (authStore.isTokenExpired) {
-    const refreshed = await authStore.refreshTokenIfNeeded(true)
-    if (!refreshed || !authStore.isLoggedIn) {
-      return
-    }
+  if (!authStore.profile?.id) {
+    void authStore.loadProfile()
   }
-
-  void authStore.loadProfile()
-  // 路线列表走服务端；与展厅 ensureRouteCards 共用 inflight，避免连打两次 Published
-  void missionStore.loadRouteCards({ force: true })
 }
 
 app.mount("#app")

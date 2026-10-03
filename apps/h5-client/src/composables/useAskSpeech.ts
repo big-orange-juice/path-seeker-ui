@@ -8,8 +8,8 @@ import {
 import type { AskUiMessage } from "@/types/exhibitChat"
 
 /**
- * 语音模式 UI：字幕、相位、停播 / 解锁。
- * 音频由后端 send-with-audio 经 SSE 下发，在 askStore 内组装并播放。
+ * 语音模式 UI：字幕跟读、相位、说话打断开关、停播 / 解锁。
+ * 音频由后端 send-with-audio 经 SSE 按句下发，在 askStore 内用 WebAudio 排期播放。
  */
 export function useAskSpeech() {
   const askStore = useAskStore()
@@ -21,6 +21,14 @@ export function useAskSpeech() {
     sseAudioError,
     audioErrorMessage,
     isSseAudioBusy,
+    speakingProgress,
+    speakingSentence,
+    bargeInEnabled,
+    bargeInSupported,
+    bargeInArmed,
+    bargeInListening,
+    bargeInPermissionDenied,
+    bargeInError,
   } = storeToRefs(askStore)
 
   const liveAssistant = computed(() => {
@@ -92,6 +100,16 @@ export function useAskSpeech() {
     // 不 stopSseAudio：浮层 / 全页 AskPanel 切换会 unmount，播放由 store 管理
   }
 
+  /** 用户在手势里打开「说话打断」：先申请麦克风，成功才置为开启 */
+  async function toggleBargeIn(next: boolean) {
+    if (!next) {
+      askStore.setBargeInEnabled(false)
+      return
+    }
+    askStore.setBargeInEnabled(true)
+    await askStore.armBargeIn()
+  }
+
   return {
     interactionMode: interactionMode as Ref<AskInteractionMode>,
     voicePhase,
@@ -101,6 +119,15 @@ export function useAskSpeech() {
     speakError,
     speakCurrentText: captionText,
     isSpeaking: isSseAudioBusy,
+    speakingSentence,
+    speakingProgress,
+    bargeInEnabled,
+    bargeInSupported,
+    bargeInArmed,
+    bargeInListening,
+    bargeInPermissionDenied,
+    bargeInError,
+    toggleBargeIn,
     unlock,
     stopSpeaking,
     dispose,
