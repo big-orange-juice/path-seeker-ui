@@ -9,6 +9,7 @@ import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import MuseumWorkbenchPanels from '@/components/museum-management/MuseumWorkbenchPanels.vue';
 import MuseumManagementForm from '@/components/museum-management/MuseumManagementForm.vue';
 import CulturalPlacePanel from '@/components/museum-management/CulturalPlacePanel.vue';
+import { isScenicVenue } from '@/utils/scenic-boundary';
 import type { MuseumDraft } from '@/types/museum';
 
 interface Props {
@@ -54,17 +55,20 @@ const formState = reactive<MuseumDraft>({
   status: 1,
 });
 
-const dialogTitle = computed(() => (props.mode === 'create' ? '新增博物馆' : '博物馆工作台'));
+const scenic = computed(() => isScenicVenue(formState.venueType));
+let museumCreateDraft: MuseumDraft;
+let scenicCreateDraft: MuseumDraft;
+const dialogTitle = computed(() => (props.mode === 'create' ? '新增景点' : scenic.value ? '景点工作台' : '博物馆工作台'));
 const dialogDescription = computed(() =>
   props.mode === 'create'
-    ? '先保存博物馆基础信息，再继续维护楼层和设施。'
-    : '在同一个博物馆工作台中维护基础信息、楼层和设施。'
+    ? '选择博物馆或户外景点，保存后继续维护对应的路线资料。'
+    : scenic.value ? '维护景点基础信息、地图范围、文化点和设施。' : '维护博物馆基础信息、楼层和设施。'
 );
 
 const tabItems = computed(() => [
   { key: 'basic', label: '基础信息' },
-  ...((formState.venueType ?? 1) === 1 || formState.venueType === 3 ? [{ key: 'floors' as const, label: '楼层地图' }] : []),
-  ...((formState.venueType ?? 1) !== 1 ? [{ key: 'places' as const, label: '文化点' }] : []),
+  ...([1, 3, 5].includes(formState.venueType ?? 1) ? [{ key: 'floors' as const, label: '楼层地图' }] : []),
+  ...(scenic.value ? [{ key: 'places' as const, label: '文化点' }] : []),
   { key: 'facilities', label: '设施' },
 ] as const);
 
@@ -100,6 +104,8 @@ watch(
   () => props.initialValue,
   (value) => {
     syncFormState(value);
+    museumCreateDraft = { ...value, venueType: 1 };
+    scenicCreateDraft = { ...value, venueType: 4, coordinateSystem: 2, mapProvider: 1, boundaryGeoJson: null };
   },
   { immediate: true, deep: true }
 );
@@ -120,13 +126,30 @@ const closeDialog = () => {
   emit('update:open', false);
 };
 
-const submitBasic = (...args: unknown[]) => {
-  const value = args[0] as MuseumDraft;
+const changeCreateType = (type: 'museum' | 'scenic') => {
+  if (props.submitting || props.mode !== 'create' || (type === 'scenic') === scenic.value) return;
+  if (scenic.value) scenicCreateDraft = { ...formState };
+  else museumCreateDraft = { ...formState };
+  syncFormState(type === 'scenic' ? scenicCreateDraft : museumCreateDraft);
+};
+
+const resetBasic = () => {
+  const wasScenic = scenic.value;
+  syncFormState(props.initialValue);
+  if (props.mode === 'create' && wasScenic) {
+    formState.venueType = 4;
+    formState.coordinateSystem = 2;
+    formState.mapProvider = 1;
+    formState.boundaryGeoJson = null;
+  }
+};
+
+const submitBasic = () => {
   if (props.submitting) {
     return;
   }
 
-  emit('save', value);
+  emit('save', { ...formState });
 };
 
 const activeWorkbenchSection = computed<'floors' | 'facilities'>(() => {
@@ -154,7 +177,12 @@ const activeWorkbenchSection = computed<'floors' | 'facilities'>(() => {
         </div>
 
         <div class="border-b border-border/70 px-5 py-2.5">
-          <div class="flex flex-wrap gap-2">
+          <div v-if="props.mode === 'create'" class="flex gap-2" role="tablist" aria-label="景点类型">
+            <button v-for="item in [{ key: 'museum', label: '博物馆（室内路线）' }, { key: 'scenic', label: '景点（户外路线）' }] as const" :key="item.key" type="button" role="tab" :aria-selected="(item.key === 'scenic') === scenic" :disabled="props.submitting" class="rounded-md border px-4 py-2 text-sm transition-colors" :class="(item.key === 'scenic') === scenic ? 'border-primary/35 bg-primary/10 text-foreground' : 'border-border text-muted-foreground'" @click="changeCreateType(item.key)">
+              {{ item.label }}
+            </button>
+          </div>
+          <div v-else class="flex flex-wrap gap-2">
             <button
               v-for="item in tabItems"
               :key="item.key"
@@ -174,11 +202,13 @@ const activeWorkbenchSection = computed<'floors' | 'facilities'>(() => {
         <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
           <MuseumManagementForm
             v-if="activeTab === 'basic'"
-            v-model="formState"
+            :key="scenic ? 'scenic' : 'museum'"
+            :model-value="formState"
+            @update:model-value="Object.assign(formState, $event)"
             :mode="props.mode"
             :submitting="props.submitting"
             @save="submitBasic"
-            @reset="syncFormState(props.initialValue)" />
+            @reset="resetBasic" />
 
           <CulturalPlacePanel v-else-if="activeTab === 'places'" :museum-id="formState.id || ''" :disabled="props.submitting" />
 

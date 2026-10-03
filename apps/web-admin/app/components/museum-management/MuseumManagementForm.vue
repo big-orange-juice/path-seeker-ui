@@ -1,11 +1,13 @@
 ﻿<script setup lang="ts">
-import { computed, shallowRef } from 'vue';
+import { computed, shallowRef, useTemplateRef } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Input from '@/components/shadcn/input/Input.vue';
 import Select from '@/components/shadcn/select/Select.vue';
 import Textarea from '@/components/shadcn/textarea/Textarea.vue';
 import type { UploadAttachment } from '@/types/upload';
 import type { MuseumDraft } from '@/types/museum';
+import ScenicBoundaryPicker from '@/components/museum-management/ScenicBoundaryPicker.vue';
+import { isScenicVenue } from '@/utils/scenic-boundary';
 
 interface Props {
   mode: 'create' | 'edit';
@@ -17,6 +19,31 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const model = defineModel<MuseumDraft>({ required: true });
+const scenic = computed(() => isScenicVenue(model.value.venueType));
+const entityLabel = computed(() => scenic.value ? '景点' : '博物馆');
+const boundaryPicker = useTemplateRef<InstanceType<typeof ScenicBoundaryPicker>>('boundaryPicker');
+const resolvingBoundary = shallowRef(false);
+const validationMessage = shallowRef('');
+
+const submit = async () => {
+  if (props.submitting || resolvingBoundary.value) return;
+  validationMessage.value = '';
+  if (!model.value.name.trim() || !model.value.museumCode.trim()) {
+    validationMessage.value = `请填写${entityLabel.value}名称和编码。`;
+    return;
+  }
+  if (scenic.value) {
+    resolvingBoundary.value = true;
+    try {
+      if (!await boundaryPicker.value?.ensureBoundary()) return;
+      if (model.value.longitude == null || model.value.latitude == null) {
+        validationMessage.value = '请通过搜索或点击地图拾取景点位置。';
+        return;
+      }
+    } finally { resolvingBoundary.value = false; }
+  }
+  emit('save');
+};
 
 const emit = defineEmits<{
   save: [];
@@ -61,15 +88,20 @@ const updateNumber = (field: NumericField, value: string) => {
 </script>
 
 <template>
-  <form class="space-y-4" @submit.prevent="emit('save')">
+  <form class="space-y-4" @submit.prevent="submit">
     <section class="space-y-2">
-      <label class="text-sm font-medium">博物馆名称</label>
-      <Input v-model="model.name" placeholder="请输入博物馆名称" />
+      <label class="text-sm font-medium">{{ entityLabel }}名称</label>
+      <Input v-model="model.name" :placeholder="`请输入${entityLabel}名称`" required :disabled="props.submitting || resolvingBoundary" />
+    </section>
+
+    <section class="grid gap-3 md:grid-cols-2">
+      <div class="space-y-2"><label class="text-sm font-medium">{{ entityLabel }}编码</label><Input v-model="model.museumCode" :placeholder="scenic ? '如 BJ-HH-001' : '如 SHM-EAST'" required :disabled="props.submitting || resolvingBoundary" /></div>
+      <div class="space-y-2"><label class="text-sm font-medium">{{ entityLabel }}类型</label><Select :model-value="String(model.venueType ?? 1)" :disabled="props.submitting || resolvingBoundary" @update:model-value="model.venueType = Number($event)"><template v-if="scenic"><option value="4">户外景点</option><option value="2">古镇景区</option><option value="3">混合场馆</option></template><template v-else><option value="1">传统博物馆</option><option value="5">室内展馆</option></template></Select></div>
     </section>
 
     <section class="space-y-2">
       <label class="text-sm font-medium">地址</label>
-      <Input v-model="model.address" placeholder="请输入博物馆地址" />
+      <Input v-model="model.address" :placeholder="`请输入${entityLabel}地址`" />
     </section>
 
     <section class="grid gap-3 md:grid-cols-2">
@@ -102,8 +134,10 @@ const updateNumber = (field: NumericField, value: string) => {
       <Textarea
         v-model="model.intro"
         rows="4"
-        placeholder="请输入博物馆简介" />
+        :placeholder="`请输入${entityLabel}简介`" />
     </section>
+
+    <ScenicBoundaryPicker v-if="scenic" ref="boundaryPicker" v-model="model" :disabled="props.submitting" />
 
     <UiImageUpload
       v-model="coverImageList"
@@ -124,22 +158,16 @@ const updateNumber = (field: NumericField, value: string) => {
       </button>
 
       <div v-if="showMoreFields" class="space-y-4 border-t border-border/50 px-3 py-3">
-        <section class="grid gap-3 md:grid-cols-3">
-          <div class="space-y-2"><label class="text-sm font-medium">场馆类型</label><Select :model-value="String(model.venueType ?? 1)" @update:model-value="model.venueType = Number($event)"><option value="1">传统博物馆</option><option value="2">古镇景区</option><option value="3">混合场馆</option></Select></div>
+        <section v-if="!scenic" class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2"><label class="text-sm font-medium">坐标系</label><Select :model-value="String(model.coordinateSystem ?? 1)" @update:model-value="model.coordinateSystem = Number($event)"><option value="1">WGS84</option><option value="2">GCJ02</option><option value="3">BD09</option></Select></div>
           <div class="space-y-2"><label class="text-sm font-medium">地图供应商</label><Select :model-value="String(model.mapProvider ?? '')" @update:model-value="model.mapProvider = $event ? Number($event) : null"><option value="">未指定</option><option value="1">高德地图</option><option value="2">腾讯地图</option><option value="3">百度地图</option></Select></div>
         </section>
         <section class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
-            <label class="text-sm font-medium">博物馆编码</label>
-            <Input v-model="model.museumCode" placeholder="如 SHM-EAST" />
-          </div>
-          <div class="space-y-2">
             <label class="text-sm font-medium">微信公众号</label>
             <Input v-model="model.wechatAccount" placeholder="请输入公众号名称" />
           </div>
         </section>
-        <section class="space-y-2"><label class="text-sm font-medium">景区边界 GeoJSON</label><Textarea :model-value="model.boundaryGeoJson ?? ''" rows="4" placeholder="可填写 Polygon 或 MultiPolygon" @update:model-value="model.boundaryGeoJson = $event || null" /></section>
 
         <section class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
@@ -152,7 +180,7 @@ const updateNumber = (field: NumericField, value: string) => {
           </div>
         </section>
 
-        <section class="grid gap-3 md:grid-cols-2">
+        <section v-if="!scenic" class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
             <label class="text-sm font-medium">经度</label>
             <Input
@@ -203,7 +231,7 @@ const updateNumber = (field: NumericField, value: string) => {
           </div>
         </section>
 
-        <section class="grid gap-3 md:grid-cols-2">
+        <section v-if="!scenic" class="grid gap-3 md:grid-cols-2">
           <div class="space-y-2">
             <label class="text-sm font-medium">地上层数</label>
             <Input
@@ -226,12 +254,13 @@ const updateNumber = (field: NumericField, value: string) => {
       </div>
     </div>
 
+    <p v-if="validationMessage" role="alert" class="text-sm text-destructive">{{ validationMessage }}</p>
     <div class="flex flex-wrap justify-end gap-2 border-t border-border/70 pt-3">
-      <Button variant="ghost" :disabled="props.submitting" @click="emit('reset')">
+      <Button type="button" variant="ghost" :disabled="props.submitting || resolvingBoundary" @click="emit('reset')">
         重置
       </Button>
-      <Button type="submit" :disabled="props.submitting">
-        {{ props.submitting ? '保存中...' : props.mode === 'create' ? '创建博物馆' : '保存修改' }}
+      <Button type="submit" :disabled="props.submitting || resolvingBoundary">
+        {{ resolvingBoundary ? '查询景点范围中…' : props.submitting ? '保存中...' : props.mode === 'create' ? `创建${entityLabel}` : '保存修改' }}
       </Button>
     </div>
   </form>

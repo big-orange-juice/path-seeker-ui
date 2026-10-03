@@ -1,4 +1,6 @@
 export interface CulturalPlaceRecord {
+  extraList?: CulturalPlaceExtra[];
+  archive?: CulturalPlaceArchive | null;
   id: string;
   museumId: string;
   code: string;
@@ -17,3 +19,34 @@ export interface CulturalPlaceRecord {
 }
 
 export type CulturalPlaceDraft = Omit<CulturalPlaceRecord, 'id' | 'coverUrl'> & { id?: string };
+
+export interface CulturalPlaceExtra {
+  attrKey: string;
+  attrValue: string | null;
+  valueType: number;
+  groupName: string | null;
+  sortOrder: number;
+}
+
+export interface CulturalPlaceArchive {
+  formalName?: string | null;
+  era?: string | null;
+  establishedText?: string | null;
+  historicalEvolution?: string | null;
+  backgroundStories?: string | null;
+  culturalContext?: string | null;
+  architecturalFeatures?: string | null;
+  keyPersonTimeline?: string | null;
+  coreMemoryPoints?: string | null;
+  culturalSignificance?: string | null;
+  currentFunction?: string | null;
+  protectionLevel?: string | null;
+  visitingTips?: string | null;
+  referenceSources?: string | null;
+  influenceLevel?: number;
+  relationshipClues?: string | null;
+  aiRawResponse?: string | null;
+  aiModel?: string | null;
+  generationStatus?: number;
+  errorMessage?: string | null;
+}

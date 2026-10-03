@@ -5,6 +5,7 @@ import Input from '@/components/shadcn/input/Input.vue';
 import Select from '@/components/shadcn/select/Select.vue';
 import { useActionFeedback } from '@/composables/useActionFeedback';
 import type { MuseumDraft, MuseumRecord } from '@/types/museum';
+import { isScenicVenue } from '@/utils/scenic-boundary';
 
 definePageMeta({
   middleware: 'admin-auth',
@@ -66,11 +67,12 @@ const handleSave = async (draft: MuseumDraft) => {
       id: savedId,
     };
     if (workspaceTab.value === 'basic') {
-      workspaceTab.value = (draftState.value.venueType ?? 1) === 1 ? 'floors' : 'places';
+      workspaceTab.value = isScenicVenue(draftState.value.venueType) ? 'places' : 'floors';
     }
-    actionFeedback.success(wasEdit ? '博物馆已保存。' : '博物馆已创建。');
+    const label = isScenicVenue(draft.venueType) ? '景点' : '博物馆';
+    actionFeedback.success(wasEdit ? `${label}已保存。` : `${label}已创建。`);
   } catch (caughtError) {
-    actionFeedback.errorFrom(caughtError, '博物馆保存失败。');
+    actionFeedback.errorFrom(caughtError, '景点或博物馆保存失败。');
   } finally {
     submitting.value = false;
   }
@@ -127,7 +129,7 @@ const handleRemove = async (record: MuseumRecord) => {
             重置筛选
           </Button>
           <Button :disabled="submitting" @click="startCreate">
-            新增博物馆
+            新增景点
           </Button>
         </div>
       </div>

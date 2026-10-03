@@ -1,3 +1,5 @@
+import type { CulturalPlaceExtra, CulturalPlaceArchive } from './cultural-place';
+
 export interface FloorResponse {
   id: string | null;
   museumId: string | null;
@@ -185,6 +187,8 @@ export interface ExhibitResponseListTotalPageResult<T> {
 }
 
 export interface ExhibitResponse {
+  placeExtraList?: CulturalPlaceExtra[];
+  placeArchive?: CulturalPlaceArchive | null;
   contentType?: 'exhibit' | 'place';
   placeId?: string | null;
   placeStatus?: number | null;
@@ -238,6 +242,8 @@ export interface UpdateExhibitPayload extends CreateExhibitPayload {
 }
 
 export interface ExhibitRecord {
+  placeExtraList?: CulturalPlaceExtra[];
+  placeArchive?: CulturalPlaceArchive | null;
   contentType?: 'exhibit' | 'place';
   placeId?: string | null;
   placeStatus?: number | null;

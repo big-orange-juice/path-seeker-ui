@@ -129,6 +129,8 @@ export const useExhibitManagement = (
 
       return {
         contentType: item.contentType ?? 'exhibit',
+        placeExtraList: item.placeExtraList ?? [],
+        placeArchive: item.placeArchive ?? null,
         placeId: item.placeId,
         placeStatus: item.placeStatus,
         addressText: item.addressText,

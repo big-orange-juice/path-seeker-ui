@@ -191,6 +191,8 @@ const toPlaceRecord = (record: ExhibitRecord): CulturalPlaceRecord => ({
   coverAttachmentId: record.imageFileId,
   coverUrl: record.imageUrl,
   sortOrder: record.sortOrder,
+  extraList: record.placeExtraList ?? [],
+  archive: record.placeArchive ?? null,
 });
 
 const startCreate = () => {

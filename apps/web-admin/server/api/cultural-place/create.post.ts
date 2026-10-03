@@ -10,6 +10,7 @@ export default defineEventHandler(async event => {
     address: body.address, description: body.description, recommendedMinutes: body.recommendedMinutes,
     longitude: body.longitude, latitude: body.latitude, coordinateSystem: body.coordinateSystem,
     coverAttachmentId: body.coverAttachmentId, sortOrder: body.sortOrder,
+    extraList: body.extraList, archive: body.archive,
   };
   return unwrapApiResponse(await backendFetch<ApiResponse<string>>(event, '/CulturalPlace/Create', { method: 'POST', body: payload }));
 });

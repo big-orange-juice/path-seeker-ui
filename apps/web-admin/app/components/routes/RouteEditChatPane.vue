@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue';
+import { Sparkles } from 'lucide-vue-next';
 import ChatContextChips, {
   type ChatContextChip
 } from '@/components/chat/ChatContextChips.vue';
@@ -19,6 +20,7 @@ interface Props {
   stageId?: string;
   stageLabel?: string;
   referencedAttachments?: ChatAttachmentReference[];
+  outdoor?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -26,6 +28,7 @@ const props = withDefaults(defineProps<Props>(), {
   stageId: '',
   stageLabel: '',
   referencedAttachments: () => [],
+  outdoor: false,
 });
 
 const emit = defineEmits<{
@@ -144,6 +147,11 @@ const contextChips = computed<ChatContextChip[]>(() => {
 });
 
 const canSend = computed(() => Boolean(String(props.routeId || '').trim()));
+const outdoorSuggestions = computed(() => [
+  `为${props.stageLabel.replace(/^\d+\.\s*/, '') || '当前站点'}增加到站提示`,
+  '优化黄包车与步行接驳',
+  '调整停靠点顺序',
+]);
 
 const sendTextMessage = async (
   userText: string,
@@ -210,7 +218,12 @@ defineExpose({
 
 <template>
   <div class="chat-shell flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div v-if="props.outdoor && !messages.length && !isRunning" class="outdoor-chat-empty">
+      <span><Sparkles class="h-5 w-5" /></span><strong>用对话编辑当前路线</strong><p>例如：给当前站点增加提示，或按主题补几个站点。</p>
+      <div><button v-for="suggestion in outdoorSuggestions" :key="suggestion" type="button" :disabled="!canSend" @click="sendTextMessage(suggestion)">{{ suggestion }}</button></div>
+    </div>
     <ChatMessageList
+      v-else
       :messages="messages"
       :tools="activeTools"
       :is-running="isRunning"
@@ -237,6 +250,7 @@ defineExpose({
 </template>
 
 <style scoped>
+.outdoor-chat-empty{min-height:0;flex:1;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px 18px;text-align:center;color:#9ca3aa}.outdoor-chat-empty>span{flex-shrink:0;width:44px;height:44px;border:1px solid #4c432d;border-radius:50%;display:grid;place-items:center;color:#d5b15b;background:#211e17}.outdoor-chat-empty strong{margin-top:15px;color:#dfe2e4;font-size:14px}.outdoor-chat-empty p{max-width:260px;margin:8px 0 18px;font-size:12px;line-height:1.7;color:#7f878e}.outdoor-chat-empty>div{display:flex;flex-direction:column;gap:7px;width:100%;max-width:280px}.outdoor-chat-empty button{border:1px solid #2c3136;border-radius:7px;background:#171a1e;color:#aeb5bb;padding:9px 11px;font-size:11px;text-align:left}.outdoor-chat-empty button:hover{border-color:#665735;color:#e2c376}
 .chat-shell {
   border-radius: 0.95rem;
   border: 1px solid rgba(209, 178, 111, 0.12);

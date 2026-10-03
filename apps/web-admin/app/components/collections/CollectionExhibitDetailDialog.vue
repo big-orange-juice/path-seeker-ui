@@ -5,6 +5,7 @@ import DialogContent from '@/components/shadcn/dialog/DialogContent.vue'
 import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue'
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue'
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue'
+import CulturalPlaceMetadataDetails from '@/components/collections/CulturalPlaceMetadataDetails.vue'
 import type {
   ExhibitAiArchive,
   ExhibitMediaResponse,
@@ -324,7 +325,7 @@ const updateOpen = (...args: unknown[]) =>
 
 <template>
   <Dialog :open="props.open" @update:open="updateOpen">
-    <DialogContent class="flex h-[90vh] max-w-[min(96vw,40rem)] flex-col overflow-hidden p-0">
+    <DialogContent class="flex h-[90vh] flex-col overflow-hidden p-0" :class="isPlace ? 'max-w-[min(96vw,1000px)]' : 'max-w-[min(96vw,40rem)]'">
       <div class="flex shrink-0 items-center border-b border-border/70 px-5 py-3 pr-12">
         <DialogHeader class="min-w-0 space-y-0.5">
           <DialogTitle class="truncate text-[1.2rem] font-semibold tracking-tight text-foreground">
@@ -421,6 +422,8 @@ const updateOpen = (...args: unknown[]) =>
             </p>
           </div>
         </section>
+
+        <CulturalPlaceMetadataDetails v-if="isPlace" :extras="currentRecord.placeExtraList" :archive="currentRecord.placeArchive" />
 
         <section
           v-if="!isPlace && mediaItems.length"

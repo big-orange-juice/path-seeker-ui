@@ -10,6 +10,8 @@ import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import CollectionExhibitDetailDialog from '@/components/collections/CollectionExhibitDetailDialog.vue';
 import GalleryMapAnnotationDialog from '@/components/gallery-map/GalleryMapAnnotationDialog.vue';
 import GalleryMapWorkspace from '@/components/gallery-map/GalleryMapWorkspace.vue';
+import ScenicPlaceMapWorkspace from '@/components/scenic-map/ScenicPlaceMapWorkspace.vue';
+import { isScenicVenue } from '@/utils/scenic-boundary';
 import type {
   CreateGalleryMapAnnotationRequest,
   GalleryMapAnnotationRequest,
@@ -64,7 +66,8 @@ const toast = useToast();
 const runtimeConfig = useRuntimeConfig();
 const { request } = useApiClient();
 
-const selectedMuseumId = shallowRef(String(runtimeConfig.public.museumId || '').trim());
+const selectedMuseumId = shallowRef(typeof route.query.museumId === 'string' ? route.query.museumId : String(runtimeConfig.public.museumId || '').trim());
+const mixedMapScene = shallowRef<'indoor' | 'outdoor'>('outdoor');
 
 const { data: museumData, pending: museumPending } = useAsyncData(
   'gallery-map:museums',
@@ -97,10 +100,15 @@ const museumOptions = computed(() =>
     })),
 );
 
+const selectedMuseum = computed(() => (museumData.value.list ?? []).find(item => String(item.id || '') === selectedMuseumId.value) ?? null);
+const isOutdoor = computed(() => isScenicVenue(selectedMuseum.value?.venueType)
+  && (selectedMuseum.value?.venueType !== 3 || mixedMapScene.value === 'outdoor'));
+
 watch(
-  museumOptions,
-  (options) => {
+  [museumOptions, museumPending],
+  ([options, pending]) => {
     if (!options.length) {
+      if (pending) return;
       selectedMuseumId.value = '';
       return;
     }
@@ -136,7 +144,7 @@ const {
   buildCreatePayloadFromPoint,
   relocatePoint,
   deletePoint,
-} = useGalleryMapManagement(() => selectedMuseumId.value);
+} = useGalleryMapManagement(() => isOutdoor.value ? '' : selectedMuseumId.value);
 
 const selectedPointId = shallowRef('');
 const picking = shallowRef(false);
@@ -308,6 +316,7 @@ const syncRouteQuery = async (galleryId: string, mapId: string) => {
   await router.replace({
     query: {
       ...route.query,
+      museumId: selectedMuseumId.value || undefined,
       galleryId: galleryId || undefined,
       mapId: mapId || undefined,
     },
@@ -315,7 +324,7 @@ const syncRouteQuery = async (galleryId: string, mapId: string) => {
 };
 
 const initializePage = async (options: { galleryId?: string; mapId?: string } = {}) => {
-  if (!selectedMuseumId.value) {
+  if (!selectedMuseumId.value || !selectedMuseum.value || isOutdoor.value) {
     return;
   }
 
@@ -333,18 +342,25 @@ const initializePage = async (options: { galleryId?: string; mapId?: string } = 
 };
 
 watch(
-  selectedMuseumId,
-  async (nextMuseumId, previousMuseumId) => {
-    if (!nextMuseumId) {
+  [selectedMuseumId, isOutdoor, () => selectedMuseum.value?.id],
+  async ([nextMuseumId, outdoor], previous) => {
+    if (!nextMuseumId || !selectedMuseum.value) {
       return;
     }
 
-    const isMuseumSwitch = Boolean(previousMuseumId) && previousMuseumId !== nextMuseumId;
+    const isMuseumSwitch = Boolean(previous?.[0]) && previous[0] !== nextMuseumId;
     picking.value = false;
     selectedPointId.value = '';
     clearUndoStack();
 
-    if (isMuseumSwitch) {
+    if (outdoor) {
+      annotationOpen.value = false;
+      deleteConfirmOpen.value = false;
+      await syncRouteQuery('', '');
+      return;
+    }
+
+    if (isMuseumSwitch || previous?.[1]) {
       await initializePage({ galleryId: '', mapId: '' });
       return;
     }
@@ -656,6 +672,7 @@ const handleUndo = async () => {
 };
 
 const handleGlobalKeydown = (event: KeyboardEvent) => {
+  if (isOutdoor.value) return;
   const key = event.key.toLowerCase();
   const isUndoShortcut = (event.metaKey || event.ctrlKey) && key === 'z' && !event.shiftKey;
   if (!isUndoShortcut || annotationOpen.value) {
@@ -688,7 +705,7 @@ onUnmounted(() => {
 <template>
   <div class="admin-page-frame flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden">
     <div
-      v-if="error"
+      v-if="error && !isOutdoor"
       class="shrink-0 rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <span>{{ error.message || '地图数据加载失败。' }}</span>
@@ -698,7 +715,15 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <div v-if="selectedMuseum?.venueType === 3" class="flex shrink-0 gap-2">
+      <Button :variant="mixedMapScene === 'outdoor' ? 'default' : 'outline'" @click="mixedMapScene = 'outdoor'">户外景区地图</Button>
+      <Button :variant="mixedMapScene === 'indoor' ? 'default' : 'outline'" @click="mixedMapScene = 'indoor'">室内展厅地图</Button>
+    </div>
+
+    <ScenicPlaceMapWorkspace v-if="isOutdoor && selectedMuseum" :key="selectedMuseumId" :destination="selectedMuseum" :museum-options="museumOptions" :museum-pending="museumPending" @update:museum-id="handleMuseumChange" />
+
     <GalleryMapWorkspace
+      v-else
       class="min-h-0 flex-1 overflow-hidden"
       :museum-options="museumOptions"
       :museum-id="selectedMuseumId"
@@ -748,7 +773,7 @@ onUnmounted(() => {
       @update:open="handleAnnotationOpenChange"
       @save="handleSaveAnnotation" />
 
-    <Dialog :open="deleteConfirmOpen" @update:open="handleDeleteConfirmOpenChange">
+    <Dialog :open="deleteConfirmOpen" @update:open="(...args) => handleDeleteConfirmOpenChange(Boolean(args[0]))">
       <DialogContent class="max-w-[min(92vw,24rem)] rounded-xl border border-border bg-[#15171b] p-0 text-left">
         <DialogHeader class="space-y-2 px-5 pb-2 pt-4">
           <DialogTitle class="text-base font-semibold text-foreground">

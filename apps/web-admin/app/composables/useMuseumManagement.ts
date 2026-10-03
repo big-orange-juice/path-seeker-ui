@@ -1,6 +1,7 @@
 import { computed, reactive, shallowRef, toRefs, watch } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { useApiClient } from '@/composables/useApiClient';
+import { isScenicVenue } from '@/utils/scenic-boundary';
 import type {
   CreateMuseumPayload,
   MuseumDraft,
@@ -208,9 +209,10 @@ export const useMuseumManagement = () => {
     const normalized = normalizeDraft(draft);
     const basePayload = toPayload(normalized);
     let nextId = targetId ?? normalized.id ?? '';
+    const endpoint = isScenicVenue(normalized.venueType) ? '/api/scenic-destination' : '/api/museum-management';
 
     if (targetId) {
-      await request('/api/museum-management/' + targetId, {
+      await request(endpoint + '/' + targetId, {
         method: 'PUT',
         body: {
           ...basePayload,
@@ -218,7 +220,7 @@ export const useMuseumManagement = () => {
         } satisfies UpdateMuseumPayload,
       });
     } else {
-      nextId = await request<string>('/api/museum-management', {
+      nextId = await request<string>(endpoint, {
         method: 'POST',
         body: basePayload,
       });

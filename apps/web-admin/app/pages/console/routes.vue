@@ -56,6 +56,7 @@ const confirmRecord = shallowRef<RouteRecord | null>(null);
 const detailDialogOpen = shallowRef(false);
 const detailPending = shallowRef(false);
 const detailRecord = shallowRef<RouteRecord | null>(null);
+const detailVersions = shallowRef<RouteRecord[]>([]);
 const routeDetail = shallowRef<RouteDetailResponse | null>(null);
 const auditDialogOpen = shallowRef(false);
 const auditRecord = shallowRef<RouteRecord | null>(null);
@@ -141,6 +142,7 @@ const {
   auditRoute,
   deleteRoute,
   fetchRouteDetail,
+  fetchRouteVersions,
 } = useRouteLibrary(() => selectedMuseumId.value);
 
 /** 新建流程里已提示过「后台生成中」的路线，避免同一 route 多轮 done 重复弹窗 */
@@ -319,16 +321,23 @@ const handleDetail = async (
   routeDetail.value = null;
   chatReferences.value = initialChatReference ? [initialChatReference] : [];
   detailRecord.value = record;
+  detailVersions.value = [record];
   detailDialogOpen.value = true;
   detailPending.value = true;
   startRowAction(record.id);
 
   try {
-    routeDetail.value = await fetchRouteDetail(record.id);
+    const [detail, versions] = await Promise.all([
+      fetchRouteDetail(record.id),
+      fetchRouteVersions(record).catch(() => [record]),
+    ]);
+    if (detailRecord.value?.id !== record.id || !detailDialogOpen.value) return;
+    routeDetail.value = detail;
+    detailVersions.value = versions.some(item => item.id === record.id) ? versions : [record, ...versions];
   } catch (caughtError) {
     actionFeedback.errorFrom(caughtError, '主题路线详情获取失败。');
   } finally {
-    detailPending.value = false;
+    if (detailRecord.value?.id === record.id) detailPending.value = false;
     finishRowAction(record.id);
   }
 };
@@ -382,18 +391,20 @@ const refreshRouteDetail = async (options?: { silent?: boolean }) => {
   }
 
   try {
-    routeDetail.value = await fetchRouteDetail(record.id);
+    const detail = await fetchRouteDetail(record.id);
+    if (detailRecord.value?.id !== record.id || !detailDialogOpen.value) return;
+    routeDetail.value = detail;
     // 同步列表行状态，保持详情工具栏与锁一致
     const latest = rows.value.find((item) => item.id === record.id);
     if (latest) {
       detailRecord.value = latest;
     }
   } catch (caughtError) {
-    if (!silent) {
+    if (!silent && detailRecord.value?.id === record.id) {
       actionFeedback.errorFrom(caughtError, '主题路线详情刷新失败。');
     }
   } finally {
-    if (!silent) {
+    if (!silent && detailRecord.value?.id === record.id) {
       detailPending.value = false;
     }
   }
@@ -725,6 +736,8 @@ const detailActions = computed(() => {
       :open="detailDialogOpen"
       :detail="routeDetail"
       :record="detailRecord"
+      :versions="detailVersions"
+      :destination-name="museumData.list.find(item => item.id === detailRecord?.museumId)?.name || ''"
       :pending="detailPending"
       :can-edit="detailCanEdit"
       :lock-message="detailLockMessage"
@@ -732,6 +745,7 @@ const detailActions = computed(() => {
       @update:open="onDetailDialogOpenChange"
       @refresh-silent="refreshRouteDetail({ silent: true })"
       @title-saved="handleRouteTitleSaved"
+      @switch-route="handleDetail"
       @publish="detailRecord && handlePublish(detailRecord)"
       @unpublish="detailRecord && handleUnpublish(detailRecord)"
       @submit-audit="detailRecord && handleSubmitAudit(detailRecord)"

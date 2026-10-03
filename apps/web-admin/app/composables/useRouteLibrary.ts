@@ -77,6 +77,47 @@ const resolveProgressFromTaskSummary = (
 
 export { ROUTE_PUBLISH_STATUS_OPTIONS, ROUTE_AUDIT_STATUS_OPTIONS };
 
+export const toRouteRecord = (item: RouteAdminResponse, cachedProgress: number | null = null): RouteRecord => ({
+  ...item,
+  id: normalizeText(item.id) || uuidv4(),
+  routeCode: normalizeText(item.routeCode),
+  routeType: item.routeType ?? 0,
+  sceneType: item.sceneType ?? 1,
+  locale: normalizeText(item.locale) || 'zh',
+  sourceRouteId: normalizeText(item.sourceRouteId) || null,
+  routeFamilyCode: normalizeText(item.routeFamilyCode),
+  distanceMeters: item.distanceMeters ?? null,
+  transportMode: normalizeText(item.transportMode),
+  guideId: normalizeText(item.guideId) || null,
+  museumId: normalizeText(item.museumId) || null,
+  title: normalizeText(item.title),
+  theme: normalizeText(item.theme),
+  coverImageUrl: normalizeText(item.coverImageUrl) || null,
+  scaleType: item.scaleType ?? 0,
+  difficultyLevel: item.difficultyLevel ?? 0,
+  ageGroup: item.ageGroup ?? 0,
+  allowTeam: item.allowTeam ?? 0,
+  minTeamSize: item.minTeamSize ?? 0,
+  maxTeamSize: item.maxTeamSize ?? 0,
+  estimatedMinutes: item.estimatedMinutes ?? null,
+  totalScore: item.totalScore ?? 0,
+  puzzleCount: item.puzzleCount ?? 0,
+  intro: normalizeText(item.intro),
+  rewardTitle: normalizeText(item.rewardTitle),
+  auditRemark: normalizeText(item.auditRemark),
+  publishStatus: item.publishStatus ?? 0,
+  auditStatus: item.auditStatus ?? 0,
+  sortOrder: item.sortOrder ?? 0,
+  auditRequired: typeof item.auditRequired === 'boolean' ? item.auditRequired : true,
+  ownerId: normalizeText(item.ownerId) || null,
+  ownerName: normalizeText(item.ownerName),
+  canEdit: typeof item.canEdit === 'boolean' ? item.canEdit : null,
+  isGenerating: Boolean(item.isGenerating),
+  taskStatus: typeof item.taskStatus === 'number' ? item.taskStatus : null,
+  taskStatusText: normalizeText(item.taskStatusText),
+  progressPercent: normalizeProgressPercent(item.progressPercent) ?? cachedProgress,
+});
+
 export const useRouteLibrary = (
   museumIdSource?: string | null | undefined | (() => string | null | undefined)
 ) => {
@@ -233,52 +274,12 @@ export const useRouteLibrary = (
   const rows = computed<RouteRecord[]>(() => {
     const list = (data.value.list ?? []).map((item) => {
       const id = normalizeText(item.id) || uuidv4();
-      const listProgress = normalizeProgressPercent(item.progressPercent);
       const cachedProgress =
         typeof progressByRouteId.value[id] === 'number'
           ? progressByRouteId.value[id]!
           : null;
 
-      return {
-        id,
-        routeCode: normalizeText(item.routeCode),
-        routeType: item.routeType ?? 0,
-        sceneType: item.sceneType ?? 1,
-        locale: normalizeText(item.locale) || 'zh',
-        sourceRouteId: normalizeText(item.sourceRouteId) || null,
-        routeFamilyCode: normalizeText(item.routeFamilyCode),
-        distanceMeters: item.distanceMeters ?? null,
-        transportMode: normalizeText(item.transportMode),
-        guideId: normalizeText(item.guideId) || null,
-        museumId: normalizeText(item.museumId) || null,
-        title: normalizeText(item.title),
-        theme: normalizeText(item.theme),
-        coverImageUrl: normalizeText(item.coverImageUrl) || null,
-        scaleType: item.scaleType ?? 0,
-        difficultyLevel: item.difficultyLevel ?? 0,
-        ageGroup: item.ageGroup ?? 0,
-        allowTeam: item.allowTeam ?? 0,
-        minTeamSize: item.minTeamSize ?? 0,
-        maxTeamSize: item.maxTeamSize ?? 0,
-        estimatedMinutes: item.estimatedMinutes ?? null,
-        totalScore: item.totalScore ?? 0,
-        puzzleCount: item.puzzleCount ?? 0,
-        intro: normalizeText(item.intro),
-        rewardTitle: normalizeText(item.rewardTitle),
-        publishStatus: item.publishStatus ?? 0,
-        auditStatus: item.auditStatus ?? 0,
-        auditRemark: normalizeText(item.auditRemark),
-        // 缺省按需审展示；管理员免审路线后端会回 false
-        auditRequired: typeof item.auditRequired === 'boolean' ? item.auditRequired : true,
-        ownerId: normalizeText(item.ownerId) || null,
-        ownerName: normalizeText(item.ownerName),
-        canEdit: typeof item.canEdit === 'boolean' ? item.canEdit : null,
-        sortOrder: item.sortOrder ?? 0,
-        isGenerating: Boolean(item.isGenerating),
-        taskStatus: typeof item.taskStatus === 'number' ? item.taskStatus : null,
-        taskStatusText: normalizeText(item.taskStatusText),
-        progressPercent: listProgress ?? cachedProgress,
-      };
+      return toRouteRecord({ ...item, id }, cachedProgress);
     });
 
     const currentSorting = sorting.value[0];
@@ -386,6 +387,15 @@ export const useRouteLibrary = (
       query: { id },
     });
 
+  const fetchRouteVersions = async (record: RouteRecord) => {
+    if (!record.routeFamilyCode) return [record];
+    const result = await request<RouteAdminResponseListTotalPageResult<RouteAdminResponse>>('/api/route/page-list', {
+      method: 'POST',
+      body: { pageIndex: 1, pageSize: 100, museumId: record.museumId, routeFamilyCode: record.routeFamilyCode } satisfies RoutePageRequest,
+    });
+    return (result.list ?? []).filter(item => item.id && item.routeFamilyCode === record.routeFamilyCode).map(item => toRouteRecord(item));
+  };
+
   watch(
     [museumId, () => filters.publishStatus, () => filters.auditStatus, () => filters.locale, () => filters.sceneType],
     () => {
@@ -415,5 +425,6 @@ export const useRouteLibrary = (
     auditRoute,
     deleteRoute,
     fetchRouteDetail,
+    fetchRouteVersions,
   };
 };

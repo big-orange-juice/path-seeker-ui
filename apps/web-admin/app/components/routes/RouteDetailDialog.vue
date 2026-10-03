@@ -2,7 +2,8 @@
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { Position, VueFlow, type Edge, type Node } from '@vue-flow/core';
-import { Check, Pencil, Trash2, X } from 'lucide-vue-next';
+import { Check, Languages, Pencil, Save, Trash2, X } from 'lucide-vue-next';
+import { TOUR_LANGUAGES, tourLanguageLabel } from '@path-seeker/ts-shared';
 import {
   getInteractionTypeMeta,
   // INTERACTION_TYPE_META, // 新增站点暂关
@@ -32,6 +33,7 @@ import { useActionFeedback } from '@/composables/useActionFeedback';
 import type { ChatAttachmentReference } from '@/types/chat';
 import type { RouteWorkflowActions } from '@/constants/routeWorkflow';
 import type { NarrationDetailResponse } from '@/types/narration';
+import type { RouteMapDetail } from '@/types/route-map';
 import type {
   // CreateRouteStagePayload, // 新增站点暂关
   DeleteRouteStagePayload,
@@ -55,6 +57,8 @@ interface Props {
   lockMessage?: string;
   actions?: RouteWorkflowActions | null;
   chatReferences?: ChatAttachmentReference[];
+  versions?: RouteRecord[];
+  destinationName?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -64,6 +68,8 @@ const props = withDefaults(defineProps<Props>(), {
   lockMessage: '',
   actions: null,
   chatReferences: () => [],
+  versions: () => [],
+  destinationName: '',
 });
 
 const emit = defineEmits<{
@@ -75,6 +81,7 @@ const emit = defineEmits<{
   audit: [];
   'title-saved': [title: string];
   'update:chatReferences': [attachments: ChatAttachmentReference[]];
+  'switch-route': [record: RouteRecord];
 }>();
 
 const { request } = useApiClient();
@@ -82,6 +89,12 @@ const actionFeedback = useActionFeedback();
 const selectedStageId = shallowRef('');
 const stageEditOpen = shallowRef(false);
 const routeMapOpen = shallowRef(false);
+const mapRefreshVersion = shallowRef(0);
+const outdoorMapDetail = shallowRef<RouteMapDetail | null>(null);
+const outdoorWorkspace = shallowRef<{ save: () => Promise<boolean> } | null>(null);
+const savingCompilation = shallowRef(false);
+const isOutdoor = computed(() => props.record?.sceneType === 2);
+const languageVersions = computed(() => [...props.versions].sort((left, right) => TOUR_LANGUAGES.findIndex(item => item.value === left.locale) - TOUR_LANGUAGES.findIndex(item => item.value === right.locale)));
 // 新增站点暂关
 // const stageCreateOpen = shallowRef(false);
 // const creatingStage = shallowRef(false);
@@ -326,6 +339,7 @@ const routeId = computed(() => String(props.detail?.route?.id ?? '').trim());
 const routeTitle = computed(() => props.detail?.route?.title || '路线详情');
 const routeCode = computed(() => String(props.record?.routeCode || '').trim());
 const routeMeta = computed(() => {
+  if (isOutdoor.value) return [props.destinationName, routeCode.value, props.record?.theme, `内容语言 ${tourLanguageLabel(props.record?.locale || 'zh')}`].filter(Boolean).join(' · ');
   const route = props.detail?.route;
   if (!route) {
     return '左侧点站点可预览中间效果；可编辑时右侧助手可协助改路线';
@@ -371,7 +385,7 @@ const handleFlushDetailRefresh = (eventRouteId: string) => {
 };
 
 watch(sortedNodes, (nodes) => {
-  if (selectedStageId.value && !nodes.some((node) => node.stageId === selectedStageId.value)) selectedStageId.value = '';
+  if (!nodes.some((node) => node.stageId === selectedStageId.value)) selectedStageId.value = isOutdoor.value ? nodes[0]?.stageId || '' : '';
 }, { immediate: true });
 watch(() => props.open, (open) => {
   if (open) return;
@@ -413,7 +427,29 @@ function openStageEditor() {
 }
 function handleStageSaved() {
   flushSilentDetailRefresh();
+  handleNarrationPreviewRefresh();
 }
+
+function editOutdoorStage(stageId: string) {
+  if (!props.canEdit || !sortedNodes.value.some(node => node.stageId === stageId)) return;
+  selectedStageId.value = stageId;
+  stageEditOpen.value = true;
+}
+
+function removeOutdoorStage(stageId: string) {
+  selectedStageId.value = stageId;
+  openStageDelete();
+}
+
+async function saveCompilation() {
+  if (savingCompilation.value || !props.canEdit) return;
+  savingCompilation.value = true;
+  try {
+    if (await outdoorWorkspace.value?.save()) actionFeedback.success('路线编排已保存。');
+  } finally { savingCompilation.value = false; }
+}
+
+watch(routeMapOpen, (open, previous) => { if (!open && previous) mapRefreshVersion.value += 1; });
 
 /* 新增站点暂关 —— 恢复时一并解开模板「新增」按钮与弹窗
 function nextStageOrder() {
@@ -581,11 +617,12 @@ async function saveRouteTitle() {
 <template>
   <Dialog v-model:open="isOpen">
     <DialogContent
-      class="flex h-[min(92vh,var(--admin-dialog-max-height))] max-w-[min(96vw,1560px)] flex-col overflow-hidden p-0">
-      <div class="flex shrink-0 items-start border-b border-border/70 px-5 py-3 pr-12">
-        <DialogHeader class="min-w-0 space-y-1.5 text-left">
+      class="route-workbench-dialog flex h-[min(92vh,var(--admin-dialog-max-height))] max-w-[min(97vw,1920px)] flex-col overflow-hidden p-0">
+      <div class="route-workbench-header shrink-0 border-b border-border/70 px-5 py-3 pr-12">
+        <DialogHeader class="route-workbench-heading min-w-0 space-y-1.5 text-left">
+          <span v-if="isOutdoor" class="workbench-eyebrow">路线编排工作台</span>
           <div class="flex min-w-0 flex-wrap items-center gap-2">
-            <DialogTitle v-if="!editingRouteTitle" class="truncate">
+            <DialogTitle v-if="!editingRouteTitle" class="truncate workbench-title">
               {{ routeTitle }}
             </DialogTitle>
             <div v-else class="flex min-w-0 items-center gap-1.5">
@@ -595,16 +632,6 @@ async function saveRouteTitle() {
             </div>
             <Button v-if="props.canEdit && !editingRouteTitle" variant="ghost" type="button" size="icon" class="h-7 w-7 shrink-0" aria-label="编辑路线标题" title="编辑路线标题" @click="startRouteTitleEdit"><Pencil class="h-3.5 w-3.5" /></Button>
             <p v-if="routeTitleError" class="text-xs text-rose-300">{{ routeTitleError }}</p>
-            <RouteStatusBadge v-if="props.record" :record="props.record" />
-            <Button
-              v-if="routeId"
-              type="button"
-              size="sm"
-              variant="outline"
-              class="h-7 px-2.5 text-xs"
-              @click="routeMapOpen = true">
-              路线地图
-            </Button>
           </div>
           <DialogDescription>
             {{ routeMeta }}
@@ -620,6 +647,11 @@ async function saveRouteTitle() {
             {{ props.lockMessage }}
           </p>
         </DialogHeader>
+        <div class="workbench-head-actions">
+          <nav v-if="isOutdoor" class="workbench-languages" aria-label="同线路语言版本"><Languages class="h-4 w-4 shrink-0" /><button v-for="version in languageVersions" :key="version.id" type="button" :class="{ active: version.id === props.record?.id }" :disabled="props.pending || savingCompilation" :title="`${tourLanguageLabel(version.locale)}：${version.title}`" @click="version.id !== props.record?.id && emit('switch-route', version)">{{ tourLanguageLabel(version.locale) }}</button></nav>
+          <Button v-if="routeId && !isOutdoor" type="button" size="sm" variant="outline" class="h-7 px-2.5 text-xs" @click="routeMapOpen = true">路线地图</Button>
+          <RouteStatusBadge v-if="props.record" :record="props.record" />
+        </div>
       </div>
 
       <div
@@ -630,18 +662,23 @@ async function saveRouteTitle() {
 
       <div
         v-else
-        class="admin-dialog-workspace px-5 py-4">
-        <!-- 左：画布 ~2；窄屏由 .admin-dialog-workspace 降为单栏 -->
+        class="route-workbench-layout px-5 py-4">
         <OutdoorRouteWorkspace
-          v-if="props.record?.sceneType === 2"
+          v-if="isOutdoor"
+          ref="outdoorWorkspace"
           :route-id="routeId"
           :nodes="sortedNodes"
-          :selected-stage-id="selectedStageId"
+          :selected-stage-id="previewNode?.stageId || ''"
           :can-edit="props.canEdit"
+          :distance-meters="props.record?.distanceMeters"
+          :estimated-minutes="props.record?.estimatedMinutes"
+          :refresh-version="mapRefreshVersion"
           @select="selectedStageId = $event"
-          @edit="selectedStageId = $event; stageEditOpen = true"
+          @edit="editOutdoorStage"
+          @remove="removeOutdoorStage"
+          @loaded="outdoorMapDetail = $event"
           @changed="emit('refresh-silent')" />
-        <section v-else class="flex min-h-[18rem] min-w-0 flex-col lg:min-h-0">
+        <section v-else class="route-canvas-column flex min-h-0 min-w-0 flex-col">
           <div
             class="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-background/70">
             <div
@@ -700,23 +737,26 @@ async function saveRouteTitle() {
         </section>
 
         <!-- 中：手机模拟器外框（画面铺满，灵动岛叠在上方） -->
-        <aside class="flex min-h-[22rem] min-w-0 flex-col overflow-hidden lg:min-h-0">
+        <aside class="route-preview-column flex min-h-0 min-w-0 flex-col overflow-hidden">
           <OutdoorRoutePreview
-            v-if="props.record?.sceneType === 2"
+            v-if="isOutdoor"
             :route-id="routeId"
             :title="routeTitle"
             :locale="props.record?.locale || 'zh'"
             :nodes="sortedNodes"
             :selected-stage-id="previewNode?.stageId || ''"
             :narration="narrationDetail"
-            @select="selectedStageId = $event" />
+            :detail="outdoorMapDetail"
+            :can-edit="props.canEdit"
+            @select="selectedStageId = $event"
+            @edit="editOutdoorStage" />
           <AdminStageSimulator
             v-else
             :stage="previewStage" />
         </aside>
 
         <!-- 右：对话 ~1 -->
-        <section class="flex min-h-[16rem] min-w-0 flex-col lg:min-h-0">
+        <section class="route-chat-column flex min-h-0 min-w-0 flex-col">
           <div
             v-if="!props.canEdit"
             class="mb-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
@@ -732,6 +772,7 @@ async function saveRouteTitle() {
             :stage-id="selectedStageId"
             :stage-label="stageAttachmentLabel"
             :referenced-attachments="props.chatReferences"
+            :outdoor="isOutdoor"
             @clear-stage="clearStageAttachment"
             @remove-reference="removeChatReference"
             @references-consumed="consumeChatReferences"
@@ -746,7 +787,8 @@ async function saveRouteTitle() {
       </div>
 
       <!-- 业务操作统一右下角；待审时主按钮为「审核」 -->
-      <DialogFooter class="h-14 shrink-0 items-center border-t border-border/70 px-5">
+      <DialogFooter class="min-h-14 shrink-0 flex-wrap items-center border-t border-border/70 px-5 py-2">
+        <Button v-if="isOutdoor && routeId" variant="outline" type="button" class="h-8" :disabled="savingCompilation" @click="routeMapOpen = true">路线地图设置</Button>
         <Button variant="outline" type="button" class="h-8" @click="closeDialog">
           关闭
         </Button>
@@ -783,6 +825,7 @@ async function saveRouteTitle() {
           @click="emit('audit')">
           审核
         </Button>
+        <Button v-if="isOutdoor && props.canEdit" type="button" class="h-9 px-4" :disabled="savingCompilation || props.pending" @click="saveCompilation"><Save class="mr-1.5 h-4 w-4" />{{ savingCompilation ? '保存中…' : '保存编排' }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
@@ -903,6 +946,18 @@ async function saveRouteTitle() {
 </template>
 
 <style scoped>
+.workbench-eyebrow{color:#c58536;font-size:11px;font-weight:600;letter-spacing:.12em}
+.workbench-title{font-size:23px;line-height:1.3}
+.route-workbench-header{display:flex;align-items:center;gap:20px}
+.route-workbench-heading{flex:1}
+.workbench-head-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:12px;max-width:50%;margin-left:auto}
+.workbench-languages{display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:4px 8px;border:1px solid #34383e;border-radius:9px;color:#aeb5bb;font-size:12px}.workbench-languages button{padding:6px 9px;border-radius:6px}.workbench-languages button.active{background:#d7b45d;color:#191919;font-weight:600}.workbench-languages button:disabled{opacity:.5}
+.route-workbench-layout{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.9fr) minmax(280px,.8fr);grid-template-rows:minmax(0,1fr);gap:16px;min-height:0;flex:1;overflow:hidden}
+.route-workbench-layout>*{min-width:0;min-height:0}
+@media(min-width:1600px){.route-workbench-layout{grid-template-columns:minmax(0,1.9fr) minmax(320px,1fr) minmax(300px,.9fr)}}
+@media(max-width:1099px){.route-workbench-layout{grid-template-columns:minmax(0,1.4fr) minmax(260px,1fr);grid-template-rows:minmax(440px,65vh) minmax(320px,auto);overflow:auto}.route-workbench-layout>.route-chat-column{grid-column:1 / -1}.workbench-title{font-size:20px}}
+@media(max-width:699px){.route-workbench-layout{grid-template-columns:minmax(0,1fr);grid-template-rows:420px 580px 380px;padding:12px;gap:12px}.route-workbench-layout>.route-chat-column{grid-column:auto}.route-workbench-layout>.route-preview-column{max-width:360px;width:100%;justify-self:center}.route-workbench-header{align-items:flex-start;flex-wrap:wrap;gap:10px}.route-workbench-heading{flex-basis:100%}.workbench-head-actions{max-width:100%;margin-left:0;justify-content:flex-start;gap:6px}.workbench-languages{font-size:10px}.workbench-languages button{padding:4px 6px}.workbench-title{font-size:17px}}
+
 .route-flow {
   --vf-node-bg: hsl(var(--background));
   --vf-node-text: hsl(var(--foreground));
