@@ -192,6 +192,8 @@ export async function createExhibitChatSession(payload: CreateExhibitChatSession
   const data = await request<unknown>("/ExhibitChat/sessions", {
     method: "POST",
     data: {
+      museumId: payload.museumId || null,
+      routeId: payload.routeId || null,
       title: payload.title?.slice(0, 256) || null,
     },
   })

@@ -1,6 +1,8 @@
 /** C 端展品问答 ExhibitChat — 对齐 schema ExhibitChat* */
 
 export interface CreateExhibitChatSessionRequest {
+  museumId?: string | null
+  routeId?: string | null
   title?: string | null
 }
 

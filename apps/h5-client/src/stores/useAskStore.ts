@@ -35,6 +35,7 @@ import {
   type AskSpeechStatus,
 } from "@/utils/askSpeechPlayer"
 import { usePlaybackBargeIn } from "@/composables/usePlaybackBargeIn"
+import { useVenueStore } from "@/stores/useVenueStore"
 
 /** 问一问交互模式：默认语音；语音模式仍打字输入，音频由后端 SSE 下发 */
 export type AskInteractionMode = "text" | "voice"
@@ -169,6 +170,10 @@ function mapHistoryRole(role: string): AskUiMessage["role"] {
 }
 
 export const useAskStore = defineStore("ask", () => {
+  const venueStore = useVenueStore()
+  let sessionContextKey = ""
+  let sessionCreation: Promise<string> | null = null
+  let sessionCreationVersion = 0
   const open = shallowRef(false)
   const typing = shallowRef(false)
   /** 默认语音模式；浮层与全页共用 */
@@ -180,6 +185,9 @@ export const useAskStore = defineStore("ask", () => {
   const historyPending = shallowRef(false)
   /** 站点快捷问答附件上下文，可取消 */
   const stageContext = shallowRef<AskStageContext | null>(null)
+  watch(() => stageContext.value?.routeId ? `route:${stageContext.value.routeId}` : `venue:${venueStore.current?.id || ""}`, (contextKey) => {
+    if (sessionContextKey && sessionContextKey !== contextKey) resetConversation()
+  }, { flush: "sync" })
   /**
    * 用户选定的全局语音助手音色（导游 providerVoiceId）。
    * 空字符串表示未设置，发送时回落到 env / 内置默认音色。
@@ -422,7 +430,9 @@ export const useAskStore = defineStore("ask", () => {
   /** 打开问一问浮层 */
   function openAsk() {
     open.value = true
-    void ensureSession()
+    void ensureSession().catch((error) => {
+      errorMessage.value = resolveRequestErrorMessage(error, "问答会话创建失败。")
+    })
   }
 
   /** 从站点页打开，并挂上 routeId/stageId 附件上下文 */
@@ -470,15 +480,29 @@ export const useAskStore = defineStore("ask", () => {
   }
 
   async function ensureSession(seedTitle?: string) {
-    if (sessionId.value) {
+    const routeId = stageContext.value?.routeId || ""
+    const museumId = routeId ? "" : venueStore.current?.id || ""
+    if (!routeId && !museumId) throw new Error("请先选择游览地点再开始问答。")
+    const contextKey = routeId ? `route:${routeId}` : `venue:${museumId}`
+    if (sessionContextKey && sessionContextKey !== contextKey) resetConversation()
+    if (sessionId.value && sessionContextKey === contextKey) {
       return sessionId.value
     }
-
-    const created = await createExhibitChatSession({
-      title: seedTitle?.slice(0, 256) || "户外问答",
+    if (sessionCreation && sessionContextKey === contextKey) return sessionCreation
+    sessionContextKey = contextKey
+    const creationVersion = ++sessionCreationVersion
+    sessionCreation = createExhibitChatSession({
+      museumId: museumId || null,
+      routeId: routeId || null,
+      title: seedTitle?.slice(0, 256) || "游览问答",
+    }).then((created) => {
+      if (creationVersion !== sessionCreationVersion) throw new Error("游览上下文已切换，请重新发送问题。")
+      sessionId.value = created.id
+      return created.id
+    }).finally(() => {
+      if (creationVersion === sessionCreationVersion) sessionCreation = null
     })
-    sessionId.value = created.id
-    return sessionId.value
+    return sessionCreation
   }
 
   async function loadHistory() {
@@ -880,6 +904,9 @@ export const useAskStore = defineStore("ask", () => {
   }
 
   function resetConversation() {
+    sessionContextKey = ""
+    sessionCreation = null
+    sessionCreationVersion += 1
     abortActiveRun()
     sessionId.value = ""
     messages.value = []
