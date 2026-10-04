@@ -54,6 +54,8 @@ const shellItems: Array<{
 
 const onShellRoute = computed(() => route.path.startsWith('/shell/'));
 const onAuthRoute = computed(() => route.path.startsWith('/auth'));
+/** 全页问一问自带顶栏的收起 / 关闭；底部导航会压住输入框，这里不再显示 */
+const onAskPage = computed(() => route.path.startsWith('/shell/ask'));
 const shellTab = computed(() => String(route.meta.shellTab || 'me'));
 
 const askAction = computed<FabActionItem>(() => ({
@@ -61,14 +63,14 @@ const askAction = computed<FabActionItem>(() => ({
   label: '问',
   icon: MessageCircle,
   action: 'ask',
-  active: askStore.open || route.path.startsWith('/shell/ask')
+  active: askStore.open || onAskPage.value
 }));
 
 /**
  * 户外主线是整屏地图、不显示底部导航，因此这里只服务 /shell/* 外壳与问一问。
  */
 const actions = computed<FabActionItem[]>(() => {
-  if (onAuthRoute.value || !onShellRoute.value) {
+  if (onAuthRoute.value || onAskPage.value || !onShellRoute.value) {
     return [];
   }
 

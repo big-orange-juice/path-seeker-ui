@@ -204,6 +204,13 @@ export const useAskStore = defineStore("ask", () => {
   /** 正在朗读的短句序号与句内进度，用于字幕跟读 */
   const speakingIndex = shallowRef<number | null>(null)
   const speakingProgress = shallowRef(0)
+  /**
+   * 输入框草稿。放在 store 里是为了让行程页的语音键能把识别结果写进来，
+   * 面板只是它的一个视图。
+   */
+  const draftText = shallowRef("")
+  /** 自增令牌：面板据此把焦点移到输入框，避免为此再做一套事件订阅 */
+  const draftFocusToken = shallowRef(0)
 
   let abortController: AbortController | null = null
   let activeAssistantId = ""
@@ -408,6 +415,20 @@ export const useAskStore = defineStore("ask", () => {
     const target = String(providerVoiceId ?? "").trim()
     if (!target) return false
     return String(voiceId.value || "").trim() === target
+  }
+
+  /** 写入输入框草稿（语音识别结果与建议问题都走这里） */
+  function setDraftText(value: string | null | undefined) {
+    draftText.value = String(value ?? "")
+  }
+
+  function clearDraftText() {
+    draftText.value = ""
+  }
+
+  /** 请求面板把焦点移到输入框；用于语音识别不可用时切回打字 */
+  function requestDraftFocus() {
+    draftFocusToken.value += 1
   }
 
   function setStageContext(context: AskStageContext | null) {
@@ -938,6 +959,11 @@ export const useAskStore = defineStore("ask", () => {
     audioErrorMessage,
     speakingIndex,
     speakingProgress,
+    draftText,
+    draftFocusToken,
+    setDraftText,
+    clearDraftText,
+    requestDraftFocus,
     speakingSentence,
     bargeInEnabled: bargeIn.enabled,
     bargeInSupported: bargeIn.supported,

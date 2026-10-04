@@ -18,6 +18,7 @@ import { useToastStore } from "@path-seeker/client-state"
 import AskLocationCard from "@/components/shell/AskLocationCard.vue"
 import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskSpeech } from "@/composables/useAskSpeech"
+import { useBrowserSpeechRecognition } from "@/composables/useBrowserSpeechRecognition"
 import {
   extractAskUserInstruction,
   formatStageContextChipLabel,
@@ -45,13 +46,38 @@ const {
   interactionMode,
   stageContext,
   hasStageContext,
+  draftText,
+  draftFocusToken,
 } = storeToRefs(askStore)
 
 const speech = useAskSpeech()
+/** 与行程页语音键共用同一个识别单例：这里只做状态展示与开关 */
+const recognition = useBrowserSpeechRecognition()
 const msgsRef = useTemplateRef<HTMLElement>("msgsEl")
 const draft = useTemplateRef<HTMLInputElement>("draftEl")
 
 const isVoiceMode = computed(() => interactionMode.value === "voice")
+
+/** 识别结果实时写进输入框；结束时临时结果清空，草稿收敛为最终文本 */
+watch(() => recognition.transcript.value, (text) => {
+  askStore.setDraftText(text)
+})
+
+/**
+ * 字幕跟读：只显示当前正在朗读的那一句。
+ * 识别期间的实时听写由输入框本身承担，不在这里重复一遍。
+ */
+const liveCaption = computed(() => speech.speakingSentence.value)
+
+const showSpeechProgress = computed(() => Boolean(speech.speakingSentence.value))
+
+/** 状态行提示；与相位同一行显示，过长时截断 */
+const voiceHintText = computed(() => {
+  if (recognition.listening.value) return "正在识别你说的话，松开即发送"
+  if (speech.voicePhase.value === "speaking") return "正在朗读回复，开口说话可打断"
+  if (speech.voicePhase.value === "thinking") return "正在组织回答…"
+  return "回复会出现在下方气泡，可点位置卡"
+})
 
 const voicePhaseLabel = computed(() => {
   switch (speech.voicePhase.value) {
@@ -70,6 +96,13 @@ const bargeInTitle = computed(() => {
   if (speech.bargeInListening.value) return "正在监听：开口即打断朗读"
   if (speech.bargeInArmed.value) return "已就绪：朗读开始后开口即可打断"
   return "点击开启：只在朗读期间使用麦克风，音频不上传、不录制"
+})
+
+// 语音识别不可用时，行程页会请求把焦点移到输入框，直接切到打字
+watch(draftFocusToken, () => {
+  void nextTick(() => {
+    draft.value?.focus()
+  })
 })
 
 async function scrollToBottom() {
@@ -119,17 +152,14 @@ watch(open, (value) => {
 
 function handleSubmit(event: Event) {
   event.preventDefault()
-  const input = draft.value
-  const text = input?.value?.trim() || ""
+  const text = draftText.value.trim()
   if (!text || typing.value) {
     return
   }
   if (isVoiceMode.value) {
     speech.unlock()
   }
-  if (input) {
-    input.value = ""
-  }
+  askStore.clearDraftText()
   void askStore.send(text)
 }
 
@@ -211,6 +241,51 @@ function handleSuggestion(text: string) {
   }
   void askStore.send(trimmed)
 }
+
+/** 建议放到输入框上方独立一行（对齐 demo），取最后一条助手消息的后续建议 */
+const composerSuggestions = computed(() => {
+  for (let index = messages.value.length - 1; index >= 0; index -= 1) {
+    const item = messages.value[index]
+    if (item?.role === "assistant" && canUseSuggestions(item)) {
+      return (item.suggestions ?? []).map((text) => String(text ?? "").trim()).filter(Boolean)
+    }
+  }
+  return []
+})
+
+/** 松开麦克风后自动发送（demo 的「按住说话，松开后发送」） */
+let autoSendOnRelease = false
+
+function startVoiceHold() {
+  if (recognition.listening.value) return
+  if (isVoiceMode.value) {
+    speech.unlock()
+  }
+  startVoiceAskCapture()
+}
+
+/** 按下即打断正在播的内容并开始识别 */
+function startVoiceAskCapture() {
+  askStore.stopSseAudio()
+  recognition.start()
+}
+
+function finishVoiceHold() {
+  if (!recognition.listening.value) return
+  autoSendOnRelease = true
+  recognition.stop()
+}
+
+watch(() => recognition.listening.value, async (now, before) => {
+  if (!before || now || !autoSendOnRelease) return
+  autoSendOnRelease = false
+  // 等草稿写入完成再发，避免读到上一轮的文本
+  await nextTick()
+  const text = draftText.value.trim()
+  if (!text || typing.value) return
+  askStore.clearDraftText()
+  void askStore.send(text)
+})
 </script>
 
 <template>
@@ -267,6 +342,19 @@ function handleSuggestion(text: string) {
             </button>
           </div>
           <button
+            v-if="speech.bargeInSupported.value"
+            type="button"
+            class="ask-icon-btn"
+            :class="{ 'is-on': speech.bargeInEnabled.value }"
+            :aria-pressed="speech.bargeInEnabled.value"
+            :title="bargeInTitle"
+            aria-label="说话打断"
+            @click="speech.toggleBargeIn(!speech.bargeInEnabled.value)"
+          >
+            <Mic v-if="speech.bargeInEnabled.value" class="h-4 w-4" />
+            <MicOff v-else class="h-4 w-4" />
+          </button>
+          <button
             v-if="fullPage"
             type="button"
             class="ask-icon-btn"
@@ -297,58 +385,23 @@ function handleSuggestion(text: string) {
         正在加载历史…
       </div>
 
-      <!--
-        语音模式：仍渲染气泡（位置卡可点），顶部状态条负责相位、字幕跟读与打断开关。
-        朗读只走 SSE 音频，不把气泡当朗读稿。
-      -->
+      <!-- 语音状态：对齐 demo 的 .ask-status，单行「相位 + 提示」 -->
       <div
         v-if="isVoiceMode"
         class="ask-voice-bar"
         aria-live="polite"
       >
-        <div class="ask-voice-head">
-          <p class="ask-voice-phase">{{ voicePhaseLabel }}</p>
-          <button
-            v-if="speech.bargeInSupported.value"
-            type="button"
-            class="ask-bargein-toggle"
-            :class="{ 'is-on': speech.bargeInEnabled.value, 'is-live': speech.bargeInListening.value }"
-            :aria-pressed="speech.bargeInEnabled.value"
-            :title="bargeInTitle"
-            @click="speech.toggleBargeIn(!speech.bargeInEnabled.value)"
-          >
-            <Mic v-if="speech.bargeInEnabled.value" class="h-3 w-3" />
-            <MicOff v-else class="h-3 w-3" />
-            说话打断
-          </button>
-        </div>
+        <strong class="ask-voice-phase">{{ voicePhaseLabel }}</strong>
+        <span class="ask-voice-hint">{{ voiceHintText }}</span>
+      </div>
 
-        <!-- 字幕跟读：当前正在朗读的那一句 + 句内进度 -->
-        <p v-if="speech.speakingSentence.value" class="ask-voice-caption">
-          {{ speech.speakingSentence.value }}
-        </p>
-        <span
-          v-if="speech.speakingSentence.value"
-          class="ask-voice-progress"
-          aria-hidden="true"
-        >
-          <i :style="{ transform: `scaleX(${speech.speakingProgress.value})` }" />
-        </span>
-
-        <p class="ask-voice-hint">
-          {{
-            speech.voicePhase.value === "speaking"
-              ? "正在朗读回复，开口说话可打断"
-              : speech.voicePhase.value === "thinking"
-                ? "正在组织回答…"
-                : "回复会出现在下方气泡，可点位置卡"
-          }}
-        </p>
-        <p
-          v-if="speech.bargeInError.value"
-          class="ask-voice-note"
-        >
-          {{ speech.bargeInError.value }}
+      <!-- 字幕跟读：正在朗读的那一句 + 句内进度 -->
+      <div
+        v-if="liveCaption"
+        class="ask-voice-caption-row"
+      >
+        <p class="ask-voice-caption">
+          {{ liveCaption }}
         </p>
         <button
           v-if="speech.isSpeaking.value"
@@ -360,6 +413,13 @@ function handleSuggestion(text: string) {
           停止朗读
         </button>
       </div>
+      <span
+        v-if="showSpeechProgress"
+        class="ask-voice-progress"
+        aria-hidden="true"
+      >
+        <i :style="{ transform: `scaleX(${speech.speakingProgress.value})` }" />
+      </span>
 
       <div ref="msgsEl" class="ask-msgs">
         <div
@@ -442,22 +502,6 @@ function handleSuggestion(text: string) {
                 :locations="msg.locations"
               />
 
-              <div
-                v-if="canUseSuggestions(msg)"
-                class="ask-suggestions"
-              >
-                <button
-                  v-for="(item, suggestionIndex) in (msg.suggestions || []).filter((text) => String(text || '').trim())"
-                  :key="`${msg.id}-sg-${suggestionIndex}`"
-                  type="button"
-                  class="ask-suggestion-chip"
-                  :disabled="typing"
-                  @click="handleSuggestion(item)"
-                >
-                  {{ item }}
-                </button>
-              </div>
-
               <button
                 v-if="isLastFailedAssistant(index)"
                 type="button"
@@ -481,6 +525,24 @@ function handleSuggestion(text: string) {
             </span>
           </div>
         </div>
+      </div>
+
+      <!-- 后续建议：对齐 demo，放在输入框上方独立一行 -->
+      <div
+        v-if="composerSuggestions.length"
+        class="ask-suggestions"
+      >
+        <button
+          v-for="item in composerSuggestions"
+          :key="item"
+          type="button"
+          class="ask-suggestion-chip"
+          :disabled="typing"
+          @click="handleSuggestion(item)"
+        >
+          {{ item }}
+          <ArrowUpRight class="h-3 w-3" />
+        </button>
       </div>
 
       <form class="ask-composer" @submit="handleSubmit">
@@ -508,13 +570,34 @@ function handleSuggestion(text: string) {
         <div class="ask-composer-inner">
           <input
             ref="draftEl"
+            v-model="draftText"
             class="ask-input"
             type="text"
-            :placeholder="isVoiceMode ? '打字提问，回复将朗读…' : '问问位置、故事或观察重点…'"
+            :placeholder="isVoiceMode ? '按住说话，松开后发送…' : '问问位置、故事或观察重点…'"
             autocomplete="off"
             :disabled="typing"
             maxlength="2000"
           >
+          <button
+            v-if="isVoiceMode && recognition.supported.value"
+            type="button"
+            class="ask-mic-button"
+            :class="{ 'is-listening': recognition.listening.value }"
+            :aria-pressed="recognition.listening.value"
+            aria-label="按住说话"
+            title="按住说话，松开后发送"
+            @pointerdown.prevent="startVoiceHold"
+            @pointerup.prevent="finishVoiceHold"
+            @pointercancel.prevent="finishVoiceHold"
+            @pointerleave="finishVoiceHold"
+          >
+            <span
+              v-if="recognition.listening.value"
+              class="ask-voice-wave"
+              aria-hidden="true"
+            ><i /><i /><i /><i /></span>
+            <Mic v-else class="h-4 w-4" />
+          </button>
           <button
             type="submit"
             class="ask-send"
@@ -525,6 +608,14 @@ function handleSuggestion(text: string) {
           </button>
         </div>
       </form>
+
+      <p
+        v-if="recognition.error.value || speech.bargeInError.value"
+        class="ask-note"
+        role="status"
+      >
+        {{ recognition.error.value || speech.bargeInError.value }}
+      </p>
     </div>
   </div>
 </template>
