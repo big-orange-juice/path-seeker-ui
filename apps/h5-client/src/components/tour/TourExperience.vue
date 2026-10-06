@@ -7,6 +7,7 @@ import TourLanguageGate from '@/components/tour/TourLanguageGate.vue'
 import TourMap from '@/components/tour/TourMap.vue'
 import TourRoutePicker from '@/components/tour/TourRoutePicker.vue'
 import TourStoryDrawer from '@/components/tour/TourStoryDrawer.vue'
+import TourArrivalPrompt from '@/components/tour/TourArrivalPrompt.vue'
 import { useTourJourney } from '@/composables/useTourJourney'
 import { useBrowserSpeechRecognition } from '@/composables/useBrowserSpeechRecognition'
 import { useAskStore } from '@/stores/useAskStore'
@@ -36,7 +37,7 @@ const errorText = computed(() => {
 const speechError = computed(() => journey.speech.error.value === 'voiceMissing' ? messages.value.voiceMissing : journey.speech.error.value ? messages.value.playbackFailed : '')
 
 /** 语音识别语言跟随当前讲解语言，否则中文机型认不出俄语 / 西语 */
-const RECOGNITION_LANGS: Record<TourLocale, string> = { zh: 'zh-CN', en: 'en-US', ru: 'ru-RU', es: 'es-ES' }
+const RECOGNITION_LANGS: Record<TourLocale, string> = { zh: 'zh-CN', en: 'en-US', ru: 'ru-RU', es: 'es-ES', fr: 'fr-FR', ja: 'ja-JP' }
 
 // 识别结果写回输入框由 AskPanel 统一负责（它始终挂载且是草稿的视图），这里只管提示
 watch(() => voice.error.value, (message) => {
@@ -161,6 +162,7 @@ onMounted(() => { journey.restoreLanguage(route.query.lang); if (journey.languag
     <TourRoutePicker v-if="!viewingJourney" :routes="routes" :selected-id="journey.preview.value?.route?.id || null" :pending="journey.pending.value" :can-start="Boolean(journey.preview.value?.stops?.length)" :messages="messages" @select="selectRoute" @start="start" />
     <button v-if="!viewingJourney && journey.active.value" class="tour-return" type="button" @click="viewingJourney = true">{{ journey.active.value.route?.title }} · {{ messages.resume }}</button>
     <template v-if="viewingJourney && journey.currentStop.value">
+      <TourArrivalPrompt :stop="journey.arrivalStop.value" :pending="journey.pending.value" :messages="messages" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
       <nav class="tour-tools" aria-label="路线工具">
         <button type="button" :class="{ active: journey.tracking.value }" :aria-pressed="journey.tracking.value" :aria-label="journey.tracking.value ? messages.stopLocate : messages.locate" :title="journey.tracking.value ? messages.stopLocate : messages.locate" @click="toggleTracking"><MapPin :size="16" /></button>
         <span class="toolbar-divider" aria-hidden="true" />

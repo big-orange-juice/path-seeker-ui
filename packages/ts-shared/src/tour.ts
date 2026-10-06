@@ -3,6 +3,8 @@ export const TOUR_LANGUAGES = [
   { value: 'en', label: 'English', speech: 'en-US' },
   { value: 'ru', label: 'Русский', speech: 'ru-RU' },
   { value: 'es', label: 'Español', speech: 'es-ES' },
+  { value: 'fr', label: 'Français', speech: 'fr-FR' },
+  { value: 'ja', label: '日本語', speech: 'ja-JP' },
 ] as const
 
 export type TourLocale = typeof TOUR_LANGUAGES[number]['value']

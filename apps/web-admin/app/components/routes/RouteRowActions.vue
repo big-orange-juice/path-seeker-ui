@@ -98,7 +98,7 @@ const moreItems = computed(() => {
     label: string
     danger?: boolean
   }> = [{ key: 'poster', label: '海报' }]
-  if ((props.actions.canDelete || props.actions.canEditContent) && ((props.record.locale || 'zh') === 'zh' || props.record.sourceRouteId)) {
+  if ((props.actions.canDelete || props.actions.canEditContent) && (props.record.locale || 'zh') === 'zh') {
     items.push({ key: 'localize', label: '多语言转换' })
   }
   if (props.actions.canDelete) {

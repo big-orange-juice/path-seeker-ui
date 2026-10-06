@@ -7,6 +7,11 @@ import Input from '@/components/shadcn/input/Input.vue';
 import Select from '@/components/shadcn/select/Select.vue';
 import Textarea from '@/components/shadcn/textarea/Textarea.vue';
 
+// 入口已从后台菜单下线，页面和 /api/site-area 代理保留，仅管理员可通过直链核查数据。
+definePageMeta({
+  middleware: ['admin-auth', 'admin-only'],
+});
+
 const config = useRuntimeConfig();
 const { request } = useApiClient();
 const museumId = shallowRef(String(config.public.museumId || '').trim());

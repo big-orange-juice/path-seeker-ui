@@ -257,7 +257,7 @@ export interface RouteIdPayload {
 
 export interface CreateRouteTranslationPayload {
   routeId: string;
-  locale: 'en' | 'ru' | 'es';
+  locale: Exclude<import('@path-seeker/ts-shared').TourLocale, 'zh'>;
   routeCode?: string | null;
 }
 
@@ -268,6 +268,7 @@ export interface RouteTranslationResponse {
   locale: string | null;
   stageCount: number;
   reused: boolean;
+  translationTaskId?: string | null;
 }
 
 export interface BuildOutdoorRouteDraftPayload {

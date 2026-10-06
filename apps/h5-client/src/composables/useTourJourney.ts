@@ -23,6 +23,8 @@ export function useTourJourney() {
   const tracking = shallowRef(false)
   const stops = computed(() => [...(active.value?.stops ?? [])].sort((left, right) => left.order - right.order))
   const currentStop = computed(() => stops.value[currentIndex.value] ?? null)
+  const arrivalIndex = shallowRef(-1)
+  const arrivalStop = computed(() => stops.value[arrivalIndex.value] ?? null)
   const narrations = computed(() => currentStop.value?.guideNarrations?.filter(item => item.locale === locale.value) ?? [])
   const narration = computed(() => narrations.value.find(item => item.guideId === guideId.value) ?? narrations.value[0] ?? null)
   let loadVersion = 0
@@ -32,7 +34,6 @@ export function useTourJourney() {
   let arrivalTimer: ReturnType<typeof setTimeout> | undefined
   let candidateIndex = -1
   let furthest = -1
-  let queuedIndex = -1
   let alive = true
   const speech = useTourSpeech(() => { void completeStop(true) })
 
@@ -95,7 +96,7 @@ export function useTourJourney() {
       visit.value = response
       currentIndex.value = Math.max(0, stops.value.findIndex(stop => stop.id === response.currentStageId))
       furthest = currentIndex.value
-      queuedIndex = -1
+      arrivalIndex.value = -1
       await selectStop(currentIndex.value)
       return true
     } catch (caught) { error.value = caught instanceof Error ? caught.message : 'startFailed'; return false }
@@ -113,7 +114,7 @@ export function useTourJourney() {
     currentIndex.value = index
     guideId.value = null
     furthest = Math.max(furthest, index)
-    queuedIndex = -1
+    arrivalIndex.value = -1
     try {
       if (currentVisit.status === 1) {
         const response = await updateRouteVisitStop(currentVisit, stop.id, 'start')
@@ -129,6 +130,7 @@ export function useTourJourney() {
     const stop = currentStop.value
     const currentVisit = visit.value
     if (!stop || !currentVisit || currentVisit.status !== 1 || busy.value) return
+    if (automatic && arrivalStop.value) return
     const version = journeyVersion
     pending.value = true
     error.value = ''
@@ -136,7 +138,8 @@ export function useTourJourney() {
       const response = await updateRouteVisitStop(currentVisit, stop.id, 'complete', automatic ? 2 : 1)
       if (!alive || version !== journeyVersion) return
       visit.value = response
-      const next = queuedIndex > currentIndex.value ? queuedIndex : currentIndex.value + 1
+      if (automatic && response.status === 1 && arrivalStop.value) { speech.stop(); return }
+      const next = arrivalIndex.value > currentIndex.value ? arrivalIndex.value : currentIndex.value + 1
       if (response.status === 1 && next < stops.value.length) await selectStop(next)
       else {
         speech.stop()
@@ -165,14 +168,30 @@ export function useTourJourney() {
     tracking.value = false
     clearTimeout(arrivalTimer)
     candidateIndex = -1
-    queuedIndex = -1
+    arrivalIndex.value = -1
   }
 
   function confirmArrival(index: number) {
     if (visit.value?.status !== 1 || !location.value || nearbyTourStop(stops.value, location.value, furthest, Date.now()) !== index) return
-    furthest = index
-    if (speech.status.value === 'playing' || speech.status.value === 'paused' || busy.value) queuedIndex = index
+    if (speech.status.value === 'playing' || speech.status.value === 'paused' || busy.value || arrivalStop.value) arrivalIndex.value = index
     else void selectStop(index)
+  }
+
+  function dismissArrival() {
+    arrivalIndex.value = -1
+  }
+
+  async function acceptArrival() {
+    if (busy.value || !arrivalStop.value || visit.value?.status !== 1) return
+    const target = arrivalStop.value
+    const fix = location.value
+    if (!fix || target.longitude == null || target.latitude == null
+      || fix.accuracy > TOUR_ARRIVAL_POLICY.maxAccuracy || Date.now() - fix.timestamp > TOUR_ARRIVAL_POLICY.maxAgeMs
+      || tourDistanceMeters(fix, { longitude: target.longitude, latitude: target.latitude }) > TOUR_ARRIVAL_POLICY.releaseRadius) {
+      dismissArrival()
+      return
+    }
+    await selectStop(arrivalIndex.value)
   }
 
   function startTracking() {
@@ -191,9 +210,9 @@ export function useTourJourney() {
         timestamp: position.timestamp,
       }
       locationError.value = false
-      const queued = stops.value[queuedIndex]
-      if (queued?.longitude != null && queued.latitude != null
-        && tourDistanceMeters(location.value, { longitude: queued.longitude, latitude: queued.latitude }) > TOUR_ARRIVAL_POLICY.releaseRadius) queuedIndex = -1
+      const nearby = arrivalStop.value
+      if (nearby?.longitude != null && nearby.latitude != null
+        && tourDistanceMeters(location.value, { longitude: nearby.longitude, latitude: nearby.latitude }) > TOUR_ARRIVAL_POLICY.releaseRadius) dismissArrival()
       const index = nearbyTourStop(stops.value, location.value, furthest, Date.now())
       if (index === candidateIndex) return
       clearTimeout(arrivalTimer)
@@ -220,5 +239,5 @@ export function useTourJourney() {
   }
 
   onBeforeUnmount(() => { alive = false; journeyVersion += 1; loadVersion += 1; previewVersion += 1; stopTracking() })
-  return { locale, languageReady, catalog, preview, active, visit, currentIndex, stops, currentStop, narrations, narration, pending: busy, error, location, locationError, tracking, speech, rememberLanguage, restoreLanguage, load, selectRoute, start, selectStop, completeStop, togglePlayback, selectGuide, startTracking, stopTracking, end }
+  return { locale, languageReady, catalog, preview, active, visit, currentIndex, stops, currentStop, arrivalStop, narrations, narration, pending: busy, error, location, locationError, tracking, speech, rememberLanguage, restoreLanguage, load, selectRoute, start, selectStop, completeStop, togglePlayback, selectGuide, startTracking, stopTracking, acceptArrival, dismissArrival, end }
 }
