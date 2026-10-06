@@ -12,6 +12,7 @@ import {
   CircleCheck,
   CircleHelp,
   Ellipsis,
+  FileSpreadsheet,
   ImageUp,
   Library,
   LibraryBig,
@@ -46,6 +47,7 @@ export type AppIconName =
   | 'circle-check'
   | 'circle-help'
   | 'ellipsis'
+  | 'file-spreadsheet'
   | 'image-up'
   | 'library'
   | 'library-big'
@@ -89,6 +91,7 @@ const iconMap: Record<AppIconName, LucideIcon> = {
   'circle-check': CircleCheck,
   'circle-help': CircleHelp,
   ellipsis: Ellipsis,
+  'file-spreadsheet': FileSpreadsheet,
   'image-up': ImageUp,
   library: Library,
   'library-big': LibraryBig,

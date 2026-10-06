@@ -103,6 +103,15 @@ export interface ChatConfirmationPayload {
   confirmationToken?: string | null;
   operation?: string | null;
   arguments?: Record<string, unknown> | null;
+  /**
+   * 平台助手写入类工具确认（PlatformAssistantWriteGuard 下发；与页面内 Chat 的
+   * operation/arguments 形态并存）：{ toolName, confirmationToken, argumentsHash, expiresAt, message }。
+   * 后端只下发参数哈希，不下发具体参数。
+   */
+  toolName?: string | null;
+  argumentsHash?: string | null;
+  expiresAt?: string | null;
+  message?: string | null;
 }
 
 /** SSE suggestions：本轮后续建议（2-4 条；失败时为空数组） */

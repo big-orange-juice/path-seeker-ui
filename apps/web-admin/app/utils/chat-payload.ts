@@ -56,6 +56,23 @@ const TOOL_STATUS_LABELS: Record<string, { running: string; done: string }> = {
   SetNarrationStyle: { running: '正在设置解说风格', done: '已设置解说风格' },
   PreviewRoute: { running: '正在预览路线', done: '已预览路线' },
   PublishRoute: { running: '正在发布路线', done: '已发布路线' },
+  // 平台助手（§8）专属工具：默认只读白名单 + 手册问答 + 上下文核验
+  GetCurrentPageContext: { running: '正在读取已核验的页面上下文', done: '已读取已核验的页面上下文' },
+  ListPlatformTools: { running: '正在读取工具白名单', done: '已读取工具白名单' },
+  SearchManual: { running: '正在检索操作手册', done: '已检索操作手册' },
+  AskManual: { running: '正在查阅操作手册', done: '已查阅操作手册' },
+  GetVenueContext: { running: '正在读取场馆上下文', done: '已读取场馆上下文' },
+  SearchVenues: { running: '正在搜索场馆', done: '已搜索场馆' },
+  SearchCulturalPlaces: { running: '正在搜索文化点', done: '已搜索文化点' },
+  CountExhibits: { running: '正在统计典藏', done: '已统计典藏' },
+  SearchGuides: { running: '正在搜索导游', done: '已搜索导游' },
+  GetStageDetail: { running: '正在读取节点详情', done: '已读取节点详情' },
+  ListNarrationStageImages: { running: '正在读取节点配图', done: '已读取节点配图' },
+  ValidateRouteDraft: { running: '正在校验路线草稿', done: '已校验路线草稿' },
+  GetAsyncTaskResult: { running: '正在查询异步任务', done: '已查询异步任务' },
+  GetAsyncImageTaskResult: { running: '正在查询图片任务', done: '已查询图片任务' },
+  AnalyzeImages: { running: '正在分析图片', done: '已分析图片' },
+  AnalyzeMedia: { running: '正在分析媒体', done: '已分析媒体' },
 };
 
 export const resolveToolStatusLabel = (

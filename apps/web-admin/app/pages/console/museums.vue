@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { shallowRef } from 'vue';
+import { shallowRef, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Input from '@/components/shadcn/input/Input.vue';
 import Select from '@/components/shadcn/select/Select.vue';
@@ -53,6 +53,28 @@ const openDetail = (record: MuseumRecord) => {
   detailRecord.value = record;
   detailDialogOpen.value = true;
 };
+/** 景点范围越界时跳转过来（/console/museums?museumId=..&focus=boundary&ref=lng,lat;..） */
+const route = useRoute();
+const boundaryReference = shallowRef<{ longitude: number; latitude: number }[]>([]);
+let boundaryDeepLinkHandled = false;
+
+const parseBoundaryReference = (value: unknown) => String(value || '')
+  .split(';')
+  .map(item => item.split(',').map(Number))
+  .filter(pair => pair.length === 2 && Number.isFinite(pair[0]) && Number.isFinite(pair[1]))
+  .map(pair => ({ longitude: pair[0] as number, latitude: pair[1] as number }));
+
+// 列表是异步加载的，等拿到记录后再按 query 打开编辑表单；只处理一次，避免保存后重复弹出
+watch(museums, rows => {
+  if (boundaryDeepLinkHandled) return;
+  const targetId = String(route.query.museumId || '').trim();
+  if (!targetId || dialogOpen.value) return;
+  const record = rows.find(item => item.id === targetId);
+  if (!record) return;
+  boundaryDeepLinkHandled = true;
+  boundaryReference.value = parseBoundaryReference(route.query.ref);
+  startEdit(record);
+}, { immediate: true });
 
 const handleSave = async (draft: MuseumDraft) => {
   submitting.value = true;
@@ -107,6 +129,10 @@ const handleRemove = async (record: MuseumRecord) => {
   <div class="admin-page-frame flex flex-col gap-4">
     <div v-if="error" class="rounded-[0.85rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
       {{ error.message || '博物馆数据加载失败。' }}
+    </div>    <div v-if="boundaryReference.length" class="rounded-[0.85rem] border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+      <p class="font-medium">需要把本次目的地的边界扩大到覆盖以下参考坐标（WGS84）</p>
+      <p class="mt-1 break-all font-mono text-xs">{{ boundaryReference.map(point => `${point.longitude.toFixed(6)},${point.latitude.toFixed(6)}`).join('  ') }}</p>
+      <p class="mt-1 text-xs text-muted-foreground">改完目的地边界并保存后，回到景点范围编辑页重新保存范围即可；越界的范围此前未落库，草稿仍在原页面。</p>
     </div>
 
     <section class="warm-panel warm-outline rounded-[0.95rem] border border-border/70 px-4 py-4">

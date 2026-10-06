@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 共享前端契约的统一出口。
  *
  * 这个包只暴露稳定、跨应用复用的领域模型和产品词汇。
@@ -12,6 +12,7 @@ export * from "./reward"
 export * from "./route"
 export * from "./play"
 export * from "./geo"
+export * from "./geo-range"
 export * from "./heritage-asset"
 export * from "./outdoor-map"
 export * from "./tour"

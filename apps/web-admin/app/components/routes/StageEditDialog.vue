@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid'
 import GuideSelectDialog from '@/components/guides/GuideSelectDialog.vue'
 import NarrationPronunciationPanel from '@/components/routes/NarrationPronunciationPanel.vue'
 import NarrationSegmentsEditor from '@/components/routes/NarrationSegmentsEditor.vue'
+import StageExtraAudioEditor from '@/components/routes/StageExtraAudioEditor.vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue'
@@ -113,6 +114,8 @@ const { uploadAttachment } = useUploadAttachment()
 const saving = ref(false)
 const segmentsEditor = useTemplateRef<InstanceType<typeof NarrationSegmentsEditor>>('segmentsEditor')
 const segmentsUploading = shallowRef(false)
+/** 额外音频上传中：额外音频即时保存，需单独参与底部「保存」的禁用判断 */
+const extraAudioUploading = shallowRef(false)
 const generatingAudio = ref(false)
 /** 手动刷新音频状态中 */
 const refreshingAudio = ref(false)
@@ -211,7 +214,7 @@ const interactionTypeLabel = computed(
 const headerDescription = computed(() => `${nodeTitle.value} · ${interactionTypeLabel.value}`)
 const selectedGuideLabel = computed(() => form.guideName || (form.guideId ? '已选择导游' : '未选择导游'))
 const canSave = computed(() => Boolean(
-  props.canEdit && isSupported.value && stageId.value && props.routeId && !saving.value && !segmentsUploading.value,
+  props.canEdit && isSupported.value && stageId.value && props.routeId && !saving.value && !segmentsUploading.value && !extraAudioUploading.value,
 ))
 /** 解说节点稍宽；整体固定高度避免切换内容时弹窗抖动 */
 const dialogContentClass = computed(() =>
@@ -2043,6 +2046,19 @@ const handleSave = async () => {
               :disabled="saving"
               @busy="segmentsUploading = $event"
               @saved="emit('preview-refresh')" />
+
+            <!-- 额外音频：与讲解分段并列；节点不属于任何路线（独立素材）时不展示 -->
+            <StageExtraAudioEditor
+              v-if="stageId && props.routeId"
+              :key="stageId"
+              :stage-id="stageId"
+              :route-id="props.routeId"
+              :locale="props.locale"
+              :narration-detail="narrationDetail"
+              :can-edit="props.canEdit"
+              :disabled="saving"
+              @busy="extraAudioUploading = $event"
+              @changed="emit('preview-refresh')" />
             <div class="space-y-5">
               <!-- 正文 + 讲解侧栏 -->
               <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">

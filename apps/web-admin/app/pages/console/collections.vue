@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
 import Button from '@/components/shadcn/button/Button.vue';
 import Input from '@/components/shadcn/input/Input.vue';
@@ -6,6 +6,7 @@ import Select from '@/components/shadcn/select/Select.vue';
 import CollectionExhibitDialog from '@/components/collections/CollectionExhibitDialog.vue';
 import CollectionExhibitDetailDialog from '@/components/collections/CollectionExhibitDetailDialog.vue';
 import CollectionExhibitTable from '@/components/collections/CollectionExhibitTable.vue';
+import CollectionSearchDialog from '@/components/collections/CollectionSearchDialog.vue';
 import CulturalPlaceFormDialog from '@/components/museum-management/CulturalPlaceFormDialog.vue';
 import type { CulturalPlaceDraft, CulturalPlaceRecord } from '@/types/cultural-place';
 import type {
@@ -165,6 +166,18 @@ const placeRecord = shallowRef<CulturalPlaceRecord | null>(null);
 const placeError = shallowRef('');
 const contentLoading = shallowRef(false);
 let contentRequestVersion = 0;
+
+/** AI 联网补充资料：复用导入的候选预览与确认流程（设计文档 §7） */
+const searchDialog = shallowRef<{ openDialog: (preset?: { id: string; name: string; code?: string | null }) => void } | null>(null);
+const searchExhibits = computed(() =>
+  rows.value
+    .filter((record) => record.contentType !== 'place')
+    .map((record) => ({
+      id: record.id,
+      name: record.name || record.exhibitCode || record.id,
+      code: record.exhibitCode ?? null,
+    }))
+);
 
 watch(selectedMuseumId, () => {
   contentRequestVersion += 1;
@@ -346,6 +359,13 @@ const handleRemove = async (record: ExhibitRecord) => {
           <Button variant="outline" :disabled="submitting" @click="refresh()">
             刷新
           </Button>
+          <Button
+            variant="outline"
+            :disabled="submitting || contentLoading || museumPending || !museumId"
+            title="按公开资料来源补充典藏资料，结果进入候选条目待人工确认"
+            @click="searchDialog?.openDialog()">
+            AI 联网补充资料
+          </Button>
           <Button :disabled="submitting || contentLoading || museumPending || !museumId" @click="startCreate">
             新增{{ contentLabel }}
           </Button>
@@ -412,5 +432,11 @@ const handleRemove = async (record: ExhibitRecord) => {
       :require-coordinates="false"
       @update:open="placeDialogOpen = $event"
       @save="handlePlaceSave" />
+
+    <CollectionSearchDialog
+      ref="searchDialog"
+      :museum-id="museumId"
+      :exhibits="searchExhibits"
+      @finished="refresh()" />
   </div>
 </template>

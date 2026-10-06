@@ -1,4 +1,4 @@
-import type { TourLocale } from '@path-seeker/ts-shared'
+import type { PlaceRange, TourLocale } from '@path-seeker/ts-shared'
 
 export interface ClientDestination {
   id: string
@@ -25,6 +25,11 @@ export interface ClientPlace {
   longitude: number | null
   latitude: number | null
   arrivalNote: string | null
+  /**
+   * 景点本体范围（点类型时后端省略该字段，按经纬度判定）。
+   * 几何为 WGS84，绘制前由前端转 GCJ-02；接近判定统一交给 ts-shared 的 evaluateApproach。
+   */
+  range?: PlaceRange | null
 }
 
 export interface ClientTourRoute {
@@ -64,7 +69,21 @@ export interface TourGuideNarration {
   specialty: string | null
   locale: TourLocale
   title: string | null
+  /** 该导游的 TTS 平台音色 ID；为空表示没有可用音色，C 端继续回落（方案 §6.1） */
+  providerVoiceId?: string | null
   chapters: TourNarrationChapter[] | null
+}
+
+/** 节点额外音频：讲解前/讲解后，同一节点所有导游版本共用 */
+export interface ClientStopExtraAudio {
+  id: string
+  /** 播放位置：before=讲解前 after=讲解后 */
+  position: 'before' | 'after'
+  /** 同组播放顺序（从 1 开始） */
+  order: number
+  title: string | null
+  url: string | null
+  durationSeconds: number | null
 }
 
 export interface ClientTourStop {
@@ -81,6 +100,8 @@ export interface ClientTourStop {
   images: { id: string; url: string | null; caption: string | null; altText: string | null }[] | null
   video: string | null
   guideNarrations: TourGuideNarration[] | null
+  /** 播放队列：before extra audio[] → narration chapter[] → after extra audio[] */
+  extraAudios?: ClientStopExtraAudio[] | null
 }
 
 export interface ClientCatalog {

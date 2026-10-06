@@ -16,6 +16,28 @@ export interface CulturalPlaceRecord {
   coverAttachmentId: string | null;
   coverUrl: string | null;
   sortOrder: number;
+  /** 景点本体范围：1=点 2=圆 3=多边形（可空，历史数据为点语义） */
+  rangeType?: number;
+  /** 圆形范围半径（米） */
+  rangeRadiusMeters?: number | null;
+  /** 多边形范围 GeoJSON（按 coordinateSystem 存储） */
+  boundaryGeoJson?: string | null;
+  /** 归属景区区域 ID；"0" 表示不关联 */
+  siteAreaId?: string;
+  /** 范围外接近阈值（米）；空表示跟随全局默认 */
+  proximityDistanceMeters?: number | null;
+  /** 解除接近阈值（米） */
+  releaseDistanceMeters?: number | null;
+  /** 范围版本：范围变化时 +1，供 C 端缓存与判定一致性校验 */
+  rangeVersion?: number;
+  /** 全局默认接近阈值（米） */
+  defaultProximityDistanceMeters?: number | null;
+  /** 全局默认解除阈值（米） */
+  defaultReleaseDistanceMeters?: number | null;
+  /** 目的地边界 GeoJSON（WGS84），用于前端判断范围是否越界 */
+  destinationBoundaryGeoJson?: string | null;
+  /** 归属片区边界 GeoJSON（WGS84），用于「复制片区边界」 */
+  siteAreaBoundaryGeoJson?: string | null;
 }
 
 export type CulturalPlaceDraft = Omit<CulturalPlaceRecord, 'id' | 'coverUrl'> & { id?: string };

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
+import { boundaryPolygons, circleToRing, parseBoundary, type ApproachPoint, type PlaceRange } from '@path-seeker/ts-shared'
 import { loadAMap } from '@/services/amap'
 import { transformWgs84ToGcj02 } from '@/composables/useBrowserLocation'
 import type { ClientCatalog, ClientTourDetail } from '@/types/clientCatalog'
@@ -44,6 +45,32 @@ function geometryLines(source: string | null | undefined): number[][][] {
   } catch { return [] }
 }
 
+/** 一个环：[[lng, lat], ...]；绘制前统一由 coordinate() 转 GCJ-02 */
+function projectRing(ring: [number, number][]): number[][] {
+  return ring.map(point => coordinate(point[0], point[1]))
+}
+
+/**
+ * 景点范围的多边形路径（每个多边形含外环与内环，交给 AMap 的 Polygon 处理）。
+ * 几何解析与圆环生成都用 ts-shared 的共享实现，C 端不再自写第二份。
+ */
+function rangePolygons(range: PlaceRange | null | undefined, anchor: ApproachPoint | null): number[][][][] {
+  if (!range || range.type === 'point') return []
+  const geometry = parseBoundary(range.boundaryGeoJson)
+  if (geometry) return boundaryPolygons(geometry).map(polygon => polygon.map(projectRing))
+  // 圆形缺少边界几何时用共享工具生成环（判定仍按半径计算，绘制只为展示）
+  if (range.type === 'circle' && anchor && range.radiusMeters) return [[projectRing(circleToRing(anchor, range.radiusMeters))]]
+  return []
+}
+
+/** 文化点锚点：优先文化点经纬度，缺坐标时回落到站点坐标 */
+function rangeAnchor(stopLongitude: number | null, stopLatitude: number | null, place: { longitude: number | null; latitude: number | null } | null): ApproachPoint | null {
+  const longitude = place?.longitude ?? stopLongitude
+  const latitude = place?.latitude ?? stopLatitude
+  if (longitude == null || latitude == null) return null
+  return { longitude, latitude }
+}
+
 function fitRoute(animated = false) {
   if (!map.value) return
   map.value.setRotation(0, animated)
@@ -56,6 +83,30 @@ function render() {
   map.value.remove(overlays)
   overlays = []
   const stops = [...(props.detail?.stops ?? [])].sort((left, right) => left.order - right.order)
+  const places = props.catalog?.places ?? []
+  const placeById = new Map(places.map(place => [place.id, place]))
+  const destination = props.catalog?.destinations?.find(item => item.id === props.detail?.route?.destinationId)
+  // 先铺范围面（目的地边界 → 景点范围），再画路线与站点标注，避免遮挡标注
+  const destinationBoundary = parseBoundary(destination?.boundaryGeoJson)
+  if (destinationBoundary) {
+    for (const polygon of boundaryPolygons(destinationBoundary)) {
+      overlays.push(new sdk.Polygon({ path: polygon.map(projectRing), strokeColor: '#c7a257', strokeWeight: 2, fillColor: '#c7a257', fillOpacity: 0.08, zIndex: 5, bubble: true }))
+    }
+  }
+  const drawnPlaces = new Set<string>()
+  for (const stop of stops) {
+    const place = stop.placeId ? placeById.get(stop.placeId) : undefined
+    if (!place || drawnPlaces.has(place.id)) continue
+    const anchor = rangeAnchor(stop.longitude, stop.latitude, place)
+    const polygons = rangePolygons(place.range, anchor)
+    if (!polygons.length) continue
+    drawnPlaces.add(place.id)
+    for (const path of polygons) {
+      overlays.push(new sdk.Polygon({ path, strokeColor: '#24616a', strokeWeight: 2, fillColor: '#24616a', fillOpacity: 0.12, zIndex: 6, bubble: true }))
+    }
+  }
+  const lines = geometryLines(props.detail?.geometry || props.detail?.route?.geometry)
+  for (const line of lines) overlays.push(new sdk.Polyline({ path: line.map(point => coordinate(point[0]!, point[1]!)), strokeColor: '#24616a', strokeWeight: 7, strokeOpacity: 0.9 }))
   for (const stop of stops) {
     if (stop.longitude == null || stop.latitude == null) continue
     const content = document.createElement('button')
@@ -63,17 +114,15 @@ function render() {
     content.className = stop.id === props.currentStopId ? 'tour-map-marker active' : 'tour-map-marker'
     content.textContent = `${stop.order}. ${stop.name || ''}`
     content.setAttribute('aria-label', stop.name || String(stop.order))
-    const marker = new sdk.Marker({ position: coordinate(stop.longitude, stop.latitude), content, anchor: 'bottom-center' })
+    const marker = new sdk.Marker({ position: coordinate(stop.longitude, stop.latitude), content, anchor: 'bottom-center', zIndex: 100 })
     marker.on('click', () => emit('select', stop.id))
     overlays.push(marker)
   }
-  const lines = geometryLines(props.detail?.geometry || props.detail?.route?.geometry)
-  for (const line of lines) overlays.push(new sdk.Polyline({ path: line.map(point => coordinate(point[0]!, point[1]!)), strokeColor: '#24616a', strokeWeight: 7, strokeOpacity: 0.9 }))
   map.value.add(overlays)
   if (overlays.length) map.value.setFitView(overlays, false, OVERVIEW_INSETS)
   else {
-    const destination = props.catalog?.destinations?.find(item => item.id === props.detail?.route?.destinationId) ?? props.catalog?.destinations?.[0]
-    if (destination?.longitude != null && destination.latitude != null) map.value.setCenter(coordinate(destination.longitude, destination.latitude))
+    const center = destination ?? props.catalog?.destinations?.[0]
+    if (center?.longitude != null && center.latitude != null) map.value.setCenter(coordinate(center.longitude, center.latitude))
   }
   focusStop()
   applyFollow()

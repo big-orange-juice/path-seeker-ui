@@ -51,6 +51,23 @@ export interface AskStageContext {
   routeTitle?: string
   /** 仅 UI 展示；发送仍用 stageId */
   stageTitle?: string
+  /**
+   * 当前讲解导游与其音色（方案 §6）：
+   * 音色优先级 = 用户手动选择 > 当前导游 > 首站导游 > 平台默认（后者由服务端兜底）。
+   */
+  guideId?: string | null
+  guideVoiceId?: string | null
+  /** 当前播放位置，仅作上下文与日志（不由服务端控制播放恢复） */
+  playingChapterId?: string | null
+  playingTimeSeconds?: number
+}
+
+/** 问答音频一轮的收尾原因：页面据此决定是否恢复路线讲解（方案 §5.2） */
+export type AskAudioSettleReason = "completed" | "stopped" | "failed" | "interrupted"
+
+export interface AskAudioSettle {
+  runId: number
+  reason: AskAudioSettleReason
 }
 
 /** @deprecated 使用 AskUiMessage */
@@ -204,6 +221,12 @@ export const useAskStore = defineStore("ask", () => {
   /** 正在朗读的短句序号与句内进度，用于字幕跟读 */
   const speakingIndex = shallowRef<number | null>(null)
   const speakingProgress = shallowRef(0)
+  /** 问答音频轮次号与本轮收尾原因：行程页据此恢复讲解（方案 §5.2） */
+  const askAudioRunId = shallowRef(0)
+  const askAudioSettle = shallowRef<AskAudioSettle | null>(null)
+  /** 本轮实际请求的音色与是否被服务端回退（方案 §6.3：比对 audio.started 回传值） */
+  const askRequestedVoiceId = shallowRef("")
+  const askVoiceFellBack = shallowRef(false)
   /**
    * 输入框草稿。放在 store 里是为了让行程页的语音键能把识别结果写进来，
    * 面板只是它的一个视图。
@@ -224,8 +247,27 @@ export const useAskStore = defineStore("ask", () => {
   let pendingSentenceText = ""
   /** 本轮是被「说话打断」中止的，而不是用户取消 */
   let bargeInAborted = false
+  /** 当前音频轮是否仍在进行 / 是否已请求收尾 / 是否出现过 audio.error */
+  let audioRunActive = false
+  let audioRunFinishRequested = false
+  let audioRunHadError = false
 
   const bargeIn = usePlaybackBargeIn({ onBargeIn: () => interruptRun() })
+
+  /** 记录本轮音频收尾原因；每轮只记一次，供行程页恢复路线讲解 */
+  function settleAudioRun(reason: AskAudioSettleReason) {
+    if (!audioRunActive) return
+    audioRunActive = false
+    askAudioSettle.value = { runId: askAudioRunId.value, reason }
+  }
+
+  function beginAudioRun() {
+    askAudioRunId.value += 1
+    askAudioSettle.value = null
+    audioRunActive = true
+    audioRunFinishRequested = false
+    audioRunHadError = false
+  }
 
   function syncSpeechAudioUi() {
     sseAudioStatus.value = speechPlayer.getStatus()
@@ -233,6 +275,10 @@ export const useAskStore = defineStore("ask", () => {
     const progress = speechPlayer.getProgress()
     speakingIndex.value = progress.index
     speakingProgress.value = progress.progress
+    // 服务端已收尾且播放器排期播完：本轮音频正常结束
+    if (audioRunActive && audioRunFinishRequested && !speechPlayer.isBusy()) {
+      settleAudioRun(audioRunHadError ? "failed" : "completed")
+    }
   }
 
   if (!unsubscribeAudio) {
@@ -272,11 +318,19 @@ export const useAskStore = defineStore("ask", () => {
     return Boolean(String(ctx.routeId || "").trim() || String(ctx.stageId || "").trim())
   })
 
-  /** 最终发给 send-with-audio 的 voiceId：用户偏好 > env / 内置默认 */
+  /**
+   * 最终发给 send-with-audio 的 voiceId（方案 §6.1）：
+   * 用户手动选择 > 当前讲解导游 > 路线首站导游（由行程页写入上下文） > env / 内置默认。
+   * 服务端仍会做白名单校验与平台默认回退，这里只负责按优先级取出最合适的一个。
+   */
   function resolveSendVoiceId() {
     const preferred = String(voiceId.value || "").trim()
     if (preferred) {
       return preferred
+    }
+    const guideVoice = String(stageContext.value?.guideVoiceId || "").trim()
+    if (guideVoice) {
+      return guideVoice
     }
     return getDefaultAskVoiceId()
   }
@@ -316,14 +370,17 @@ export const useAskStore = defineStore("ask", () => {
     audioErrorMessage.value = ""
     resetSentenceTracking()
     if (runKey) {
+      beginAudioRun()
       speechPlayer.beginRun()
     } else {
+      settleAudioRun("stopped")
       speechPlayer.stop()
     }
     syncSpeechAudioUi()
   }
 
   function stopSseAudio() {
+    settleAudioRun("stopped")
     speechPlayer.stop()
     audioAssembler = createSseAudioAssembler()
     syncSpeechAudioUi()
@@ -343,6 +400,7 @@ export const useAskStore = defineStore("ask", () => {
     }
     const targetId = activeAssistantId
     bargeInAborted = true
+    settleAudioRun("interrupted")
     speechPlayer.stop()
     abortActiveRun()
     typing.value = false
@@ -441,6 +499,10 @@ export const useAskStore = defineStore("ask", () => {
       stageId: String(context.stageId || "").trim(),
       routeTitle: String(context.routeTitle || "").trim() || undefined,
       stageTitle: String(context.stageTitle || "").trim() || undefined,
+      guideId: String(context.guideId || "").trim() || null,
+      guideVoiceId: String(context.guideVoiceId || "").trim() || null,
+      playingChapterId: String(context.playingChapterId || "").trim() || null,
+      playingTimeSeconds: Number.isFinite(context.playingTimeSeconds) ? Number(context.playingTimeSeconds) : undefined,
     }
   }
 
@@ -575,6 +637,10 @@ export const useAskStore = defineStore("ask", () => {
         audioAssembler.reset(payload)
         speechPlayer.configure(payload)
         audioErrorMessage.value = ""
+        // 服务端回传的是"实际采用的音色"：与请求不一致说明发生了回退（白名单/默认音色）
+        const actualVoiceId = String((payload as { voiceId?: string | null }).voiceId ?? "").trim()
+        const requested = String(askRequestedVoiceId.value || "").trim()
+        askVoiceFellBack.value = Boolean(actualVoiceId && requested && actualVoiceId !== requested)
         break
       }
 
@@ -597,6 +663,7 @@ export const useAskStore = defineStore("ask", () => {
         const payload = (event.payload ?? {}) as ExhibitChatAudioErrorPayload
         const detail = String(payload.message || "语音合成暂时不可用，文字回答不受影响")
         audioErrorMessage.value = detail
+        audioRunHadError = true
         // 合成失败不会再下发 isFinal，这里补一次收口，保住后续句子的序号
         closeSentence(null)
         // 文字继续；不中断 SSE
@@ -688,6 +755,8 @@ export const useAskStore = defineStore("ask", () => {
         // 收尾：把最后一句（可能没有音频）收口，并告诉播放器不会再有新句子
         closeSentence(null)
         speechPlayer.finishRun()
+        audioRunFinishRequested = true
+        syncSpeechAudioUi()
         if (activeAssistantId) {
           const sources = Array.isArray(payload.sources)
             ? (payload.sources as ExhibitChatSource[])
@@ -717,6 +786,7 @@ export const useAskStore = defineStore("ask", () => {
         }
         activeAssistantId = ""
         abortController = null
+        settleAudioRun("failed")
         stopSseAudio()
         break
       }
@@ -804,6 +874,8 @@ export const useAskStore = defineStore("ask", () => {
     bargeInAborted = false
     if (useAudio) {
       resetSseAudioPipeline(assistantMessage.id)
+      askRequestedVoiceId.value = resolveSendVoiceId()
+      askVoiceFellBack.value = false
       // 在用户手势里解锁播放，否则默认语音模式下首轮会静音
       speechPlayer.unlock()
       void autoArmBargeIn()
@@ -816,6 +888,7 @@ export const useAskStore = defineStore("ask", () => {
     try {
       const ensuredSessionId = await ensureSession(trimmed)
       const url = useAudio ? buildExhibitChatSendWithAudioUrl() : buildExhibitChatSendUrl()
+      const context = stageContext.value
       const body: ExhibitChatVoiceSendRequest | {
         sessionId: string
         clientMessageId: string
@@ -827,6 +900,12 @@ export const useAskStore = defineStore("ask", () => {
             message: payloadMessage,
             enableAudio: true,
             voiceId: resolveSendVoiceId(),
+            // 结构化上下文只作日志与上下文用（音色仍只认 voiceId）；老客户端不传时行为不变
+            ...(context?.routeId ? { routeId: context.routeId } : {}),
+            ...(context?.stageId ? { stageId: context.stageId } : {}),
+            ...(context?.guideId ? { guideId: context.guideId } : {}),
+            ...(context?.playingChapterId ? { playingChapterId: context.playingChapterId } : {}),
+            ...(Number.isFinite(context?.playingTimeSeconds) ? { playingTimeSeconds: Math.max(0, Math.round(Number(context?.playingTimeSeconds))) } : {}),
           }
         : {
             sessionId: ensuredSessionId,
@@ -957,6 +1036,10 @@ export const useAskStore = defineStore("ask", () => {
     sseAudioStatus,
     sseAudioError,
     audioErrorMessage,
+    askAudioRunId,
+    askAudioSettle,
+    askRequestedVoiceId,
+    askVoiceFellBack,
     speakingIndex,
     speakingProgress,
     draftText,

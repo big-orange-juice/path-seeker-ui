@@ -20,8 +20,27 @@ import { resolveHttpErrorMessage } from '@path-seeker/ts-shared';
 import { parseChatEventData, resolveToolStatusLabel } from '@/utils/chat-payload';
 import { createSseParser } from '@/utils/sse';
 
+export interface UseChatSessionEndpoints {
+  /** 创建会话接口；默认页面内 Chat 的 /api/chat/sessions */
+  createSessionPath?: string;
+  /** 发送消息（SSE）接口；默认页面内 Chat 的 /api/chat/send */
+  sendPath?: string;
+}
+
 export interface UseChatSessionOptions {
   contextRouteId?: string | null;
+  /**
+   * 接口覆盖。平台助手（scene=platform）走自己的会话与消息接口，
+   * 与页面内 Chat 彻底隔离（不共用 /api/chat/sessions、/api/chat/send），
+   * 但复用同一套 SSE 解析与消息状态机（后端事件格式一致）。
+   */
+  endpoints?: UseChatSessionEndpoints;
+  /**
+   * 会话创建完成后、真正发起 SSE 之前调用，参数是本次使用的 sessionId。
+   * 平台助手用它把页面上下文提交到 /api/PlatformAssistant/context 由后端核验。
+   * 该回调抛错会中断本次发送；调用方若不希望阻断发送需自行吞掉异常。
+   */
+  onSessionReady?: (sessionId: string) => Promise<void> | void;
   onEvent?: (event: ChatEventResponse) => void;
   onDone?: (payload: ChatDonePayload, event: ChatEventResponse | null) => void;
   onError?: (payload: ChatErrorPayload, event: ChatEventResponse | null) => void;
@@ -65,6 +84,8 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
   const errorMessage = ref('');
   const pendingConfirmation = shallowRef<ChatConfirmationPayload | null>(null);
   const contextRouteId = ref(options.contextRouteId ? String(options.contextRouteId) : '');
+  const createSessionPath = options.endpoints?.createSessionPath || '/api/chat/sessions';
+  const sendPath = options.endpoints?.sendPath || '/api/chat/send';
 
   let abortController: AbortController | null = null;
   let activeAssistantId = '';
@@ -103,7 +124,7 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
       contextRouteId: contextRouteId.value || null,
     };
 
-    const created = await request<string>('/api/chat/sessions', {
+    const created = await request<string>(createSessionPath, {
       method: 'POST',
       body: payload,
     });
@@ -531,7 +552,13 @@ export const useChatSession = (options: UseChatSessionOptions = {}) => {
       messages.value = [...messages.value, userMessage, assistantMessage];
 
       const ensuredSessionId = await ensureSession(displayMessage || '图片对话');
-      const sendUrl = resolveAppApiUrl(String(runtimeConfig.app.baseURL || '/'), '/api/chat/send');
+
+      // 会话就绪、SSE 之前：平台助手在此提交页面上下文（后端重新核验并裁剪）
+      if (options.onSessionReady) {
+        await options.onSessionReady(ensuredSessionId);
+      }
+
+      const sendUrl = resolveAppApiUrl(String(runtimeConfig.app.baseURL || '/'), sendPath);
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',

@@ -19,8 +19,17 @@ export interface ExhibitChatVoiceSendRequest {
   message: string
   /** true 时 SSE 额外下发 audio.* 事件 */
   enableAudio: boolean
-  /** enableAudio=true 时必填：系统音色或账号可用音色 */
+  /**
+   * enableAudio=true 时必填：系统音色或账号可用音色。
+   * 行程页按"用户手动选择 > 当前讲解导游 providerVoiceId > 首站导游 > 平台默认"解析后填入。
+   */
   voiceId?: string | null
+  /** 以下均为可选上下文（日志/上下文用，不参与音色决策）；老客户端不传时服务端行为不变 */
+  routeId?: string | null
+  stageId?: string | null
+  guideId?: string | null
+  playingChapterId?: string | null
+  playingTimeSeconds?: number | null
 }
 
 export interface ExhibitChatSource {

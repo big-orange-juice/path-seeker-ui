@@ -21,6 +21,12 @@ export const adminNavItems: AdminNavItem[] = [
     to: `${ADMIN_ROUTE_PREFIX}/collections`,
     icon: 'library'
   },
+  // 典藏导入：全部后台账号可用，不做角色分档（设计文档 §4）
+  {
+    label: '典藏导入',
+    to: `${ADMIN_ROUTE_PREFIX}/collection-import`,
+    icon: 'file-spreadsheet'
+  },
   { label: '地图管理', to: `${ADMIN_ROUTE_PREFIX}/maps`, icon: 'map' },
   { label: '导游管理', to: `${ADMIN_ROUTE_PREFIX}/guides`, icon: 'user-round' },
   { label: '主题路线', to: `${ADMIN_ROUTE_PREFIX}/routes`, icon: 'route' },

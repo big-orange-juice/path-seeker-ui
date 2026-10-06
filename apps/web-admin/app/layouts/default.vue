@@ -1,5 +1,12 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import AdminTipsGuide from '@/components/admin/AdminTipsGuide.vue';
+import PlatformAssistantDrawer from '@/components/admin/PlatformAssistantDrawer.vue';
+import { useAdminAssistantDrawer } from '@/composables/useAdminAssistantDrawer';
+import { usePlatformAssistantPageContext } from '@/composables/usePlatformAssistantPageContext';
+
+// 平台助手挂载点（设计文档 §8）：顶栏按钮触发，这里持有抽屉并注入页面上下文
+const { open } = useAdminAssistantDrawer();
+const { context } = usePlatformAssistantPageContext();
 </script>
 
 <template>
@@ -19,5 +26,6 @@ import AdminTipsGuide from '@/components/admin/AdminTipsGuide.vue';
       </div>
     </div>
     <AdminTipsGuide />
+    <PlatformAssistantDrawer v-model:open="open" :context="context" />
   </div>
 </template>

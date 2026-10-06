@@ -11,6 +11,7 @@ import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
 import CulturalPlaceFormDialog from '@/components/museum-management/CulturalPlaceFormDialog.vue';
 import CulturalPlaceMetadataDetails from '@/components/collections/CulturalPlaceMetadataDetails.vue';
 import ScenicPlaceMapCanvas from '@/components/scenic-map/ScenicPlaceMapCanvas.vue';
+import PlaceRangeEditor from '@/components/scenic-map/PlaceRangeEditor.vue';
 import { useCulturalPlaces } from '@/composables/useCulturalPlaces';
 import { boundaryContains, boundaryPolygons, parseBoundary } from '@/utils/scenic-boundary';
 import type { CulturalPlaceDraft, CulturalPlaceRecord } from '@/types/cultural-place';
@@ -38,6 +39,8 @@ const initialPosition = shallowRef<{ longitude: number; latitude: number; coordi
 const actionError = shallowRef('');
 const deleteOpen = shallowRef(false);
 const pendingDelete = shallowRef<CulturalPlaceRecord | null>(null);
+/** 景点范围编辑器（点/圆/多边形 + 阈值 + 复制片区边界） */
+const rangeEditorOpen = shallowRef(false);
 let detailVersion = 0;
 let alive = true;
 
@@ -108,6 +111,32 @@ function editPlace(place: CulturalPlaceRecord) {
 function editById(id: string) {
   const place = records.value.find(item => item.id === id);
   if (place) editPlace(place);
+}
+/** 范围摘要：详情接口返回范围字段后展示；未加载详情时提示先加载 */
+const rangeSummary = computed(() => {
+  const place = detail.value && detail.value.id === selectedId.value ? detail.value : null;
+  if (!place) return '加载详情后显示';
+  const type = Number(place.rangeType || 1);
+  if (type === 1) return '点范围';
+  if (type === 2) return `圆范围 · 半径 ${place.rangeRadiusMeters ?? '未填写'} 米`;
+  return `多边形范围 · 版本 ${place.rangeVersion ?? 0}`;
+});
+
+/** 打开范围编辑前必须先把详情（含范围字段）拉到，否则会编辑到空范围 */
+async function openRangeEditor() {
+  if (saving.value) return;
+  const place = selectedPlace.value;
+  if (!place) return;
+  picking.value = false;
+  movingId.value = '';
+  actionError.value = '';
+  if (detail.value?.id !== place.id) await loadDetail();
+  if (!alive) return;
+  if (detail.value?.id !== place.id) {
+    actionError.value = '景点详情加载失败，无法编辑范围，请刷新后重试。';
+    return;
+  }
+  rangeEditorOpen.value = true;
 }
 
 function startMoving(place: CulturalPlaceRecord) {
@@ -240,8 +269,9 @@ onBeforeUnmount(() => { alive = false; detailVersion += 1; });
             <p class="text-sm text-muted-foreground">{{ selectedPlace.address || '未填写地址' }}</p>
             <p class="whitespace-pre-wrap text-sm leading-6">{{ selectedPlace.description || '未填写简介' }}</p>
             <p class="text-xs text-muted-foreground">位置：{{ selectedPlace.longitude ?? '未定位' }}，{{ selectedPlace.latitude ?? '未定位' }} · {{ ['','WGS84','GCJ-02','BD-09'][selectedPlace.coordinateSystem] }}</p>
+            <p class="text-xs text-muted-foreground">范围：{{ rangeSummary }}</p>
             <p class="text-xs text-muted-foreground">建议停留：{{ selectedPlace.recommendedMinutes ?? '未填写' }}{{ selectedPlace.recommendedMinutes != null ? ' 分钟' : '' }}</p>
-            <div class="flex flex-wrap gap-2"><Button size="sm" variant="outline" :disabled="saving" @click="editPlace(selectedPlace)">编辑景点</Button><Button size="sm" variant="outline" :disabled="saving || !mapReady" @click="startMoving(selectedPlace)">调整位置</Button><Button size="sm" variant="ghost" :disabled="saving" @click="askDelete(selectedPlace)">删除</Button></div>
+            <div class="flex flex-wrap gap-2"><Button size="sm" variant="outline" :disabled="saving" @click="editPlace(selectedPlace)">编辑景点</Button><Button size="sm" variant="outline" :disabled="saving || detailPending" @click="openRangeEditor">编辑范围</Button><Button size="sm" variant="outline" :disabled="saving || !mapReady" @click="startMoving(selectedPlace)">调整位置</Button><Button size="sm" variant="ghost" :disabled="saving" @click="askDelete(selectedPlace)">删除</Button></div>
             <p v-if="detailPending" class="text-sm text-muted-foreground">正在加载补充资料…</p>
             <div v-else-if="detailError" class="space-y-2"><p class="text-sm text-destructive">{{ detailError }}</p><Button size="sm" variant="outline" @click="loadDetail">重试详情</Button></div>
             <CulturalPlaceMetadataDetails v-else :extras="selectedPlace.extraList" :archive="selectedPlace.archive" />
@@ -250,6 +280,7 @@ onBeforeUnmount(() => { alive = false; detailVersion += 1; });
         </div>
       </aside>
     </div>
+    <PlaceRangeEditor v-model:open="rangeEditorOpen" :place="detail" :destination="destination" @saved="refresh" />
     <CulturalPlaceFormDialog :open="formOpen" :museum-id="destination.id || ''" :record="editing" :initial-position="initialPosition" entity-label="景点" :pending="saving" :error="actionError" @update:open="formOpen = $event" @save="save" />
     <Dialog :open="deleteOpen" @update:open="!saving && (deleteOpen = Boolean($event))">
       <DialogContent class="max-w-[min(92vw,420px)] space-y-4 p-5">

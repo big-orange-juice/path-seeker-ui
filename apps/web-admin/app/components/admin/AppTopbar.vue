@@ -7,6 +7,7 @@ import DialogDescription from '@/components/shadcn/dialog/DialogDescription.vue'
 import DialogFooter from '@/components/shadcn/dialog/DialogFooter.vue';
 import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue';
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue';
+import { useAdminAssistantDrawer } from '@/composables/useAdminAssistantDrawer';
 import { useAdminNavigation } from '@/composables/useAdminNavigation';
 import { useAdminNavDrawer } from '@/composables/useAdminNavDrawer';
 import { useAdminTipsGuide } from '@/composables/useAdminTipsGuide';
@@ -18,6 +19,7 @@ const authStore = useAdminAuthStore();
 const { navItems } = useAdminNavigation();
 const { open, openNav } = useAdminNavDrawer();
 const { openManually: openTips } = useAdminTipsGuide();
+const { open: assistantOpen, openAssistant } = useAdminAssistantDrawer();
 
 const logoutConfirmOpen = shallowRef(false);
 const loggingOut = shallowRef(false);
@@ -78,6 +80,19 @@ const handleLogout = async () => {
       </div>
 
       <div class="flex items-center gap-3 text-sm text-foreground">
+        <!-- 平台助手入口（设计文档 §8）：全部后台账号可用，与页面内 Chat 会话隔离 -->
+        <UiButton
+          variant="ghost"
+          size="sm"
+          class="gap-1.5 text-muted-foreground hover:text-foreground"
+          title="打开平台助手（与页面内对话隔离）"
+          aria-label="打开平台助手"
+          :aria-expanded="assistantOpen"
+          aria-controls="platform-assistant-drawer"
+          @click="openAssistant()">
+          <UiAppIcon name="sparkles" class="h-4 w-4" />
+          <span class="hidden md:inline">平台助手</span>
+        </UiButton>
         <UiButton
           variant="ghost"
           size="sm"

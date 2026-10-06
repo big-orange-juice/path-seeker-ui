@@ -72,6 +72,21 @@ const toFriendlyRequestError = (error: unknown, fallback: string) => {
   return friendly;
 };
 
+/**
+ * 文件上传进度回调（0-100）。
+ * 仅表示浏览器已把数据交给网络层，不代表服务端已落盘或解析完成。
+ */
+export type UploadProgressHandler = (percentage: number) => void;
+
+/** 从 ofetch 的 progress 事件解析百分比；total 未知时返回 null 表示无法计算 */
+const resolveUploadPercentage = (lengthComputable: boolean, loaded: number, total: number) => {
+  if (!lengthComputable || !Number.isFinite(total) || total <= 0) {
+    return null;
+  }
+
+  return Math.min(100, Math.max(0, Math.round((loaded / total) * 100)));
+};
+
 export const useApiClient = () => {
   const store = useAdminAuthStore();
 
@@ -107,8 +122,39 @@ export const useApiClient = () => {
     }
   };
 
+  /**
+   * 带进度的文件上传。用于典藏导入等大文件场景，
+   * 其余请求继续走 request，避免把进度逻辑散落到业务代码里。
+   *
+   * 说明：当前依赖的 ofetch 版本在 FetchOptions 类型里没有声明 onUploadProgress，
+   * 运行时仍会透传给底层 fetch，因此这里做一次显式收窄断言；
+   * 拿不到进度事件时回调不会被触发，调用方应把进度显示当作可选增强（而非唯一反馈）。
+   */
+  const upload = async <T>(
+    url: string,
+    formData: FormData,
+    onProgress?: UploadProgressHandler,
+  ): Promise<T> => await request<T>(url, {
+    method: 'POST',
+    body: formData,
+    onRequest({ options: requestOptions }) {
+      const target = requestOptions as unknown as Record<string, unknown>;
+      target.onUploadProgress = (event: { lengthComputable?: boolean; loaded?: number; total?: number }) => {
+        const percentage = resolveUploadPercentage(
+          Boolean(event.lengthComputable),
+          Number(event.loaded ?? 0),
+          Number(event.total ?? 0),
+        );
+        if (percentage !== null) {
+          onProgress?.(percentage);
+        }
+      };
+    },
+  });
+
   return {
     request,
+    upload,
   };
 };
 
@@ -117,3 +163,37 @@ export const resolveApiErrorMessage = (
   error: unknown,
   fallback = '请求失败，请稍后重试',
 ) => resolveHttpErrorMessage(error, fallback);
+
+/**
+ * 识别服务端代理返回的"后端接口尚未实现"标记。
+ *
+ * 典藏导入与平台助手在写前端时后端控制器可能还没落地（当前仓库只有
+ * ICollectionImportService / ICollectionSearchService 契约，没有对应 Controller），
+ * 这时 Nuxt 代理会返回 501 + data.reason = 'backend_endpoint_missing'，
+ * 页面据此给出明确提示而不是笼统的"请求失败"。
+ */
+export const BACKEND_ENDPOINT_MISSING_REASON = 'backend_endpoint_missing';
+
+export interface ApiErrorPayload {
+  statusCode?: number;
+  statusMessage?: string;
+  data?: unknown;
+  message?: string;
+}
+
+export const isBackendEndpointMissing = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const record = error as ApiErrorPayload & { cause?: unknown };
+  const candidates: unknown[] = [record.data, (record.cause as ApiErrorPayload | undefined)?.data];
+
+  return candidates.some((candidate) => {
+    if (!candidate || typeof candidate !== 'object') {
+      return false;
+    }
+    const data = candidate as Record<string, unknown>;
+    return data.reason === BACKEND_ENDPOINT_MISSING_REASON;
+  });
+};
