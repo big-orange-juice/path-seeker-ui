@@ -87,6 +87,7 @@ export interface ClientStopExtraAudio {
 }
 
 export interface ClientTourStop {
+  triggerRadiusMeters?: number | null
   id: string
   placeId: string | null
   exhibitId: string | null

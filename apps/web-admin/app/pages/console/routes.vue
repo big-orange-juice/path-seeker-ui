@@ -66,6 +66,7 @@ const publishAfterAuditRecord = shallowRef<RouteRecord | null>(null);
 const posterDialogOpen = shallowRef(false);
 const posterRecord = shallowRef<RouteRecord | null>(null);
 const chatReferences = shallowRef<ChatAttachmentReference[]>([]);
+usePlatformAssistantSelection(() => ({ museumId: selectedMuseumId.value }));
 
 const workflowContext = computed(() => ({
   roleCode: authStore.roleCode,

@@ -7,7 +7,7 @@ import type { TourMessages } from '@/utils/tourMessages'
  * 接近卡片：接近时弹出，写明"已到达/接近 <景点名>"，由用户选择"进入该站"或"继续当前"。
  * 多个范围重叠时列出候选（按路线顺序 + 停靠点距离排序）。卡片本身不打断正在播放的音频。
  */
-const props = defineProps<{ candidates: TourStopCandidate[]; pending: boolean; messages: TourMessages }>()
+const props = defineProps<{ candidates: TourStopCandidate[]; pending: boolean; messages: TourMessages; playingStopName?: string | null }>()
 const emit = defineEmits<{ accept: [index: number]; dismiss: [] }>()
 
 function statusText(candidate: TourStopCandidate) {
@@ -25,6 +25,7 @@ function distanceText(candidate: TourStopCandidate) {
     <aside v-if="candidates.length" class="tour-arrival-prompt" :aria-label="messages.nearbyStop">
       <div class="arrival-choice">
         <p class="arrival-hint"><MapPin :size="13" aria-hidden="true" />{{ candidates.length > 1 ? messages.overlappingStops : messages.nearbyStop }}</p>
+        <p v-if="playingStopName" class="arrival-playing">{{ messages.drawerNotPlaying }}{{ playingStopName }}</p>
         <div v-for="candidate in candidates" :key="candidate.stop.id" class="arrival-candidate">
           <span class="arrival-candidate-text">
             <strong>{{ statusText(candidate) }} {{ candidate.stop.name }}</strong>
@@ -43,7 +44,7 @@ function distanceText(candidate: TourStopCandidate) {
 <style scoped>
 .tour-arrival-prompt{position:absolute;right:12px;bottom:172px;z-index:7;display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:calc(100% - 24px);color:var(--tour-ink)}
 .arrival-choice{display:grid;gap:8px;width:260px;max-width:100%;max-height:calc(100dvh - 250px);overflow-y:auto;padding:14px;border:1px solid #24616a30;border-radius:12px;background:#fffef8;box-shadow:0 6px 24px #183e4329}
-.arrival-hint{display:flex;align-items:center;gap:5px;margin:0;color:#647382;font-size:11px}
+.arrival-hint{display:flex;align-items:center;gap:5px;margin:0;color:#647382;font-size:11px}.arrival-playing{margin:0;padding:6px 8px;border-radius:8px;background:#fdf1e3;color:#8a5a24;font-size:11px}
 .arrival-candidate{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid #24616a24;border-radius:10px;background:#f8faf9}
 .arrival-candidate-text{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px}
 .arrival-candidate-text strong{overflow-wrap:anywhere;font-size:14px;line-height:1.5}

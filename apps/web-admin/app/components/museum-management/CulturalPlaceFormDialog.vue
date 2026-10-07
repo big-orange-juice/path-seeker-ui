@@ -13,11 +13,13 @@ import type { CulturalPlaceArchive, CulturalPlaceDraft, CulturalPlaceRecord } fr
 import { useApiClient } from '@/composables/useApiClient';
 import type { UploadAttachment } from '@/types/upload';
 
-const props = withDefaults(defineProps<{ open: boolean; museumId: string; record: CulturalPlaceRecord | null; pending: boolean; error: string; requireCoordinates?: boolean; initialPosition?: { longitude: number; latitude: number; coordinateSystem: number } | null; entityLabel?: string }>(), { requireCoordinates: true, initialPosition: null, entityLabel: '文化点' });
-const emit = defineEmits<{ 'update:open': [value: boolean]; save: [draft: CulturalPlaceDraft] }>();
+const props = withDefaults(defineProps<{ open: boolean; museumId: string; record: CulturalPlaceRecord | null; pending: boolean; error: string; requireCoordinates?: boolean; initialPosition?: { longitude: number; latitude: number; coordinateSystem: number } | null; entityLabel?: string; reloadToken?: number; aiEnabled?: boolean }>(), { requireCoordinates: true, initialPosition: null, entityLabel: '文化点', reloadToken: 0, aiEnabled: false });
+const emit = defineEmits<{ 'update:open': [value: boolean]; save: [draft: CulturalPlaceDraft]; 'ai-enrich': [payload: { id: string; name: string; code: string }] }>();
 const draft = reactive<CulturalPlaceDraft>({ museumId: '', code: '', name: '', category: '', address: '', description: '', recommendedMinutes: 10, longitude: null, latitude: null, coordinateSystem: 1, status: 1, coverAttachmentId: null, sortOrder: 0 });
 const cover = shallowRef<string[]>([]);
 const validationError = shallowRef('');
+/** 表单被外部（AI 补充入库）重置后的提示 */
+const syncNotice = shallowRef('');
 const metadataPending = shallowRef(false);
 const metadataFailed = shallowRef(false);
 const { request } = useApiClient();
@@ -49,28 +51,53 @@ function syncMetadata(record: CulturalPlaceRecord | null) {
 
 watch(() => props.record?.id, id => { if (props.open && id) draft.id = id; });
 
-watch(() => props.open, open => {
-  if (!open) return;
-  validationError.value = '';
-  const record = props.record;
-  Object.assign(draft, { id: record?.id, museumId: props.museumId, code: record?.code || '', name: record?.name || '', category: record?.category || '', address: record?.address || '', description: record?.description || '', recommendedMinutes: record ? record.recommendedMinutes : 10, longitude: record?.longitude ?? props.initialPosition?.longitude ?? null, latitude: record?.latitude ?? props.initialPosition?.latitude ?? null, coordinateSystem: record?.coordinateSystem ?? props.initialPosition?.coordinateSystem ?? 1, status: record?.status ?? 1, coverAttachmentId: record?.coverAttachmentId ?? null, sortOrder: record?.sortOrder ?? 0 });
+/** 用一条记录整体覆盖表单；opened 表示本次是「打开弹窗」，需要套用地图回填的初始坐标 */
+function fillDraft(record: CulturalPlaceRecord | null, opened = false) {
+  Object.assign(draft, { id: record?.id, museumId: record?.museumId || props.museumId, code: record?.code || '', name: record?.name || '', category: record?.category || '', address: record?.address || '', description: record?.description || '', recommendedMinutes: record ? record.recommendedMinutes : 10, longitude: record?.longitude ?? (opened ? props.initialPosition?.longitude ?? null : null), latitude: record?.latitude ?? (opened ? props.initialPosition?.latitude ?? null : null), coordinateSystem: record?.coordinateSystem ?? (opened ? props.initialPosition?.coordinateSystem ?? 1 : 1), status: record?.status ?? 1, coverAttachmentId: record?.coverAttachmentId ?? null, sortOrder: record?.sortOrder ?? 0 });
   cover.value = record?.coverUrl ? [record.coverUrl] : [];
   syncMetadata(record);
+}
+
+/** 读取单条景点完整记录；结果只作用于仍处于打开状态的当前弹窗 */
+function loadRecord(id: string, apply: (record: CulturalPlaceRecord) => void) {
   const version = ++loadVersion;
   metadataPending.value = false;
   metadataFailed.value = false;
-  if (record) {
-    metadataPending.value = true;
-    request<CulturalPlaceRecord>('/api/cultural-place/' + record.id).then(result => {
-      if (version === loadVersion && props.open) syncMetadata(result);
-    }).catch(caught => {
-      if (version === loadVersion && props.open) {
-        metadataFailed.value = true;
-        validationError.value = caught instanceof Error ? caught.message : '补充资料加载失败，请关闭后重试。';
-      }
-    }).finally(() => { if (version === loadVersion) metadataPending.value = false; });
-  }
+  if (!id) return;
+  metadataPending.value = true;
+  request<CulturalPlaceRecord>('/api/cultural-place/' + id).then(result => {
+    if (version === loadVersion && props.open) apply(result);
+  }).catch(caught => {
+    if (version === loadVersion && props.open) {
+      metadataFailed.value = true;
+      validationError.value = caught instanceof Error ? caught.message : '补充资料加载失败，请关闭后重试。';
+    }
+  }).finally(() => { if (version === loadVersion) metadataPending.value = false; });
+}
+
+watch(() => props.open, open => {
+  if (!open) return;
+  validationError.value = '';
+  syncNotice.value = '';
+  fillDraft(props.record, true);
+  // 列表行不带补充资料，打开后再取一次完整记录；这里只同步补充资料，避免覆盖已输入的基础字段
+  if (props.record) loadRecord(props.record.id, result => syncMetadata(result));
 });
+
+// AI 补充入库后由父级递增 token：重新拉取记录覆盖表单，避免旧草稿把刚写入的结果又提交回去
+watch(() => props.reloadToken, (token, previous) => {
+  if (token === previous || !props.open || !draft.id) return;
+  validationError.value = '';
+  loadRecord(draft.id, result => {
+    fillDraft(result);
+    syncNotice.value = '已同步 AI 补充结果，未保存的本地修改已被覆盖。';
+  });
+});
+
+/** 把当前草稿作为检索目标交给父级打开联网补充弹窗；未保存的新景点按名称检索 */
+function requestAiEnrich() {
+  emit('ai-enrich', { id: draft.id ?? '', name: draft.name.trim(), code: draft.code.trim() });
+}
 
 function addExtra() {
   draft.extraList ??= [];
@@ -111,9 +138,23 @@ function submit() {
 <template>
   <Dialog :open="open" @update:open="!pending && emit('update:open', Boolean($event))">
     <DialogContent class="flex h-[85vh] max-w-[min(96vw,1200px)] flex-col overflow-hidden p-0">
-      <DialogHeader class="shrink-0 border-b border-border/70 px-6 py-4 pr-12"><DialogTitle>{{ record ? '编辑' : '新增' }}{{ entityLabel }}</DialogTitle></DialogHeader>
+      <DialogHeader class="shrink-0 border-b border-border/70 px-6 py-4 pr-12">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <DialogTitle>{{ record ? '编辑' : '新增' }}{{ entityLabel }}</DialogTitle>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            :disabled="pending || metadataPending"
+            title="按公开资料来源补充当前景点的资料，结果需人工确认后写入"
+            @click="requestAiEnrich">
+            AI 联网补充资料
+          </Button>
+        </div>
+      </DialogHeader>
       <form class="flex min-h-0 flex-1 flex-col overflow-hidden" @submit.prevent="submit">
         <div class="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+        <p v-if="syncNotice" class="rounded-md border border-border/70 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">{{ syncNotice }}</p>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label class="space-y-1 text-sm">名称<Input v-model="draft.name" required maxlength="200" :disabled="pending" /></label>
           <label class="space-y-1 text-sm">编码<Input v-model="draft.code" required maxlength="64" :disabled="pending" /></label>

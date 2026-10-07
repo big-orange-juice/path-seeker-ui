@@ -4,11 +4,12 @@ import { isTourLocale } from '@path-seeker/ts-shared'
 import { ArrowLeft, ChevronRight, Focus, Headphones, ListOrdered, MessageCircle, Minus, Navigation, Pause, Pencil, Play, Plus, X } from 'lucide-vue-next'
 import RouteMapCanvas from '@/components/routes/RouteMapCanvas.vue'
 import { useTourPreviewPlayback } from '@/composables/useTourPreviewPlayback'
+import type { CulturalPlaceRecord } from '@/types/cultural-place'
 import type { NarrationDetailResponse } from '@/types/narration'
 import type { RouteNodeResponse } from '@/types/route'
 import type { RouteMapDetail } from '@/types/route-map'
 
-const props = defineProps<{ routeId: string; title: string; locale: string; nodes: RouteNodeResponse[]; selectedStageId: string; narration: NarrationDetailResponse | null; detail: RouteMapDetail | null; canEdit: boolean }>()
+const props = defineProps<{ routeId: string; title: string; locale: string; nodes: RouteNodeResponse[]; selectedStageId: string; narration: NarrationDetailResponse | null; detail: RouteMapDetail | null; canEdit: boolean; places?: CulturalPlaceRecord[] }>()
 const emit = defineEmits<{ select: [stageId: string]; edit: [stageId: string] }>()
 const canvas = shallowRef<{ zoomBy: (delta: number) => void; fit: () => void; focus: () => void } | null>(null)
 const storyOpen = shallowRef(false)
@@ -44,7 +45,7 @@ watch(() => props.narration, narration => {
       <div class="phone-status"><span>9:41</span><span>▮▮▮ ▰</span></div><div class="phone-island" />
       <header class="client-head"><button type="button" @click="storyOpen = false; canvas?.fit()"><ArrowLeft class="h-3 w-3" />返回地图</button><strong>{{ title }}</strong><button type="button" @click="autoplayStageId = ''; playback.stop(); storyOpen = false">结束行程</button></header>
       <div class="journey-stage">
-        <RouteMapCanvas ref="canvas" :detail="detail" :focused-stage-id="selected?.stageId || ''" presentation="workspace" journey @select="select" @edit="canEdit && emit('edit', $event)" @error="error = $event" />
+        <RouteMapCanvas ref="canvas" :detail="detail" :places="places" :focused-stage-id="selected?.stageId || ''" presentation="workspace" journey @select="select" @edit="canEdit && emit('edit', $event)" @error="error = $event" />
         <p v-if="error || playback.error.value" class="preview-error">{{ error || playback.error.value }}</p>
         <div class="journey-toolbar"><button type="button" aria-label="缩小地图" @click="canvas?.zoomBy(-1)"><Minus class="h-4 w-4" /></button><button type="button" aria-label="查看全线" @click="canvas?.fit()"><Focus class="h-4 w-4" /></button><button type="button" aria-label="定位当前站点" @click="canvas?.focus()"><Navigation class="h-4 w-4" /></button><button type="button" aria-label="放大地图" @click="canvas?.zoomBy(1)"><Plus class="h-4 w-4" /></button><button type="button" aria-label="查看站点内容" @click="storyOpen = !storyOpen"><MessageCircle class="h-4 w-4" /></button></div>
         <aside v-if="storyOpen" class="preview-story"><header><h3><Headphones class="h-4 w-4" />此刻，听这里</h3><button type="button" aria-label="收起内容" @click="storyOpen = false"><X class="h-4 w-4" /></button></header><nav aria-label="途经站点"><button v-for="(node, index) in nodes" :key="node.stageId || index" type="button" :class="{ active: node.stageId === selected?.stageId }" @click="node.stageId && select(node.stageId)" @dblclick="canEdit && node.stageId && emit('edit', node.stageId)">{{ index + 1 }}. {{ node.title }}</button></nav><img v-if="narration?.images?.[0]?.imageUrl" :src="narration.images[0].imageUrl" alt="讲解配图"><h2>{{ selected?.title }}</h2><button type="button" class="preview-play" @click="play"><Pause v-if="playback.playing.value" class="h-3.5 w-3.5" /><Play v-else class="h-3.5 w-3.5" />{{ playback.playing.value ? '暂停' : '播放讲解' }}</button><p v-for="(chunk, index) in chunks" :key="index">{{ chunk.text || '该站点还没有解说词，可在编辑弹窗中补充。' }}</p><button v-if="canEdit" type="button" class="story-edit" :disabled="!selected?.stageId" @click="selected?.stageId && emit('edit', selected.stageId)"><Pencil class="h-3.5 w-3.5" />编辑这一站</button><video v-if="narration?.videoUrl" :src="narration.videoUrl" controls playsinline preload="none" /></aside>

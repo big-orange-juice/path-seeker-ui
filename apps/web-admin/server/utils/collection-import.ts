@@ -1,14 +1,11 @@
 import type { H3Event } from 'h3';
-import { backendFetch, unwrapApiResponse } from '~~/server/utils/backend';
+import { backendFetch, resolveBackendAuthorization, unwrapApiResponse } from '~~/server/utils/backend';
 import type { ApiResponse } from '~~/app/types/api';
 
 /**
  * 典藏导入 / 检索 / 平台助手代理的共用包装。
  *
- * 这些接口的控制器目前只在后端契约层存在（ICollectionImportService /
- * ICollectionSearchService / 平台助手场景），WebApi 里还没有对应 Controller，
- * 因此代理必须把"接口不存在"与其它失败区分开，让页面能给出明确提示而不是
- * 笼统的"请求失败"，见设计文档 §4.6 与 §8。
+ * 保留后端业务错误，仅将没有标准业务响应的路由缺失归类为接口不可用。
  */
 
 /** 后端未实现该接口时的 data.reason 标记，前端 isBackendEndpointMissing 依赖该值 */
@@ -40,6 +37,17 @@ const readBackendResponseStatus = (error: unknown): number => {
   return typeof candidate === 'number' ? candidate : 0;
 };
 
+const isBackendBusinessError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const data = (error as BackendErrorLike).data;
+  if (!data || typeof data !== 'object') return false;
+  const record = data as Record<string, unknown>;
+  if (typeof record.code === 'number') return true;
+  const response = record.backendResponse;
+  return Boolean(response && typeof response === 'object'
+    && typeof (response as Record<string, unknown>).code === 'number');
+};
+
 export interface BackendProxyOptions {
   method?: 'GET' | 'POST';
   query?: Record<string, string | number | boolean | null | undefined>;
@@ -50,7 +58,7 @@ export interface BackendProxyOptions {
 
 /**
  * 调用后端并解包 ApiResponse。
- * 404 / 405 / 501，或响应体不是 ApiResponse 结构时，转为明确的"后端接口尚未实现"错误。
+ * 业务错误保留状态和文案；路由缺失与响应格式错误分别提示。
  */
 export const callBackendApi = async <T>(
   event: H3Event,
@@ -66,21 +74,29 @@ export const callBackendApi = async <T>(
 
     if (!response || typeof response !== 'object' || typeof response.code !== 'number') {
       throw createError({
-        statusCode: 501,
-        message: `后端接口 ${path} 尚未实现（返回内容不是标准响应结构）。`,
-        data: { reason: BACKEND_ENDPOINT_MISSING_REASON, path },
+        statusCode: 502,
+        message: `后端接口 ${path} 返回内容不是标准响应结构，请检查服务地址与发布版本。`,
+        data: { path },
       });
     }
 
     return unwrapApiResponse(response) as T;
   } catch (error) {
+    if (isBackendBusinessError(error)) throw error;
     const status = readBackendStatus(error) || readBackendResponseStatus(error);
-    const isMissing = status === 404 || status === 405 || status === 501;
+    if (status === 405) {
+      throw createError({
+        statusCode: 405,
+        message: `后端接口 ${path} 不支持 ${options.method ?? 'POST'} 请求，请检查接口版本。`,
+        data: { path, backendStatus: status },
+      });
+    }
+    const isMissing = status === 404 || status === 501;
 
     if (isMissing) {
       throw createError({
         statusCode: 501,
-        message: `后端接口 ${path} 尚未实现或不可用。`,
+        message: `当前后端服务未提供接口 ${path}，请检查服务地址与发布版本。`,
         data: {
           reason: BACKEND_ENDPOINT_MISSING_REASON,
           path,
@@ -160,11 +176,11 @@ const readRawBackend = async (event: H3Event, path: string): Promise<RawBackendR
 
   const normalizedBaseUrl = backendBaseUrl.endsWith('/') ? backendBaseUrl : `${backendBaseUrl}/`;
   const targetUrl = new URL(String(path).replace(/^\//, ''), normalizedBaseUrl);
-  const authorization = getHeader(event, 'authorization') || getCookie(event, 'admin-auth') || '';
+  const authorization = resolveBackendAuthorization(event);
 
   const headers: Record<string, string> = { accept: '*/*' };
   if (authorization) {
-    headers.authorization = /^bearer\s/i.test(authorization) ? authorization : `Bearer ${authorization}`;
+    headers.authorization = authorization;
   }
 
   let response: Response;

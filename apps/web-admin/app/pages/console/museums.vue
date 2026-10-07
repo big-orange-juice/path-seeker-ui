@@ -32,6 +32,7 @@ const dialogOpen = shallowRef(false);
 const detailDialogOpen = shallowRef(false);
 const detailRecord = shallowRef<MuseumRecord | null>(null);
 const workspaceTab = shallowRef<'basic' | 'floors' | 'facilities' | 'places'>('basic');
+usePlatformAssistantSelection(() => ({ museumId: dialogOpen.value ? activeRecordId.value : detailDialogOpen.value ? detailRecord.value?.id || '' : '' }));
 
 const startCreate = () => {
   formMode.value = 'create';

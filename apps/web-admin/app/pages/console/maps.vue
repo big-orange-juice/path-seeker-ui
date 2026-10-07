@@ -147,6 +147,7 @@ const {
 } = useGalleryMapManagement(() => isOutdoor.value ? '' : selectedMuseumId.value);
 
 const selectedPointId = shallowRef('');
+usePlatformAssistantSelection(() => ({ museumId: selectedMuseumId.value }));
 const picking = shallowRef(false);
 const annotationOpen = shallowRef(false);
 const annotationMode = shallowRef<'create' | 'edit'>('create');

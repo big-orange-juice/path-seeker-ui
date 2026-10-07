@@ -95,7 +95,7 @@ export const useApiClient = () => {
     options?: Parameters<typeof $fetch<T>>[1],
   ): Promise<T> => {
     try {
-      return await $fetch<T>(url, {
+      return await $fetch<T, string>(url, {
         ...options,
         async onResponseError(context) {
           const message = resolveAuthExpiredMessage(

@@ -55,6 +55,42 @@ const {
 const detailCandidate = shallowRef<CollectionImportCandidate | null>(null);
 const detailOpen = shallowRef(false);
 const fileInput = shallowRef<HTMLInputElement | null>(null);
+const imageFiles = shallowRef<File[]>([]);
+const { uploadAttachment } = useUploadAttachment();
+async function uploadImportImages(event: Event) {
+  const input = event.target as HTMLInputElement;
+  imageFiles.value = Array.from(input.files ?? []);
+  busy.value = true;
+  error.value = '';
+  importer.imageAttachmentIds.value = [];
+  try {
+    const attachments = await Promise.all(imageFiles.value.map(file => uploadAttachment(file, 'image')));
+    importer.imageAttachmentIds.value = attachments.map(attachment => String(attachment.fileId || '')).filter(Boolean);
+    if (importer.imageAttachmentIds.value.length !== imageFiles.value.length) throw new Error('图片上传未返回附件 ID，请重新选择。');
+  } catch (caught) {
+    error.value = caught instanceof Error ? caught.message : '图片上传失败';
+    importer.imageAttachmentIds.value = [];
+    imageFiles.value = [];
+    input.value = '';
+  } finally { busy.value = false; }
+}
+usePlatformAssistantSelection(() => ({ museumId: activeMuseumId.value }));
+/**
+ * 人工列映射的目标字段：直接取后端回传的模板列（景点模板 31 列、文物模板 10 列），
+ * 这里不再手抄一份列清单，避免模板列变化后对不上。
+ */
+const mappingFields = computed(() => {
+  const header = sources.value[0]?.header;
+  if (!header || typeof header !== 'object' || Array.isArray(header)) return [] as string[];
+  const mapping = (header as Record<string, unknown>).mapping;
+  return mapping && typeof mapping === 'object' && !Array.isArray(mapping) ? Object.keys(mapping) : [];
+});
+const sourceColumns = computed(() => {
+  const header = sources.value[0]?.header;
+  if (!header || typeof header !== 'object' || Array.isArray(header)) return [];
+  const columns = (header as Record<string, unknown>).columns;
+  return Array.isArray(columns) ? columns.map(String) : [];
+});
 
 const { data: museumData } = useAsyncData(
   'collection-import:museums',
@@ -160,7 +196,8 @@ const startParse = async () => {
 };
 
 const handleDownloadTemplate = async () => {
-  const ok = await importer.downloadTemplate();
+  // 模板分文物/景点两套，按当前选中的目的地取对应列集
+  const ok = await importer.downloadTemplate(activeMuseumId.value);
   if (ok) {
     actionFeedback.success('模板已开始下载。');
   }
@@ -217,6 +254,7 @@ const handleDownloadErrorReport = async () => {
 };
 
 const handleReset = () => {
+  imageFiles.value = [];
   importer.resetSession();
   importer.selectFile(null);
   if (fileInput.value) {
@@ -301,6 +339,11 @@ const handleReset = () => {
           </p>
         </div>
 
+        <div class="grid gap-2">
+          <label class="text-sm">导入图片（表格中按原始文件名绑定景点或文物）</label>
+          <input type="file" accept="image/*" multiple :disabled="busy || hasBatch" @change="uploadImportImages">
+          <p class="text-xs text-muted-foreground">{{ imageFiles.map(file => file.name).join('、') || '可选；图片文件名列支持逗号分隔多张图片。' }}</p>
+        </div>
         <div class="flex flex-wrap items-end gap-2">
           <Button variant="outline" :disabled="busy" @click="handleDownloadTemplate">
             下载导入模板
@@ -313,6 +356,10 @@ const handleReset = () => {
           </Button>
         </div>
       </div>
+
+      <p class="mt-2 text-xs text-muted-foreground">
+        模板按目标目的地区分：文物模板为展品字段；景点模板包含景点基础字段、补充资料（写成「键=值」，多条用分号分隔，也可自行增加「补充资料·键名」列）与深度档案（时间线、记忆点等多值字段用分号分隔）。
+      </p>
 
       <div v-if="uploadPercent > 0 && uploadPercent < 100" class="mt-3">
         <div class="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
@@ -344,6 +391,20 @@ const handleReset = () => {
     </section>
 
     <!-- 第二步：候选条目预览 -->
+    <section v-if="sourceColumns.length && step !== 'prepare' && !batch?.createCount && !batch?.updateCount" class="warm-panel rounded-md border p-4">
+      <h3>人工列映射</h3>
+      <div class="mt-2 grid gap-2 sm:grid-cols-2">
+        <label v-for="field in mappingFields" :key="field" class="flex items-center gap-2 text-sm">
+          <span>{{ field }}</span>
+          <select v-model="importer.columnMapping.value[field]" :disabled="busy" class="rounded border p-1">
+            <option value="">使用自动映射</option>
+            <option v-for="column in sourceColumns" :key="column" :value="column">{{ column }}</option>
+          </select>
+        </label>
+      </div>
+      <Button class="mt-3" :disabled="busy" @click="importer.reparseMapping()">应用映射并重新解析</Button>
+      <label class="ml-3 text-sm"><input v-model="importer.mappingAccepted.value" type="checkbox" :disabled="busy"> 已核对列映射及缺失字段</label>
+    </section>
     <section v-if="step !== 'prepare'" class="space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-3 px-1">
         <div class="text-sm text-muted-foreground">
@@ -525,6 +586,7 @@ const handleReset = () => {
       </div>
 
       <div class="mt-4 flex flex-wrap items-center gap-2">
+        <Button v-if="batch && [2, 5, 6].includes(batch.status)" variant="outline" :disabled="busy" @click="step = 'preview'; importer.loadCandidates(1)">查看剩余条目与失败记录</Button>
         <Button variant="outline" :disabled="busy || !hasBatch" @click="handleDownloadErrorReport">
           下载错误报告（XLSX）
         </Button>

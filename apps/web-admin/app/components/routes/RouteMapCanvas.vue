@@ -3,6 +3,8 @@ import { nextTick, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch
 import { gcj02ToWgs84, toGcj02 } from '@path-seeker/ts-shared'
 import { loadAdminAMap } from '@/utils/amap'
 import { parseRouteLines, ROUTE_SEGMENT_SOURCE, type LngLat } from '@/utils/route-map-geometry'
+import { placeRangeGcj02Paths } from '@/utils/place-range-geometry'
+import type { CulturalPlaceRecord } from '@/types/cultural-place'
 import type { RouteMapDetail } from '@/types/route-map'
 
 export interface EditableSegmentVertex {
@@ -32,6 +34,8 @@ const props = withDefaults(defineProps<{
   previewPointsBySegmentNo?: Record<number, LngLat[]>
   /** 有待保存草稿的路段序号 */
   dirtySegmentNos?: number[]
+  /** 站点绑定的文化点（含范围），用于把景点范围面一并画出来 */
+  places?: CulturalPlaceRecord[]
 }>(), {
   editStationId: '',
   drawingSegmentNo: null,
@@ -43,6 +47,7 @@ const props = withDefaults(defineProps<{
   editablePoints: () => [],
   previewPointsBySegmentNo: () => ({}),
   dirtySegmentNos: () => [],
+  places: () => [],
 })
 
 const emit = defineEmits<{
@@ -249,10 +254,32 @@ function renderHandles() {
   }))
 }
 
+/**
+ * 站点绑定的文化点范围面：C 端行程地图会画「面」，管理端预览与编排必须给出同一画面，
+ * 否则数据是面、界面上看到的还是点。几何转换复用管理端共用的 placeRangeGcj02Paths。
+ */
+function renderPlaceRanges() {
+  const places = props.places ?? []
+  if (!places.length) return
+  const placeById = new Map(places.map(place => [place.id, place]))
+  for (const station of props.detail?.stations ?? []) {
+    const place = station.placeId ? placeById.get(station.placeId) : null
+    if (!place) continue
+    const paths = placeRangeGcj02Paths(place)
+    if (!paths.length) continue
+    const active = (station.stageId || station.id) === props.focusedStageId
+    for (const path of paths) {
+      layers.push(new sdk.Polygon({ path, strokeColor: active ? '#327dce' : '#24616a', strokeWeight: active ? 2.5 : 1.5, fillColor: active ? '#327dce' : '#24616a', fillOpacity: active ? 0.18 : 0.1, zIndex: 20, bubble: true }))
+    }
+  }
+}
+
 function render(fit = true, focus = true) {
   if (!map.value || !sdk) return
   map.value.remove(layers)
   layers = []
+  // 范围面先铺，路线与站点标记后画，保证标注不被面盖住
+  renderPlaceRanges()
   for (const station of props.detail?.stations ?? []) {
     const stageId = station.stageId || station.id
     const content = document.createElement('button')
@@ -354,6 +381,7 @@ onMounted(async () => {
   } catch (caught) { if (alive) emit('error', caught instanceof Error ? caught.message : '地图初始化失败。') }
 })
 watch(() => props.detail, () => render())
+watch(() => props.places, () => render(false, false))
 watch(() => [props.focusedStageId, props.journey], () => render(false))
 watch(() => props.drawingSegmentNo, () => { draft = []; renderDraft(); emit('drawChange', []) })
 watch(() => [props.editable, props.editableSegmentNo] as const, () => render(false, false))

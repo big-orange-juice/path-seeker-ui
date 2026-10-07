@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
       batchId,
       version,
       candidateIds: candidateIds.length ? candidateIds : null,
+      runAsync: body.runAsync === true,
     },
   });
 });

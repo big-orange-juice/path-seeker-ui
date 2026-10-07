@@ -9,6 +9,7 @@ import CollectionExhibitTable from '@/components/collections/CollectionExhibitTa
 import CollectionSearchDialog from '@/components/collections/CollectionSearchDialog.vue';
 import CulturalPlaceFormDialog from '@/components/museum-management/CulturalPlaceFormDialog.vue';
 import type { CulturalPlaceDraft, CulturalPlaceRecord } from '@/types/cultural-place';
+import { COLLECTION_IMPORT_TARGET_TYPE } from '@/types/collection-import';
 import type {
   ExhibitDraft,
   ExhibitRecord,
@@ -164,16 +165,23 @@ const detailDialogOpen = shallowRef(false);
 const placeDialogOpen = shallowRef(false);
 const placeRecord = shallowRef<CulturalPlaceRecord | null>(null);
 const placeError = shallowRef('');
+/** 递增即让景点弹窗重新拉取记录，用于 AI 补充入库后的表单刷新 */
+const placeReloadToken = shallowRef(0);
 const contentLoading = shallowRef(false);
+usePlatformAssistantSelection(() => ({
+  museumId: selectedMuseumId.value,
+  collectionId: detailDialogOpen.value ? detailRecord.value?.id || '' : dialogOpen.value ? activeRecordId.value : placeDialogOpen.value ? placeRecord.value?.id || '' : '',
+}));
 let contentRequestVersion = 0;
 
-/** AI 联网补充资料：复用导入的候选预览与确认流程（设计文档 §7） */
-const searchDialog = shallowRef<{ openDialog: (preset?: { id: string; name: string; code?: string | null }) => void } | null>(null);
-const searchExhibits = computed(() =>
+/** AI 联网补充资料：入口在景点新增 / 编辑弹窗内，复用导入的候选预览与确认流程（设计文档 §7） */
+const searchDialog = shallowRef<{ openDialog: (preset?: { id: string; name: string; code?: string | null; targetType?: number }) => void } | null>(null);
+/** 景点目标的 ID 用文化点 ID，与景点表单读取 / 保存的口径一致 */
+const searchPlaces = computed(() =>
   rows.value
-    .filter((record) => record.contentType !== 'place')
+    .filter((record) => record.contentType === 'place')
     .map((record) => ({
-      id: record.id,
+      id: record.placeId ?? record.id,
       name: record.name || record.exhibitCode || record.id,
       code: record.exhibitCode ?? null,
     }))
@@ -289,6 +297,33 @@ const handleSave = async (draft: ExhibitDraft) => {
   }
 };
 
+/** 景点表单里的 AI 补充入口：把当前景点作为检索目标，未保存的新景点按名称检索 */
+const handlePlaceAiEnrich = (payload: { id: string; name: string; code: string }) => {
+  searchDialog.value?.openDialog({
+    id: payload.id,
+    name: payload.name,
+    code: payload.code,
+    targetType: COLLECTION_IMPORT_TARGET_TYPE.CULTURAL_PLACE,
+  });
+};
+
+/** 补充结果入库后回到景点表单：已保存的景点就地重载，未保存的新增直接关闭，避免旧草稿把结果覆盖回去 */
+const handleSearchFinished = async () => {
+  await refresh();
+  if (!placeDialogOpen.value) {
+    return;
+  }
+
+  if (!placeRecord.value?.id) {
+    placeDialogOpen.value = false;
+    actionFeedback.success('AI 补充结果已入库，请在列表中查看。');
+    return;
+  }
+
+  placeReloadToken.value += 1;
+  actionFeedback.success('已按入库结果刷新当前景点。');
+};
+
 const handleRemove = async (record: ExhibitRecord) => {
   if (submitting.value || contentLoading.value) return;
   const label = record.contentType === 'place' ? '景点' : '馆藏';
@@ -359,13 +394,6 @@ const handleRemove = async (record: ExhibitRecord) => {
           <Button variant="outline" :disabled="submitting" @click="refresh()">
             刷新
           </Button>
-          <Button
-            variant="outline"
-            :disabled="submitting || contentLoading || museumPending || !museumId"
-            title="按公开资料来源补充典藏资料，结果进入候选条目待人工确认"
-            @click="searchDialog?.openDialog()">
-            AI 联网补充资料
-          </Button>
           <Button :disabled="submitting || contentLoading || museumPending || !museumId" @click="startCreate">
             新增{{ contentLabel }}
           </Button>
@@ -430,13 +458,15 @@ const handleRemove = async (record: ExhibitRecord) => {
       :pending="submitting"
       :error="placeError"
       :require-coordinates="false"
+      :reload-token="placeReloadToken"
       @update:open="placeDialogOpen = $event"
+      @ai-enrich="handlePlaceAiEnrich"
       @save="handlePlaceSave" />
 
     <CollectionSearchDialog
       ref="searchDialog"
       :museum-id="museumId"
-      :exhibits="searchExhibits"
-      @finished="refresh()" />
+      :places="searchPlaces"
+      @finished="handleSearchFinished" />
   </div>
 </template>

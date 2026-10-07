@@ -24,8 +24,10 @@ export interface PlaceRange {
   type: 'point' | 'circle' | 'polygon'
   radiusMeters?: number | null
   boundaryGeoJson?: string | null
-  proximityDistanceMeters: number
-  releaseDistanceMeters: number
+  proximityDistanceMeters?: number | null
+  releaseDistanceMeters?: number | null
+  defaultProximityDistanceMeters?: number
+  defaultReleaseDistanceMeters?: number
   rangeVersion: number
 }
 

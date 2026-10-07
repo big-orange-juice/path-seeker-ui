@@ -17,6 +17,17 @@ import type { ClientPlace, ClientTourStop } from '@/types/clientCatalog'
  */
 export const TOUR_ARRIVAL_POLICY: ApproachPolicy = DEFAULT_APPROACH_POLICY
 
+function stopPolicy(stop: ClientTourStop, policy: ApproachPolicy): ApproachPolicy {
+  const proximityMeters = stop.triggerRadiusMeters && stop.triggerRadiusMeters > 0 ? stop.triggerRadiusMeters : policy.proximityMeters
+  return { ...policy, proximityMeters, releaseMeters: Math.max(policy.releaseMeters, proximityMeters) }
+}
+
+function placePolicy(stop: ClientTourStop, range: PlaceRange | null | undefined, policy: ApproachPolicy): ApproachPolicy {
+  return stopPolicy(stop, { ...policy,
+    proximityMeters: range?.defaultProximityDistanceMeters ?? policy.proximityMeters,
+    releaseMeters: range?.defaultReleaseDistanceMeters ?? policy.releaseMeters })
+}
+
 /** 带定位质量字段的用户位置 */
 export interface TourFix {
   longitude: number
@@ -62,7 +73,7 @@ export function evaluateTourStop(
   if (!fix || !isUsableLocation(fix, policy, now)) return null
   const anchor = tourStopAnchor(stop, place)
   if (!anchor) return null
-  return evaluateApproach({ longitude: fix.longitude, latitude: fix.latitude }, place?.range ?? null, anchor, policy)
+  return evaluateApproach({ longitude: fix.longitude, latitude: fix.latitude }, place?.range ?? null, anchor, placePolicy(stop, place?.range, policy))
 }
 
 /**
@@ -76,19 +87,23 @@ export function nearbyTourStops(
   after: number,
   now = Date.now(),
   policy: ApproachPolicy = TOUR_ARRIVAL_POLICY,
+  completedStageIds: Iterable<string> = [],
 ): TourStopCandidate[] {
   if (!fix || !isUsableLocation(fix, policy, now)) return []
+  // 已完成站点不再作为接近候选（方案 §7.5：以 completedStageIds 为准）
+  const completed = new Set(completedStageIds)
   const placeById = new Map<string, ClientPlace>()
   for (const place of places ?? []) placeById.set(place.id, place)
   const point: ApproachPoint = { longitude: fix.longitude, latitude: fix.latitude }
   const candidates: TourStopCandidate[] = []
   stops.forEach((stop, index) => {
-    if (index <= after) return
+    if (stop.id === stops[after]?.id) return
+    if (completed.has(stop.id)) return
     const place = stop.placeId ? placeById.get(stop.placeId) ?? null : null
     const anchor = tourStopAnchor(stop, place)
     if (!anchor) return
     const range = place?.range ?? null
-    const result = evaluateApproach(point, range, anchor, policy)
+    const result = evaluateApproach(point, range, anchor, placePolicy(stop, range, policy))
     if (!result.approaching) return
     candidates.push({
       index,
@@ -102,6 +117,7 @@ export function nearbyTourStops(
       releaseMeters: result.releaseMeters,
     })
   })
-  return candidates.sort((left, right) => (left.stop.order - right.stop.order)
+  return candidates.sort((left, right) => Number(left.index <= after) - Number(right.index <= after)
+    || (left.stop.order - right.stop.order)
     || ((left.distanceMeters ?? Number.POSITIVE_INFINITY) - (right.distanceMeters ?? Number.POSITIVE_INFINITY)))
 }

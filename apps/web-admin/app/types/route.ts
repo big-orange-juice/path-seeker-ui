@@ -204,6 +204,51 @@ export interface RouteTaskSummaryResponse {
   tasks?: RouteTaskDetailResponse[] | null;
 }
 
+/**
+ * 路线后台任务汇总状态码，与 RouteRecord.taskStatus 同一套取值（后端未在 schema 里给枚举）。
+ * 仅用于判断「是否还有任务在跑」，不用于区分具体失败原因。
+ */
+export const ROUTE_TASK_STATUS = {
+  Idle: 0,
+  Queued: 1,
+  Running: 2,
+  Retrying: 3,
+} as const;
+
+/** 创建进度里展示的单条子任务；已抹掉 taskId / taskSource 等技术字段 */
+export interface RouteBuildTaskItem {
+  /** 展示用稳定键：优先 taskId，退化到下标 */
+  key: string;
+  label: string;
+  progressPercent: number | null;
+  failed: boolean;
+}
+
+/**
+ * 右侧结果面板的「创建进度」展示态。
+ *
+ * 它是 RouteTaskSummaryResponse 的前端归一化结果：后端汇总只给原始计数和子任务数组，
+ * 这里统一算好百分比、状态标题和失败原因，组件只负责渲染，避免把状态判断散进模板。
+ */
+export interface RouteBuildTaskProgress {
+  /** 状态标题：后端 taskStatusText 优先，缺失时按 tone 兜底，保证永不为空 */
+  title: string;
+  /** 状态补充说明（任务条数、失败任务数），无内容为空串 */
+  meta: string;
+  /** 整体进度 0–100：有子任务取均值，仅排队无进度记 0，无任何任务为 null */
+  progressPercent: number | null;
+  tone: 'running' | 'completed' | 'failed';
+  /** 仍在执行的任务数，为 0 表示本轮创建已收口 */
+  executingTaskCount: number;
+  routeBuildTaskCount: number;
+  assetGenerationTaskCount: number;
+  /** 失败原因，取首个失败子任务的 errorMessage；无失败为空串 */
+  errorMessage: string;
+  tasks: RouteBuildTaskItem[];
+  /** 快照时间戳（毫秒），用于展示数据新鲜度 */
+  updatedAt: number;
+}
+
 export interface RouteRecord {
   sceneType?: number;
   locale?: string;

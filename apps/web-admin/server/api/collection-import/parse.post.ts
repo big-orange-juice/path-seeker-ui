@@ -23,6 +23,6 @@ export default defineEventHandler(async (event) => {
 
   return callBackendApi<CollectionImportParseResult>(event, '/CollectionImport/parse', {
     method: 'POST',
-    body: { batchId, attachmentId },
+    body: { batchId, attachmentId, imageAttachmentIds: body.imageAttachmentIds, columnMapping: body.columnMapping, runAsync: body.runAsync === true },
   });
 });

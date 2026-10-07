@@ -1,23 +1,23 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed } from 'vue';
-import { getInteractionTypeMeta } from '@path-seeker/game-renderer';
 import AppIcon from '@/components/ui/AppIcon.vue';
+import type { RouteBuildTaskProgress } from '@/types/route';
 import type {
   ChatExhibitSummary,
-  ChatRouteBuildProgressState,
   ChatRouteDetailPayload,
 } from '@/types/chat';
 
 interface Props {
   routeDetail: ChatRouteDetailPayload | null;
   exhibits: ChatExhibitSummary[];
-  buildProgress?: ChatRouteBuildProgressState | null;
+  /** 轮询得到的创建进度；无路线时为 null，由本组件区分「未生成」和「读取中」 */
+  creationProgress?: RouteBuildTaskProgress | null;
   contextRouteId?: string;
   publishedHint?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  buildProgress: null,
+  creationProgress: null,
   contextRouteId: '',
   publishedHint: '',
 });
@@ -37,42 +37,41 @@ const routeId = computed(() =>
 const formatExhibitMeta = (exhibit: ChatExhibitSummary) =>
   [exhibit.dynasty, exhibit.category, exhibit.exhibitCode].filter(Boolean).join(' · ');
 
-const progress = computed(() => props.buildProgress);
+const progress = computed(() => props.creationProgress);
 
-const progressPercent = computed(() => {
-  const item = progress.value;
+/** 无 routeId 说明还没生成路线；有 routeId 但没快照只是轮询首次请求还没回来 */
+const hasRoute = computed(() => Boolean(routeId.value));
 
-  if (!item || item.totalCount <= 0) {
-    return 0;
-  }
+const progressCardClass = computed(() => ({
+  'border-border/70 bg-muted/20': progress.value?.tone === 'running',
+  'border-emerald-400/40 bg-emerald-400/10': progress.value?.tone === 'completed',
+  'border-destructive/30 bg-destructive/5': progress.value?.tone === 'failed',
+}));
 
-  // 与文案统一：按累计「已创建 / 总数」计算，避免 processed 与 created 口径不一致。
-  const ratio = item.createdCount / item.totalCount;
-  return Math.max(0, Math.min(100, Math.round(ratio * 100)));
-});
+const progressTitleClass = computed(() => ({
+  'text-foreground': progress.value?.tone === 'running',
+  'text-emerald-500': progress.value?.tone === 'completed',
+  'text-destructive': progress.value?.tone === 'failed',
+}));
 
-const interactionLabel = computed(() => {
-  const type = progress.value?.interactionType;
+const progressBarClass = computed(() => ({
+  'bg-primary': progress.value?.tone === 'running',
+  'bg-emerald-400': progress.value?.tone === 'completed',
+  'bg-destructive': progress.value?.tone === 'failed',
+}));
 
-  if (type == null || Number.isNaN(type)) {
+/** 数据新鲜度；轮询是唯一的进度来源，让使用者能判断快照有多旧 */
+const updatedAtText = computed(() => {
+  const updatedAt = progress.value?.updatedAt;
+
+  if (!updatedAt) {
     return '';
   }
 
-  return getInteractionTypeMeta(type)?.label || `玩法 ${type}`;
-});
+  const date = new Date(updatedAt);
+  const pad = (value: number) => String(value).padStart(2, '0');
 
-const progressTone = computed(() => {
-  const status = progress.value?.status;
-
-  if (status === 'failed') {
-    return 'failed';
-  }
-
-  if (status === 'completed') {
-    return 'completed';
-  }
-
-  return 'running';
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 });
 </script>
 
@@ -117,60 +116,81 @@ const progressTone = computed(() => {
         </div>
       </section>
 
-      <section v-if="progress" class="space-y-2">
+      <section class="space-y-2">
         <div class="flex items-center gap-2 text-xs font-medium text-muted-foreground">
           <AppIcon name="sparkles" class="h-3.5 w-3.5" />
-          站点生成
+          创建进度
         </div>
+
         <div
+          v-if="!hasRoute"
+          class="rounded-lg border border-dashed border-border/70 px-3 py-4 text-xs text-muted-foreground">
+          路线生成后显示创建进度。
+        </div>
+
+        <div
+          v-else-if="!progress"
+          class="rounded-lg border border-dashed border-border/70 px-3 py-4 text-xs text-muted-foreground">
+          正在读取创建进度…
+        </div>
+
+        <div
+          v-else
           class="rounded-lg border px-3 py-3"
-          :class="{
-            'border-border/70 bg-muted/20': progressTone === 'running',
-            'border-emerald-400/40 bg-emerald-400/10': progressTone === 'completed',
-            'border-destructive/30 bg-destructive/5': progressTone === 'failed',
-          }">
-          <p
-            class="text-sm"
-            :class="{
-              'text-foreground': progressTone === 'running',
-              'text-emerald-500': progressTone === 'completed',
-              'text-destructive': progressTone === 'failed',
-            }">
-            {{ progress.message }}
+          :class="progressCardClass">
+          <div class="flex items-start justify-between gap-2">
+            <p class="min-w-0 text-sm" :class="progressTitleClass">
+              {{ progress.title }}
+            </p>
+            <span
+              v-if="progress.tone === 'running'"
+              class="mt-0.5 h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-primary" />
+          </div>
+
+          <p v-if="progress.meta" class="mt-0.5 text-xs text-muted-foreground">
+            {{ progress.meta }}
           </p>
-          <dl class="mt-2 space-y-1.5 text-xs text-muted-foreground">
-            <div v-if="progress.exhibitName" class="flex gap-2">
-              <dt class="shrink-0">文物</dt>
-              <dd class="min-w-0 break-words text-foreground/80">
-                {{ progress.exhibitName }}
-              </dd>
-            </div>
-            <div v-if="interactionLabel" class="flex gap-2">
-              <dt class="shrink-0">玩法</dt>
-              <dd class="min-w-0 text-foreground/80">
-                {{ interactionLabel }}
-              </dd>
-            </div>
-            <div class="flex gap-2">
-              <dt class="shrink-0">进度</dt>
-              <dd class="min-w-0 text-foreground/80">
-                已创建 {{ progress.createdCount }}/{{ progress.totalCount }}
-                <template v-if="progress.failedCount > 0">
-                  · 失败 {{ progress.failedCount }}
-                </template>
-              </dd>
-            </div>
-          </dl>
-          <div class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
+
+          <div
+            v-if="progress.progressPercent !== null"
+            class="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted">
             <div
               class="h-full rounded-full transition-[width] duration-300"
-              :class="{
-                'bg-primary': progressTone === 'running',
-                'bg-emerald-400': progressTone === 'completed',
-                'bg-destructive': progressTone === 'failed',
-              }"
-              :style="{ width: `${progressPercent}%` }" />
+              :class="progressBarClass"
+              :style="{ width: `${progress.progressPercent}%` }" />
           </div>
+          <p
+            v-if="progress.progressPercent !== null"
+            class="mt-1 text-xs text-muted-foreground">
+            整体进度 {{ progress.progressPercent }}%
+          </p>
+
+          <p v-if="progress.errorMessage" class="mt-2 text-xs text-destructive">
+            {{ progress.errorMessage }}
+          </p>
+
+          <ul v-if="progress.tasks.length" class="mt-2 space-y-1">
+            <li
+              v-for="task in progress.tasks"
+              :key="task.key"
+              class="flex items-center justify-between gap-2 text-xs">
+              <span
+                class="min-w-0 truncate"
+                :class="task.failed ? 'text-destructive' : 'text-foreground/80'"
+                :title="task.label">
+                {{ task.label }}
+              </span>
+              <span
+                v-if="task.progressPercent !== null"
+                class="shrink-0 text-muted-foreground">
+                {{ task.progressPercent }}%
+              </span>
+            </li>
+          </ul>
+
+          <p v-if="updatedAtText" class="mt-2 text-[11px] text-muted-foreground/70">
+            更新于 {{ updatedAtText }}
+          </p>
         </div>
       </section>
 

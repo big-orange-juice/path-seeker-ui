@@ -42,6 +42,7 @@ const createIdempotencyKey = (museumId: string, file: File | null): string => {
   return `import-${museumId}-${size}-${name}-${stamp}-${random}`.slice(0, 128);
 };
 
+
 const createSearchKey = (museumId: string, targetType: number, targetKey: string): string => {
   const stamp = Date.now();
   const random = Math.random().toString(36).slice(2, 10);
@@ -78,6 +79,7 @@ const triggerDownload = (envelope: DownloadEnvelope) => {
  * 本 composable 会把 backendUnavailable 置为 true，页面据此整体降级提示，而不是让每个按钮各自报错。
  */
 export const useCollectionImport = () => {
+  let activeImportAttemptKey = '';
   const { request, upload } = useApiClient();
 
   const activeMuseumId = ref('');
@@ -103,6 +105,9 @@ export const useCollectionImport = () => {
   /** 所选文件（先上传取附件 ID，再按批次解析） */
   const selectedFile = shallowRef<File | null>(null);
   const uploadedAttachmentId = ref('');
+  const columnMapping = ref<Record<string, string>>({});
+  const imageAttachmentIds = ref<string[]>([]);
+  const mappingAccepted = ref(false);
 
   const busy = ref(false);
   const uploadPercent = ref(0);
@@ -150,6 +155,7 @@ export const useCollectionImport = () => {
   };
 
   function resetSession() {
+    activeImportAttemptKey = '';
     batch.value = null;
     sources.value = [];
     candidateSummary.value = { ...EMPTY_SUMMARY };
@@ -162,6 +168,8 @@ export const useCollectionImport = () => {
     totalPages.value = 1;
     total.value = 0;
     selectedFile.value = null;
+    columnMapping.value = {};
+    imageAttachmentIds.value = [];
     uploadedAttachmentId.value = '';
     uploadPercent.value = 0;
     error.value = '';
@@ -173,6 +181,7 @@ export const useCollectionImport = () => {
     uploadedAttachmentId.value = '';
     uploadPercent.value = 0;
     error.value = '';
+    activeImportAttemptKey = '';
   }
 
   /** 上传所选文件（走既有 /api/uploads/file，先拿 attachmentId） */
@@ -203,12 +212,18 @@ export const useCollectionImport = () => {
     return attachmentId;
   }
 
-  /** 下载导入模板 */
-  async function downloadTemplate(): Promise<boolean> {
+  /**
+   * 下载导入模板。
+   * 模板分文物 / 景点两套（景点模板含补充资料与深度档案），由后端按目的地类型决定；
+   * 未选目的地时后端回落到文物模板。
+   */
+  async function downloadTemplate(museumId = ''): Promise<boolean> {
     error.value = '';
     busy.value = true;
     try {
-      const envelope = await request<DownloadEnvelope>('/api/collection-import/template');
+      const envelope = await request<DownloadEnvelope>('/api/collection-import/template', {
+        query: museumId ? { museumId } : undefined,
+      });
       triggerDownload(envelope);
       return true;
     } catch (caught) {
@@ -240,7 +255,7 @@ export const useCollectionImport = () => {
         method: 'POST',
         body: {
           museumId: activeMuseumId.value,
-          idempotencyKey: createIdempotencyKey(activeMuseumId.value, selectedFile.value),
+          idempotencyKey: activeImportAttemptKey || (activeImportAttemptKey = createIdempotencyKey(activeMuseumId.value, selectedFile.value)),
           sourceKind: 1,
         },
       });
@@ -251,11 +266,11 @@ export const useCollectionImport = () => {
       }
       applyBatch(created);
 
-      const attachmentId = await uploadSelectedFile();
+      const attachmentId = uploadedAttachmentId.value || await uploadSelectedFile();
 
       const parsed = await request<CollectionImportParseResult>('/api/collection-import/parse', {
         method: 'POST',
-        body: { batchId, attachmentId },
+        body: { batchId, attachmentId, columnMapping: columnMapping.value, imageAttachmentIds: imageAttachmentIds.value, runAsync: true },
       });
 
       parseResult.value = parsed;
@@ -265,6 +280,7 @@ export const useCollectionImport = () => {
       if (parsed?.source) {
         sources.value = [parsed.source];
       }
+      if (!await waitForImportTask()) return false;
 
       step.value = 'preview';
       pageIndex.value = 1;
@@ -331,6 +347,18 @@ export const useCollectionImport = () => {
       });
       applyBatch(detail.batch);
       sources.value = detail.sources ?? [];
+      const source = sources.value[0];
+      if (source?.header && typeof source.header === 'object' && !Array.isArray(source.header)) {
+        const header = source.header as Record<string, unknown>;
+        if (Array.isArray(header.image_attachment_ids)) imageAttachmentIds.value = header.image_attachment_ids.map(String);
+        parseResult.value = {
+          batch: detail.batch, source, rowCount: source.rowCount,
+          mappingRequiresConfirmation: header.requires_confirmation === true,
+          missingColumns: Array.isArray(header.missing) ? header.missing.map(String) : [],
+          duplicateColumns: Array.isArray(header.duplicates) ? header.duplicates.map(String) : [],
+          unmappedColumns: Array.isArray(header.unmapped) ? header.unmapped.map(String) : [],
+        };
+      }
       candidateSummary.value = detail.candidateSummary ?? { ...EMPTY_SUMMARY };
       errorReportUrl.value = detail.errorReportDownloadUrl ?? '';
       return true;
@@ -340,6 +368,41 @@ export const useCollectionImport = () => {
       }
       return false;
     }
+  }
+
+  async function waitForImportTask(): Promise<boolean> {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
+      if (!await refreshBatch()) return false;
+      const status = batch.value?.taskStatus;
+      if (status === 5 || status == null) return true;
+      if (status === 6 || status === 8) {
+        error.value = batch.value?.taskError || '后台任务失败或已取消，请查看失败记录。';
+        return false;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+    error.value = '任务仍在后台处理，可稍后刷新批次查看结果。';
+    return false;
+  }
+
+  async function reparseMapping(): Promise<boolean> {
+    const source = sources.value[0];
+    if (!batch.value?.id || !source?.attachmentId || busy.value) return false;
+    busy.value = true;
+    error.value = '';
+    mappingAccepted.value = false;
+    try {
+      await request<CollectionImportParseResult>('/api/collection-import/parse', {
+        method: 'POST',
+        body: { batchId: batch.value.id, attachmentId: source.attachmentId, columnMapping: columnMapping.value, imageAttachmentIds: imageAttachmentIds.value, runAsync: true },
+      });
+      if (!await waitForImportTask()) return false;
+      await loadCandidates(1);
+      return true;
+    } catch (caught) {
+      error.value = caught instanceof Error ? caught.message : '重新映射失败。';
+      return false;
+    } finally { busy.value = false; }
   }
 
   /**
@@ -402,6 +465,7 @@ export const useCollectionImport = () => {
           batchId: batch.value.id,
           candidateIds: target,
           acceptOverwrite: true,
+          acceptMapping: mappingAccepted.value,
           version: batch.value.version,
         },
       });
@@ -462,11 +526,12 @@ export const useCollectionImport = () => {
     try {
       const result = await request<CollectionImportSubmitResult>('/api/collection-import/commit', {
         method: 'POST',
-        body: { batchId: batch.value.id, version: batch.value.version },
+        body: { batchId: batch.value.id, version: batch.value.version, runAsync: true },
       });
       submitResult.value = result;
       errorReportUrl.value = result?.errorReportDownloadUrl ?? '';
-      await refreshBatch();
+      if (!await waitForImportTask()) return false;
+      submitResult.value = { ...result, status: batch.value?.status ?? result.status, createCount: createCount.value, updateCount: updateCount.value, failedCount: failedCount.value, skippedCount: skippedCount.value };
       step.value = 'result';
       return true;
     } catch (caught) {
@@ -539,6 +604,9 @@ export const useCollectionImport = () => {
     rowsPerPage,
     selectedFile,
     uploadedAttachmentId,
+    columnMapping,
+    imageAttachmentIds,
+    mappingAccepted,
     uploadPercent,
     busy,
     error,
@@ -557,6 +625,7 @@ export const useCollectionImport = () => {
     selectFile,
     downloadTemplate,
     startImport,
+    reparseMapping,
     loadCandidates,
     loadBatchCandidates,
     refreshBatch,
@@ -659,7 +728,7 @@ export const useCollectionSearch = () => {
         });
         task.value = current;
         const status = Number(current?.status);
-        if ([4, 5, 6, 7].includes(status)) {
+        if ([4, 5, 6, 8].includes(status)) {
           if (status === 6 && current?.errorMessage) {
             error.value = current.errorMessage;
           }

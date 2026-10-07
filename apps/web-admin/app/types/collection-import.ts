@@ -93,6 +93,8 @@ export const targetTypeText = (targetType: number | null | undefined): string =>
 // ---------------- 响应 ----------------
 
 export interface CollectionImportBatch {
+  taskStatus?: number | null;
+  taskError?: string | null;
   id: string;
   museumId: string;
   operatorId: string;
@@ -166,6 +168,9 @@ export interface CollectionImportCandidate {
   targetVersion: number | null;
   committedId: string | null;
   errorMessage: string | null;
+  targetUpdatedAt?: string | null;
+  confirmedByAdminId?: string | null;
+  confirmedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -265,6 +270,9 @@ export interface CreateCollectionImportBatchPayload {
 }
 
 export interface ParseCollectionImportPayload {
+  imageAttachmentIds?: string[];
+  runAsync?: boolean;
+  columnMapping?: Record<string, string>;
   batchId: string;
   /** 已通过 UploadFile 上传的原文件附件 ID */
   attachmentId: string;
@@ -286,6 +294,7 @@ export interface CollectionImportBatchPagePayload {
 }
 
 export interface ConfirmCollectionImportCandidatesPayload {
+  acceptMapping?: boolean;
   batchId: string;
   candidateIds: string[];
   /** 是否接受对象级覆盖；为 false 时命中既有对象的条目不允许确认 */
@@ -300,6 +309,7 @@ export interface SkipCollectionImportCandidatesPayload {
 }
 
 export interface SubmitCollectionImportPayload {
+  runAsync?: boolean;
   batchId: string;
   version?: number | null;
   /** 限定提交的候选条目；为空时提交本批次全部已确认条目 */

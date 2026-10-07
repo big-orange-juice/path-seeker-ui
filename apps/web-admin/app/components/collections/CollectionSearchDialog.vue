@@ -15,7 +15,10 @@ import { COLLECTION_IMPORT_TARGET_TYPE } from '@/types/collection-import'
 import type { CollectionImportCandidate } from '@/types/collection-import'
 
 /**
- * 「AI 联网补充资料」入口。
+ * 「AI 联网补充资料」弹窗。
+ *
+ * 入口挂在景点新增 / 编辑弹窗内，因此打开时默认锁定为「文化点」并按当前景点预填对象，
+ * 也仍允许后台用户改成按名称检索。
  *
  * 设计依据 doc/b-admin-functional-optimization-plan.md §7：检索产物写入与导入同一套
  * collection_import_candidate 契约，因此结果继续复用导入的候选预览 / 差异确认 /
@@ -25,6 +28,8 @@ const props = defineProps<{
   museumId: string
   /** 针对单条典藏发起检索时传入 */
   exhibits?: { id: string; name: string; code?: string | null }[]
+  /** 针对单条景点发起检索时传入 */
+  places?: { id: string; name: string; code?: string | null }[]
 }>()
 
 const emit = defineEmits<{ finished: [] }>()
@@ -57,14 +62,18 @@ const form = shallowRef({
   fields: '',
 })
 
-const exhibitOptions = computed(() => props.exhibits ?? [])
+/** 候选清单跟随对象类型切换，避免把景点 ID 当作文物目标提交 */
+const optionsFor = (targetType: number) =>
+  targetType === COLLECTION_IMPORT_TARGET_TYPE.CULTURAL_PLACE ? props.places ?? [] : props.exhibits ?? []
+
+const objectOptions = computed(() => optionsFor(form.value.targetType))
 
 const canSubmit = computed(() => Boolean(props.museumId) && Boolean(form.value.targetId || form.value.objectName.trim()))
 
-function openDialog(preset?: { id: string; name: string; code?: string | null }) {
+function openDialog(preset?: { id: string; name: string; code?: string | null; targetType?: number }) {
   search.reset()
   form.value = {
-    targetType: COLLECTION_IMPORT_TARGET_TYPE.EXHIBIT,
+    targetType: preset?.targetType ?? COLLECTION_IMPORT_TARGET_TYPE.EXHIBIT,
     targetId: preset?.id ?? '',
     objectName: preset?.name ?? '',
     objectCode: preset?.code ?? '',
@@ -73,14 +82,21 @@ function openDialog(preset?: { id: string; name: string; code?: string | null })
   open.value = true
 }
 
-function applyExhibitSelection(targetId: string) {
-  const matched = exhibitOptions.value.find((item) => item.id === targetId)
+function applyObjectSelection(targetId: string) {
+  const matched = objectOptions.value.find((item) => item.id === targetId)
   form.value = {
     ...form.value,
     targetId,
     objectName: matched?.name ?? form.value.objectName,
     objectCode: matched?.code ?? form.value.objectCode,
   }
+}
+
+/** 切换对象类型后旧的目标 ID 不再属于新清单，直接丢弃以免提交错对象 */
+function changeTargetType(value: string) {
+  const targetType = Number(value)
+  const keep = optionsFor(targetType).some((item) => item.id === form.value.targetId)
+  form.value = { ...form.value, targetType, targetId: keep ? form.value.targetId : '' }
 }
 
 async function submit() {
@@ -102,7 +118,7 @@ async function submit() {
     return
   }
 
-  actionFeedback.success('检索任务已提交（豆包优先、DeepSeek 兜底），完成后在候选条目中确认。')
+  actionFeedback.success('检索任务已提交，完成后在候选条目中确认。')
 
   const done = await search.pollTask()
   if (!done) {
@@ -150,24 +166,24 @@ defineExpose({ openDialog })
       <DialogHeader class="border-b px-5 py-3">
         <DialogTitle>AI 联网补充资料</DialogTitle>
         <p class="mt-1 text-xs text-muted-foreground">
-          按文物或景点检索公开资料，整理后写入与导入相同的候选条目；覆盖已有字段必须人工逐条确认，默认只补空值。
+          按景点或文物检索公开资料来源，结果需人工逐条确认后才会写入；默认只补空值，覆盖已有字段必须确认。
         </p>
       </DialogHeader>
 
       <form class="space-y-3 px-5 py-4" @submit.prevent="submit">
         <label class="block space-y-1.5 text-sm">
           <span class="font-medium">对象类型</span>
-          <Select :model-value="String(form.targetType)" @update:model-value="form = { ...form, targetType: Number($event) }">
+          <Select :model-value="String(form.targetType)" @update:model-value="changeTargetType($event)">
             <option :value="String(COLLECTION_IMPORT_TARGET_TYPE.EXHIBIT)">文物</option>
             <option :value="String(COLLECTION_IMPORT_TARGET_TYPE.CULTURAL_PLACE)">文化点 / 景点</option>
           </Select>
         </label>
 
-        <label v-if="exhibitOptions.length" class="block space-y-1.5 text-sm">
+        <label v-if="objectOptions.length" class="block space-y-1.5 text-sm">
           <span class="font-medium">从当前列表选择（可选）</span>
-          <Select :model-value="form.targetId" searchable @update:model-value="applyExhibitSelection($event)">
+          <Select :model-value="form.targetId" searchable @update:model-value="applyObjectSelection($event)">
             <option value="">不指定，按名称检索并生成新建草稿</option>
-            <option v-for="item in exhibitOptions" :key="item.id" :value="item.id">
+            <option v-for="item in objectOptions" :key="item.id" :value="item.id">
               {{ item.name }}{{ item.code ? ` / ${item.code}` : '' }}
             </option>
           </Select>

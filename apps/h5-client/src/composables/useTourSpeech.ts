@@ -185,7 +185,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   const currentSentenceIndex = shallowRef(0)
   const currentItem = computed(() => queue.value[currentIndex.value] ?? null)
   /** 当前条目是否可定位：有在播条目即可，文件与系统语音都支持（精度不同） */
-  const canSeek = computed(() => status.value === 'playing' && Boolean(currentItem.value))
+  const canSeek = computed(() => status.value !== 'idle' && Boolean(currentItem.value))
 
   let items: TourQueueItem[] = []
   let index = 0
@@ -604,24 +604,25 @@ export function useTourSpeech(onNarrationEnd: () => void) {
    * - 系统语音：按句子估算时长近似跳转，跳句不参与"讲解是否播完"的判定。
    */
   function seekBy(deltaSeconds: number): TourSeekResult {
-    if (status.value !== 'playing') return { moved: false, precision: 'unavailable', reason: 'idle' }
+    if (status.value === 'idle') return { moved: false, precision: 'unavailable', reason: 'idle' }
     const version = queueVersion.value
     const item = items[index]
     if (!item) return { moved: false, precision: 'unavailable', reason: 'idle' }
 
-    if (audio) {
-      const duration = Number.isFinite(audio.duration) && audio.duration > 0
+    if (audio || (status.value === 'paused' && item.audioUrl && (item.type !== 'chapter' || locale === 'zh'))) {
+      const duration = audio && Number.isFinite(audio.duration) && audio.duration > 0
         ? audio.duration
         : (item.durationSeconds ?? 0)
-      const target = resolveFileSeekTarget(audio.currentTime, duration, deltaSeconds)
-      const previous = Number.isFinite(audio.currentTime) ? audio.currentTime : 0
-      try { audio.currentTime = target.time } catch { return { moved: false, precision: 'unavailable', reason: 'not-seekable' } }
+      const previous = audio && Number.isFinite(audio.currentTime) ? audio.currentTime : resumeSeconds
+      if (!Number.isFinite(duration) || duration <= 0) return { moved: false, precision: 'unavailable', reason: 'not-seekable' }
+      const target = resolveFileSeekTarget(previous, duration, deltaSeconds)
+      try { if (audio) audio.currentTime = target.time } catch { return { moved: false, precision: 'unavailable', reason: 'not-seekable' } }
       playedSeconds.value = target.time
       resumeSeconds = target.time
       restorePrecision.value = 'exact'
       if (target.atStart) return { moved: target.time !== previous, precision: 'exact', reason: 'at-start' }
       if (target.atEnd) return { moved: target.time !== previous, precision: 'exact', reason: 'at-end' }
-      return { moved: true, precision: 'exact' }
+      return { moved: target.time !== previous, precision: 'exact' }
     }
 
     if (!sentences.length) return { moved: false, precision: 'unavailable', reason: 'not-seekable' }
@@ -638,7 +639,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     currentSentenceIndex.value = result.index
     resumeSentence = result.index
     restorePrecision.value = 'approximate'
-    speakItem(item, version, result.index)
+    if (status.value === 'playing') speakItem(item, version, result.index)
     return { moved: true, precision: 'approximate' }
   }
 

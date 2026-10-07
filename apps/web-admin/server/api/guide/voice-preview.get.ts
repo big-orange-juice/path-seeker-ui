@@ -125,7 +125,7 @@ export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'Content-Type', contentType)
   setResponseHeader(event, 'Cache-Control', 'private, max-age=300')
   if (contentLength) {
-    setResponseHeader(event, 'Content-Length', contentLength)
+    setResponseHeader(event, 'Content-Length', Number(contentLength))
   }
   if (contentDisposition) {
     setResponseHeader(event, 'Content-Disposition', contentDisposition)

@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
       batchId,
       candidateIds,
       acceptOverwrite: body?.acceptOverwrite !== false,
+      acceptMapping: body?.acceptMapping === true,
       version,
     },
   });

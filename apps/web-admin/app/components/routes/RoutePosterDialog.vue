@@ -203,7 +203,7 @@ const collectNarrationCandidates = async (
       })
       const images = detailRes?.images ?? []
       return images
-        .map((image, imageIndex) => {
+        .map((image, imageIndex): RoutePosterCandidateImage | null => {
           const url = String(image.imageUrl ?? '').trim()
           if (!url || !isPreviewableImageUrl(url)) return null
           return {
@@ -478,7 +478,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Dialog :open="props.open" @update:open="onOpenChange">
+  <Dialog :open="props.open" @update:open="onOpenChange(Boolean($event))">
     <DialogContent
       class="flex h-[min(90vh,40rem)] max-w-[min(96vw,40rem)] flex-col gap-0 overflow-hidden rounded-[1rem] border border-border bg-[#15171b] p-0 text-left"
     >

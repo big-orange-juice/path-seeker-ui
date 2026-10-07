@@ -65,3 +65,30 @@ export function shouldAutoStartOnApproach(input: AutoStartInput): boolean {
 export function shouldAutoOpenOnApproach(input: Pick<AutoStartInput, 'suppressed' | 'busy' | 'ending'> & { alreadyOpened: boolean }): boolean {
   return !input.alreadyOpened && !input.suppressed && !input.busy && !input.ending
 }
+
+/**
+ * 队列结束后该做什么（方案 §4.5）：
+ * - browse：浏览模式（上一/下一节点），停在原地，不写完成也不前进；
+ * - stay：标记完成但不切站（proximity 模式，等接近触发自动开始）；
+ * - advance：标记完成并进入下一站（sequential 模式）；
+ * - finish：末站，结束行程。
+ */
+export type QueueFinishedOutcome = 'browse' | 'stay' | 'advance' | 'finish'
+
+export function decideQueueFinishedOutcome(input: {
+  browsing: boolean
+  visitInProgress: boolean
+  mode: AutoAdvanceMode
+  hasNextStop: boolean
+}): QueueFinishedOutcome {
+  if (input.browsing) return 'browse'
+  if (!input.visitInProgress) return 'stay'
+  if (!input.hasNextStop) return 'finish'
+  return shouldAdvanceAfterQueue(input.mode) ? 'advance' : 'stay'
+}
+
+/** 景点范围版本是否变化（变化时清掉自动打开/自动播放记录，允许重新评估，方案 §7.4） */
+export function isRangeVersionChanged(recorded: number, current: number | null | undefined): boolean {
+  if (current == null) return false
+  return recorded !== current
+}

@@ -81,6 +81,29 @@ const resolveCookieAuthorization = (event: H3Event) => {
   return normalizeAuthorization(directToken || persistedToken);
 };
 
+/**
+ * 解析本次请求要转发给后端的 Authorization。
+ *
+ * 前端不额外带请求头，登录态只落在 cookie 里：`ps_admin_token` 是直存 token，
+ * `admin-auth` 是 URL 编码后的整段持久化 JSON（含 token + profile）。
+ * 因此这里必须按「请求头 → 中间件已解析结果 → cookie」依次取值并解析，
+ * 直接把 cookie 原值当 token 拼 Bearer，会让后端拿到无效 token（401），
+ * 若原值里还有中文（管理员昵称）则连请求头都构造不出来。
+ */
+export const resolveBackendAuthorization = (event: H3Event, headerValue?: string | null): string => {
+  const fromHeader = normalizeAuthorization(headerValue ?? getHeader(event, 'authorization'));
+  if (fromHeader) {
+    return fromHeader;
+  }
+
+  const contextAuthorization = (event.context.backendHeaders as Record<string, unknown> | undefined)?.authorization;
+  if (typeof contextAuthorization === 'string' && contextAuthorization.trim()) {
+    return normalizeAuthorization(contextAuthorization);
+  }
+
+  return resolveCookieAuthorization(event);
+};
+
 /** base 已含 /api（NUXT_BACKEND_BASE_URL），path 勿再带 /api 前缀，如 `/Route/PageList` */
 const buildBackendUrl = (baseUrl: string, path: string, query?: BackendRequestOptions['query']) => {
   const normalizedBaseUrl = String(baseUrl || '').trim();
@@ -348,11 +371,9 @@ const logBackendResponse = (payload: {
   console.info(lines.join('\n'));
 };
 
-const resolveRequestAuthorization = (event: H3Event, headers: Record<string, string>) => {
-  const headerAuthorization = normalizeAuthorization(headers.authorization);
-  // GET / POST 等统一：优先请求头，否则回落 cookie（与前端同源代理一致）
-  return headerAuthorization || resolveCookieAuthorization(event);
-};
+const resolveRequestAuthorization = (event: H3Event, headers: Record<string, string>) =>
+  // GET / POST 等统一：优先请求头，否则回落中间件与 cookie（与前端同源代理一致）
+  resolveBackendAuthorization(event, headers.authorization);
 
 export const backendFetch = async <T>(
   event: H3Event,

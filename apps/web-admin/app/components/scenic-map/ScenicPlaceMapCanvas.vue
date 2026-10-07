@@ -4,6 +4,7 @@ import { toGcj02 } from '@path-seeker/ts-shared';
 import Button from '@/components/shadcn/button/Button.vue';
 import { loadAdminAMap } from '@/utils/amap';
 import { boundaryPolygons, parseBoundary, type BoundaryPoint } from '@/utils/scenic-boundary';
+import { placeRangeGcj02Paths } from '@/utils/place-range-geometry';
 import type { CulturalPlaceRecord } from '@/types/cultural-place';
 import type { MuseumResponse } from '@/types/museum';
 
@@ -13,6 +14,8 @@ const container = useTemplateRef<HTMLDivElement>('container');
 const runtimeConfig = useRuntimeConfig();
 const error = shallowRef('');
 const loading = shallowRef(true);
+/** 景点范围面是否叠加显示：默认开，范围密集时可临时关掉只看标记 */
+const rangesVisible = shallowRef(true);
 let sdk: any;
 let map: any;
 let layers: any[] = [];
@@ -33,6 +36,17 @@ function render(fit = false) {
     for (const polygon of boundaryPolygons(geometry)) {
       layers.push(new sdk.Polygon({ path: polygon.map(ring => ring.map(point => position(point[0], point[1], props.destination.coordinateSystem ?? 1))), strokeColor: '#c7a257', strokeWeight: 3, fillColor: '#c7a257', fillOpacity: 0.13, bubble: true }));
     }
+  }
+  // 范围面先铺、标记后画，保证标记始终压在范围之上
+  if (rangesVisible.value) {
+    props.places.forEach(place => {
+      const paths = placeRangeGcj02Paths(place);
+      if (!paths.length) return;
+      const active = place.id === props.activePlaceId;
+      for (const path of paths) {
+        layers.push(new sdk.Polygon({ path, strokeColor: active ? '#327dce' : '#24616a', strokeWeight: active ? 2.5 : 1.5, fillColor: active ? '#327dce' : '#24616a', fillOpacity: active ? 0.18 : 0.1, zIndex: active ? 90 : 60, bubble: true }));
+      }
+    });
   }
   props.places.forEach((place, index) => {
     if (place.longitude == null || place.latitude == null) return;
@@ -97,6 +111,7 @@ watch(() => props.places, (places, previous) => render(!previous.length && place
 watch(() => props.destination.boundaryGeoJson, () => render(true));
 watch(() => props.activePlaceId, focusPlace);
 watch(() => [props.movingPlaceId, props.disabled], () => render());
+watch(rangesVisible, () => render());
 onMounted(initializeMap);
 onBeforeUnmount(() => { alive = false; observer?.disconnect(); map?.destroy(); });
 defineExpose({ fit: () => render(true) });
@@ -108,6 +123,7 @@ defineExpose({ fit: () => render(true) });
     <div v-if="!loading && !error" class="absolute right-3 top-3 z-10 flex gap-1 rounded-lg border border-border bg-background/95 p-1">
       <Button size="sm" variant="ghost" aria-label="放大地图" @click="zoomBy(1)">＋</Button>
       <Button size="sm" variant="ghost" aria-label="缩小地图" @click="zoomBy(-1)">－</Button>
+      <Button size="sm" :variant="rangesVisible ? 'secondary' : 'ghost'" :aria-pressed="rangesVisible" @click="rangesVisible = !rangesVisible">范围</Button>
       <Button size="sm" variant="ghost" @click="render(true)">全览</Button>
     </div>
     <div v-if="loading || error" class="absolute inset-0 z-20 flex items-center justify-center bg-background/70 p-6 text-center text-sm">

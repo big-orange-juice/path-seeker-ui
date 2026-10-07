@@ -12,6 +12,7 @@ import { useTourJourney } from '@/composables/useTourJourney'
 import { useBrowserSpeechRecognition } from '@/composables/useBrowserSpeechRecognition'
 import { useAskStore } from '@/stores/useAskStore'
 import { tourMessages } from '@/utils/tourMessages'
+import { resolveTourVoiceContext } from '@/utils/tourPlaybackContext'
 
 const props = defineProps<{ museumId: string }>()
 const route = useRoute()
@@ -47,17 +48,35 @@ const speechError = computed(() => journey.speech.error.value === 'voiceMissing'
 const speechStatus = computed(() => journey.speech.status.value)
 const isPlaying = computed(() => speechStatus.value === 'playing')
 const isPaused = computed(() => speechStatus.value === 'paused')
-const canSeek = computed(() => Boolean(journey.currentStop.value) && speechStatus.value === 'playing')
+const canSeek = computed(() => journey.speech.canSeek.value)
 /** 底部条与抽屉共用的主按钮文案 */
 const playLabel = computed(() => isPlaying.value ? messages.value.pause : isPaused.value ? messages.value.resume : messages.value.play)
 const progressLabel = computed(() => {
   const duration = journey.speech.currentItemDuration.value
-  if (!journey.drawerMatchesPlaying.value || duration <= 0) return ''
+  if (duration <= 0) return ''
   return `${formatSeconds(journey.speech.playedSeconds.value)} / ${formatSeconds(duration)}`
 })
 const autoAdvanceHint = computed(() => {
   if (!viewingJourney.value) return ''
   return journey.autoAdvanceMode.value === 'sequential' ? messages.value.sequentialAutoHint : messages.value.nearbyAutoPlayHint
+})
+/** 当前节点是否有可播内容：没有则播放键置灰（方案 §4.1） */
+const canPlayCurrent = computed(() => {
+  const stop = journey.currentStop.value
+  if (!stop) return false
+  const hasChapter = (journey.narration.value?.chapters ?? [])
+    .some(chapter => Boolean(chapter.text?.trim()) || Boolean(chapter.audioUrl))
+  if (hasChapter) return true
+  if (journey.skipExtraAudio.value) return false
+  return (stop.extraAudios ?? []).some(item => Boolean(item.url))
+})
+/** 当前正在播放的条目名：抽屉关闭时在底部信息行显示（方案 §4.1） */
+const playingItemLabel = computed(() => journey.speech.currentItem.value?.title || '')
+/** 接近候选卡片只在"多候选需要用户选"或"抽屉未打开"时出现（单候选已自动打开抽屉） */
+const showArrivalPrompt = computed(() => {
+  const count = journey.arrivalCandidates.value.length
+  if (count > 1) return true
+  return count === 1 && !journey.drawerOpen.value
 })
 
 /** 语音识别语言跟随当前讲解语言，否则中文机型认不出俄语 / 西语 */
@@ -173,6 +192,29 @@ function closeDrawer() {
   journey.closeContentDrawer()
 }
 
+/** 移动端返回键 / 浏览器后退：先关抽屉而不是直接离开行程（方案 §3.2） */
+let drawerHistoryPushed = false
+function pushDrawerHistory() {
+  if (drawerHistoryPushed) return
+  try {
+    window.history.pushState({ tourDrawer: true }, '')
+    drawerHistoryPushed = true
+  } catch {
+    drawerHistoryPushed = false
+  }
+}
+function releaseDrawerHistory() {
+  if (!drawerHistoryPushed) return
+  drawerHistoryPushed = false
+  try { window.history.back() } catch { /* 忽略：历史不可用时只关抽屉 */ }
+}
+function handlePopState() {
+  if (!journey.drawerOpen.value) return
+  // 由返回键消费掉这一条历史，不要再触发一次 history.back()
+  drawerHistoryPushed = false
+  closeDrawer()
+}
+
 /** 抽屉主按钮：展示的节点就是播放节点时切换播放，否则按正式切站进入该节点 */
 function drawerPlay() {
   if (journey.drawerMatchesPlaying.value) journey.togglePlayback()
@@ -180,7 +222,6 @@ function drawerPlay() {
 }
 
 function seek(deltaSeconds: number) {
-  if (!journey.drawerMatchesPlaying.value && journey.drawerOpen.value) return
   const result = journey.seekBy(deltaSeconds)
   if (result.moved) return
   if (result.reason === 'at-start') showSeekNotice(messages.value.seekAtStart)
@@ -198,9 +239,11 @@ watch(() => journey.drawerOpen.value, (open) => {
   if (open) {
     previousBodyOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    pushDrawerHistory()
     void nextTickFocusDrawer()
     return
   }
+  releaseDrawerHistory()
   document.body.style.overflow = previousBodyOverflow
   const target = drawerReturnFocus ?? (dockRef.value?.querySelector('button:last-of-type') as HTMLElement | null)
   drawerReturnFocus = null
@@ -258,29 +301,20 @@ function openAskWithContext() {
   const route = journey.active.value?.route
   const stop = journey.currentStop.value
   if (!route || !stop) return
-  const guideVoice = resolveGuideVoiceId()
+  const guideVoice = resolveTourVoiceContext(journey.narration.value, journey.stops.value[0]?.guideNarrations?.find(item => item.locale === journey.locale.value) ?? null)
   askStore.openAskWithStageContext({
     routeId: route.id,
     stageId: stop.id,
     routeTitle: route.title || '',
     stageTitle: stop.name || '',
-    guideId: journey.narration.value?.guideId ?? null,
-    guideVoiceId: guideVoice,
+    guideId: guideVoice.guideId,
+    guideVoiceId: guideVoice.voiceId,
     playingChapterId: journey.speech.currentItem.value?.chapterId ?? null,
     playingTimeSeconds: Math.max(0, Math.round(journey.speech.playedSeconds.value)),
   })
 }
 
 /** 当前讲解导游音色 → 路线第一个节点讲解导游音色 → null（交给 askStore / 服务端兜底） */
-function resolveGuideVoiceId(): string | null {
-  const current = journey.narration.value?.providerVoiceId
-  if (current) return current
-  for (const stop of journey.stops.value) {
-    const narration = stop.guideNarrations?.find(item => item.locale === journey.locale.value)
-    if (narration?.providerVoiceId) return narration.providerVoiceId
-  }
-  return null
-}
 
 /** 近站讲解开关：关掉定位时同步退出跟随，避免镜头停在最后一次定位上 */
 function toggleTracking() {
@@ -311,12 +345,14 @@ onMounted(() => {
   journey.restoreLanguage(route.query.lang)
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('visibilitychange', handleVisibility)
+  window.addEventListener('popstate', handlePopState)
   if (journey.languageReady.value) void load()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleKeydown)
   document.removeEventListener('visibilitychange', handleVisibility)
+  window.removeEventListener('popstate', handlePopState)
   document.body.style.overflow = previousBodyOverflow
   clearTimeout(seekNoticeTimer)
   clearTimeout(resumeNoticeTimer)
@@ -352,7 +388,7 @@ onBeforeUnmount(() => {
     <TourRoutePicker v-if="!viewingJourney" :routes="routes" :selected-id="journey.preview.value?.route?.id || null" :pending="journey.pending.value" :can-start="Boolean(journey.preview.value?.stops?.length)" :messages="messages" @select="selectRoute" @start="start" />
     <button v-if="!viewingJourney && journey.active.value" class="tour-return" type="button" @click="viewingJourney = true">{{ journey.active.value.route?.title }} · {{ messages.resume }}</button>
     <template v-if="viewingJourney && journey.currentStop.value">
-      <TourArrivalPrompt :candidates="journey.arrivalCandidates.value" :pending="journey.pending.value" :messages="messages" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
+      <TourArrivalPrompt v-if="showArrivalPrompt" :candidates="journey.arrivalCandidates.value" :pending="journey.pending.value" :messages="messages" :playing-stop-name="journey.currentStop.value?.name || null" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
       <nav class="tour-tools" aria-label="路线工具">
         <button type="button" :class="{ active: journey.tracking.value }" :aria-pressed="journey.tracking.value" :aria-label="journey.tracking.value ? messages.stopLocate : messages.locate" :title="journey.tracking.value ? messages.stopLocate : messages.locate" @click="toggleTracking"><MapPin :size="16" /></button>
         <span class="toolbar-divider" aria-hidden="true" />
@@ -368,8 +404,8 @@ onBeforeUnmount(() => {
           <TourStoryDrawer
             :stop="journey.drawerStop.value"
             :stops="journey.stops.value"
-            :narration="journey.narration.value"
-            :narrations="journey.narrations.value"
+            :narration="journey.drawerNarration.value"
+            :narrations="journey.drawerNarrations.value"
             :playing="isPlaying"
             :paused="isPaused"
             :pending="journey.pending.value"
@@ -387,6 +423,7 @@ onBeforeUnmount(() => {
             :duration-seconds="journey.speech.currentItemDuration.value"
             @close="closeDrawer"
             @play="drawerPlay"
+            @keep-playing="journey.openContentDrawer(journey.currentIndex.value, 'manual')"
             @replay="journey.replayCurrentStop"
             @seek="seek"
             @select="journey.selectStop"
@@ -401,12 +438,13 @@ onBeforeUnmount(() => {
         <div class="tour-dock-controls">
           <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !journey.canGoPrevious.value" :aria-label="messages.prevStop" :title="messages.prevStop" @click="journey.previousStop()"><SkipBack :size="16" aria-hidden="true" /><span>{{ messages.prevStop }}</span></button>
           <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !canSeek" :aria-label="messages.rewind15" :title="messages.rewind15" @click="seek(-15)"><SkipBack :size="14" aria-hidden="true" /><span>{{ messages.rewind15 }}</span></button>
-          <button type="button" class="tour-dock-button is-primary" :disabled="journey.pending.value" @click="journey.togglePlayback()"><Pause v-if="isPlaying" :size="16" aria-hidden="true" /><Play v-else :size="16" aria-hidden="true" /><span>{{ playLabel }}</span></button>
+          <button type="button" class="tour-dock-button is-primary" :disabled="journey.pending.value || (!canPlayCurrent && !isPlaying && !isPaused)" @click="journey.togglePlayback()"><Pause v-if="isPlaying" :size="16" aria-hidden="true" /><Play v-else :size="16" aria-hidden="true" /><span>{{ playLabel }}</span></button>
           <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !canSeek" :aria-label="messages.forward15" :title="messages.forward15" @click="seek(15)"><SkipForward :size="14" aria-hidden="true" /><span>{{ messages.forward15 }}</span></button>
           <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !journey.canGoNext.value" :aria-label="messages.nextStop" :title="messages.nextStop" @click="journey.nextStop()"><SkipForward :size="16" aria-hidden="true" /><span>{{ messages.nextStop }}</span></button>
         </div>
         <button type="button" class="tour-dock-info" @click="openDrawerFromDock">
           <strong>{{ journey.currentStop.value.name }}</strong>
+          <small v-if="playingItemLabel">{{ messages.playingNow }}：{{ playingItemLabel }}</small>
           <span>{{ journey.visit.value?.status === 2 ? messages.finished : `${journey.currentIndex.value + 1} / ${journey.stops.value.length}` }} · {{ messages.content }}<template v-if="progressLabel"> · {{ progressLabel }}</template></span>
           <small v-if="journey.browsing.value">{{ messages.browsingNoProgress }}</small>
           <small v-else-if="autoAdvanceHint">{{ autoAdvanceHint }}</small>

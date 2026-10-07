@@ -27,7 +27,7 @@ import BoundaryDrawCanvas from '@/components/scenic-map/BoundaryDrawCanvas.vue'
 import { resolveApiErrorMessage, useApiClient } from '@/composables/useApiClient'
 import { useActionFeedback } from '@/composables/useActionFeedback'
 import { isBusinessErrorCode, isConflictError } from '@/utils/api-error'
-import { boundaryPolygons, circleToRing, parseBoundary } from '@/utils/scenic-boundary'
+import { boundaryPolygons, circleToRing, evaluateApproach, parseBoundary, type PlaceRange } from '@/utils/scenic-boundary'
 import {
   PLACE_RANGE_ERROR_CODE,
   PLACE_RANGE_TYPE,
@@ -342,10 +342,41 @@ async function evaluate() {
   evaluating.value = true
   actionError.value = ''
   try {
-    evaluation.value = await request<PlaceRangeEvaluation>('/api/cultural-place/evaluate-range', {
-      method: 'POST',
-      body: { id: place.id, longitude: simulatedPoint.value.longitude, latitude: simulatedPoint.value.latitude },
-    })
+    const rangeType = form.rangeType === PLACE_RANGE_TYPE.CIRCLE ? 'circle' : form.rangeType === PLACE_RANGE_TYPE.POLYGON ? 'polygon' : 'point'
+    if (coordinateSystem.value === 3) throw new Error('请先将景点坐标转换为 WGS84 或 GCJ-02 后模拟。')
+    const toWgs84 = (point: DrawPoint): DrawPoint => coordinateSystem.value === 2 ? gcj02ToWgs84(point) : point
+    const geometry = parseBoundary(form.boundaryGeoJson)
+    const transformCoordinates = (value: unknown): unknown => {
+      if (!Array.isArray(value)) return value
+      if (typeof value[0] === 'number' && typeof value[1] === 'number') {
+        const point = toWgs84({ longitude: value[0], latitude: value[1] })
+        return [point.longitude, point.latitude]
+      }
+      return value.map(transformCoordinates)
+    }
+    const boundaryGeoJson = geometry ? JSON.stringify({ type: geometry.type, coordinates: transformCoordinates(geometry.coordinates) }) : null
+    const draftRange: PlaceRange = {
+      type: rangeType,
+      radiusMeters: optionalNumber(form.rangeRadiusMeters),
+      boundaryGeoJson,
+      proximityDistanceMeters: effectiveProximity.value ?? 50,
+      releaseDistanceMeters: effectiveRelease.value ?? 80,
+      rangeVersion: rangeVersion.value,
+    }
+    const draftAnchor = anchor.value ?? (place.longitude != null && place.latitude != null ? { longitude: Number(place.longitude), latitude: Number(place.latitude) } : null)
+    if (rangeType === 'circle' && !(Number(form.rangeRadiusMeters) > 0)) throw new Error('请填写有效的圆半径。')
+    if (rangeType === 'polygon' && !geometry) throw new Error('请先绘制有效的多边形。')
+    if (thresholdError.value) throw new Error(thresholdError.value)
+    const result = evaluateApproach(simulatedPoint.value, draftRange, draftAnchor ? toWgs84(draftAnchor) : null)
+    evaluation.value = {
+      placeId: String(place.id),
+      rangeType: form.rangeType,
+      distanceMeters: result.distanceMeters,
+      isWithinRange: result.withinRange,
+      proximityDistanceMeters: result.proximityMeters,
+      releaseDistanceMeters: result.releaseMeters,
+      isApproaching: result.approaching,
+    }
   } catch (caught) {
     evaluation.value = null
     actionError.value = resolveApiErrorMessage(caught, '范围判定失败。')

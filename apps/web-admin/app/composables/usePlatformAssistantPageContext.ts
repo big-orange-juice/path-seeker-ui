@@ -1,5 +1,6 @@
 import { computed } from 'vue';
 import { useAdminNavigation } from '@/composables/useAdminNavigation';
+import { useAssistantSelections } from '@/composables/usePlatformAssistantSelection';
 import {
   createEmptyAssistantContext,
   type PlatformAssistantContext,
@@ -22,6 +23,9 @@ import {
 export const usePlatformAssistantPageContext = () => {
   const route = useRoute();
   const { navItems } = useAdminNavigation();
+  const selections = useAssistantSelections();
+  const selectedContext = computed(() => Object.assign({}, ...Object.values(selections.value)
+    .filter(item => item.path === route.path).map(item => item.selection)));
 
   const readQuery = (key: string): string => {
     const value = route.query[key];
@@ -58,6 +62,7 @@ export const usePlatformAssistantPageContext = () => {
     routeId: readQuery('routeId'),
     stageId: readQuery('stageId'),
     guideId: readQuery('guideId'),
+    ...selectedContext.value,
   }));
 
   return { context, pageLabel };

@@ -29,6 +29,8 @@ export function useAskSpeech() {
     bargeInListening,
     bargeInPermissionDenied,
     bargeInError,
+    askAudioRunId,
+    askAudioSettle,
   } = storeToRefs(askStore)
 
   const liveAssistant = computed(() => {
@@ -131,5 +133,8 @@ export function useAskSpeech() {
     unlock,
     stopSpeaking,
     dispose,
+    // v5: ask-audio settle events (completed/stopped/failed/interrupted), see plan 5.2
+    askAudioRunId,
+    askAudioSettle,
   }
 }

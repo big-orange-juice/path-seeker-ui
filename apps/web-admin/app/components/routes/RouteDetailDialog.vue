@@ -30,6 +30,7 @@ import OutdoorRouteWorkspace from '@/components/routes/OutdoorRouteWorkspace.vue
 import OutdoorRoutePreview from '@/components/routes/OutdoorRoutePreview.vue';
 import StageEditDialog from '@/components/routes/StageEditDialog.vue';
 import { useActionFeedback } from '@/composables/useActionFeedback';
+import { useCulturalPlaces } from '@/composables/useCulturalPlaces';
 import type { ChatAttachmentReference } from '@/types/chat';
 import type { RouteWorkflowActions } from '@/constants/routeWorkflow';
 import type { NarrationDetailResponse } from '@/types/narration';
@@ -87,10 +88,15 @@ const emit = defineEmits<{
 const { request } = useApiClient();
 const actionFeedback = useActionFeedback();
 const selectedStageId = shallowRef('');
+usePlatformAssistantSelection(() => props.open ? ({ routeId: props.record?.id || '', stageId: selectedStageId.value }) : {});
 const stageEditOpen = shallowRef(false);
 const routeMapOpen = shallowRef(false);
 const mapRefreshVersion = shallowRef(0);
 const outdoorMapDetail = shallowRef<RouteMapDetail | null>(null);
+// 编排地图（左侧工作台与手机预览）都要像 C 端一样画出景点范围面，
+// 这里按目的地统一取一次文化点，避免两个地图各请求一次。
+const outdoorPlaceList = useCulturalPlaces(() => outdoorMapDetail.value?.museumId || '');
+const outdoorPlaces = outdoorPlaceList.records;
 const outdoorWorkspace = shallowRef<{ save: () => Promise<boolean> } | null>(null);
 const savingCompilation = shallowRef(false);
 const isOutdoor = computed(() => props.record?.sceneType === 2);
@@ -673,6 +679,7 @@ async function saveRouteTitle() {
           :distance-meters="props.record?.distanceMeters"
           :estimated-minutes="props.record?.estimatedMinutes"
           :refresh-version="mapRefreshVersion"
+          :places="outdoorPlaces"
           @select="selectedStageId = $event"
           @edit="editOutdoorStage"
           @remove="removeOutdoorStage"
@@ -748,6 +755,7 @@ async function saveRouteTitle() {
             :narration="narrationDetail"
             :detail="outdoorMapDetail"
             :can-edit="props.canEdit"
+            :places="outdoorPlaces"
             @select="selectedStageId = $event"
             @edit="editOutdoorStage" />
           <AdminStageSimulator

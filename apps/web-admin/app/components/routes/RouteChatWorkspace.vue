@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue';
 import ChatPanel from '@/components/chat/ChatPanel.vue';
 import RouteChatPreviewPane from '@/components/routes/RouteChatPreviewPane.vue';
 import { useChatSession } from '@/composables/useChatSession';
+import { useRouteBuildTaskProgress } from '@/composables/useRouteBuildTaskProgress';
 import type {
   ChatDonePayload,
   ChatComposerSubmitPayload,
@@ -11,8 +12,6 @@ import type {
   ChatExhibitSelectedPayload,
   ChatExhibitSummary,
   ChatRouteBuildProgressPayload,
-  ChatRouteBuildProgressState,
-  ChatRouteBuildProgressStatus,
   ChatRouteDetailPayload,
   ChatRouteListUpdatedPayload,
   ChatRouteBuildCompletePayload,
@@ -22,7 +21,7 @@ interface Props {
   active?: boolean;
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   active: true,
 });
 
@@ -36,7 +35,6 @@ const emit = defineEmits<{
 const routeDetail = ref<ChatRouteDetailPayload | null>(null);
 const exhibits = ref<ChatExhibitSummary[]>([]);
 const publishedHint = ref('');
-const buildProgress = ref<ChatRouteBuildProgressState | null>(null);
 const seenProgressEventIds = new Set<string>();
 
 let stageRefreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -49,7 +47,6 @@ const clearStageRefreshTimer = () => {
 };
 
 const clearBuildProgress = () => {
-  buildProgress.value = null;
   seenProgressEventIds.clear();
   clearStageRefreshTimer();
 };
@@ -65,99 +62,12 @@ const scheduleStageRefresh = (routeId: string) => {
   }, 600);
 };
 
-const toCount = (value: number | null | undefined) => {
-  const next = Number(value);
-  return Number.isFinite(next) && next >= 0 ? next : 0;
-};
-
-const normalizeProgressStatus = (
-  value: ChatRouteBuildProgressPayload['status'],
-): ChatRouteBuildProgressStatus => {
-  if (value === 'running' || value === 'succeeded' || value === 'failed' || value === 'completed') {
-    return value;
-  }
-
-  return 'running';
-};
-
-const uniqueStageIds = (ids: string[]) => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const id of ids) {
-    if (!id || seen.has(id)) {
-      continue;
-    }
-
-    seen.add(id);
-    result.push(id);
-  }
-
-  return result;
-};
-
-const resolveProgressMessage = (input: {
-  status: ChatRouteBuildProgressStatus;
-  currentIndex: number;
-  totalCount: number;
-  createdCount: number;
-  exhibitName: string | null;
-  payloadMessage: string;
-}) => {
-  const { status, currentIndex, totalCount, createdCount, exhibitName, payloadMessage } = input;
-
-  if (status === 'running') {
-    if (totalCount > 0 && currentIndex > 0) {
-      const head = `正在创建第 ${currentIndex} 个站点，累计 ${createdCount}/${totalCount}`;
-      return exhibitName ? `${head} · ${exhibitName}` : head;
-    }
-
-    return payloadMessage || '正在创建站点';
-  }
-
-  if (status === 'succeeded') {
-    return totalCount > 0
-      ? `已创建 ${createdCount} 个站点，共 ${totalCount} 个`
-      : payloadMessage || '站点创建成功';
-  }
-
-  if (status === 'failed') {
-    return payloadMessage || '站点创建失败';
-  }
-
-  return createdCount > 0
-    ? `站点生成完成，共创建 ${createdCount} 个`
-    : payloadMessage || '站点生成完成';
-};
-
-const isNewBuildBatch = (
-  previous: ChatRouteBuildProgressState,
-  next: {
-    interactionType: number;
-    status: ChatRouteBuildProgressStatus;
-    currentIndex: number;
-    createdCount: number;
-    processedCount: number;
-  },
-) => {
-  if (previous.interactionType !== next.interactionType) {
-    return true;
-  }
-
-  // 同玩法下开启新一轮 BuildStagesByAgent：序号回到 1，或本批计数被清零。
-  if (next.status === 'running' && next.currentIndex <= 1) {
-    if (previous.status === 'completed' || previous.status === 'failed') {
-      return true;
-    }
-
-    if (previous.createdCount > 0 && next.createdCount === 0 && next.processedCount === 0) {
-      return true;
-    }
-  }
-
-  return false;
-};
-
+/**
+ * 处理 SSE 的站点构建进度事件。
+ *
+ * 进度展示已改为轮询 /api/Route/TaskStatus（见 useRouteBuildTaskProgress），
+ * 这里只保留「节点变化后让路线列表跟上」的刷新副作用，不再聚合展示用的计数。
+ */
 const applyBuildProgress = (event: ChatEventResponse) => {
   const eventId = String(event.eventId || '').trim();
 
@@ -171,114 +81,17 @@ const applyBuildProgress = (event: ChatEventResponse) => {
 
   const payload = (event.payload ?? {}) as ChatRouteBuildProgressPayload;
   const routeId = String(payload.routeId ?? '').trim();
-  const runId = String(event.runId || '').trim();
-  const interactionType = toCount(payload.interactionType);
-  const status = normalizeProgressStatus(payload.status);
-  const payloadCurrentIndex = toCount(payload.currentIndex);
-  const payloadTotalCount = toCount(payload.totalCount);
-  const payloadProcessedCount = toCount(payload.processedCount);
-  const payloadCreatedCount = toCount(payload.createdCount);
-  const payloadFailedCount = toCount(payload.failedCount);
-  const payloadMessage = String(payload.message ?? '').trim();
-  const payloadStageIds = Array.isArray(payload.stageIds)
-    ? payload.stageIds.map((id) => String(id)).filter(Boolean)
-    : [];
-  const exhibitId = payload.exhibitId != null && String(payload.exhibitId).trim()
-    ? String(payload.exhibitId)
-    : null;
-  const exhibitName = payload.exhibitName != null && String(payload.exhibitName).trim()
-    ? String(payload.exhibitName)
-    : null;
-
-  const previous = buildProgress.value;
-  const sameRun = Boolean(
-    previous
-    && previous.runId === runId
-    && previous.routeId === routeId,
-  );
-
-  let batchBase = {
-    totalCount: 0,
-    processedCount: 0,
-    createdCount: 0,
-    failedCount: 0,
-  };
-
-  if (sameRun && previous) {
-    if (isNewBuildBatch(previous, {
-      interactionType,
-      status,
-      currentIndex: payloadCurrentIndex,
-      createdCount: payloadCreatedCount,
-      processedCount: payloadProcessedCount,
-    })) {
-      // 新批次：把上一批累计值固化为基数
-      batchBase = {
-        totalCount: previous.totalCount,
-        processedCount: previous.processedCount,
-        createdCount: previous.createdCount,
-        failedCount: previous.failedCount,
-      };
-    } else {
-      batchBase = previous.batchBase;
-    }
-  }
-
-  const mergedStageIds = uniqueStageIds([
-    ...(sameRun && previous ? previous.stageIds : []),
-    ...payloadStageIds,
-  ]);
-
-  // 本批绝对计数 + 历史基数；stageIds 去重后作为创建数下限，避免多批 completed 只带 1 时回退。
-  const createdCount = Math.max(
-    batchBase.createdCount + payloadCreatedCount,
-    mergedStageIds.length,
-  );
-  const processedCount = Math.max(
-    batchBase.processedCount + payloadProcessedCount,
-    createdCount,
-  );
-  const totalCount = Math.max(
-    batchBase.totalCount + payloadTotalCount,
-    processedCount,
-    createdCount,
-  );
-  const failedCount = batchBase.failedCount + payloadFailedCount;
-
-  buildProgress.value = {
-    runId,
-    routeId,
-    interactionType,
-    currentIndex: payloadCurrentIndex,
-    totalCount,
-    processedCount,
-    createdCount,
-    failedCount,
-    exhibitId: exhibitId ?? (sameRun ? previous?.exhibitId ?? null : null),
-    exhibitName: exhibitName ?? (sameRun ? previous?.exhibitName ?? null : null),
-    status,
-    stageIds: mergedStageIds,
-    batchBase,
-    message: resolveProgressMessage({
-      status,
-      currentIndex: payloadCurrentIndex,
-      totalCount,
-      createdCount,
-      exhibitName: exhibitName ?? (sameRun ? previous?.exhibitName ?? null : null),
-      payloadMessage,
-    }),
-  };
 
   if (!routeId) {
     return;
   }
 
-  if (status === 'succeeded') {
+  if (payload.status === 'succeeded') {
     scheduleStageRefresh(routeId);
     return;
   }
 
-  if (status === 'completed' || status === 'failed') {
+  if (payload.status === 'completed' || payload.status === 'failed') {
     clearStageRefreshTimer();
     emit('routeChanged', routeId);
   }
@@ -476,6 +289,17 @@ const handleSend = (payload: ChatComposerSubmitPayload) =>
     attachmentReferences: payload.attachmentReferences,
   });
 
+/** 当前路线 ID：对话流会先给 contextRouteId，详情事件随后补齐 id */
+const currentRouteId = () =>
+  String(routeDetail.value?.id || contextRouteId.value || '').trim();
+
+// 右侧「创建进度」不依赖 SSE：面板在前台且有 routeId 时按固定节奏轮询 TaskStatus 汇总，
+// 这样对话流断开、或后台任务在轮次结束后才入队，右侧进度都还能继续更新。
+const { progress: creationProgress } = useRouteBuildTaskProgress({
+  routeId: currentRouteId,
+  active: () => props.active,
+});
+
 const resetSession = () => {
   clearBuildProgress();
   resetChatSession();
@@ -483,7 +307,7 @@ const resetSession = () => {
 
 // active 仅表示是否在前台展示，切 tab 不中断 SSE；关闭 dialog 由父级 abortActiveRun
 
-// 新一轮对话开始时清掉上一批进度，避免残留。
+// 新一轮对话开始时清掉上一批 SSE 事件去重记录，避免残留。
 watch(isRunning, (running, wasRunning) => {
   if (running && !wasRunning) {
     clearBuildProgress();
@@ -519,7 +343,7 @@ defineExpose({
         <RouteChatPreviewPane
           :route-detail="routeDetail"
           :exhibits="exhibits"
-          :build-progress="buildProgress"
+          :creation-progress="creationProgress"
           :context-route-id="contextRouteId"
           :published-hint="publishedHint" />
       </template>
