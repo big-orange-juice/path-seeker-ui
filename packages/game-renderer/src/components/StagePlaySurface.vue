@@ -155,10 +155,11 @@ const narrationGuideName = computed(
 )
 // 渲染不再读取 config.user_style_input / scene_context；配图走 detail.images
 const narrationDurationSeconds = computed(() => {
+  const durationMs = narration.value?.durationMs
+  if (typeof durationMs === "number" && durationMs > 0) return Math.round(durationMs / 1000)
   const configured = readNumber("target_duration_seconds")
   if (configured > 0) return configured
-  const durationMs = narration.value?.durationMs
-  return typeof durationMs === "number" && durationMs > 0 ? Math.round(durationMs / 1000) : 90
+  return 90
 })
 const narrationText = computed(
   () => readString("narration_text") || String(narration.value?.narrationText ?? "").trim(),

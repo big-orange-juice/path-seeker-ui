@@ -242,7 +242,7 @@ function renderHandles() {
   }
 
   // 高亮当前编辑路段，便于确认正在改哪一段
-  layers.push(new sdk.Polyline({
+  handleLayer.push(new sdk.Polyline({
     path: points.map(point => editorPosition(point)),
     strokeColor: ACTIVE_SEGMENT_COLOR,
     strokeWeight: 7,
@@ -252,6 +252,7 @@ function renderHandles() {
     outlineColor: '#ffffff',
     borderWeight: 2,
   }))
+  map.value.add(handleLayer)
 }
 
 /**
@@ -386,6 +387,7 @@ watch(() => [props.focusedStageId, props.journey], () => render(false))
 watch(() => props.drawingSegmentNo, () => { draft = []; renderDraft(); emit('drawChange', []) })
 watch(() => [props.editable, props.editableSegmentNo] as const, () => render(false, false))
 watch(() => props.editablePoints, () => { if (props.editable) refreshHandles() }, { deep: true })
+watch(() => [props.previewPointsBySegmentNo, props.dirtySegmentNos], () => render(false, false), { deep: true })
 onBeforeUnmount(() => { alive = false; observer?.disconnect(); clearHandles(); map.value?.destroy(); map.value = null })
 </script>
 

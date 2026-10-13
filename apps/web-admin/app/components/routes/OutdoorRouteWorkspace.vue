@@ -92,7 +92,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const result = await request<RouteMapDetail>('/api/route-map/get', { query: { routeId: props.routeId } })
+    const result = await request<RouteMapDetail>('/api/route-map/get', { query: { routeId: props.routeId }, timeout: 30000, retry: 0 })
     if (alive && token === version) { detail.value = result; emit('loaded', result) }
   } catch (caught) { if (alive && token === version) error.value = caught instanceof Error ? caught.message : '地图加载失败。' }
   finally { if (alive && token === version) loading.value = false }
@@ -100,11 +100,12 @@ async function load() {
 
 async function save() {
   if (pending.value || !props.canEdit || !props.routeId) return false
+  const targetRouteId = props.routeId
   pending.value = true
   error.value = ''
   try {
-    const result = await request<RouteMapDetail>('/api/route-map/sync-stations', { method: 'POST', body: { routeId: props.routeId } })
-    if (!alive) return false
+    const result = await request<RouteMapDetail>('/api/route-map/sync-stations', { method: 'POST', body: { routeId: targetRouteId }, timeout: 30000, retry: 0 })
+    if (!alive || props.routeId !== targetRouteId) return false
     version += 1
     loading.value = false
     detail.value = result
@@ -117,6 +118,7 @@ async function save() {
 
 async function reorder(index: number, delta: number) {
   if (pending.value || !props.canEdit) return
+  const targetRouteId = props.routeId
   const target = index + delta
   if (target < 0 || target >= ordered.value.length) return
   const ids = ordered.value.map(node => node.stageId)
@@ -126,12 +128,12 @@ async function reorder(index: number, delta: number) {
   error.value = ''
   let orderSaved = false
   try {
-    await request('/api/route/stage-reorder', { method: 'POST', body: { routeId: props.routeId, orderedStageIds: ids } })
+    await request('/api/route/stage-reorder', { method: 'POST', body: { routeId: targetRouteId, orderedStageIds: ids }, timeout: 30000, retry: 0 })
     orderSaved = true
-    const result = await request<RouteMapDetail>('/api/route-map/sync-stations', { method: 'POST', body: { routeId: props.routeId } })
-    if (alive) { version += 1; loading.value = false; detail.value = result; emit('loaded', result) }
+    const result = await request<RouteMapDetail>('/api/route-map/sync-stations', { method: 'POST', body: { routeId: targetRouteId }, timeout: 30000, retry: 0 })
+    if (alive && props.routeId === targetRouteId) { version += 1; loading.value = false; detail.value = result; emit('loaded', result) }
   } catch (caught) { if (alive) error.value = caught instanceof Error ? caught.message : '顺序保存失败。' }
-  finally { if (alive) { pending.value = false; if (orderSaved) emit('changed') } }
+  finally { if (alive) { pending.value = false; if (orderSaved && props.routeId === targetRouteId) emit('changed') } }
 }
 
 watch(() => [props.routeId, props.nodes, props.refreshVersion], () => void load(), { immediate: true })

@@ -46,21 +46,20 @@ const toastStore = useToastStore();
 const recognition = useBrowserSpeechRecognition();
 const voiceHold = useVoiceHold({
   recognition,
-  canStart: () => !askStore.typing && !askStore.open && !isRouteSwitching.value,
+  canStart: () => !askStore.open && !isRouteSwitching.value,
   onPress: () => askStore.unlockSseAudio(),
   onStart: () => {
-    askStore.stopSseAudio();
+    askStore.beginVoiceInput();
   },
-  onSubmit: (text) => {
+  onRelease: (completion) => {
     askStore.setInteractionMode('voice');
-    askStore.clearDraftText();
-    askStore.openAsk();
+    void askStore.finishVoiceInput(completion);
     collapse();
-    void askStore.send(text);
+    void router.push('/shell/ask');
   },
   onCancel: () => askStore.clearDraftText(),
   onError: (message) => toastStore.warning('语音输入', message),
-  onTap: () => { void handleActionClick(askAction.value); },
+  onTap: () => { collapse(); void router.push('/shell/ask'); },
 });
 const fabRoot = useTemplateRef<HTMLElement>('fabRoot');
 

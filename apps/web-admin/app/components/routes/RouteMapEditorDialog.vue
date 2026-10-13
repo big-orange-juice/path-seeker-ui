@@ -13,6 +13,7 @@ import { useActionFeedback } from '@/composables/useActionFeedback'
 import { segmentLengthMeters, useRouteMapEditor } from '@/composables/useRouteMapEditor'
 import type { RouteMapDetail, RouteMapStation } from '@/types/route-map'
 import type { LngLat } from '@/utils/route-map-geometry'
+import { routeMapGenerationFeedback } from '@/utils/route-map-generation-feedback'
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -26,7 +27,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ 'update:open': [value: boolean]; saved: [detail: RouteMapDetail] }>()
 
-const model = computed({ get: () => props.open, set: value => emit('update:open', value) })
+const model = computed({ get: () => props.open, set: value => { if (!value) closeDialog() } })
 const actionFeedback = useActionFeedback()
 const { request } = useApiClient()
 const canvas = shallowRef<{ zoomBy: (delta: number) => void; fit: () => void } | null>(null)
@@ -45,17 +46,20 @@ const {
   dirtySegmentNos,
   snapToRoad,
   loading,
-  saving,
   error,
   stations,
   geometryVersion,
   validationMessages,
   hasDirty,
+  canSaveActiveSegment,
   hasVersionConflict,
   dirtySegments,
   canUndo,
   canRedo,
 } = editor
+
+const actionPending = shallowRef(false)
+const saving = computed(() => editor.saving.value || actionPending.value)
 
 /** 仅本次编辑会话内的吸附提示，与后端 validationMessages 分开呈现 */
 const snapNotice = shallowRef('')
@@ -116,67 +120,79 @@ async function load() {
 }
 
 /** 统一 POST 动作：站点同步 / 生成 / 校验 / 确认 */
-async function runAction(path: string, body: Record<string, unknown> = {}) {
-  if (hasDirty.value && !window.confirm('存在未保存的路段草稿，继续操作会丢弃草稿。是否继续？')) {
-    return
+async function runAction(path: string, body: Record<string, unknown> = {}, discardConfirmed = false) {
+  if (loading.value || saving.value || (!props.canEdit && path !== '/api/route-map/validate')) {
+    return false
+  }
+  const validating = path === '/api/route-map/validate'
+  if (path === '/api/route-map/confirm' && hasDirty.value) {
+    editor.error.value = '请先保存全部路段草稿，再确认路线。'
+    return false
+  }
+  if (hasDirty.value && !validating && !discardConfirmed && !window.confirm('存在未保存的路段草稿，继续操作会丢弃草稿。是否继续？')) {
+    return false
   }
   actionPending.value = true
   editor.error.value = ''
   try {
     const result = await requestDetail(path, body)
     if (result) {
-      editor.discardAll()
-      editor.applyDetail(result)
-      emit('saved', result)
+      if (validating) editor.applyPreservingDrafts(result)
+      else editor.applyDetail(result)
+      if (path === '/api/route-map/generate') {
+        snapNotice.value = ''
+        actionFeedback.show(routeMapGenerationFeedback(result, typeof body.segmentNo === 'number' ? body.segmentNo : undefined))
+      }
+      return true
     }
+    return false
   } catch (caught) {
     editor.error.value = caught instanceof Error ? caught.message : '操作失败。'
+    return false
   } finally {
     actionPending.value = false
   }
 }
 
-const actionPending = shallowRef(false)
+async function regenerateSegment(segmentNo: number) {
+  if (!props.canEdit || loading.value || saving.value) return
+  const segment = segments.value.find(item => item.segmentNo === segmentNo)
+  if (!segment) return
+  const manualNotice = segment.serverSourceType === 2 ? '该段人工绘制将被覆盖，并改为自动路段。' : '该段现有路线将被替换。'
+  const draftNotice = hasDirty.value ? `成功后将丢弃全部 ${dirtySegments.value.length} 段未保存草稿。` : ''
+  if (!window.confirm(`重新自动生成第 ${segmentNo} 段（${segment.fromTitle} → ${segment.toTitle}）？${manualNotice}${draftNotice}`)) return
+  await runAction('/api/route-map/generate', { segmentNo, overwriteManual: true }, true)
+}
 
 async function requestDetail(path: string, body: Record<string, unknown>): Promise<RouteMapDetail | null> {
   return request<RouteMapDetail>(path, {
     method: 'POST',
+    timeout: path.endsWith('/generate') ? 150000 : 30000,
+    retry: 0,
     body: { routeId: props.routeId, ...body },
   })
 }
 
 async function moveStation(payload: { stationId: string; longitude: number; latitude: number }) {
+  if (!props.canEdit || loading.value || saving.value) return
+  actionPending.value = true
   editor.error.value = ''
   try {
     const result = await requestDetail('/api/route-map/update-station', { ...payload, coordinateSystem: 1 })
     editStationId.value = ''
     if (result) {
       // 站点位置变化后，受影响路段端点需要重新固定
-      editor.applyDetail(result)
-      repinEndpointsAfterStationMove(payload.stationId)
+      editor.applyPreservingDrafts(result)
+      for (const segment of segments.value) {
+        if (segment.fromStationId === payload.stationId || segment.toStationId === payload.stationId) {
+          editor.pinSegmentEndpoints(segment)
+        }
+      }
     }
   } catch (caught) {
     editor.error.value = caught instanceof Error ? caught.message : '站点位置保存失败。'
-  }
-}
-
-/** 站点移动后把相邻路段端点重新钉到新坐标，保留中间顶点草稿 */
-function repinEndpointsAfterStationMove(stationId: string) {
-  for (const segment of segments.value) {
-    if (segment.fromStationId !== stationId && segment.toStationId !== stationId) {
-      continue
-    }
-    const from = stations.value.find(item => item.id === segment.fromStationId)
-    const to = stations.value.find(item => item.id === segment.toStationId)
-    if (!from || !to) continue
-    const next = segment.points.map((point, index) => {
-      if (index === 0) return [Number(from.longitude), Number(from.latitude)] as LngLat
-      if (index === segment.points.length - 1) return [Number(to.longitude), Number(to.latitude)] as LngLat
-      return point
-    })
-    editor.discardActive(segment.segmentNo)
-    segment.points = next
-    segment.dirty = true
+  } finally {
+    actionPending.value = false
   }
 }
 
@@ -191,6 +207,8 @@ function editStation(station: RouteMapStation) {
 }
 
 async function saveStation() {
+  if (!props.canEdit || loading.value || saving.value || !stationDraft.value.id) return
+  actionPending.value = true
   editor.error.value = ''
   try {
     const result = await requestDetail('/api/route-map/update-station', {
@@ -201,16 +219,19 @@ async function saveStation() {
       stayMinutes: stationDraft.value.stayMinutes ? Number(stationDraft.value.stayMinutes) : null,
     })
     if (result) {
-      editor.applyDetail(result)
+      editor.applyPreservingDrafts(result)
       stationDraft.value.id = ''
       actionFeedback.success('停靠信息已保存。')
     }
   } catch (caught) {
     editor.error.value = caught instanceof Error ? caught.message : '停靠信息保存失败。'
+  } finally {
+    actionPending.value = false
   }
 }
 
 async function saveSegment() {
+  if (!props.canEdit || loading.value || saving.value || !canSaveActiveSegment.value) return
   snapNotice.value = ''
   const ok = await editor.saveSegment()
   if (!ok) {
@@ -220,13 +241,14 @@ async function saveSegment() {
   if (latest.length) {
     // 后端逐段吸附结果提示（例如"有 2 段未能吸附到道路，已用直线连接"）
     snapNotice.value = latest[latest.length - 1] || ''
-    actionFeedback.success(latest[latest.length - 1] || '路段已保存。')
+    actionFeedback.show({ tone: 'info', title: '路段已保存，请检查提示', description: latest.join('；') })
     return
   }
   actionFeedback.success(snapToRoad.value ? '路段已吸附并保存。' : '已保存原始手绘折线。')
 }
 
 async function saveAll() {
+  if (!props.canEdit || loading.value || saving.value || !hasDirty.value) return
   snapNotice.value = ''
   const ok = await editor.saveAll()
   if (!ok) {
@@ -235,31 +257,34 @@ async function saveAll() {
   const latest = validationMessages.value
   if (latest.length) {
     snapNotice.value = latest[latest.length - 1] || ''
-    actionFeedback.success(latest[latest.length - 1] || '路段已保存。')
+    actionFeedback.show({ tone: 'info', title: '路段已保存，请检查提示', description: latest.join('；') })
     return
   }
   actionFeedback.success('全部路段已保存。')
 }
 
 function selectSegment(segmentNo: number) {
+  if (loading.value || saving.value) return
   editor.exitEdit()
   editor.enterEdit(segmentNo)
   snapNotice.value = ''
 }
 
 function closeDialog() {
+  if (saving.value) return
   if (hasDirty.value && !window.confirm('存在未保存的路段草稿，关闭将丢弃草稿。是否继续？')) {
     return
   }
   editor.exitEdit()
-  model.value = false
+  editor.cancelLoad()
+  emit('update:open', false)
 }
 
 function reloadFromServer() {
+  if (loading.value || saving.value) return
   if (hasDirty.value && !window.confirm('重新载入会丢弃全部未保存草稿。是否继续？')) {
     return
   }
-  editor.discardAll()
   void editor.load(props.routeId, true).then((result) => {
     if (!result) return
     actionFeedback.success('已重新载入服务端几何。')
@@ -268,7 +293,7 @@ function reloadFromServer() {
 
 /** 编辑会话内撤销重做；仅在地图编辑模式下生效 */
 function handleKeydown(event: KeyboardEvent) {
-  if (!props.open || !props.canEdit) return
+  if (!props.open || !props.canEdit || saving.value) return
   const meta = event.ctrlKey || event.metaKey
   if (!meta || event.key.toLowerCase() !== 'z') return
   const target = event.target as HTMLElement | null
@@ -284,7 +309,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown, true)
 
 watch(
   () => [props.open, props.routeId] as const,
-  ([open]) => { if (open) void load() },
+  ([open]) => { if (open) void load(); else editor.cancelLoad() },
   { immediate: true },
 )
 
@@ -312,7 +337,7 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
             <Button size="sm" variant="outline" :disabled="!canEdit || loading || saving" @click="runAction('/api/route-map/sync-stations')">同步站点</Button>
             <Button size="sm" variant="outline" :disabled="!canEdit || loading || saving || (detail?.stations.length ?? 0) < 2" @click="runAction('/api/route-map/generate')">生成缺失路段</Button>
             <Button size="sm" variant="outline" :disabled="loading || saving" @click="runAction('/api/route-map/validate')">检查路线</Button>
-            <Button size="sm" variant="outline" :disabled="!canEdit || loading || saving || detail?.geometryStatus !== 'ready'" @click="runAction('/api/route-map/confirm')">确认路线</Button>
+            <Button size="sm" variant="outline" :disabled="!canEdit || loading || saving || hasDirty || detail?.geometryStatus !== 'ready'" @click="runAction('/api/route-map/confirm')">确认路线</Button>
           </div>
         </div>
       </DialogHeader>
@@ -322,8 +347,8 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
           <RouteMapCanvas
             ref="canvas"
             :detail="detail"
-            :edit-station-id="editStationId"
-            :editable="canEdit && activeSegment !== null"
+            :edit-station-id="canEdit && !loading && !saving ? editStationId : ''"
+            :editable="canEdit && !loading && !saving && activeSegment !== null"
             :editable-segment-no="activeSegmentNo"
             :editable-points="editingPoints ?? []"
             :preview-points-by-segment-no="previewPointsBySegmentNo"
@@ -365,7 +390,7 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
               <span>
                 <strong class="font-medium">保存时吸附到道路</strong>
                 <span class="mt-1 block text-xs text-muted-foreground">
-                  开启后后端逐段调用步行路径规划，把相邻顶点之间的连线替换为沿路折线，起终点仍强制回到站点坐标；关闭则保存原始手绘折线。任一段吸附失败时该段退回直线，并在下方显示提示。
+                  开启后仅将本次修改的顶点连接吸附到道路，未修改的路线保持原样；关闭则保存原始手绘折线。吸附失败的连接使用直线，并在下方显示提示。
                 </span>
               </span>
             </label>
@@ -373,7 +398,7 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
 
           <!-- 后端 validationMessages：吸附结果与路线校验提示 -->
           <section v-if="validationMessages.length" class="mb-4 rounded-md border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200">
-            <p class="mb-1 font-medium">后端校验与吸附结果</p>
+            <p class="mb-1 font-medium">路线检查与吸附提示</p>
             <p v-for="message in validationMessages" :key="message">· {{ message }}</p>
           </section>
 
@@ -391,6 +416,7 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
               <span class="min-w-0 truncate">第 {{ segment.segmentNo }} 段 · {{ segment.fromTitle }} → {{ segment.toTitle }}</span>
               <span class="shrink-0 text-xs text-muted-foreground">
                 {{ segment.dirty ? '草稿' : segment.serverSourceType === 2 ? '人工' : segment.serverSourceType === 1 ? '自动' : '待生成' }}
+                <span v-if="segment.serverSourceType" :class="segment.serverValidationMessage || segment.serverStatus !== 1 ? 'text-amber-300' : 'text-emerald-300'"> · {{ segment.serverValidationMessage || segment.serverStatus !== 1 ? '待修复' : '已就绪' }}</span>
               </span>
             </div>
             <p class="mt-1 text-xs text-muted-foreground">
@@ -398,6 +424,7 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
               <span v-if="segment.distanceMeters"> · 服务端 {{ segment.distanceMeters }} 米</span>
             </p>
             <p v-if="segment.error" class="mt-1 text-xs text-destructive">{{ segment.error }}</p>
+            <p v-if="segment.serverValidationMessage" class="mt-1 text-xs text-amber-300">{{ segment.serverValidationMessage }}</p>
             <div v-if="canEdit" class="mt-2 flex flex-wrap gap-1.5">
               <Button
                 class="h-7 px-2 text-xs"
@@ -407,8 +434,8 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
                 @click="selectSegment(segment.segmentNo)">
                 编辑顶点
               </Button>
-              <Button class="h-7 px-2 text-xs" size="sm" variant="outline" :disabled="saving" @click="runAction('/api/route-map/generate', { segmentNo: segment.segmentNo })">
-                重新自动生成
+              <Button class="h-7 px-2 text-xs" size="sm" variant="outline" :disabled="loading || saving" @click="regenerateSegment(segment.segmentNo)">
+                {{ actionPending ? '处理中…' : '重新自动生成' }}
               </Button>
               <Button v-if="segment.dirty" class="h-7 px-2 text-xs" size="sm" variant="ghost" :disabled="saving" @click="editor.discardActive(segment.segmentNo)">
                 放弃草稿
@@ -443,8 +470,8 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
               </li>
             </ol>
             <div class="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" :disabled="!canEdit || saving" @click="saveSegment">
-                {{ saving ? '保存中…' : (snapToRoad ? '吸附并保存本段' : '保存本段（不吸附）') }}
+              <Button size="sm" :disabled="!canEdit || loading || saving || !canSaveActiveSegment" @click="saveSegment">
+                {{ saving ? '保存中…' : !canSaveActiveSegment ? '本段已保存' : (snapToRoad ? '吸附并保存本段' : '保存本段（不吸附）') }}
               </Button>
               <Button size="sm" variant="outline" :disabled="saving || !activeSegment.dirty" @click="editor.discardActive()">放弃本段草稿</Button>
             </div>
@@ -461,7 +488,7 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
             <li v-for="station in stations" :key="station.id" class="rounded-md border p-2.5 text-sm">
               <div class="flex items-start justify-between gap-2">
                 <strong class="min-w-0 truncate">{{ station.stationNo }}. {{ station.title }}</strong>
-                <Button v-if="canEdit" class="h-7 px-2 text-xs" size="sm" variant="ghost" @click="editStationId = station.id">调整入口</Button>
+                <Button v-if="canEdit" class="h-7 px-2 text-xs" size="sm" variant="ghost" :disabled="loading || saving" @click="editStationId = station.id">调整入口</Button>
               </div>
               <p class="mt-1 text-xs text-muted-foreground">{{ station.longitude.toFixed(6) }}, {{ station.latitude.toFixed(6) }}</p>
               <p v-if="station.arrivalNote" class="mt-1 text-xs text-muted-foreground">{{ station.arrivalNote }}</p>
@@ -474,7 +501,6 @@ watch(() => props.focusSegmentNo, (segmentNo) => {
                     <option value="rickshaw">黄包车</option>
                     <option value="walk">步行</option>
                     <option value="indoor">馆内</option>
-                    <option value="mixed">混合接驳</option>
                   </Select>
                 </label>
                 <label class="block text-xs">停留时长（分钟）<Input v-model="stationDraft.stayMinutes" type="number" min="0" :disabled="saving" /></label>

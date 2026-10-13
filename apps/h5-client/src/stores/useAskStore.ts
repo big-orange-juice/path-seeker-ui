@@ -35,6 +35,7 @@ import {
   type AskSpeechStatus,
 } from "@/utils/askSpeechPlayer"
 import { usePlaybackBargeIn } from "@/composables/usePlaybackBargeIn"
+import { useBrowserSpeechRecognition } from "@/composables/useBrowserSpeechRecognition"
 import { useVenueStore } from "@/stores/useVenueStore"
 
 /** 问一问交互模式：默认语音；语音模式仍打字输入，音频由后端 SSE 下发 */
@@ -253,6 +254,9 @@ export const useAskStore = defineStore("ask", () => {
   let audioRunHadError = false
 
   const bargeIn = usePlaybackBargeIn({ onBargeIn: () => interruptRun() })
+  const voiceRecognition = useBrowserSpeechRecognition()
+  const voiceInputFinishing = shallowRef(false)
+  let voiceInputGeneration = 0
 
   /** 记录本轮音频收尾原因；每轮只记一次，供行程页恢复路线讲解 */
   function settleAudioRun(reason: AskAudioSettleReason) {
@@ -390,6 +394,42 @@ export const useAskStore = defineStore("ask", () => {
     speechPlayer.unlock()
   }
 
+  function beginVoiceInput() {
+    voiceInputGeneration += 1
+    voiceInputFinishing.value = false
+    bargeIn.suspendCapture()
+    interruptRun()
+    stopSseAudio()
+  }
+
+  async function finishVoiceInput(completion: Promise<string>) {
+    const generation = voiceInputGeneration
+    voiceInputFinishing.value = true
+    errorMessage.value = ""
+    function cancelHiddenInput() {
+      if (document.visibilityState !== "hidden" || generation !== voiceInputGeneration) return
+      voiceInputGeneration += 1
+      voiceInputFinishing.value = false
+      voiceRecognition.abort()
+    }
+    document.addEventListener("visibilitychange", cancelHiddenInput)
+    try {
+      const text = await completion
+      document.removeEventListener("visibilitychange", cancelHiddenInput)
+      if (generation !== voiceInputGeneration) return
+      voiceInputFinishing.value = false
+      if (!text || voiceRecognition.error.value) {
+        errorMessage.value = voiceRecognition.error.value || "没有识别到内容，请按住说话后重试。"
+        return
+      }
+      clearDraftText()
+      await send(text)
+    } finally {
+      document.removeEventListener("visibilitychange", cancelHiddenInput)
+      if (generation === voiceInputGeneration) voiceInputFinishing.value = false
+    }
+  }
+
   /**
    * 说话打断：立刻停播并中止本轮 SSE。
    * 正文保留半截，标记为 interrupted 而不是失败——用户是「不想听了」，不是出错了。
@@ -422,6 +462,7 @@ export const useAskStore = defineStore("ask", () => {
 
   /** 在用户手势里申请麦克风；成功后若正在播则立即进入监听 */
   async function armBargeIn() {
+    if (voiceRecognition.listening.value || voiceInputFinishing.value) return false
     const ready = await bargeIn.arm()
     if (ready && isSseAudioBusy.value) {
       bargeIn.listen()
@@ -1059,6 +1100,9 @@ export const useAskStore = defineStore("ask", () => {
     armBargeIn,
     autoArmBargeIn,
     interruptRun,
+    beginVoiceInput,
+    finishVoiceInput,
+    voiceInputFinishing,
     hasStageContext,
     hasMessages,
     isRunning,

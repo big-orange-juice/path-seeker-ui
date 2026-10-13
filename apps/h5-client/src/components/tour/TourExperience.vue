@@ -42,27 +42,31 @@ let previousBodyOverflow = ''
 const messages = computed(() => tourMessages(journey.locale.value))
 const voiceHold = useVoiceHold({
   recognition: voice,
-  canStart: () => !askStore.typing && !journey.pending.value && Boolean(journey.active.value?.route && journey.currentStop.value),
+  canStart: () => !journey.pending.value && Boolean(journey.active.value?.route && journey.currentStop.value),
   lang: () => RECOGNITION_LANGS[journey.locale.value],
   onPress: () => askStore.unlockSseAudio(),
   onStart: () => {
     journey.beginAskInterrupt()
-    askStore.stopSseAudio()
+    askStore.beginVoiceInput()
     voiceNotice.value = ''
     setAskContext()
   },
-  onSubmit: (text) => {
+  onRelease: (completion) => {
     askStore.setInteractionMode('voice')
-    askStore.clearDraftText()
-    askStore.openAsk()
-    void askStore.send(text)
+    void askStore.finishVoiceInput(completion)
+    void router.push('/shell/ask')
   },
   onCancel: () => {
     askStore.clearDraftText()
     if (journey.endAskInterrupt() === 'blocked-paused') showResumeNotice()
   },
   onError: (message) => { voiceNotice.value = message },
-  onTap: ask,
+  onTap: () => {
+    journey.beginAskInterrupt()
+    setAskContext()
+    askStore.setInteractionMode('voice')
+    void router.push('/shell/ask')
+  },
 })
 const voiceHint = computed(() => voiceHold.cancelling.value
   ? messages.value.voiceCancel
@@ -521,7 +525,7 @@ onBeforeUnmount(() => {
           :aria-label="messages.voiceHint"
           :title="messages.voiceHint"
           :aria-pressed="voiceHold.held.value"
-          :disabled="askStore.typing || journey.pending.value"
+          :disabled="journey.pending.value"
           @pointerdown="voiceHold.pointerDown"
           @pointermove="voiceHold.pointerMove"
           @pointerup="voiceHold.pointerUp"

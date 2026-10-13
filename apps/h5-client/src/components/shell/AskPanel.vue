@@ -75,6 +75,7 @@ const showSpeechProgress = computed(() => Boolean(speech.speakingSentence.value)
 /** 状态行提示；与相位同一行显示，过长时截断 */
 const voiceHintText = computed(() => {
   if (voiceHold.cancelling.value) return "松开取消"
+  if (askStore.voiceInputFinishing) return "正在识别你说的话，识别完成后自动发送"
   if (voiceHold.finishing.value) return "正在识别…"
   if (recognition.listening.value) return "正在识别你说的话，松开即发送"
   if (speech.voicePhase.value === "speaking") return "正在朗读回复，开口说话可打断"
@@ -258,10 +259,10 @@ const composerSuggestions = computed(() => {
 
 const voiceHold = useVoiceHold({
   recognition,
-  canStart: () => (props.fullPage || open.value) && !typing.value,
+  canStart: () => props.fullPage || open.value,
   onPress: () => speech.unlock(),
   onStart: () => {
-    askStore.stopSseAudio()
+    askStore.beginVoiceInput()
   },
   onSubmit: (text) => {
     askStore.clearDraftText()
@@ -573,7 +574,7 @@ watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
             aria-label="按住说话"
             title="按住说话，松开后发送"
             :style="{ touchAction: 'none', userSelect: 'none' }"
-            :disabled="typing"
+            :disabled="voiceHold.finishing.value || askStore.voiceInputFinishing"
             @pointerdown="voiceHold.pointerDown"
             @pointermove="voiceHold.pointerMove"
             @pointerup="voiceHold.pointerUp"

@@ -91,7 +91,6 @@ interface StageFormState {
   videoUrl: string
   userStyleInput: string
   sceneContext: string
-  targetDurationSeconds: string
   narrationText: string
   guideId: string
   guideName: string
@@ -171,7 +170,7 @@ let pieceDragPointerId: number | null = null
 const form = reactive<StageFormState>({
   title: '', subtitle: '', prompt: '', choiceOptions: [], correctOptionId: '', hintsInput: '',
   imageUrl: '', gridRows: '3', gridCols: '3', puzzlePieces: [], correctOrderIds: [], clueText: '', location: '', videoUrl: '',
-  userStyleInput: '', sceneContext: '', targetDurationSeconds: '90', narrationText: '', guideId: '', guideName: '',
+  userStyleInput: '', sceneContext: '', narrationText: '', guideId: '', guideName: '',
 })
 
 /** 解说音频状态（对齐后端枚举） */
@@ -679,7 +678,6 @@ const resetForm = () => {
   form.videoUrl = readText(config.video_url) || readText(config.videoUrl) || readText(config.intro_video_url)
   form.userStyleInput = readText(config.user_style_input)
   form.sceneContext = readText(config.scene_context)
-  form.targetDurationSeconds = String(config.target_duration_seconds ?? 90)
   form.narrationText = narrationDetail.value?.narrationText || ''
   form.guideId = String(narrationDetail.value?.guideId ?? config.guide_id ?? '').trim()
   form.guideName = String(narrationDetail.value?.guideName ?? config.guide_name ?? '').trim()
@@ -1488,11 +1486,6 @@ const parsePiecesForSave = (cols: number): PuzzlePieceConfig[] => {
 const parseHints = () => form.hintsInput.split('\n')
   .map((content, index) => ({ content: content.trim(), sort_order: index + 1 }))
   .filter((item) => Boolean(item.content))
-const toBoundedInteger = (value: string, minimum: number, maximum: number, fallback: number) => {
-  const numberValue = Number(value)
-  return Number.isFinite(numberValue) ? Math.min(maximum, Math.max(minimum, Math.round(numberValue))) : fallback
-}
-
 const buildRegularConfig = () => {
   const config: Record<string, unknown> = { ...baseConfig.value }
   const hints = parseHints()
@@ -1601,8 +1594,6 @@ const selectGuide = (guide: GuideRecord) => {
 }
 
 const saveNarrationStage = async () => {
-  // 副标题 / 风格 / 时长 / 场景说明：UI 不再编辑，透传已有值以免被清空
-  const targetDurationSeconds = toBoundedInteger(form.targetDurationSeconds, 10, 600, 90)
   // attachmentIds 全量有序同步；与上传时的 NarrationImage/create 互补
   const attachmentIds = collectAttachmentIds()
   await request<UpdateNarrationStageResponse | null>('/api/narration/update-stage', {
@@ -1615,7 +1606,6 @@ const saveNarrationStage = async () => {
       guideId: form.guideId || null,
       userStyleInput: form.userStyleInput.trim() || null,
       sceneContext: form.sceneContext.trim() || null,
-      targetDurationSeconds,
       attachmentIds,
     },
   })

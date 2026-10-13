@@ -9,6 +9,8 @@ import {
   parseRouteLine,
   polylineLengthMeters,
   pointsSignature,
+  routePointToWgs84,
+  routePointFromWgs84,
   ROUTE_SEGMENT_SOURCE,
   serializeRouteLine,
   type LngLat,
@@ -24,6 +26,9 @@ export interface RouteMapEditorSegment {
   toTitle: string;
   /** 服务端当前来源类型：1=自动 2=人工；无路段时为 0（待生成） */
   serverSourceType: number;
+  serverStatus: number;
+  serverValidationMessage: string;
+  storedPoints: LngLat[];
   /** 服务端当前几何顶点，用于"还原"与差异比较；数据库值，不随编辑变化 */
   serverPoints: LngLat[];
   /** 编辑中的顶点（含起终点，WGS84） */
@@ -75,10 +80,14 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
   const error = ref('');
   /** 服务端在本次编辑会话开始时的几何版本，用于冲突检测 */
   const baseGeometryVersion = ref<number | null>(null);
-  const undoStack = shallowRef<string[]>([]);
-  const redoStack = shallowRef<string[]>([]);
+  const histories = ref<Record<number, { undo: LngLat[][]; redo: LngLat[][] }>>({});
+  let loadVersion = 0;
 
-  const stations = computed<RouteMapStation[]>(() => detail.value?.stations ?? []);
+  const stations = computed<RouteMapStation[]>(() => (detail.value?.stations ?? []).map(station => {
+    const point = routePointToWgs84([Number(station.longitude), Number(station.latitude)],
+      station.coordinateSystem ?? detail.value?.coordinateSystem ?? 1);
+    return { ...station, longitude: point[0], latitude: point[1], coordinateSystem: 1 };
+  }));
 
   const activeSegment = computed(() =>
     segments.value.find((segment) => segment.segmentNo === activeSegmentNo.value) ?? null);
@@ -87,16 +96,17 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
 
   const hasDirty = computed(() => dirtySegments.value.length > 0);
 
-  const canUndo = computed(() => undoStack.value.length > 0);
-  const canRedo = computed(() => redoStack.value.length > 0);
+  const canSaveActiveSegment = computed(() => activeSegment.value !== null
+    && (activeSegment.value.dirty || activeSegment.value.serverPoints.length < 2 || activeSegment.value.serverStatus !== 1));
+
+  const canUndo = computed(() => (histories.value[activeSegmentNo.value ?? -1]?.undo.length ?? 0) > 0);
+  const canRedo = computed(() => (histories.value[activeSegmentNo.value ?? -1]?.redo.length ?? 0) > 0);
 
   /** 渲染用几何：编辑中的路段用草稿覆盖，其余用服务端几何 */
   const previewPointsBySegmentNo = computed<Record<number, LngLat[]>>(() => {
     const map: Record<number, LngLat[]> = {};
     for (const segment of segments.value) {
-      map[segment.segmentNo] = segment.dirty
-        ? clonePoints(segment.points)
-        : clonePoints(segment.serverPoints);
+      map[segment.segmentNo] = clonePoints(segment.points);
     }
     return map;
   });
@@ -111,14 +121,23 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
   const isFixedVertex = (segment: RouteMapEditorSegment, index: number): boolean =>
     index === 0 || index === segment.points.length - 1;
 
-  const pushHistory = (points: readonly LngLat[]) => {
-    const next = [...undoStack.value, pointsSignature(points)];
-    undoStack.value = next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next;
-    redoStack.value = [];
+  const historyFor = (segmentNo: number) => histories.value[segmentNo]
+    ?? (histories.value[segmentNo] = { undo: [], redo: [] });
+
+  const pushHistory = (segment: RouteMapEditorSegment) => {
+    const history = historyFor(segment.segmentNo);
+    history.undo = [...history.undo, clonePoints(segment.points)].slice(-HISTORY_LIMIT);
+    history.redo = [];
   };
 
   const settleSegment = (segment: RouteMapEditorSegment) => {
     segment.points = normalizePoints(segment.points);
+    const from = findStation(segment.fromStationId);
+    const to = findStation(segment.toStationId);
+    if (segment.points.length >= 2 && from && to) {
+      segment.points[0] = [Number(from.longitude), Number(from.latitude)];
+      segment.points[segment.points.length - 1] = [Number(to.longitude), Number(to.latitude)];
+    }
     segment.dirty = pointsSignature(segment.points) !== pointsSignature(segment.serverPoints);
     segment.error = '';
   };
@@ -131,14 +150,20 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
       const from = ordered[index - 1]!;
       const to = ordered[index]!;
       const server: RouteMapSegment | undefined = source.segments
-        .find((item) => item.segmentNo === from.stationNo);
-      const serverPoints = parseRouteLine(server?.geometryGeoJson ?? null);
+        .find((item) => item.segmentNo === from.stationNo
+          && item.fromStationId === from.id && item.toStationId === to.id);
+      const storedPoints = parseRouteLine(server?.geometryGeoJson ?? null);
+      const serverPoints = storedPoints.map(point => routePointToWgs84(point, source.coordinateSystem));
       const points = serverPoints.length >= 2
         ? clonePoints(serverPoints)
         : [
-            [Number(from.longitude), Number(from.latitude)] as LngLat,
-            [Number(to.longitude), Number(to.latitude)] as LngLat,
+            routePointToWgs84([Number(from.longitude), Number(from.latitude)], from.coordinateSystem ?? source.coordinateSystem),
+            routePointToWgs84([Number(to.longitude), Number(to.latitude)], to.coordinateSystem ?? source.coordinateSystem),
           ];
+      if (server?.status === 0 && points.length >= 2) {
+        points[0] = routePointToWgs84([Number(from.longitude), Number(from.latitude)], from.coordinateSystem ?? source.coordinateSystem);
+        points[points.length - 1] = routePointToWgs84([Number(to.longitude), Number(to.latitude)], to.coordinateSystem ?? source.coordinateSystem);
+      }
 
       result.push({
         segmentNo: from.stationNo,
@@ -147,9 +172,14 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
         fromTitle: from.title,
         toTitle: to.title,
         serverSourceType: server?.sourceType ?? 0,
+        serverStatus: server?.status ?? (serverPoints.length >= 2 ? 1 : 0),
+        serverValidationMessage: server?.validationMessage
+          || (serverPoints.length < 2 ? '尚未生成有效路线，请生成此路段'
+            : server?.status === 0 ? server.errorMessage || '入口或编排已变化，请重新生成或编辑保存' : ''),
+        storedPoints: clonePoints(storedPoints),
         serverPoints: clonePoints(serverPoints),
         points,
-        dirty: false,
+        dirty: serverPoints.length >= 2 && pointsSignature(points) !== pointsSignature(serverPoints),
         distanceMeters: server?.distanceMeters ?? null,
         estimatedMinutes: server?.estimatedMinutes ?? null,
         error: '',
@@ -169,25 +199,25 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
           ? activeSegmentNo.value
           : segments.value[0]!.segmentNo)
       : null;
-    editingPoints.value = null;
-    undoStack.value = [];
-    redoStack.value = [];
+    editingPoints.value = activeSegment.value ? clonePoints(activeSegment.value.points) : null;
+    histories.value = {};
     options.onDetailApplied?.(source);
   }
 
   function resetEditor() {
+    cancelLoad();
     detail.value = null;
     segments.value = [];
     activeSegmentNo.value = null;
     editingPoints.value = null;
     baseGeometryVersion.value = null;
-    undoStack.value = [];
-    redoStack.value = [];
+    histories.value = {};
     error.value = '';
     routeId.value = '';
   }
 
   async function load(targetRouteId?: string, force = false): Promise<RouteMapDetail | null> {
+    if (saving.value) return null;
     const nextRouteId = String(targetRouteId ?? routeId.value ?? '').trim();
     if (!nextRouteId) {
       resetEditor();
@@ -199,21 +229,32 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
       return detail.value;
     }
 
+    loadVersion += 1;
+    if (routeId.value && routeId.value !== nextRouteId) resetEditor();
+    const currentToken = loadVersion;
     routeId.value = nextRouteId;
     loading.value = true;
     error.value = '';
     try {
       const result = await request<RouteMapDetail>('/api/route-map/get', {
+        timeout: 30000,
+        retry: 0,
         query: { routeId: nextRouteId },
       });
+      if (currentToken !== loadVersion || routeId.value !== nextRouteId) return null;
       applyDetail(result);
       return result;
     } catch (caught) {
-      error.value = caught instanceof Error ? caught.message : '路线地图加载失败。';
+      if (currentToken === loadVersion) error.value = caught instanceof Error ? caught.message : '路线地图加载失败。';
       return null;
     } finally {
-      loading.value = false;
+      if (currentToken === loadVersion) loading.value = false;
     }
+  }
+
+  function cancelLoad() {
+    loadVersion += 1;
+    loading.value = false;
   }
 
   /** 放弃当前路段草稿，回到服务端几何 */
@@ -226,27 +267,28 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
     if (!segment) {
       return;
     }
-    pushHistory(segment.points);
-    segment.points = clonePoints(segment.serverPoints);
+    if (saving.value || loading.value) return;
+    pushHistory(segment);
+    segment.points = savedOrEndpointPoints(segment);
     settleSegment(segment);
-    editingPoints.value = null;
+    if (segment.segmentNo === activeSegmentNo.value) editingPoints.value = clonePoints(segment.points);
   }
 
   /** 放弃全部草稿，回到服务端几何 */
   function discardAll() {
     for (const segment of segments.value) {
-      segment.points = clonePoints(segment.serverPoints);
+      segment.points = savedOrEndpointPoints(segment);
       segment.dirty = false;
       segment.error = '';
     }
-    undoStack.value = [];
-    redoStack.value = [];
-    editingPoints.value = null;
+    histories.value = {};
+    editingPoints.value = activeSegment.value ? clonePoints(activeSegment.value.points) : null;
     error.value = '';
   }
 
   /** 进入某路段的编辑模式：以当前草稿（或服务端几何）为起点 */
   function enterEdit(segmentNo: number) {
+    if (saving.value || loading.value) return;
     const segment = segments.value.find((item) => item.segmentNo === segmentNo);
     if (!segment) {
       return;
@@ -258,26 +300,24 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
 
   /** 退出编辑模式，把编辑中的顶点写回路段草稿 */
   function exitEdit() {
-    const segment = activeSegment.value;
-    if (segment && editingPoints.value) {
-      commit(segment, editingPoints.value);
-    }
     editingPoints.value = null;
   }
 
   function commit(segment: RouteMapEditorSegment, points: readonly LngLat[]) {
-    pushHistory(segment.points);
+    if (pointsSignature(segment.points) === pointsSignature(points)) return;
+    pushHistory(segment);
     segment.points = clonePoints(points);
     settleSegment(segment);
   }
 
   /** 画线：追加一个顶点（插在终点之前） */
   function addVertex(point: LngLat, segmentNo?: number) {
+    if (saving.value || loading.value) return;
     const segment = resolveSegment(segmentNo);
     if (!segment) {
       return;
     }
-    const base = editingPoints.value ?? segment.points;
+    const base = segment.points;
     const next = [...base];
     next.splice(Math.max(1, next.length - 1), 0, [point[0], point[1]]);
     editingPoints.value = next;
@@ -286,11 +326,12 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
 
   /** 拖动顶点；起点与终点固定，返回是否生效 */
   function moveVertex(index: number, point: LngLat, segmentNo?: number): boolean {
+    if (saving.value || loading.value) return false;
     const segment = resolveSegment(segmentNo);
     if (!segment) {
       return false;
     }
-    const base = editingPoints.value ?? segment.points;
+    const base = segment.points;
     if (index <= 0 || index >= base.length - 1) {
       return false;
     }
@@ -303,11 +344,12 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
 
   /** 删除顶点；非固定顶点才允许删除 */
   function removeVertex(index: number, segmentNo?: number): boolean {
+    if (saving.value || loading.value) return false;
     const segment = resolveSegment(segmentNo);
     if (!segment) {
       return false;
     }
-    const base = editingPoints.value ?? segment.points;
+    const base = segment.points;
     if (index <= 0 || index >= base.length - 1 || base.length <= 2) {
       return false;
     }
@@ -320,11 +362,12 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
 
   /** 在 fromIndex 与 fromIndex+1 之间插入中点 */
   function insertVertexBetween(fromIndex: number, point?: LngLat, segmentNo?: number): boolean {
+    if (saving.value || loading.value) return false;
     const segment = resolveSegment(segmentNo);
     if (!segment) {
       return false;
     }
-    const base = editingPoints.value ?? segment.points;
+    const base = segment.points;
     if (fromIndex < 0 || fromIndex >= base.length - 1) {
       return false;
     }
@@ -351,52 +394,65 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
       next[next.length - 1] = [Number(to.longitude), Number(to.latitude)];
     }
     commit(segment, next);
+    if (segment.segmentNo === activeSegmentNo.value) editingPoints.value = clonePoints(segment.points);
   }
 
   /** 撤销：单段级别的顶点快照栈 */
   function undo() {
+    if (saving.value || loading.value) return;
     const segment = activeSegment.value;
-    const last = undoStack.value[undoStack.value.length - 1];
+    if (!segment) return;
+    const history = historyFor(segment.segmentNo);
+    const last = history.undo.at(-1);
     if (!segment || last === undefined) {
       return;
     }
-    const current = pointsSignature(segment.points);
-    undoStack.value = undoStack.value.slice(0, -1);
-    redoStack.value = [...redoStack.value, current];
-
-    const restored = deserialize(last);
-    segment.points = restored.length >= 2
-      ? restored
-      : (editingPoints.value ? clonePoints(editingPoints.value) : clonePoints(segment.points));
+    history.undo = history.undo.slice(0, -1);
+    history.redo = [...history.redo, clonePoints(segment.points)];
+    segment.points = clonePoints(last);
     settleSegment(segment);
     editingPoints.value = clonePoints(segment.points);
   }
 
   function redo() {
+    if (saving.value || loading.value) return;
     const segment = activeSegment.value;
-    const last = redoStack.value[redoStack.value.length - 1];
+    if (!segment) return;
+    const history = historyFor(segment.segmentNo);
+    const last = history.redo.at(-1);
     if (!segment || last === undefined) {
       return;
     }
-    const current = pointsSignature(segment.points);
-    redoStack.value = redoStack.value.slice(0, -1);
-    undoStack.value = [...undoStack.value, current];
-
-    const restored = deserialize(last);
-    segment.points = restored.length >= 2 ? restored : clonePoints(segment.points);
+    history.redo = history.redo.slice(0, -1);
+    history.undo = [...history.undo, clonePoints(segment.points)];
+    segment.points = clonePoints(last);
     settleSegment(segment);
     editingPoints.value = clonePoints(segment.points);
   }
 
   /** 单段保存：携带 geometryVersion 语义由调用方通过 conflict 处理 */
   async function saveSegment(segmentNo?: number): Promise<boolean> {
+    if (loading.value || saving.value) return false;
+    saving.value = true;
+    try {
+      return await saveSegmentDraft(segmentNo);
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function saveSegmentDraft(segmentNo?: number): Promise<boolean> {
     const segment = resolveSegment(segmentNo);
     if (!segment) {
       error.value = '请先选择要保存的路段。';
       return false;
     }
 
-    const points = normalizePoints(editingPoints.value ?? segment.points);
+    if (!segment.dirty && segment.serverPoints.length >= 2 && segment.serverStatus === 1) return false;
+
+    const points = normalizePoints(segment.segmentNo === activeSegmentNo.value
+      ? (editingPoints.value ?? segment.points)
+      : segment.points);
     if (points.length < 2) {
       segment.error = '至少需要两个顶点才能保存路段。';
       return false;
@@ -409,12 +465,13 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
       return false;
     }
 
-    saving.value = true;
     error.value = '';
     segment.error = '';
     try {
       const result = await request<RouteMapDetail>('/api/route-map/save-segment', {
         method: 'POST',
+        timeout: 90000,
+        retry: 0,
         body: {
           routeId: routeId.value,
           fromStationId: segment.fromStationId,
@@ -423,7 +480,10 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
           // 后端 ValidateLine 只接受单条 LineString；解析侧仍兼容 MultiLineString 以读取历史数据
           geometryGeoJson: JSON.stringify({
             type: 'LineString',
-            coordinates: points.map((point) => [point[0], point[1]]),
+            coordinates: points.map(point => {
+              const index = segment.serverPoints.findIndex(saved => saved[0] === point[0] && saved[1] === point[1]);
+              return index >= 0 ? segment.storedPoints[index] : routePointFromWgs84(point, detail.value?.coordinateSystem ?? 1);
+            }),
           }),
           snapToRoad: snapToRoad.value,
           // 服务端据此拒绝"基于旧版本编辑"的保存，避免静默覆盖他人改动
@@ -437,30 +497,29 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
       segment.error = message;
       error.value = message;
       return false;
-    } finally {
-      saving.value = false;
     }
   }
 
   /** 保存全部草稿路段 */
   async function saveAll(): Promise<boolean> {
-    const targets = dirtySegments.value.length
-      ? dirtySegments.value.map((segment) => segment.segmentNo)
-      : (activeSegmentNo.value === null ? [] : [activeSegmentNo.value]);
+    if (loading.value || saving.value) return false;
+    const targets = dirtySegments.value.map((segment) => segment.segmentNo);
 
     if (!targets.length) {
       error.value = '没有需要保存的路段。';
       return false;
     }
 
-    for (const segmentNo of targets) {
-      const ok = await saveSegment(segmentNo);
-      if (!ok) {
-        return false;
+    saving.value = true;
+    try {
+      for (const segmentNo of targets) {
+        const ok = await saveSegmentDraft(segmentNo);
+        if (!ok) return false;
       }
+      return true;
+    } finally {
+      saving.value = false;
     }
-
-    return true;
   }
 
   /**
@@ -468,6 +527,11 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
    * 服务端返回的 detail 可能不包含其他段的草稿，因此只覆盖刚保存的那一段。
    */
   function applyAfterSave(result: RouteMapDetail, savedSegmentNo: number) {
+    applyPreservingDrafts(result, savedSegmentNo);
+    delete histories.value[savedSegmentNo];
+  }
+
+  function applyPreservingDrafts(result: RouteMapDetail, savedSegmentNo?: number) {
     const previousSegments = segments.value;
     const previousActive = activeSegmentNo.value;
     const previousEditing = editingPoints.value;
@@ -479,10 +543,19 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
     const rebuilt = buildSegments(result);
     const merged = rebuilt.map((segment) => {
       const previous = previousSegments.find((item) => item.segmentNo === segment.segmentNo);
-      if (!previous || segment.segmentNo === savedSegmentNo) {
+      if (!previous || !previous.dirty || segment.segmentNo === savedSegmentNo
+        || previous.fromStationId !== segment.fromStationId || previous.toStationId !== segment.toStationId) {
         return segment;
       }
-      return previous;
+      const draft = { ...segment, points: clonePoints(previous.points), dirty: true, error: previous.error };
+      const from = stations.value.find(item => item.id === draft.fromStationId);
+      const to = stations.value.find(item => item.id === draft.toStationId);
+      if (from && to && draft.points.length >= 2) {
+        draft.points[0] = [Number(from.longitude), Number(from.latitude)];
+        draft.points[draft.points.length - 1] = [Number(to.longitude), Number(to.latitude)];
+      }
+      settleSegment(draft);
+      return draft;
     });
 
     // 服务端新增的站点会带来新路段；被删除的路段直接丢弃
@@ -493,8 +566,13 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
     editingPoints.value = previousEditing
       ? clonePoints(merged.find((item) => item.segmentNo === previousActive)?.points ?? previousEditing)
       : null;
-    undoStack.value = [];
-    redoStack.value = [];
+  }
+
+  function savedOrEndpointPoints(segment: RouteMapEditorSegment): LngLat[] {
+    if (segment.serverPoints.length >= 2) return clonePoints(segment.serverPoints);
+    const from = findStation(segment.fromStationId);
+    const to = findStation(segment.toStationId);
+    return from && to ? [[Number(from.longitude), Number(from.latitude)], [Number(to.longitude), Number(to.latitude)]] : [];
   }
 
   /** 检测本次会话内服务端几何是否被其他人改写 */
@@ -534,14 +612,17 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
     baseGeometryVersion,
     validationMessages,
     hasDirty,
+    canSaveActiveSegment,
     hasVersionConflict,
     dirtySegments,
     canUndo,
     canRedo,
     // 操作
     load,
+    cancelLoad,
     resetEditor,
     applyDetail,
+    applyPreservingDrafts,
     enterEdit,
     exitEdit,
     addVertex,
@@ -558,16 +639,6 @@ export const useRouteMapEditor = (options: UseRouteMapEditorOptions = {}) => {
     saveAll,
   };
 };
-
-function deserialize(signature: string): LngLat[] {
-  if (!signature) {
-    return [];
-  }
-  return signature.split(';').map((pair) => {
-    const [longitude, latitude] = pair.split(',');
-    return [Number(longitude), Number(latitude)] as LngLat;
-  }).filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
-}
 
 /** 单段长度提示（米），供路段列表展示 */
 export const segmentLengthMeters = (segment: RouteMapEditorSegment): number =>

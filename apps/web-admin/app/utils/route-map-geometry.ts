@@ -7,7 +7,25 @@
  *   因此解析必须同时支持 LineString / MultiLineString / Feature 包装。
  */
 
+import { gcj02ToWgs84, toGcj02, wgs84ToGcj02 } from '@path-seeker/ts-shared';
+
 export type LngLat = [number, number];
+
+export function routePointToWgs84(point: LngLat, coordinateSystem: number): LngLat {
+  if (coordinateSystem === 1) return [point[0], point[1]];
+  const converted = gcj02ToWgs84(toGcj02({ longitude: point[0], latitude: point[1] }, coordinateSystem));
+  return [converted.longitude, converted.latitude];
+}
+
+export function routePointFromWgs84(point: LngLat, coordinateSystem: number): LngLat {
+  if (coordinateSystem === 1) return [point[0], point[1]];
+  const converted = wgs84ToGcj02({ longitude: point[0], latitude: point[1] });
+  if (coordinateSystem === 2) return [converted.longitude, converted.latitude];
+  const angle = Math.PI * 3000 / 180;
+  const radius = Math.sqrt(converted.longitude ** 2 + converted.latitude ** 2) + 0.00002 * Math.sin(converted.latitude * angle);
+  const theta = Math.atan2(converted.latitude, converted.longitude) + 0.000003 * Math.cos(converted.longitude * angle);
+  return [radius * Math.cos(theta) + 0.0065, radius * Math.sin(theta) + 0.006];
+}
 
 /** 路线地图几何坐标系：1=WGS84 2=GCJ-02 3=BD-09（与后端 CoordinateSystem 一致） */
 export const ROUTE_COORDINATE_SYSTEM = {

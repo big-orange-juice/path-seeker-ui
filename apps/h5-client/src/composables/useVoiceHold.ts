@@ -7,7 +7,8 @@ interface VoiceHoldOptions {
   lang?: () => string
   onPress?: () => void
   onStart?: () => void
-  onSubmit: (text: string) => void
+  onSubmit?: (text: string) => void
+  onRelease?: (completion: Promise<string>) => void
   onCancel?: () => void
   onError: (message: string) => void
   onTap?: () => void
@@ -26,7 +27,6 @@ export function useVoiceHold(options: VoiceHoldOptions) {
   let suppressClick = false
   let unavailable = false
   let capturing = false
-  let holdTimer: ReturnType<typeof setTimeout> | undefined
 
   function releasePointer() {
     const capturedId = pointerId
@@ -40,7 +40,6 @@ export function useVoiceHold(options: VoiceHoldOptions) {
 
   function cancel() {
     if (!active.value) return
-    clearTimeout(holdTimer)
     generation += 1
     held.value = false
     finishing.value = false
@@ -68,15 +67,14 @@ export function useVoiceHold(options: VoiceHoldOptions) {
     cancelling.value = false
     unavailable = !options.recognition.supported.value
     options.onPress?.()
-    holdTimer = setTimeout(() => {
-      if (!held.value || unavailable) return
+    if (!unavailable) {
       capturing = true
       options.onStart?.()
       if (!options.recognition.start({ lang: options.lang?.(), continuous: true })) {
         options.onError(options.recognition.error.value || '无法启动语音识别，请重试。')
-        cancel()
+        if (!options.onRelease) cancel()
       }
-    }, 300)
+    }
   }
 
   function pointerMove(event: PointerEvent) {
@@ -89,23 +87,37 @@ export function useVoiceHold(options: VoiceHoldOptions) {
     if (event.pointerId !== pointerId || !held.value) return
     event.preventDefault()
     if (cancelling.value) { cancel(); return }
-    if (Date.now() - startedAt < 300) {
+    if (!options.onRelease && Date.now() - startedAt < 300) {
       cancel()
       options.onTap?.()
       return
     }
     if (unavailable) {
-      options.onError('当前浏览器不支持语音识别，请点击问一问使用文字输入。')
+      const message = '当前浏览器不支持语音识别，请点击问一问使用文字输入。'
+      options.onError(message)
+      if (options.onRelease) {
+        held.value = false
+        releasePointer()
+        options.recognition.error.value = message
+        options.onRelease(Promise.resolve(''))
+        return
+      }
       cancel()
       return
     }
-    clearTimeout(holdTimer)
     if (!capturing) { cancel(); options.onTap?.(); return }
     const token = generation
     held.value = false
     finishing.value = true
     releasePointer()
-    const text = await options.recognition.stop()
+    const completion = options.recognition.stop()
+    if (options.onRelease) {
+      finishing.value = false
+      capturing = false
+      options.onRelease(completion)
+      return
+    }
+    const text = await completion
     if (token !== generation) return
     finishing.value = false
     capturing = false
@@ -114,7 +126,7 @@ export function useVoiceHold(options: VoiceHoldOptions) {
       options.onCancel?.()
       return
     }
-    options.onSubmit(text)
+    options.onSubmit?.(text)
   }
 
   function pointerCancel(event: PointerEvent) {
@@ -129,6 +141,7 @@ export function useVoiceHold(options: VoiceHoldOptions) {
   watch(options.recognition.error, (message) => {
     if (!message || !active.value) return
     options.onError(message)
+    if (options.onRelease && held.value) return
     cancel()
   })
 
@@ -136,11 +149,9 @@ export function useVoiceHold(options: VoiceHoldOptions) {
     if (document.visibilityState === 'hidden') cancel()
   }
 
-  window.addEventListener('blur', cancel)
   document.addEventListener('visibilitychange', visibilityChange)
   onScopeDispose(() => {
     cancel()
-    window.removeEventListener('blur', cancel)
     document.removeEventListener('visibilitychange', visibilityChange)
   })
 

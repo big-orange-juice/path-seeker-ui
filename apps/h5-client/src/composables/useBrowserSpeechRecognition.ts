@@ -101,6 +101,8 @@ let restartTimer: ReturnType<typeof setTimeout> | undefined
 let stopTimer: ReturnType<typeof setTimeout> | undefined
 let keepListening = false
 let sessionBaseText = ""
+let engineStarted = false
+let interruptionRetries = 0
 
 const transcript = computed(() => `${finalText.value}${interimText.value}`.trim())
 
@@ -124,6 +126,7 @@ function finish() {
   interimText.value = ""
   listening.value = false
   release()
+  engineStarted = false
   resolveCompletion?.(hadError || discardOnEnd ? "" : finalText.value.trim())
   resolveCompletion = null
 }
@@ -141,8 +144,10 @@ function describeError(code: string) {
       return "语音识别服务连接失败，可以直接打字。"
     case "language-not-supported":
       return "当前语言不支持语音识别，可以直接打字。"
+    case "aborted":
+      return "浏览器多次中断收音，请检查麦克风是否被其他应用占用后重试。"
     default:
-      return "语音识别中断，可以直接打字。"
+      return `语音识别失败（${code || 'unknown'}），请重试。`
   }
 }
 
@@ -163,10 +168,28 @@ export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
     discardOnEnd = false
     hadError = false
     keepListening = Boolean(options?.continuous)
+    interruptionRetries = 0
     completion = new Promise<string>((resolve) => { resolveCompletion = resolve })
 
     const lang = String(options?.lang || lastLang || "zh-CN")
     lastLang = lang
+    function restartRecognition() {
+      if (interimText.value.trim()) {
+        finalText.value = `${finalText.value}${interimText.value}`
+      }
+      interimText.value = ""
+      sessionBaseText = finalText.value
+      const previous = recognition
+      release()
+      engineStarted = false
+      try { previous?.abort() } catch {}
+      restartTimer = setTimeout(() => {
+        restartTimer = undefined
+        if (intentionalStop || !listening.value) return
+        beginRecognition()
+      }, 100)
+    }
+
     function beginRecognition() {
       const instance = new Recognition()
       instance.lang = lang
@@ -176,7 +199,11 @@ export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
 
       instance.onstart = () => {
         if (recognition !== instance) return
+        engineStarted = true
         listening.value = true
+        if (intentionalStop) {
+          try { instance.stop() } catch { finish() }
+        }
       }
 
       instance.onresult = (event) => {
@@ -192,12 +219,19 @@ export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
         }
         finalText.value = `${sessionBaseText}${confirmed}`
         interimText.value = pending
+        if (confirmed || pending) interruptionRetries = 0
       }
 
       instance.onerror = (event) => {
         if (recognition !== instance) return
         const code = String(event?.error || "")
-        if (intentionalStop && code === "aborted") return
+        if (intentionalStop && code === "aborted") { finish(); return }
+        if (keepListening && !intentionalStop && code === "aborted" && interruptionRetries < 2) {
+          interruptionRetries += 1
+          restartRecognition()
+          return
+        }
+        if (code === "aborted" && transcript.value) { finish(); return }
         if (keepListening && !intentionalStop && code === "no-speech") return
         if (code !== "no-speech") {
           hadError = true
@@ -215,13 +249,7 @@ export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
         }
         interimText.value = ""
         if (keepListening && !intentionalStop && !hadError) {
-          sessionBaseText = finalText.value
-          release()
-          restartTimer = setTimeout(() => {
-            restartTimer = undefined
-            if (intentionalStop || !listening.value) return
-            beginRecognition()
-          }, 100)
+          restartRecognition()
           return
         }
         finish()
@@ -230,6 +258,7 @@ export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
       try {
         sessionBaseText = finalText.value
         recognition = instance
+        engineStarted = false
         listening.value = true
         instance.start()
       } catch {
@@ -252,11 +281,15 @@ export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
     if (restarting) finish()
     if (!recognition) return completion
     try {
-      recognition?.stop()
+      if (engineStarted) recognition.stop()
     } catch {
       finish()
     }
-    if (recognition) stopTimer = setTimeout(finish, 2000)
+    if (recognition) stopTimer = setTimeout(() => {
+      const previous = recognition
+      finish()
+      try { previous?.abort() } catch {}
+    }, 2000)
     return completion
   }
 

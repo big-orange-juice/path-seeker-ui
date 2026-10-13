@@ -57,6 +57,7 @@ export interface PlaybackBargeIn {
   listen: () => void
   /** 离开播放期，停止消费音频帧 */
   hold: () => void
+  suspendCapture: () => void
   setEnabled: (value: boolean) => void
   dispose: () => void
 }
@@ -84,6 +85,7 @@ let hotFrames = 0
 let bargeFrames = 21
 let graceUntil = 0
 let cooldownUntil = 0
+let captureGeneration = 0
 
 function resetDetector() {
   noiseFloor = 0.006
@@ -123,10 +125,11 @@ async function arm() {
   if (armed.value) return true
   if (!enabled.value || !supported.value) return false
   if (arming) return arming
+  const generation = captureGeneration
 
   arming = (async () => {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
+      const acquiredStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           // 回声消除是打断能成立的前提，否则 TTS 会被再次采集、自己打断自己
           echoCancellation: true,
@@ -136,14 +139,21 @@ async function arm() {
         },
         video: false,
       })
+      if (generation !== captureGeneration) {
+        for (const track of acquiredStream.getTracks()) track.stop()
+        return false
+      }
+      stream = acquiredStream
 
       const Ctor = window.AudioContext
       if (!Ctor) throw new Error("no-audio-context")
       if (!context) context = new Ctor({ latencyHint: "interactive" })
       if (context.state !== "running") await context.resume()
+      if (generation !== captureGeneration) return false
 
       const workletUrl = `${import.meta.env.BASE_URL}worklets/pcm-capture.worklet.js`
       await context.audioWorklet.addModule(workletUrl)
+      if (generation !== captureGeneration) return false
 
       node = new AudioWorkletNode(context, "pcm-capture", {
         numberOfInputs: 1,
@@ -170,6 +180,7 @@ async function arm() {
       error.value = ""
       return true
     } catch (caught) {
+      if (generation !== captureGeneration) return false
       const name = caught instanceof DOMException ? caught.name : ""
       permissionDenied.value = name === "NotAllowedError" || name === "SecurityError"
       error.value = permissionDenied.value
@@ -187,6 +198,7 @@ async function arm() {
 }
 
 function release() {
+  captureGeneration += 1
   gate(false)
   try {
     if (node) node.port.onmessage = null
@@ -236,6 +248,7 @@ export function usePlaybackBargeIn(hooks?: PlaybackBargeInOptions): PlaybackBarg
       if (!listening.value) return
       gate(false)
     },
+    suspendCapture: release,
     setEnabled: (value: boolean) => {
       enabled.value = value
       if (!value) {
