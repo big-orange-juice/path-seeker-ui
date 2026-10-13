@@ -7,6 +7,7 @@ import CollectionExhibitDialog from '@/components/collections/CollectionExhibitD
 import CollectionExhibitDetailDialog from '@/components/collections/CollectionExhibitDetailDialog.vue';
 import CollectionExhibitTable from '@/components/collections/CollectionExhibitTable.vue';
 import CollectionSearchDialog from '@/components/collections/CollectionSearchDialog.vue';
+import CollectionImportDialog from '@/components/collections/CollectionImportDialog.vue';
 import CulturalPlaceFormDialog from '@/components/museum-management/CulturalPlaceFormDialog.vue';
 import type { CulturalPlaceDraft, CulturalPlaceRecord } from '@/types/cultural-place';
 import { COLLECTION_IMPORT_TARGET_TYPE } from '@/types/collection-import';
@@ -25,7 +26,10 @@ definePageMeta({
 
 const actionFeedback = useActionFeedback();
 const runtimeConfig = useRuntimeConfig();
-const selectedMuseumId = shallowRef(String(runtimeConfig.public.museumId || '1').trim());
+const route = useRoute();
+const selectedMuseumId = shallowRef(
+  typeof route.query.museumId === 'string' ? route.query.museumId : String(runtimeConfig.public.museumId || '1').trim(),
+);
 const { request } = useApiClient();
 
 const { data: museumData, pending: museumPending } = useAsyncData(
@@ -63,6 +67,26 @@ const museumOptions = computed(() =>
 const selectedMuseum = computed(() => museumData.value.list.find((museum) => String(museum.id) === selectedMuseumId.value));
 const isOutdoor = computed(() => [2, 3, 4].includes(selectedMuseum.value?.venueType ?? 1));
 const contentLabel = computed(() => isOutdoor.value ? '景点' : '馆藏');
+const importDialogOpen = shallowRef(false);
+const importDialogActivated = shallowRef(false);
+
+const openImportDialog = () => {
+  if (museumPending.value || !selectedMuseum.value) return;
+  importDialogActivated.value = true;
+  importDialogOpen.value = true;
+};
+
+watch(
+  [() => route.query.import, museumPending, selectedMuseum],
+  ([importQuery, pendingMuseum, museum]) => {
+    if (importQuery !== '1' || pendingMuseum || !museum) return;
+    openImportDialog();
+    const query = { ...route.query };
+    delete query.import;
+    void navigateTo({ path: route.path, query }, { replace: true });
+  },
+  { immediate: true },
+);
 
 watch(
   museumOptions,
@@ -394,6 +418,9 @@ const handleRemove = async (record: ExhibitRecord) => {
           <Button variant="outline" :disabled="submitting" @click="refresh()">
             刷新
           </Button>
+          <Button variant="outline" :disabled="submitting || contentLoading || museumPending || !selectedMuseum" @click="openImportDialog">
+            批量导入
+          </Button>
           <Button :disabled="submitting || contentLoading || museumPending || !museumId" @click="startCreate">
             新增{{ contentLabel }}
           </Button>
@@ -435,6 +462,13 @@ const handleRemove = async (record: ExhibitRecord) => {
         @edit="startEdit"
         @remove="handleRemove" />
     </section>
+
+    <CollectionImportDialog
+      v-if="importDialogActivated"
+      v-model:open="importDialogOpen"
+      :museum-id="selectedMuseumId"
+      :museum-name="selectedMuseum?.name || ''"
+      @finished="refresh()" />
 
     <CollectionExhibitDialog
       :open="dialogOpen"
