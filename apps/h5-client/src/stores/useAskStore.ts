@@ -596,9 +596,10 @@ export const useAskStore = defineStore("ask", () => {
     historyPending.value = true
     errorMessage.value = ""
 
+    const messagesBeforeLoad = messages.value
     try {
       const history = await fetchExhibitChatHistory(sessionId.value)
-      if (!history.length) {
+      if (!history.length || messages.value !== messagesBeforeLoad) {
         return
       }
 

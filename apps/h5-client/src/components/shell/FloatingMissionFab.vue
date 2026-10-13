@@ -13,6 +13,9 @@ import { useRoute, useRouter } from 'vue-router';
 import { gsap } from 'gsap';
 import { Map, MessageCircle, User } from 'lucide-vue-next';
 import { useAskStore } from '@/stores/useAskStore';
+import { useToastStore } from '@path-seeker/client-state';
+import { useBrowserSpeechRecognition } from '@/composables/useBrowserSpeechRecognition';
+import { useVoiceHold } from '@/composables/useVoiceHold';
 import type { ShellTab } from '@/types/mission';
 
 interface FabActionItem {
@@ -39,6 +42,26 @@ const ISLAND_HEIGHT = ITEM_HEIGHT + CONTAINER_PADDING * 2;
 const route = useRoute();
 const router = useRouter();
 const askStore = useAskStore();
+const toastStore = useToastStore();
+const recognition = useBrowserSpeechRecognition();
+const voiceHold = useVoiceHold({
+  recognition,
+  canStart: () => !askStore.typing && !askStore.open && !isRouteSwitching.value,
+  onPress: () => askStore.unlockSseAudio(),
+  onStart: () => {
+    askStore.stopSseAudio();
+  },
+  onSubmit: (text) => {
+    askStore.setInteractionMode('voice');
+    askStore.clearDraftText();
+    askStore.openAsk();
+    collapse();
+    void askStore.send(text);
+  },
+  onCancel: () => askStore.clearDraftText(),
+  onError: (message) => toastStore.warning('语音输入', message),
+  onTap: () => { void handleActionClick(askAction.value); },
+});
 const fabRoot = useTemplateRef<HTMLElement>('fabRoot');
 
 /** 壳层固定两格：户外主线 | 我的 */
@@ -236,6 +259,7 @@ async function handleActionClick(item: FabActionItem) {
   }
 
   if (item.action === 'ask') {
+    if (voiceHold.active.value) return;
     displayedKey.value = item.key;
     askStore.openAsk();
     collapse();
@@ -321,6 +345,7 @@ watch(
 watch(
   () => route.fullPath,
   () => {
+    voiceHold.cancel();
     // FAB 自身点击跳转时由 handleActionClick 收起，避免双重动画
     if (isRouteSwitching.value) {
       return;
@@ -361,6 +386,9 @@ onUnmounted(() => {
     class="fab-root fixed inset-x-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-50"
     :class="{ 'fab-root-hidden': !showFab }"
     :aria-hidden="!showFab">
+    <p v-if="voiceHold.active.value" class="fab-voice-hint" role="status">
+      {{ voiceHold.cancelling.value ? '松开取消' : voiceHold.finishing.value ? '正在识别…' : recognition.transcript.value || '松开发送，上滑取消' }}
+    </p>
     <div class="mx-auto flex w-full max-w-[30rem] justify-center px-4">
       <!-- 根节点 pointer-events:none 不挡页面；岛本体重新开启点击 -->
       <div class="fab-shell">
@@ -400,7 +428,14 @@ onUnmounted(() => {
               class="fab-item"
               :class="{ 'fab-item-active': displayedKey === item.key }"
               :tabindex="isExpanded ? 0 : -1"
-              @click="handleActionClick(item)">
+              :title="item.action === 'ask' ? '点击问一问，按住说话' : item.label"
+              :style="item.action === 'ask' ? { touchAction: 'none', userSelect: 'none' } : undefined"
+              @pointerdown="item.action === 'ask' && voiceHold.pointerDown($event)"
+              @pointermove="item.action === 'ask' && voiceHold.pointerMove($event)"
+              @pointerup="item.action === 'ask' && voiceHold.pointerUp($event)"
+              @pointercancel="item.action === 'ask' && voiceHold.pointerCancel($event)"
+              @lostpointercapture="item.action === 'ask' && voiceHold.pointerCancel($event)"
+              @click="item.action === 'ask' ? voiceHold.click() : handleActionClick(item)">
               <span
                 class="fab-icon"
                 :class="{ 'fab-icon-primary': displayedKey === item.key }">
@@ -418,6 +453,17 @@ onUnmounted(() => {
 <style scoped>
 .fab-root {
   pointer-events: none;
+}
+
+.fab-voice-hint {
+  width: fit-content;
+  max-width: 85vw;
+  margin: 0 auto 8px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: #17191eee;
+  color: #fff8ea;
+  font-size: 13px;
 }
 
 .fab-root-hidden {

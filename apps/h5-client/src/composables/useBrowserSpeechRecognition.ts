@@ -73,9 +73,9 @@ export interface BrowserSpeechRecognition {
   transcript: ComputedRef<string>
   error: ShallowRef<string>
   /** 开始识别；不可用或已在识别时返回 false */
-  start: (options?: { lang?: string }) => boolean
+  start: (options?: { lang?: string; continuous?: boolean }) => boolean
   /** 结束识别并保留已有结果 */
-  stop: () => void
+  stop: () => Promise<string>
   /** 放弃识别并丢弃本次结果 */
   abort: () => void
 }
@@ -95,6 +95,12 @@ let discardOnEnd = false
 let hadError = false
 /** 记住上一次用的语言：面板里再次开麦时沿用，不会退回默认中文 */
 let lastLang = "zh-CN"
+let completion: Promise<string> = Promise.resolve("")
+let resolveCompletion: ((text: string) => void) | null = null
+let restartTimer: ReturnType<typeof setTimeout> | undefined
+let stopTimer: ReturnType<typeof setTimeout> | undefined
+let keepListening = false
+let sessionBaseText = ""
 
 const transcript = computed(() => `${finalText.value}${interimText.value}`.trim())
 
@@ -105,6 +111,21 @@ function release() {
   recognition.onerror = null
   recognition.onend = null
   recognition = null
+}
+
+function finish() {
+  clearTimeout(restartTimer)
+  clearTimeout(stopTimer)
+  restartTimer = undefined
+  stopTimer = undefined
+  if (!hadError && !discardOnEnd && interimText.value.trim()) {
+    finalText.value = `${finalText.value}${interimText.value}`
+  }
+  interimText.value = ""
+  listening.value = false
+  release()
+  resolveCompletion?.(hadError || discardOnEnd ? "" : finalText.value.trim())
+  resolveCompletion = null
 }
 
 function describeError(code: string) {
@@ -126,11 +147,12 @@ function describeError(code: string) {
 }
 
 export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
-  function start(options?: { lang?: string }) {
+  function start(options?: { lang?: string; continuous?: boolean }) {
     const Ctor = resolveCtor()
     if (!Ctor || listening.value) {
       return false
     }
+    const Recognition = Ctor
 
     // 每次重新建实例：同一个实例 end 之后再 start 在部分浏览器上不生效
     release()
@@ -140,74 +162,102 @@ export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
     intentionalStop = false
     discardOnEnd = false
     hadError = false
+    keepListening = Boolean(options?.continuous)
+    completion = new Promise<string>((resolve) => { resolveCompletion = resolve })
 
-    const instance = new Ctor()
     const lang = String(options?.lang || lastLang || "zh-CN")
     lastLang = lang
-    instance.lang = lang
-    instance.continuous = false
-    instance.interimResults = true
-    instance.maxAlternatives = 1
+    function beginRecognition() {
+      const instance = new Recognition()
+      instance.lang = lang
+      instance.continuous = keepListening
+      instance.interimResults = true
+      instance.maxAlternatives = 1
 
-    instance.onstart = () => {
-      listening.value = true
-    }
-
-    instance.onresult = (event) => {
-      let confirmed = ""
-      let pending = ""
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index]
-        const text = String(result?.[0]?.transcript ?? "")
-        if (!text) continue
-        if (result.isFinal) confirmed += text
-        else pending += text
+      instance.onstart = () => {
+        if (recognition !== instance) return
+        listening.value = true
       }
-      if (confirmed) finalText.value = `${finalText.value}${confirmed}`
-      interimText.value = pending
-    }
 
-    instance.onerror = (event) => {
-      const code = String(event?.error || "")
-      if (intentionalStop && code === "aborted") return
-      if (code !== "no-speech") {
+      instance.onresult = (event) => {
+        if (recognition !== instance) return
+        let confirmed = ""
+        let pending = ""
+        for (let index = 0; index < event.results.length; index += 1) {
+          const result = event.results[index]
+          const text = String(result?.[0]?.transcript ?? "")
+          if (!text) continue
+          if (result.isFinal) confirmed += text
+          else pending += text
+        }
+        finalText.value = `${sessionBaseText}${confirmed}`
+        interimText.value = pending
+      }
+
+      instance.onerror = (event) => {
+        if (recognition !== instance) return
+        const code = String(event?.error || "")
+        if (intentionalStop && code === "aborted") return
+        if (keepListening && !intentionalStop && code === "no-speech") return
+        if (code !== "no-speech") {
+          hadError = true
+          error.value = describeError(code)
+        }
+        finish()
+      }
+
+      instance.onend = () => {
+        if (recognition !== instance) return
+        // 浏览器常在「只出了临时结果」时就结束（用户手动停、或说完就断）。
+        // 这时要把残留的临时结果落成最终结果，否则刚说的话会被清掉。
+        if (!hadError && !discardOnEnd && interimText.value.trim()) {
+          finalText.value = `${finalText.value}${interimText.value}`
+        }
+        interimText.value = ""
+        if (keepListening && !intentionalStop && !hadError) {
+          sessionBaseText = finalText.value
+          release()
+          restartTimer = setTimeout(() => {
+            restartTimer = undefined
+            if (intentionalStop || !listening.value) return
+            beginRecognition()
+          }, 100)
+          return
+        }
+        finish()
+      }
+
+      try {
+        sessionBaseText = finalText.value
+        recognition = instance
+        listening.value = true
+        instance.start()
+      } catch {
         hadError = true
-        error.value = describeError(code)
+        error.value = "无法启动语音识别，可以直接打字。"
+        finish()
+        return false
       }
-      listening.value = false
-    }
 
-    instance.onend = () => {
-      listening.value = false
-      // 浏览器常在「只出了临时结果」时就结束（用户手动停、或说完就断）。
-      // 这时要把残留的临时结果落成最终结果，否则刚说的话会被清掉。
-      if (!hadError && !discardOnEnd && interimText.value.trim()) {
-        finalText.value = `${finalText.value}${interimText.value}`
-      }
-      interimText.value = ""
-      release()
+      return true
     }
-
-    try {
-      instance.start()
-    } catch {
-      error.value = "无法启动语音识别，可以直接打字。"
-      release()
-      return false
-    }
-
-    recognition = instance
-    listening.value = true
-    return true
+    return beginRecognition()
   }
 
   function stop() {
     intentionalStop = true
+    const restarting = Boolean(restartTimer)
+    clearTimeout(restartTimer)
+    restartTimer = undefined
+    if (restarting) finish()
+    if (!recognition) return completion
     try {
       recognition?.stop()
     } catch {
-      // 已结束的实例忽略
+      finish()
     }
+    if (recognition) stopTimer = setTimeout(finish, 2000)
+    return completion
   }
 
   function abort() {
@@ -218,9 +268,8 @@ export function useBrowserSpeechRecognition(): BrowserSpeechRecognition {
     } catch {
       // 已结束的实例忽略
     }
-    listening.value = false
-    interimText.value = ""
-    release()
+    finalText.value = ""
+    finish()
   }
 
   return { supported, listening, finalText, interimText, transcript, error, start, stop, abort }

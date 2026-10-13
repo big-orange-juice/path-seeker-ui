@@ -13,7 +13,7 @@ interface TourLocation {
   timestamp?: number
 }
 
-const props = defineProps<{ catalog: ClientCatalog | null; detail: ClientTourDetail | null; currentStopId: string | null; journey: boolean; location: TourLocation | null }>()
+const props = defineProps<{ catalog: ClientCatalog | null; detail: ClientTourDetail | null; currentStopId: string | null; journey: boolean; location: TourLocation | null; showRoute: boolean }>()
 const emit = defineEmits<{ select: [id: string]; error: [] }>()
 const container = useTemplateRef<HTMLDivElement>('container')
 const map = shallowRef<any>(null)
@@ -105,7 +105,7 @@ function render() {
       overlays.push(new sdk.Polygon({ path, strokeColor: '#24616a', strokeWeight: 2, fillColor: '#24616a', fillOpacity: 0.12, zIndex: 6, bubble: true }))
     }
   }
-  const lines = geometryLines(props.detail?.geometry || props.detail?.route?.geometry)
+  const lines = props.showRoute ? geometryLines(props.detail?.geometry || props.detail?.route?.geometry) : []
   for (const line of lines) overlays.push(new sdk.Polyline({ path: line.map(point => coordinate(point[0]!, point[1]!)), strokeColor: '#24616a', strokeWeight: 7, strokeOpacity: 0.9 }))
   for (const stop of stops) {
     if (stop.longitude == null || stop.latitude == null) continue
@@ -201,7 +201,7 @@ onMounted(async () => {
     renderLocation()
   } catch { if (alive) emit('error') }
 })
-watch(() => [props.catalog, props.detail], render)
+watch(() => [props.catalog, props.detail, props.showRoute], render)
 watch(() => [props.currentStopId, props.journey], render)
 watch(() => props.location, renderLocation)
 // 结束行程后镜头不该还跟着一个已释放的定位

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Focus, Languages, MapPin, MessageCircle, Mic, Minus, Navigation, Pause, Play, Plus, SkipBack, SkipForward } from 'lucide-vue-next'
+import { Focus, Languages, ListMusic, MapPin, MessageCircle, Mic, Minus, Navigation, Pause, Play, Plus, Route, SkipBack, SkipForward } from 'lucide-vue-next'
 import { isTourLocale, TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
 import TourLanguageGate from '@/components/tour/TourLanguageGate.vue'
 import TourMap from '@/components/tour/TourMap.vue'
 import TourRoutePicker from '@/components/tour/TourRoutePicker.vue'
 import TourStoryDrawer from '@/components/tour/TourStoryDrawer.vue'
 import TourArrivalPrompt from '@/components/tour/TourArrivalPrompt.vue'
+import TourPlaybackQueue from '@/components/tour/TourPlaybackQueue.vue'
 import { useTourJourney } from '@/composables/useTourJourney'
 import { useBrowserSpeechRecognition } from '@/composables/useBrowserSpeechRecognition'
+import { useVoiceHold } from '@/composables/useVoiceHold'
 import { useAskStore } from '@/stores/useAskStore'
 import { tourMessages } from '@/utils/tourMessages'
 import { resolveTourVoiceContext } from '@/utils/tourPlaybackContext'
@@ -26,9 +28,11 @@ const dockRef = useTemplateRef<HTMLElement>('dockHost')
 const viewingJourney = shallowRef(false)
 const mapFailed = shallowRef(false)
 const following = shallowRef(false)
+const routeVisible = shallowRef(true)
 const voiceNotice = shallowRef('')
 const seekNotice = shallowRef('')
 const resumeNotice = shallowRef('')
+const queueOpen = shallowRef(false)
 const pageHidden = shallowRef(document.visibilityState === 'hidden')
 let seekNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let resumeNoticeTimer: ReturnType<typeof setTimeout> | undefined
@@ -36,6 +40,34 @@ let resumeNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let drawerReturnFocus: HTMLElement | null = null
 let previousBodyOverflow = ''
 const messages = computed(() => tourMessages(journey.locale.value))
+const voiceHold = useVoiceHold({
+  recognition: voice,
+  canStart: () => !askStore.typing && !journey.pending.value && Boolean(journey.active.value?.route && journey.currentStop.value),
+  lang: () => RECOGNITION_LANGS[journey.locale.value],
+  onPress: () => askStore.unlockSseAudio(),
+  onStart: () => {
+    journey.beginAskInterrupt()
+    askStore.stopSseAudio()
+    voiceNotice.value = ''
+    setAskContext()
+  },
+  onSubmit: (text) => {
+    askStore.setInteractionMode('voice')
+    askStore.clearDraftText()
+    askStore.openAsk()
+    void askStore.send(text)
+  },
+  onCancel: () => {
+    askStore.clearDraftText()
+    if (journey.endAskInterrupt() === 'blocked-paused') showResumeNotice()
+  },
+  onError: (message) => { voiceNotice.value = message },
+  onTap: ask,
+})
+const voiceHint = computed(() => voiceHold.cancelling.value
+  ? messages.value.voiceCancel
+  : voiceHold.finishing.value ? messages.value.voiceFinishing
+    : voiceHold.held.value ? (voice.transcript.value || messages.value.voiceReleaseHint) : messages.value.voiceHint)
 const routes = computed(() => journey.catalog.value?.routes?.filter(item => item.locale === journey.locale.value) ?? [])
 const detail = computed(() => viewingJourney.value ? journey.active.value : journey.preview.value)
 const destinationName = computed(() => journey.catalog.value?.destinations?.[0]?.name || '后海')
@@ -58,7 +90,14 @@ const progressLabel = computed(() => {
 })
 const autoAdvanceHint = computed(() => {
   if (!viewingJourney.value) return ''
+  if (!journey.autoPlayEnabled.value) return messages.value.queueOff
   return journey.autoAdvanceMode.value === 'sequential' ? messages.value.sequentialAutoHint : messages.value.nearbyAutoPlayHint
+})
+const locationStatus = computed(() => {
+  if (journey.locationError.value) return messages.value.locationFailed
+  if (!journey.tracking.value) return messages.value.locationOff
+  if (journey.approachUnknown.value) return messages.value.locationWeak
+  return messages.value.locationReady
 })
 /** 当前节点是否有可播内容：没有则播放键置灰（方案 §4.1） */
 const canPlayCurrent = computed(() => {
@@ -72,12 +111,14 @@ const canPlayCurrent = computed(() => {
 })
 /** 当前正在播放的条目名：抽屉关闭时在底部信息行显示（方案 §4.1） */
 const playingItemLabel = computed(() => journey.speech.currentItem.value?.title || '')
-/** 接近候选卡片只在"多候选需要用户选"或"抽屉未打开"时出现（单候选已自动打开抽屉） */
+const visibleArrivalCandidates = computed(() => journey.arrivalCandidates.value.filter(candidate => !journey.playbackSequence.value.some(item => item.stopId === candidate.stop.id)))
+/** 已经进入全局序列的景点不再显示旧的“进入该站”提示，避免用户重复操作。 */
 const showArrivalPrompt = computed(() => {
-  const count = journey.arrivalCandidates.value.length
+  const count = visibleArrivalCandidates.value.length
   if (count > 1) return true
   return count === 1 && !journey.drawerOpen.value
 })
+const queuedCount = computed(() => journey.playbackSequence.value.filter(item => item.status === 'queued').length)
 
 /** 语音识别语言跟随当前讲解语言，否则中文机型认不出俄语 / 西语 */
 const RECOGNITION_LANGS: Record<TourLocale, string> = { zh: 'zh-CN', en: 'en-US', ru: 'ru-RU', es: 'es-ES', fr: 'fr-FR', ja: 'ja-JP' }
@@ -89,7 +130,7 @@ watch(() => voice.error.value, (message) => {
 
 /** 接近行为抑制：问一问浮层打开、语音识别中、页面后台时不自动打开/自动开播（方案 §7.5） */
 watch(
-  () => askStore.open || voice.listening.value || pageHidden.value,
+  () => askStore.open || voiceHold.active.value || voice.listening.value || pageHidden.value,
   (suppressed) => journey.setApproachSuppressed(suppressed),
   { immediate: true },
 )
@@ -101,7 +142,7 @@ watch(() => journey.journeyRestored.value, (restored) => {
 
 /** 问答音频四类收尾：问答前在播就尽量自动恢复路线讲解（方案 §5.2） */
 watch(() => askStore.askAudioSettle, (settle) => {
-  if (!settle || !viewingJourney.value) return
+  if (!settle || !viewingJourney.value || voiceHold.active.value) return
   const result = journey.endAskInterrupt()
   if (result === 'blocked-paused') showResumeNotice()
 })
@@ -168,7 +209,7 @@ async function selectRoute(id: string) {
 }
 
 async function start() {
-  if (await journey.start()) { viewingJourney.value = true; journey.closeContentDrawer() }
+  if (await journey.start()) viewingJourney.value = true
 }
 
 function selectStop(id: string) {
@@ -180,6 +221,7 @@ function selectStop(id: string) {
 }
 
 function openDrawerFromDock() {
+  queueOpen.value = false
   if (journey.drawerOpen.value) {
     journey.closeContentDrawer()
     return
@@ -190,6 +232,15 @@ function openDrawerFromDock() {
 
 function closeDrawer() {
   journey.closeContentDrawer()
+}
+
+function toggleQueue() {
+  queueOpen.value = !queueOpen.value
+}
+
+function playQueuedStop(stopId: string) {
+  queueOpen.value = false
+  void journey.playQueuedStop(stopId)
 }
 
 /** 移动端返回键 / 浏览器后退：先关抽屉而不是直接离开行程（方案 §3.2） */
@@ -229,6 +280,11 @@ function seek(deltaSeconds: number) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && queueOpen.value) {
+    event.preventDefault()
+    queueOpen.value = false
+    return
+  }
   if (event.key !== 'Escape' || !journey.drawerOpen.value) return
   event.preventDefault()
   closeDrawer()
@@ -263,46 +319,15 @@ function ask() {
 }
 
 /**
- * 一键语音提问：
- * 1. 保存播放断点并暂停（这是「打断」，但保留讲解队列与当前条目）；
- * 2. 打开问一问并挂上当前站点上下文（含导游与音色，方案 §6）；
- * 3. 开始浏览器本地语音识别，识别结果实时写进输入框，确认后发送。
- */
-function startVoiceAsk() {
-  if (voice.listening.value) {
-    voice.stop()
-    return
-  }
-  journey.beginAskInterrupt()
-  askStore.stopSseAudio()
-  voiceNotice.value = ''
-
-  if (!journey.active.value?.route || !journey.currentStop.value) return
-  openAskWithContext()
-  askStore.clearDraftText()
-
-  if (!voice.supported.value) {
-    voiceNotice.value = messages.value.voiceUnsupported
-    askStore.requestDraftFocus()
-    return
-  }
-
-  if (!voice.start({ lang: RECOGNITION_LANGS[journey.locale.value] })) {
-    voiceNotice.value = messages.value.voiceUnsupported
-    askStore.requestDraftFocus()
-  }
-}
-
-/**
  * 问答上下文（方案 §6）：导游音色按"当前节点当前导游 > 路线第一个节点讲解导游"回落。
  * 用户手动选择的音色由 askStore 在发送时优先，这里只负责把导游上下文带过去。
  */
-function openAskWithContext() {
+function setAskContext() {
   const route = journey.active.value?.route
   const stop = journey.currentStop.value
   if (!route || !stop) return
   const guideVoice = resolveTourVoiceContext(journey.narration.value, journey.stops.value[0]?.guideNarrations?.find(item => item.locale === journey.locale.value) ?? null)
-  askStore.openAskWithStageContext({
+  askStore.setStageContext({
     routeId: route.id,
     stageId: stop.id,
     routeTitle: route.title || '',
@@ -312,6 +337,11 @@ function openAskWithContext() {
     playingChapterId: journey.speech.currentItem.value?.chapterId ?? null,
     playingTimeSeconds: Math.max(0, Math.round(journey.speech.playedSeconds.value)),
   })
+}
+
+function openAskWithContext() {
+  setAskContext()
+  askStore.openAsk()
 }
 
 /** 当前讲解导游音色 → 路线第一个节点讲解导游音色 → null（交给 askStore / 服务端兜底） */
@@ -330,14 +360,20 @@ function toggleFollow() {
   following.value = tourMap.value?.setFollowing(!following.value) ?? false
 }
 
+function toggleRoute() {
+  routeVisible.value = !routeVisible.value
+}
+
 async function end() {
+  voiceHold.cancel()
   voice.abort()
-  if (await journey.end()) { viewingJourney.value = false; journey.closeContentDrawer() }
+  if (await journey.end()) { viewingJourney.value = false; queueOpen.value = false; journey.closeContentDrawer() }
 }
 
 function back() {
+  voiceHold.cancel()
   voice.abort()
-  if (viewingJourney.value) { viewingJourney.value = false; journey.closeContentDrawer() }
+  if (viewingJourney.value) { viewingJourney.value = false; queueOpen.value = false; journey.closeContentDrawer() }
   else void router.push('/shell/me')
 }
 
@@ -360,8 +396,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="tour-experience" :lang="journey.locale.value">
-    <TourMap ref="tourMap" :catalog="journey.catalog.value" :detail="detail" :current-stop-id="viewingJourney ? journey.currentStop.value?.id || null : null" :journey="viewingJourney" :location="journey.location.value" @select="selectStop" @error="mapFailed = true" />
+  <main class="tour-experience" :class="{ 'is-journey': viewingJourney }" :lang="journey.locale.value">
+    <TourMap ref="tourMap" :catalog="journey.catalog.value" :detail="detail" :current-stop-id="viewingJourney ? journey.currentStop.value?.id || null : null" :journey="viewingJourney" :location="journey.location.value" :show-route="routeVisible" @select="selectStop" @error="mapFailed = true" />
     <header class="tour-header" :class="{ preview: !viewingJourney, journey: viewingJourney }">
       <template v-if="viewingJourney">
         <button type="button" @click="back">{{ messages.back }}</button>
@@ -377,7 +413,7 @@ onBeforeUnmount(() => {
       <p v-if="errorText">{{ errorText }} <button type="button" :disabled="journey.pending.value" @click="load">{{ messages.retry }}</button></p>
       <p v-if="mapFailed">{{ messages.noMap }}</p>
       <p v-if="journey.locationError.value">{{ messages.locationFailed }}</p>
-      <p v-if="speechError">{{ speechError }}</p>
+      <p v-if="speechError">{{ speechError }} <button type="button" :disabled="journey.pending.value" @click="journey.replayCurrentStop">{{ messages.retry }}</button><button type="button" @click="journey.openContentDrawer(journey.currentIndex.value, 'manual')">{{ messages.content }}</button></p>
       <p v-if="journey.approachUnknown.value">{{ messages.locationUnknown }}</p>
       <p v-if="seekNotice">{{ seekNotice }}</p>
       <p v-if="resumeNotice">{{ resumeNotice }} <button type="button" :disabled="journey.pending.value" @click="journey.resumePlayback">{{ messages.continuePlayback }}</button></p>
@@ -388,20 +424,23 @@ onBeforeUnmount(() => {
     <TourRoutePicker v-if="!viewingJourney" :routes="routes" :selected-id="journey.preview.value?.route?.id || null" :pending="journey.pending.value" :can-start="Boolean(journey.preview.value?.stops?.length)" :messages="messages" @select="selectRoute" @start="start" />
     <button v-if="!viewingJourney && journey.active.value" class="tour-return" type="button" @click="viewingJourney = true">{{ journey.active.value.route?.title }} · {{ messages.resume }}</button>
     <template v-if="viewingJourney && journey.currentStop.value">
-      <TourArrivalPrompt v-if="showArrivalPrompt" :candidates="journey.arrivalCandidates.value" :pending="journey.pending.value" :messages="messages" :playing-stop-name="journey.currentStop.value?.name || null" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
-      <nav class="tour-tools" aria-label="路线工具">
+      <TourArrivalPrompt v-if="showArrivalPrompt" :candidates="visibleArrivalCandidates" :pending="journey.pending.value" :messages="messages" :playing-stop-name="journey.currentStop.value?.name || null" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
+      <div class="tour-location-status" :class="{ 'is-active': journey.tracking.value && !journey.approachUnknown.value }" role="status"><MapPin :size="12" aria-hidden="true" /><span>{{ locationStatus }}</span></div>
+      <nav class="tour-tools" :aria-label="messages.routeTools">
         <button type="button" :class="{ active: journey.tracking.value }" :aria-pressed="journey.tracking.value" :aria-label="journey.tracking.value ? messages.stopLocate : messages.locate" :title="journey.tracking.value ? messages.stopLocate : messages.locate" @click="toggleTracking"><MapPin :size="16" /></button>
+        <button type="button" :class="{ active: routeVisible }" :aria-pressed="routeVisible" :aria-label="routeVisible ? messages.hideRoute : messages.showRoute" :title="routeVisible ? messages.hideRoute : messages.showRoute" @click="toggleRoute"><Route :size="16" /></button>
         <span class="toolbar-divider" aria-hidden="true" />
         <button type="button" :aria-label="messages.zoomOut" :title="messages.zoomOut" @click="tourMap?.zoomBy(-1)"><Minus :size="16" /></button>
         <button type="button" :aria-label="messages.overview" :title="messages.overview" @click="tourMap?.overview()"><Focus :size="16" /></button>
         <button type="button" :class="{ active: following }" :aria-pressed="following" :aria-label="following ? messages.unfollow : messages.follow" :title="following ? messages.unfollow : messages.follow" @click="toggleFollow"><Navigation :size="16" /></button>
         <button type="button" :aria-label="messages.zoomIn" :title="messages.zoomIn" @click="tourMap?.zoomBy(1)"><Plus :size="16" /></button>
         <span class="toolbar-divider" aria-hidden="true" />
-        <button type="button" class="toolbar-ask" aria-label="问一问" title="问一问" @click="ask"><MessageCircle :size="18" /></button>
+        <button type="button" class="toolbar-ask" :aria-label="messages.ask" :title="messages.ask" @click="ask"><MessageCircle :size="18" /></button>
       </nav>
       <Transition name="story-drawer">
         <div v-if="journey.drawerOpen.value && journey.drawerStop.value" ref="drawerHost" class="tour-drawer-host" @pointerdown="journey.markDrawerInteraction()" @scroll.passive="journey.markDrawerInteraction()">
           <TourStoryDrawer
+            :key="journey.drawerStop.value.id"
             :stop="journey.drawerStop.value"
             :stops="journey.stops.value"
             :narration="journey.drawerNarration.value"
@@ -421,6 +460,7 @@ onBeforeUnmount(() => {
             :can-seek="canSeek && journey.drawerMatchesPlaying.value"
             :played-seconds="journey.speech.playedSeconds.value"
             :duration-seconds="journey.speech.currentItemDuration.value"
+            :content-locked="journey.contentAutoSwitchLocked.value"
             @close="closeDrawer"
             @play="drawerPlay"
             @keep-playing="journey.openContentDrawer(journey.currentIndex.value, 'manual')"
@@ -431,8 +471,25 @@ onBeforeUnmount(() => {
             @complete="journey.completeStop"
             @skip-extra-audio="journey.setSkipExtraAudio"
             @play-extra="journey.playExtraAudio"
+            @content-lock="journey.setContentAutoSwitchLocked"
           />
         </div>
+      </Transition>
+      <Transition name="queue-panel">
+        <TourPlaybackQueue
+          v-if="queueOpen"
+          :sequence="journey.playbackSequence.value"
+          :stops="journey.stops.value"
+          :messages="messages"
+          :auto-play-enabled="journey.autoPlayEnabled.value"
+          :content-auto-switch-locked="journey.contentAutoSwitchLocked.value"
+          :pending="journey.pending.value"
+          @close="queueOpen = false"
+          @toggle-auto-play="journey.setAutoPlayEnabled"
+          @toggle-content-lock="journey.setContentAutoSwitchLocked"
+          @play="playQueuedStop"
+          @skip="journey.skipQueuedStop"
+        />
       </Transition>
       <footer ref="dockHost" class="tour-story-dock">
         <div class="tour-dock-controls">
@@ -442,29 +499,41 @@ onBeforeUnmount(() => {
           <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !canSeek" :aria-label="messages.forward15" :title="messages.forward15" @click="seek(15)"><SkipForward :size="14" aria-hidden="true" /><span>{{ messages.forward15 }}</span></button>
           <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !journey.canGoNext.value" :aria-label="messages.nextStop" :title="messages.nextStop" @click="journey.nextStop()"><SkipForward :size="16" aria-hidden="true" /><span>{{ messages.nextStop }}</span></button>
         </div>
-        <button type="button" class="tour-dock-info" @click="openDrawerFromDock">
-          <strong>{{ journey.currentStop.value.name }}</strong>
-          <small v-if="playingItemLabel">{{ messages.playingNow }}：{{ playingItemLabel }}</small>
-          <span>{{ journey.visit.value?.status === 2 ? messages.finished : `${journey.currentIndex.value + 1} / ${journey.stops.value.length}` }} · {{ messages.content }}<template v-if="progressLabel"> · {{ progressLabel }}</template></span>
-          <small v-if="journey.browsing.value">{{ messages.browsingNoProgress }}</small>
-          <small v-else-if="autoAdvanceHint">{{ autoAdvanceHint }}</small>
-        </button>
+        <div class="tour-dock-summary">
+          <button type="button" class="tour-dock-info" @click="openDrawerFromDock">
+            <strong>{{ journey.currentStop.value.name }}</strong>
+            <small v-if="playingItemLabel">{{ messages.playingNow }}：{{ playingItemLabel }}</small>
+            <span>{{ journey.visit.value?.status === 2 ? messages.finished : `${journey.currentIndex.value + 1} / ${journey.stops.value.length}` }} · {{ messages.content }}<template v-if="progressLabel"> · {{ progressLabel }}</template></span>
+            <small v-if="journey.browsing.value">{{ messages.browsingNoProgress }}</small>
+            <small v-else-if="autoAdvanceHint">{{ autoAdvanceHint }}</small>
+          </button>
+          <button type="button" class="tour-dock-queue" :class="{ active: queueOpen }" :aria-expanded="queueOpen" :aria-label="messages.queueTitle" :title="messages.queueTitle" @click="toggleQueue">
+            <ListMusic :size="17" aria-hidden="true" />
+            <span>{{ queuedCount }}</span>
+          </button>
+        </div>
       </footer>
       <div class="tour-voice">
         <button
           type="button"
           class="tour-voice-button"
-          :class="{ 'is-listening': voice.listening.value }"
-          :aria-label="voice.listening.value ? messages.voiceStop : messages.voiceAsk"
-          :title="voice.listening.value ? messages.voiceStop : messages.voiceAsk"
-          :aria-pressed="voice.listening.value"
-          @click="startVoiceAsk"
+          :class="{ 'is-listening': voiceHold.active.value }"
+          :aria-label="messages.voiceHint"
+          :title="messages.voiceHint"
+          :aria-pressed="voiceHold.held.value"
+          :disabled="askStore.typing || journey.pending.value"
+          @pointerdown="voiceHold.pointerDown"
+          @pointermove="voiceHold.pointerMove"
+          @pointerup="voiceHold.pointerUp"
+          @pointercancel="voiceHold.pointerCancel"
+          @lostpointercapture="voiceHold.pointerCancel"
+          @click="voiceHold.click"
         >
-          <span v-if="voice.listening.value" class="tour-voice-wave" aria-hidden="true"><i /><i /><i /></span>
+          <span v-if="voiceHold.active.value" class="tour-voice-wave" aria-hidden="true"><i /><i /><i /></span>
           <Mic v-else :size="22" aria-hidden="true" />
         </button>
         <p class="tour-voice-hint">
-          {{ voice.listening.value ? (voice.transcript.value || messages.voiceHint) : messages.voiceHint }}
+          {{ voiceHint }}
         </p>
       </div>
     </template>
@@ -476,6 +545,8 @@ onBeforeUnmount(() => {
 .tour-experience{--tour-lake:#183e43;--tour-ink:#2b4039;--tour-muted:#7b8a80;--tour-paper:#f8faf9;--tour-paper-strong:#f8faf9f5;--tour-paper-fade:#f8faf9db;--tour-selected:#edf5ef;--tour-line:#d4e0d9;--tour-display:"Noto Serif SC","Songti SC","STSong","SimSun",serif;position:fixed;inset:0;z-index:30;overflow:hidden;background:var(--tour-paper);color:var(--tour-ink)}
 .tour-header{position:absolute;left:0;right:0;top:0;z-index:8;display:flex;align-items:center;gap:16px;min-height:58px;padding:0 28px;border-bottom:1px solid #dbe5df;background:var(--tour-paper);color:var(--tour-lake)}.tour-header.journey{left:12px;right:12px;top:max(12px,env(safe-area-inset-top));min-height:44px;padding:12px;border:0;border-radius:10px;background:#f8faf9f2;box-shadow:0 3px 14px #183e4315}.tour-header strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.tour-header button{border:0;background:transparent;color:var(--tour-lake);font-size:12px}.tour-area-name{display:flex;align-items:baseline;gap:10px}.tour-area-name strong{font:600 17px var(--tour-display);letter-spacing:3px}.tour-area-name small{color:#78917e;font:9px/1 sans-serif;letter-spacing:2px}.tour-language{display:flex;align-items:center;gap:7px;color:var(--tour-lake);font-size:12px}.tour-language select{border:0;background:transparent;color:var(--tour-lake);font-size:12px;outline:none}.tour-notices{position:absolute;top:76px;left:12px;right:12px;z-index:4;pointer-events:none}.tour-notices p{width:fit-content;margin:4px 0;padding:8px 12px;border-radius:8px;background:#f8faf9ed;box-shadow:0 3px 14px #183e4310;font-size:12px;pointer-events:auto}.tour-notices button{margin-left:10px;text-decoration:underline}
 .tour-tools{position:absolute;left:12px;top:50%;z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;width:52px;padding:4px;border:1px solid #dbe5df;border-radius:15px;background:#fffffff2;box-shadow:0 7px 25px #183e4330;backdrop-filter:blur(12px);transform:translateY(-50%)}.tour-tools button{display:flex;align-items:center;justify-content:center;width:42px;height:38px;padding:0;border:0;border-radius:10px;background:transparent;color:#263f55}.tour-tools button:hover,.tour-tools button.active{background:#e4f0ea}.tour-tools button:focus-visible{outline:2px solid #263f55;outline-offset:-2px}.toolbar-divider{width:28px;height:1px;margin:2px 0;background:#dbe5df}.toolbar-ask{height:43px!important}
+.tour-location-status{position:absolute;left:12px;top:82px;z-index:3;display:flex;align-items:center;gap:5px;max-width:min(360px,calc(100% - 24px));padding:6px 9px;border:1px solid var(--tour-line);border-radius:8px;background:var(--tour-paper-fade);color:var(--tour-muted);font-size:10px;line-height:1.4;backdrop-filter:blur(8px)}.tour-location-status.is-active{color:var(--tour-lake);background:var(--tour-selected)}
+.tour-experience.is-journey .tour-notices{top:116px}.tour-dock-button span{white-space:normal;overflow-wrap:anywhere;text-align:center}
 .tour-return{position:absolute;top:74px;right:12px;z-index:4;max-width:75%;padding:12px;border:1px solid #dbe5df;border-radius:8px;background:#f8faf9ed;color:var(--tour-lake);font-size:12px;box-shadow:0 3px 12px #183e4315}
 /* 底部迷你控制条：两行（按钮行 + 信息行），是主播放控制条（方案 §4.1） */
 .tour-story-dock{position:absolute;left:12px;bottom:max(20px,env(safe-area-inset-bottom));z-index:8;display:grid;gap:8px;width:min(420px,calc(100% - 24px));padding:10px;border-radius:14px;background:#f8faf9f5;box-shadow:0 6px 22px #183e4320}
@@ -485,7 +556,7 @@ onBeforeUnmount(() => {
 .tour-dock-button.is-primary{background:var(--tour-lake);border-color:var(--tour-lake);color:#fff}
 .tour-dock-button:disabled{opacity:.45}
 .tour-dock-button:focus-visible{outline:2px solid #263f55;outline-offset:-2px}
-.tour-dock-info{display:grid;gap:2px;width:100%;padding:8px 10px;border:0;border-radius:10px;background:#eef3f0;text-align:left;color:#263f55}
+.tour-dock-summary{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:6px}.tour-dock-info{display:grid;gap:2px;width:100%;padding:8px 10px;border:0;border-radius:10px;background:#eef3f0;text-align:left;color:#263f55}.tour-dock-queue{display:grid;place-items:center;gap:1px;min-width:44px;padding:6px;border:1px solid #dbe5df;border-radius:10px;background:#fff;color:#263f55}.tour-dock-queue span{font-size:10px;line-height:1}.tour-dock-queue.active{border-color:var(--tour-lake);background:var(--tour-selected)}.tour-dock-queue:focus-visible,.tour-dock-info:focus-visible{outline:2px solid var(--tour-lake);outline-offset:2px}
 .tour-dock-info strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
 .tour-dock-info span{color:#647382;font-size:11px}
 .tour-dock-info small{color:#6b7d84;font-size:10px}
@@ -494,9 +565,11 @@ onBeforeUnmount(() => {
 .story-drawer-enter-active,.story-drawer-leave-active{transition:transform .22s ease,opacity .22s ease}
 .story-drawer-enter-from,.story-drawer-leave-to{opacity:0;transform:translateX(24px)}
 .story-drawer-enter-to,.story-drawer-leave-from{opacity:1;transform:translateX(0)}
-@media(prefers-reduced-motion:reduce){.story-drawer-enter-active,.story-drawer-leave-active{transition:none}}
+.queue-panel-enter-active,.queue-panel-leave-active{transition:opacity .18s ease,transform .18s ease}.queue-panel-enter-from,.queue-panel-leave-to{opacity:0;transform:translateY(8px)}
+@media(prefers-reduced-motion:reduce){.story-drawer-enter-active,.story-drawer-leave-active,.queue-panel-enter-active,.queue-panel-leave-active{transition:none}}
 @media(max-width:760px){.tour-header{min-height:56px;padding:0 16px}.tour-area-name strong{font-size:16px}.tour-language{font-size:11px}.tour-language select{max-width:76px;font-size:11px}.tour-tools{left:10px}.tour-notices{top:70px}.tour-dock-button span{display:none}.tour-dock-button{min-height:46px}}
-/* 语音键：一键打断当前播报并开始说话提问；位置在底部控制条正上方居中 */
+.tour-voice-button{touch-action:none;user-select:none}
+.tour-voice-button:disabled{opacity:.5}
 .tour-voice{position:absolute;left:50%;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 126px);z-index:9;display:flex;flex-direction:column;align-items:center;gap:6px;transform:translateX(-50%)}
 .tour-voice-button{display:grid;place-items:center;width:58px;height:58px;padding:0;border:1px solid #dbe5df;border-radius:50%;background:var(--tour-lake);color:#fff;box-shadow:0 10px 26px #183e4340;transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
 .tour-voice-button:active{transform:scale(.95)}

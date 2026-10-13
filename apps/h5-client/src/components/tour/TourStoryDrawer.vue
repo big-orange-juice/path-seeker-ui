@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-vue-next'
+import { Lock, LockOpen, Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-vue-next'
 import type { ClientStopExtraAudio, ClientTourStop, TourGuideNarration } from '@/types/clientCatalog'
 import type { TourMessages } from '@/utils/tourMessages'
 
@@ -38,6 +38,7 @@ const props = defineProps<{
   /** 已播秒数与总时长，用于展示进度（系统语音无精确时长时总时长为 0） */
   playedSeconds: number
   durationSeconds: number
+  contentLocked: boolean
 }>()
 const emit = defineEmits<{
   close: []
@@ -50,6 +51,7 @@ const emit = defineEmits<{
   complete: []
   skipExtraAudio: [value: boolean]
   playExtra: [id: string]
+  contentLock: [value: boolean]
 }>()
 
 const extraAudios = computed(() => props.stop?.extraAudios ?? [])
@@ -102,6 +104,7 @@ function itemLabel(item: ClientStopExtraAudio, index: number) {
 <template>
   <aside v-if="stop" class="tour-story" role="dialog" aria-modal="false" :aria-label="stop.name || messages.content">
     <header><h2>{{ stop.name }}</h2><button type="button" @click="emit('close')">{{ messages.close }}</button></header>
+    <button type="button" class="tour-content-lock" :aria-pressed="contentLocked" @click="emit('contentLock', !contentLocked)"><Lock v-if="contentLocked" :size="14" aria-hidden="true" /><LockOpen v-else :size="14" aria-hidden="true" /><span>{{ messages.queueLockContent }}</span></button>
     <nav class="tour-stop-tabs"><button v-for="(item, index) in stops" :key="item.id" type="button" :class="{ active: item.id === stop.id }" :disabled="pending" @click="emit('select', index)">{{ item.order }}. {{ item.name }}</button></nav>
     <p v-if="!matchesPlaying && playingStopName" class="tour-story-alert" role="status">{{ messages.drawerNotPlaying }}{{ playingStopName }}</p>
     <p v-if="browsing" class="tour-story-alert" role="status">{{ messages.browsingNoProgress }}</p>
@@ -163,7 +166,9 @@ function itemLabel(item: ClientStopExtraAudio, index: number) {
 </template>
 
 <style scoped>
+.tour-content-lock{display:flex;align-items:center;gap:7px;margin-top:10px;min-height:36px;padding:7px 10px;border:1px solid var(--tour-line);border-radius:8px;background:var(--tour-selected);color:var(--tour-lake);font-size:12px;text-align:left}.tour-content-lock svg{flex-shrink:0}.tour-story button:focus-visible,.tour-story select:focus-visible{outline:2px solid var(--tour-lake);outline-offset:2px}.tour-story header h2{overflow-wrap:anywhere;min-width:0}.tour-story header button{flex-shrink:0}
 .tour-story{position:absolute;right:12px;top:76px;bottom:168px;z-index:6;width:min(380px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;border-radius:12px;background:#fffef8f5;color:#273744;padding:16px;box-shadow:0 4px 24px #0003}.tour-story header{display:flex;align-items:center;justify-content:space-between;gap:12px}.tour-story h2{font-size:20px;margin:0}.tour-story header button{font-size:12px;color:#647382}.tour-stop-tabs{display:flex;gap:6px;overflow:auto;margin:14px 0}.tour-stop-tabs button{white-space:nowrap;border:1px solid #bcc8ce;border-radius:20px;padding:6px 10px;font-size:12px}.tour-stop-tabs button.active{background:#263f55;color:#fff}.tour-story-cover{width:100%;height:190px;object-fit:cover;border-radius:8px}.tour-image-caption{font-size:11px;color:#69777e;margin:6px 0}.tour-story-controls{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}.tour-story-controls button,.tour-complete{display:flex;align-items:center;justify-content:center;gap:6px;background:#263f55;color:#fff;border-radius:8px;padding:10px 16px;font-size:13px}.tour-story-controls button.tour-seek{min-width:84px;min-height:44px;background:#eef3f0;color:#263f55;padding:10px 12px}.tour-story-controls button:disabled,.tour-complete:disabled{opacity:.5}.tour-story-controls select{max-width:100%;background:#e9ede9;padding:8px;border-radius:6px}.tour-queue-status{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 12px;padding:8px 10px;border-radius:8px;background:#eef3f0;color:#41565f;font-size:12px}.tour-queue-status small{color:#6b7d84}.tour-queue-status.is-blocked{background:#fdf1e3;color:#8a5a24}.tour-story-alert{margin:0 0 10px;padding:8px 10px;border-radius:8px;background:#fdf1e3;color:#8a5a24;font-size:12px}.tour-story-text{font-size:14px;line-height:1.9;white-space:pre-wrap}.tour-story-text h3{font-size:16px;margin:16px 0 6px}.tour-arrival{font-size:12px;color:#647382}.tour-story video,.tour-story-images img{width:100%;border-radius:8px}.tour-story summary{font-size:13px;cursor:pointer;margin:12px 0}.tour-story-images figure{margin:16px 0}.tour-story-images figcaption{font-size:11px;color:#69777e}.tour-complete{width:100%;margin-top:18px}
 .tour-extra{margin:16px 0;padding:12px;border:1px solid #dbe5df;border-radius:10px;background:#f6faf7}.tour-extra h3{margin:0 0 8px;font-size:14px}.tour-extra-toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:#41565f}.tour-extra-group{margin-top:10px}.tour-extra-group h4{margin:0 0 6px;color:#647382;font-size:11px;font-weight:600}.tour-extra-group ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}.tour-extra-group button{display:flex;align-items:center;gap:7px;width:100%;padding:8px 10px;border:1px solid #dbe5df;border-radius:8px;background:#fff;color:#263f55;font-size:12px;text-align:left}.tour-extra-group button span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tour-extra-group button small{color:#78878f;font-size:11px}.tour-extra-group li.is-playing button{border-color:#263f55;background:#e4f0ea}
+.tour-story{border:1px solid var(--tour-line);background:var(--tour-paper-strong);color:var(--tour-ink);box-shadow:0 6px 24px #183e4320}.tour-stop-tabs button.active,.tour-story-controls button,.tour-complete{background:var(--tour-lake);color:#fff}.tour-stop-tabs button,.tour-extra-group button{border-color:var(--tour-line)}.tour-story-controls button.tour-seek,.tour-queue-status,.tour-extra{background:var(--tour-selected);color:var(--tour-lake)}.tour-extra-group li.is-playing button{border-color:var(--tour-lake);background:var(--tour-selected)}.tour-story header button{min-height:36px;border:0;background:transparent;padding:4px;color:var(--tour-muted)}
 @media(min-width:900px){.tour-story{width:clamp(380px,32vw,440px)}}
 </style>

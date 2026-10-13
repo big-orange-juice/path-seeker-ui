@@ -19,6 +19,7 @@ import AskLocationCard from "@/components/shell/AskLocationCard.vue"
 import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskSpeech } from "@/composables/useAskSpeech"
 import { useBrowserSpeechRecognition } from "@/composables/useBrowserSpeechRecognition"
+import { useVoiceHold } from "@/composables/useVoiceHold"
 import {
   extractAskUserInstruction,
   formatStageContextChipLabel,
@@ -73,6 +74,8 @@ const showSpeechProgress = computed(() => Boolean(speech.speakingSentence.value)
 
 /** 状态行提示；与相位同一行显示，过长时截断 */
 const voiceHintText = computed(() => {
+  if (voiceHold.cancelling.value) return "松开取消"
+  if (voiceHold.finishing.value) return "正在识别…"
   if (recognition.listening.value) return "正在识别你说的话，松开即发送"
   if (speech.voicePhase.value === "speaking") return "正在朗读回复，开口说话可打断"
   if (speech.voicePhase.value === "thinking") return "正在组织回答…"
@@ -253,39 +256,22 @@ const composerSuggestions = computed(() => {
   return []
 })
 
-/** 松开麦克风后自动发送（demo 的「按住说话，松开后发送」） */
-let autoSendOnRelease = false
-
-function startVoiceHold() {
-  if (recognition.listening.value) return
-  if (isVoiceMode.value) {
-    speech.unlock()
-  }
-  startVoiceAskCapture()
-}
-
-/** 按下即打断正在播的内容并开始识别 */
-function startVoiceAskCapture() {
-  askStore.stopSseAudio()
-  recognition.start()
-}
-
-function finishVoiceHold() {
-  if (!recognition.listening.value) return
-  autoSendOnRelease = true
-  recognition.stop()
-}
-
-watch(() => recognition.listening.value, async (now, before) => {
-  if (!before || now || !autoSendOnRelease) return
-  autoSendOnRelease = false
-  // 等草稿写入完成再发，避免读到上一轮的文本
-  await nextTick()
-  const text = draftText.value.trim()
-  if (!text || typing.value) return
-  askStore.clearDraftText()
-  void askStore.send(text)
+const voiceHold = useVoiceHold({
+  recognition,
+  canStart: () => (props.fullPage || open.value) && !typing.value,
+  onPress: () => speech.unlock(),
+  onStart: () => {
+    askStore.stopSseAudio()
+  },
+  onSubmit: (text) => {
+    askStore.clearDraftText()
+    void askStore.send(text)
+  },
+  onCancel: () => askStore.clearDraftText(),
+  onError: (message) => toastStore.warning("语音输入", message),
 })
+
+watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
 </script>
 
 <template>
@@ -586,10 +572,14 @@ watch(() => recognition.listening.value, async (now, before) => {
             :aria-pressed="recognition.listening.value"
             aria-label="按住说话"
             title="按住说话，松开后发送"
-            @pointerdown.prevent="startVoiceHold"
-            @pointerup.prevent="finishVoiceHold"
-            @pointercancel.prevent="finishVoiceHold"
-            @pointerleave="finishVoiceHold"
+            :style="{ touchAction: 'none', userSelect: 'none' }"
+            :disabled="typing"
+            @pointerdown="voiceHold.pointerDown"
+            @pointermove="voiceHold.pointerMove"
+            @pointerup="voiceHold.pointerUp"
+            @pointercancel="voiceHold.pointerCancel"
+            @lostpointercapture="voiceHold.pointerCancel"
+            @click="voiceHold.click"
           >
             <span
               v-if="recognition.listening.value"
