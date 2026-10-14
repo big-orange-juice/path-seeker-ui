@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>定位精度检测</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 24px 16px; background: #f3f6f3; color: #183e43; font: 16px/1.6 system-ui, sans-serif; }
+      main { max-width: 640px; margin: auto; }
+      h1 { margin: 0 0 12px; font-size: 24px; }
+      p { margin: 12px 0; }
+      section { margin: 20px 0; padding: 18px; background: white; border: 1px solid #dbe5df; border-radius: 16px; }
+      h2 { margin: 0 0 8px; font-size: 18px; }
+      button { min-height: 46px; margin: 6px 8px 6px 0; padding: 10px 16px; border: 1px solid #183e43; border-radius: 10px; background: #183e43; color: white; font: inherit; cursor: pointer; }
+      button:disabled { opacity: .45; cursor: default; }
+      button.secondary { background: white; color: #183e43; }
+      pre { padding: 14px; overflow-wrap: anywhere; white-space: pre-wrap; background: #e5ede8; border-radius: 10px; font-size: 12px; color: #243d36; }
+      #status { min-height: 52px; }
+      #verdict { min-height: 52px; padding: 14px; border-radius: 10px; font-weight: 600; background: #e5ede8; }
+      #verdict.pass { background: #dff2e2; color: #14532d; }
+      #verdict.warn { background: #fdf0d5; color: #7c4a03; }
+      #verdict.fail { background: #fbe3e3; color: #8a1c1c; }
+      .muted { font-size: 14px; color: #5d746c; }
+      .facts { margin: 8px 0 0; padding: 0; list-style: none; font-size: 14px; }
+      .facts li { padding: 3px 0; border-bottom: 1px dashed #dbe5df; }
+    </style>
+    <script src="./location-check.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <h1>定位精度检测</h1>
+      <p>用于判断当前设备和浏览器能给出的实际定位精度。请在需要导览的场地内、室外或靠近窗口的位置打开，检测期间保持页面在前台。</p>
+      <section>
+        <h2>1. 运行环境</h2>
+        <ul class="facts" id="env"><li class="muted">读取中…</li></ul>
+      </section>
+      <section>
+        <h2>2. 连续定位采样</h2>
+        <p>四组各采样 12 秒：A 为修复后的首帧参数，B 为修复后的高精度改善通道，C 为导览页原来的参数，D 为放宽缓存的高精度对照。C 组长时间没有读数、A 组秒回可用定位，即说明问题出在取数参数而非设备定位能力。</p>
+        <p class="muted">检测只读取坐标与精度，不发送到后台，不上报位置。</p>
+        <button id="run" type="button">开始检测</button>
+        <button id="stop" type="button" class="secondary" disabled>停止</button>
+      </section>
+      <p id="verdict" class="muted" role="status" aria-live="polite">等待检测</p>
+      <p id="status" role="status" aria-live="polite">等待检测</p>
+      <button id="copy" type="button" class="secondary">复制检测结果</button>
+      <p class="muted">结果包含浏览器信息、权限状态与精度数值，可用于排查，不包含身份信息。</p>
+      <pre id="log" tabindex="0" aria-label="检测记录"></pre>
+    </main>
+  </body>
+</html>

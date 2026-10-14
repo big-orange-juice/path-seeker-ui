@@ -9,6 +9,7 @@ import {
   updateRouteVisitStop,
 } from '@/services/clientCatalog'
 import { useTourSpeech } from '@/composables/useTourSpeech'
+import { watchLocation, type LocationFix, type LocationWatchHandle, type LocationWatchError } from '@/composables/watchLocation'
 import { evaluateTourStop, nearbyTourStops, TOUR_ARRIVAL_POLICY, type TourStopCandidate } from '@/utils/tourProgression'
 import {
   browserCheckpointStorage,
@@ -129,6 +130,8 @@ export function useTourJourney() {
   const error = shallowRef('')
   const location = shallowRef<{ longitude: number; latitude: number; accuracy: number; heading: number | null; timestamp: number } | null>(null)
   const locationError = shallowRef(false)
+  /** 定位权限被拒与"暂时没拿到定位"是两种处置：前者只能引导用户改设置，后者要提示当前精度 */
+  const locationPermissionDenied = shallowRef(false)
   const tracking = shallowRef(false)
   /** 本次游览内已播过的前置额外音频：切换导游不重复播放，显式"重新播放整站"时清空 */
   const playedBeforeExtraIds = new Set<string>()
@@ -175,7 +178,8 @@ export function useTourJourney() {
   let loadVersion = 0
   let previewVersion = 0
   let journeyVersion = 0
-  let watchId: number | undefined
+  /** 当前定位监听句柄：由 watchLocation 管理"快速首帧 + 高精度改善"两条通道 */
+  let locationWatch: LocationWatchHandle | null = null
   let arrivalTimer: ReturnType<typeof setTimeout> | undefined
   let locationTimer: ReturnType<typeof setTimeout> | undefined
   let candidateKey = ''
@@ -886,9 +890,10 @@ export function useTourJourney() {
   }
 
   function stopTracking() {
-    if (watchId !== undefined) navigator.geolocation?.clearWatch(watchId)
-    watchId = undefined
+    locationWatch?.stop()
+    locationWatch = null
     tracking.value = false
+    locationPermissionDenied.value = false
     clearTimeout(arrivalTimer)
     clearTimeout(locationTimer)
     approachUsable.value = false
@@ -998,65 +1003,86 @@ export function useTourJourney() {
     if (speech.status.value === 'idle') void startNextPlaybackSequence()
   }
 
+  /**
+   * 开始近站定位。
+   *
+   * 取数策略交给 watchLocation：首帧不强制高精度，避免 Android Chromium 在室内
+   * 让 `enableHighAccuracy: true` 静默挂起（实测 12 秒 0 回调），拿到可用定位后再
+   * 机会性接受高精度改善。这里只负责把每次定位换算成接近判定需要的时间戳与质量。
+   */
   function startTracking() {
     if (tracking.value) return
     if (!navigator.geolocation) { locationError.value = true; return }
     tracking.value = true
     locationError.value = false
-    watchId = navigator.geolocation.watchPosition(position => {
-      // heading 只有移动中才有效，静止时浏览器会给 null/NaN，交给地图保持当前朝向
-      const heading = Number(position.coords.heading)
-      location.value = {
-        longitude: position.coords.longitude,
-        latitude: position.coords.latitude,
-        accuracy: position.coords.accuracy,
-        heading: Number.isFinite(heading) ? heading : null,
-        timestamp: position.timestamp,
-      }
-      locationError.value = false
-      const now = Date.now()
-      // 定位质量校验复用共享实现；位置过期由下面的定时器把状态改回"未知"
-      approachUsable.value = isUsableLocation(location.value, TOUR_ARRIVAL_POLICY, now)
-      clearTimeout(locationTimer)
-      locationTimer = setTimeout(() => {
-        if (!alive) return
-        approachUsable.value = false
-        candidateKey = ''
-        candidateStartedAt = 0
-        clearTimeout(arrivalTimer)
-      }, TOUR_ARRIVAL_POLICY.maxAgeMs)
-      // 离开退出阈值的景点清掉自动记录：再次进入时允许重新自动打开/自动播放
-      pruneAutoOpenState(now)
-      // 离开提示取消：与候选筛选、确认走同一范围与阈值
-      if (arrivalCandidates.value.length) {
-        const stillNear = arrivalCandidates.value.filter(candidate => {
-          const evaluated = evaluateTourStop(candidate.stop, candidate.place, location.value, now, TOUR_ARRIVAL_POLICY)
-          // 判定不了（定位质量不足）时保留卡片，用户仍可手动选择
-          return evaluated ? !evaluated.releasing : true
-        })
-        if (stillNear.length) arrivalCandidates.value = stillNear
-        else arrivalCandidates.value = []
-      }
-      const candidates = collectCandidates(now)
-      const key = candidateSignature(candidates)
-      if (key === candidateKey) {
-        // 候选没变时也要评估自动开始：音频播完后停在范围内，等下一次定位事件即自动开始
-        if (candidates.length && hasStableApproach(candidateStartedAt, now, TOUR_ARRIVAL_POLICY.dwellMs)) handleApproach(candidates)
-        return
-      }
+    locationPermissionDenied.value = false
+    locationWatch = watchLocation({
+      onFix: fix => handleLocationFix(fix),
+      onError: handleLocationError,
+    })
+  }
+
+  function handleLocationFix(fix: LocationFix) {
+    location.value = fix
+    locationError.value = false
+    locationPermissionDenied.value = false
+    const now = Date.now()
+    // 定位质量校验复用共享实现；位置过期由下面的定时器把状态改回"未知"
+    approachUsable.value = isUsableLocation(location.value, TOUR_ARRIVAL_POLICY, now)
+    clearTimeout(locationTimer)
+    locationTimer = setTimeout(() => {
+      if (!alive) return
+      approachUsable.value = false
+      candidateKey = ''
+      candidateStartedAt = 0
       clearTimeout(arrivalTimer)
-      candidateKey = key
-      candidateStartedAt = candidates.length ? now : 0
-      if (!candidates.length) return
-      // 稳定停留一小段时间再触发，减少定位漂移造成的反复提示
-      arrivalTimer = setTimeout(() => {
-        if (!alive || visit.value?.status !== 1) return
-        const fresh = collectCandidates(Date.now())
-        if (candidateSignature(fresh) !== key) return
-        arrivalCandidates.value = fresh
-        handleApproach(fresh)
-      }, TOUR_ARRIVAL_POLICY.dwellMs)
-    }, () => { locationError.value = true; stopTracking() }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 })
+    }, TOUR_ARRIVAL_POLICY.maxAgeMs)
+    // 离开退出阈值的景点清掉自动记录：再次进入时允许重新自动打开/自动播放
+    pruneAutoOpenState(now)
+    // 离开提示取消：与候选筛选、确认走同一范围与阈值
+    if (arrivalCandidates.value.length) {
+      const stillNear = arrivalCandidates.value.filter(candidate => {
+        const evaluated = evaluateTourStop(candidate.stop, candidate.place, location.value, now, TOUR_ARRIVAL_POLICY)
+        // 判定不了（定位质量不足）时保留卡片，用户仍可手动选择
+        return evaluated ? !evaluated.releasing : true
+      })
+      if (stillNear.length) arrivalCandidates.value = stillNear
+      else arrivalCandidates.value = []
+    }
+    const candidates = collectCandidates(now)
+    const key = candidateSignature(candidates)
+    if (key === candidateKey) {
+      // 候选没变时也要评估自动开始：音频播完后停在范围内，等下一次定位事件即自动开始
+      if (candidates.length && hasStableApproach(candidateStartedAt, now, TOUR_ARRIVAL_POLICY.dwellMs)) handleApproach(candidates)
+      return
+    }
+    clearTimeout(arrivalTimer)
+    candidateKey = key
+    candidateStartedAt = candidates.length ? now : 0
+    if (!candidates.length) return
+    // 稳定停留一小段时间再触发，减少定位漂移造成的反复提示
+    arrivalTimer = setTimeout(() => {
+      if (!alive || visit.value?.status !== 1) return
+      const fresh = collectCandidates(Date.now())
+      if (candidateSignature(fresh) !== key) return
+      arrivalCandidates.value = fresh
+      handleApproach(fresh)
+    }, TOUR_ARRIVAL_POLICY.dwellMs)
+  }
+
+  /**
+   * 权限被拒时无法靠重试恢复，停止定位让用户去改设置；
+   * 其余情况（暂时拿不到定位、单次请求超时）保持 tracking，界面显示"正在等待更准确的定位"。
+   */
+  function handleLocationError(error: LocationWatchError) {
+    if (error.code === 'denied') {
+      // 先停掉监听再置状态，避免停止动作本身把权限提示清掉
+      stopTracking()
+      locationPermissionDenied.value = true
+      locationError.value = true
+      return
+    }
+    approachUsable.value = false
   }
 
   /** 页面层设置抑制（问一问浮层打开、语音识别中、页面后台） */
@@ -1136,6 +1162,7 @@ export function useTourJourney() {
     error,
     location,
     locationError,
+    locationPermissionDenied,
     tracking,
     speech,
     skipExtraAudio,

@@ -1,0 +1,140 @@
+import type { ClientPlace, ClientTourStop } from '../src/types/clientCatalog.ts'
+
+type ApproachPoint = { longitude: number; latitude: number }
+type ApproachPolicy = {
+  proximityMeters: number
+  releaseMeters: number
+  maxAccuracyMeters: number
+  maxAgeMs: number
+  dwellMs: number
+}
+type ApproachResult = { distanceMeters: number | null; withinRange: boolean; approaching: boolean; releasing: boolean }
+type PlaceRange = { rangeVersion: number }
+
+// 临时验证副本：直接内联共享包里的默认策略值，避免拉起整个 ts-shared 依赖链
+const DEFAULT_APPROACH_POLICY: ApproachPolicy = {
+  proximityMeters: 50,
+  releaseMeters: 80,
+  maxAccuracyMeters: 65,
+  maxAgeMs: 15000,
+  dwellMs: 1500,
+}
+
+// 这两个函数只在接近判定里用到，本验证脚本不覆盖它们
+const isUsableLocation = (_fix: unknown, _policy: ApproachPolicy, _now: number) => true
+const evaluateApproach = (_point: ApproachPoint, _range: PlaceRange | null, _anchor: ApproachPoint, _policy: ApproachPolicy): ApproachResult =>
+  ({ distanceMeters: 0, withinRange: true, approaching: true, releasing: false })
+
+
+/**
+ * 接近判定策略：直接复用共享默认值（进入 50 米、退出 80 米，设计文档 §5.3 与 §2.3 第 4 条）。
+ *
+ * 这里不再保留旧的 100/180 半径语义：所有距离判断都改为"按景点范围计算"，
+ * 阈值优先取服务端下发的 range 生效值，未下发时回落到 DEFAULT_APPROACH_POLICY。
+ */
+export const TOUR_ARRIVAL_POLICY: ApproachPolicy = DEFAULT_APPROACH_POLICY
+
+function stopPolicy(stop: ClientTourStop, policy: ApproachPolicy): ApproachPolicy {
+  const proximityMeters = stop.triggerRadiusMeters && stop.triggerRadiusMeters > 0 ? stop.triggerRadiusMeters : policy.proximityMeters
+  return { ...policy, proximityMeters, releaseMeters: Math.max(policy.releaseMeters, proximityMeters) }
+}
+
+function placePolicy(stop: ClientTourStop, range: PlaceRange | null | undefined, policy: ApproachPolicy): ApproachPolicy {
+  return stopPolicy(stop, { ...policy,
+    proximityMeters: range?.defaultProximityDistanceMeters ?? policy.proximityMeters,
+    releaseMeters: range?.defaultReleaseDistanceMeters ?? policy.releaseMeters })
+}
+
+/** 带定位质量字段的用户位置 */
+export interface TourFix {
+  longitude: number
+  latitude: number
+  accuracy: number
+  timestamp: number
+}
+
+/** 一个接近候选：候选筛选、弹出卡片、确认与解除都使用同一份计算结果 */
+export interface TourStopCandidate {
+  /** 站点在排序后路线中的下标 */
+  index: number
+  stop: ClientTourStop
+  place: ClientPlace | null
+  /** 判定锚点：优先文化点经纬度 */
+  anchor: ApproachPoint
+  range: PlaceRange | null
+  distanceMeters: number | null
+  withinRange: boolean
+  proximityMeters: number
+  releaseMeters: number
+}
+
+/** 判定锚点取文化点经纬度；文化点缺坐标时回落到站点坐标 */
+export function tourStopAnchor(stop: ClientTourStop, place: ClientPlace | null | undefined): ApproachPoint | null {
+  const longitude = place?.longitude ?? stop.longitude
+  const latitude = place?.latitude ?? stop.latitude
+  if (longitude == null || latitude == null) return null
+  return { longitude, latitude }
+}
+
+/**
+ * 计算某个站点相对当前位置的接近结果。
+ * 返回 null 表示无法判定（没有定位、定位质量不足、缺锚点坐标），调用方按"未知"处理并保留手动选择能力。
+ */
+export function evaluateTourStop(
+  stop: ClientTourStop,
+  place: ClientPlace | null | undefined,
+  fix: TourFix | null | undefined,
+  now = Date.now(),
+  policy: ApproachPolicy = TOUR_ARRIVAL_POLICY,
+): ApproachResult | null {
+  if (!fix || !isUsableLocation(fix, policy, now)) return null
+  const anchor = tourStopAnchor(stop, place)
+  if (!anchor) return null
+  return evaluateApproach({ longitude: fix.longitude, latitude: fix.latitude }, place?.range ?? null, anchor, placePolicy(stop, place?.range, policy))
+}
+
+/**
+ * 候选筛选（原 nearbyTourStop 的替代）：只返回处于"接近"状态的未游览站点。
+ * 多个范围重叠时全部返回，先按路线顺序、再按到停靠点的距离排序，由用户在卡片上选择。
+ */
+export function nearbyTourStops(
+  stops: ClientTourStop[],
+  places: ClientPlace[] | null | undefined,
+  fix: TourFix | null | undefined,
+  after: number,
+  now = Date.now(),
+  policy: ApproachPolicy = TOUR_ARRIVAL_POLICY,
+  completedStageIds: Iterable<string> = [],
+): TourStopCandidate[] {
+  if (!fix || !isUsableLocation(fix, policy, now)) return []
+  // 已完成站点不再作为接近候选（方案 §7.5：以 completedStageIds 为准）
+  const completed = new Set(completedStageIds)
+  const placeById = new Map<string, ClientPlace>()
+  for (const place of places ?? []) placeById.set(place.id, place)
+  const point: ApproachPoint = { longitude: fix.longitude, latitude: fix.latitude }
+  const candidates: TourStopCandidate[] = []
+  stops.forEach((stop, index) => {
+    if (stop.id === stops[after]?.id) return
+    if (completed.has(stop.id)) return
+    const place = stop.placeId ? placeById.get(stop.placeId) ?? null : null
+    const anchor = tourStopAnchor(stop, place)
+    if (!anchor) return
+    const range = place?.range ?? null
+    const result = evaluateApproach(point, range, anchor, placePolicy(stop, range, policy))
+    if (!result.approaching) return
+    candidates.push({
+      index,
+      stop,
+      place,
+      anchor,
+      range,
+      distanceMeters: result.distanceMeters,
+      withinRange: result.withinRange,
+      proximityMeters: result.proximityMeters,
+      releaseMeters: result.releaseMeters,
+    })
+  })
+  return candidates.sort((left, right) => Number(left.index <= after) - Number(right.index <= after)
+    || (left.stop.order - right.stop.order)
+    || ((left.distanceMeters ?? Number.POSITIVE_INFINITY) - (right.distanceMeters ?? Number.POSITIVE_INFINITY)))
+}

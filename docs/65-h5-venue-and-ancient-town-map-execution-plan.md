@@ -584,10 +584,16 @@ interface OutdoorMapCanvasEmits {
 `useBrowserLocation.ts`：
 
 - 管理权限状态；
-- 单次请求高精度位置；
+- 请求一次可用位置，随后接受高精度改善；取数实现集中在 `watchLocation`；
 - 返回坐标、精度和错误；
 - 集中处理 WGS84 到 GCJ-02 的转换；
 - 本期不默认启动 `watchPosition`。
+
+定位取数策略（`watchLocation.ts`）：
+
+- 首次定位不强制高精度，并允许使用 10 秒内的缓存位置；
+- 首帧到位后再机会性请求一次高精度定位，精度达标即停止请求，最长观察 90 秒；
+- 权限被拒（`code=1`）时停止定位并提示改设置；位置不可用或超时只降级为"等待更准确定位"，保留手动选站。
 
 ## 8. 地图适配层
 
@@ -1143,15 +1149,28 @@ B 端地图 SDK 实例和覆盖物同样使用 `shallowRef` 或模块私有变�
 
 ### 12.2 获取方式
 
-第一优先使用浏览器标准 Geolocation：
+第一优先使用浏览器标准 Geolocation，分两步取数（`watchLocation.ts`）：
 
 ```ts
-navigator.geolocation.getCurrentPosition(success, fail, {
+// 第一步：首帧不强制高精度，并允许吃 10 秒内的缓存位置
+navigator.geolocation.watchPosition(success, fail, {
+  enableHighAccuracy: false,
+  maximumAge: 10_000,
+  timeout: 15_000,
+})
+
+// 第二步：首帧到位后再机会性要一次高精度定位，精度达标即停止
+navigator.geolocation.watchPosition(success, fail, {
   enableHighAccuracy: true,
-  timeout: 10_000,
   maximumAge: 0,
+  timeout: 20_000,
 })
 ```
+
+为什么第一步不强制高精度：Android Chromium/Edge 上 `enableHighAccuracy: true` 会等待 GPS 级
+新定位，室内拿不到时既不回调也不报错（2026-10-14 实测：12 秒 0 次回调、0 次错误，见
+`apps/h5-client/public/location-check.html`）；同一台设备用非高精度请求 1 秒内即返回
+9 米精度定位。因此“先拿到可用定位、再等更准的定位”比“一次就要最准”更可靠。
 
 要求：
 
@@ -1159,6 +1178,7 @@ navigator.geolocation.getCurrentPosition(success, fail, {
 - 只在用户点击“定位到我”后申请；
 - 不在页面首次进入时自动弹权限；
 - 读取并展示 `accuracy`；
+- 权限被拒与精度不足分开提示；
 - 转换为 GCJ-02 后再进入腾讯地图；
 - 定位结果不写入 URL；
 - 不默认长期持久化精确坐标；

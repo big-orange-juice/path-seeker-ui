@@ -102,6 +102,8 @@ const autoAdvanceHint = computed(() => {
   return journey.autoAdvanceMode.value === 'sequential' ? messages.value.sequentialAutoHint : messages.value.nearbyAutoPlayHint
 })
 const locationStatus = computed(() => {
+  // 权限被拒与"暂时没拿到定位"分开提示：前者要去改设置，后者只需等待，仍可手动选择站点
+  if (journey.locationPermissionDenied.value) return messages.value.permissionDenied
   if (journey.locationError.value) return messages.value.locationFailed
   if (!journey.tracking.value) return messages.value.locationOff
   if (journey.approachUnknown.value) return messages.value.locationWeak
@@ -422,7 +424,8 @@ onBeforeUnmount(() => {
     <div v-if="errorText || mapFailed || journey.locationError.value || speechError || voiceNotice || journey.speech.blocked.value || journey.speech.skippedExtraAudio.value || journey.approachUnknown.value || seekNotice || resumeNotice" class="tour-notices" role="status">
       <p v-if="errorText">{{ errorText }} <button type="button" :disabled="journey.pending.value" @click="load">{{ messages.retry }}</button></p>
       <p v-if="mapFailed">{{ messages.noMap }}</p>
-      <p v-if="journey.locationError.value">{{ messages.locationFailed }}</p>
+      <p v-if="journey.locationPermissionDenied.value">{{ messages.permissionDenied }}</p>
+      <p v-else-if="journey.locationError.value">{{ messages.locationFailed }}</p>
       <p v-if="speechError">{{ speechError }} <button type="button" :disabled="journey.pending.value" @click="journey.replayCurrentStop">{{ messages.retry }}</button><button type="button" @click="journey.openContentDrawer(journey.currentIndex.value, 'manual')">{{ messages.content }}</button></p>
       <p v-if="journey.approachUnknown.value">{{ messages.locationUnknown }}</p>
       <p v-if="seekNotice">{{ seekNotice }}</p>
