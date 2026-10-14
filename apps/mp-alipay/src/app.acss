@@ -1,0 +1,26 @@
+page { background: #f8faf9; color: #2b4039; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; font-size: 28rpx; }
+view, scroll-view, input, textarea, button { box-sizing: border-box; }
+button { margin: 0; font-size: 27rpx; line-height: 1.5; padding: 20rpx 26rpx; border-radius: 16rpx; background: #edf5ef; color: #183e43; border: 0; }
+button::after { border: 0; }
+button[disabled] { opacity: .45; }
+.primary { background: #183e43; color: #fff; }
+.quiet { background: transparent; color: #60776d; }
+.danger { color: #a4483b; }
+.page { padding: 32rpx 28rpx 60rpx; }
+.eyebrow { color: #7b8a80; font-size: 21rpx; letter-spacing: 4rpx; margin-bottom: 14rpx; }
+.title { font-family: 'Noto Serif SC', 'Songti SC', 'STSong', serif; font-size: 48rpx; line-height: 1.35; font-weight: 600; }
+.subtitle { font-size: 26rpx; color: #7b8a80; line-height: 1.7; margin-top: 16rpx; }
+.card { background: #fff; border: 1rpx solid #d4e0d9; border-radius: 22rpx; padding: 28rpx; margin-top: 24rpx; }
+.row { display: flex; align-items: center; gap: 16rpx; }
+.between { justify-content: space-between; }
+.grow { flex: 1; min-width: 0; }
+.stack { display: flex; flex-direction: column; gap: 18rpx; }
+.muted { color: #7b8a80; font-size: 24rpx; line-height: 1.6; }
+.section { margin: 32rpx 0 16rpx; font-size: 32rpx; font-weight: 600; }
+.field { width: 100%; min-height: 86rpx; background: #edf5ef; border-radius: 14rpx; padding: 18rpx 22rpx; margin-top: 16rpx; font-size: 28rpx; }
+.error { padding: 22rpx; margin: 20rpx 0; background: #fff0e9; color: #8e4936; border-radius: 14rpx; line-height: 1.6; }
+.empty { padding: 60rpx 24rpx; text-align: center; color: #7b8a80; line-height: 1.9; }
+.pill { display: inline-block; padding: 9rpx 18rpx; font-size: 22rpx; border-radius: 30rpx; background: #edf5ef; color: #183e43; }
+.rule { height: 1rpx; background: #d4e0d9; margin: 24rpx 0; }
+.story { white-space: pre-wrap; line-height: 1.95; font-size: 30rpx; }
+.actions { display: flex; gap: 16rpx; margin-top: 24rpx; flex-wrap: wrap; }

@@ -1,0 +1,22 @@
+.chat-page { height: 100vh; display: flex; flex-direction: column; }
+.chat-header { padding: 28rpx 26rpx 20rpx; border-bottom: 1rpx solid #d4e0d9; }
+.chat-title { font-family: 'Songti SC', serif; font-size: 34rpx; font-weight: 600; }
+.context { margin: 12rpx 0 18rpx; }
+.conversation { flex: 1; height: 0; }
+.chat-content { padding: 0 26rpx 30rpx; }
+.welcome { padding: 80rpx 12rpx; }
+.message { border-radius: 22rpx; padding: 28rpx; margin: 24rpx 0; border: 1rpx solid #d4e0d9; }
+.user-message { margin-left: 70rpx; background: #edf5ef; }
+.assistant-message { margin-right: 24rpx; background: #fff; }
+.session { padding: 20rpx 0; border-bottom: 1rpx solid #d4e0d9; }
+.source { padding: 16rpx 0; border-top: 1rpx solid #d4e0d9; margin-top: 20rpx; font-size: 25rpx; }
+.source-image { width: 70rpx; height: 70rpx; border-radius: 10rpx; }
+.location-button { margin-top: 16rpx; }
+.suggestions { display: flex; gap: 12rpx; flex-wrap: wrap; margin-top: 16rpx; }
+.composer { padding: 18rpx 24rpx 24rpx; padding-bottom: calc(24rpx + env(safe-area-inset-bottom)); background: #f8faf9; border-top: 1rpx solid #d4e0d9; }
+.composer .error { margin: 0 0 16rpx; font-size: 24rpx; }
+.message-input { padding: 18rpx; background: #fff; border: 1rpx solid #d4e0d9; border-radius: 14rpx; min-height: 76rpx; max-height: 200rpx; font-size: 28rpx; }
+.voice-row { margin-top: 14rpx; }
+.hold-button { background: #edf5ef; text-align: center; padding: 18rpx; border-radius: 14rpx; }
+.holding { background: #183e43; color: #fff; }
+.record-note { color: #183e43; padding: 14rpx; text-align: center; }

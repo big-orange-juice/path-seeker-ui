@@ -1,0 +1,8 @@
+{
+  "appid": "2021007109685406",
+  "projectname": "Path Seeker 支付宝原生小程序",
+  "miniprogramRoot": "dist",
+  "compileType": "mini",
+  "component2": true,
+  "enableAppxNg": true
+}

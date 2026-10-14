@@ -1,0 +1,15 @@
+{
+  "pages": ["pages/tour/index", "pages/chat/index", "pages/me/index", "pages/auth/index", "pages/records/index", "pages/privacy/index"],
+  "window": {
+    "defaultTitle": "寻迹 · 城市漫游", "titleBarColor": "#f8faf9",
+    "backgroundColor": "#f8faf9", "allowsBounceVertical": "NO"
+  },
+  "tabBar": {
+    "textColor": "#7b8a80", "selectedColor": "#183e43", "backgroundColor": "#f8faf9",
+    "items": [
+      { "pagePath": "pages/tour/index", "name": "漫游" },
+      { "pagePath": "pages/chat/index", "name": "问一问" },
+      { "pagePath": "pages/me/index", "name": "我的" }
+    ]
+  }
+}

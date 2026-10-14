@@ -1,0 +1,5 @@
+.full-page { height: 100vh; }
+.tabs { display: flex; gap: 10rpx; flex-wrap: wrap; margin: 30rpx 0 24rpx; }
+.cover { width: 140rpx; height: 140rpx; border-radius: 14rpx; }
+.record-title { font-size: 32rpx; font-weight: 600; margin-bottom: 12rpx; }
+.resume { margin-top: 24rpx; width: 100%; }

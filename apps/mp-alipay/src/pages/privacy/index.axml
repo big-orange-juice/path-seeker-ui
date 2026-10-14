@@ -1,0 +1,7 @@
+<scroll-view scroll-y="true" class="full-page"><view class="page"><view class="eyebrow">PATH SEEKER · 隐私与权限</view><view class="title">安心漫游，按需授权。</view>
+  <view class="card"><view class="section">定位</view><view class="story">开启“到达景点自动讲解”后，寻迹会在当前页面显示期间读取位置，用于显示地图和判断附近站点。离开页面后停止定位。位置授权可以关闭，仍可手动选择站点、播放讲解。</view><button class="action" onTap="locationHelp">管理定位权限</button></view>
+  <view class="card"><view class="section">录音与问答</view><view class="story">仅在按住说话时使用麦克风。上滑并松开可取消录音；正常松开后，录音会发送到寻迹服务进行语音识别，识别结果显示在输入框，确认发送后用于问答。你也可以始终使用文字提问。</view><button class="action" onTap="microphoneHelp">管理麦克风权限</button></view>
+  <view class="card"><view class="section">账号与记录</view><view class="story">游客账号、登录信息、语言偏好及播放断点存储在此设备上。行程进度和对话历史保存在寻迹服务中，以便恢复行程和查看历史。本机漫游记录可以在“我的”页面清除；退出登录后，不会把当前账号的本机记录显示给其他账号。</view></view>
+  <view class="card"><view class="section">资料与媒体</view><view class="story">路线图片、视频和讲解音频按需加载。问答音频使用临时文件播放，并在离开问答页面时清理。问答会携带当前路线、站点和讲解进度，帮助理解问题。请避免在对话中提供与游览无关的敏感个人信息。</view></view>
+  <view class="subtitle">此说明介绍小程序的使用方式。个人信息处理规则及联系渠道，以运营方在支付宝展示的隐私政策为准。</view>
+</view></scroll-view>

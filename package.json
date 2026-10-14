@@ -4,6 +4,9 @@
   "private": true,
   "packageManager": "pnpm@11.7.0",
   "scripts": {
+    "dev:mp-alipay": "pnpm --filter @path-seeker/mp-alipay dev",
+    "build:mp-alipay": "pnpm --filter @path-seeker/mp-alipay build",
+    "test:mp-alipay": "pnpm --filter @path-seeker/mp-alipay test",
     "dev:web-admin": "pnpm --filter @path-seeker/web-admin dev",
     "build:web-admin": "pnpm --filter @path-seeker/web-admin build",
     "dev:h5": "pnpm --filter @path-seeker/mp-wechat dev:h5",

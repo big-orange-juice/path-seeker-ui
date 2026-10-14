@@ -1,0 +1,8 @@
+<scroll-view scroll-y="true" class="full-page"><view class="page auth-page"><view class="eyebrow">PATH SEEKER · 寻迹</view><view class="title">{{register ? '让足迹有个归处' : '欢迎回来'}}。</view><view class="subtitle">登录后，继续你的城市漫游。</view><view class="card">
+  <view class="section">{{register ? '创建账号' : '账号登录'}}</view>
+  <input a:if="{{!register}}" class="field" value="{{account}}" data-field="account" onInput="input" placeholder="用户名 / 手机号 / 邮箱" maxlength="256"/>
+  <block a:else><input class="field" value="{{username}}" data-field="username" onInput="input" placeholder="用户名（与手机号、邮箱任选一项）" maxlength="64"/><input class="field" value="{{phone}}" data-field="phone" onInput="input" placeholder="手机号" maxlength="32"/><input class="field" value="{{email}}" data-field="email" onInput="input" placeholder="邮箱" maxlength="256"/><input class="field" value="{{nickname}}" data-field="nickname" onInput="input" placeholder="昵称（选填）" maxlength="64"/></block>
+  <input class="field" value="{{password}}" data-field="password" onInput="input" password="true" placeholder="{{register ? '设置密码（至少 6 位）' : '密码'}}" maxlength="128"/>
+  <view class="agreement"><checkbox-group onChange="agree"><label class="row"><checkbox value="agree" checked="{{agreed}}"/><text class="muted">我已阅读并同意隐私说明</text></label></checkbox-group><button size="mini" class="quiet" onTap="privacy">查看隐私说明</button></view>
+  <view a:if="{{error}}" class="error">{{error}}</view><button class="primary" loading="{{busy}}" disabled="{{busy}}" onTap="submit">{{register ? '注册并登录' : '登录'}}</button><button class="quiet" disabled="{{busy}}" onTap="mode">{{register ? '已有账号，去登录' : '创建新账号'}}</button>
+  </view><button class="quiet" disabled="{{busy}}" onTap="guest">先以游客身份漫游</button></view></scroll-view>

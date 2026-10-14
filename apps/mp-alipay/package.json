@@ -1,0 +1,12 @@
+{
+  "name": "@path-seeker/mp-alipay",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.cjs",
+    "dev": "node scripts/build.cjs --watch",
+    "test": "node scripts/build.cjs && node --test tests/*.test.cjs",
+    "validate": "node scripts/build.cjs"
+  },
+  "devDependencies": { "typescript": "^6.0.3" }
+}

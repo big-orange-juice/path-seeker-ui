@@ -1,0 +1,22 @@
+<view class="chat-page">
+  <view class="chat-header"><view class="row between"><view><view class="eyebrow">PATH SEEKER · 问一问</view><view class="chat-title">沿途的好奇，都可以问</view></view><button size="mini" onTap="backToTour">回到漫游</button></view><view class="muted context">{{contextTitle}}</view><view class="row between"><view class="row"><button size="mini" onTap="toggleSessions">历史对话</button><button size="mini" onTap="newSession" disabled="{{busy || transcribing}}">新对话</button></view><view class="row"><text class="muted">语音回复</text><switch checked="{{enableAudio}}" onChange="changeAudio" color="#183e43"/></view></view></view>
+  <scroll-view class="conversation" scroll-y="true" scroll-into-view="{{scrollTarget}}" scroll-with-animation="true">
+    <view class="chat-content">
+      <view a:if="{{showSessions}}" class="card"><view a:if="{{!sessions.length}}" class="muted">还没有历史对话</view><view a:for="{{sessions}}" a:key="id" class="session row between"><view class="grow" data-id="{{item.id}}" onTap="selectSession">{{item.title || '未命名对话'}}<view class="muted">{{item.lastActiveAt}}</view></view><button size="mini" data-id="{{item.id}}" onTap="archiveSession" disabled="{{busy}}">删除</button></view></view>
+      <view a:if="{{loading}}" class="empty">正在加载对话…</view>
+      <view a:if="{{!messages.length &amp;&amp; !loading}}" class="welcome"><view class="title"><view>一座城市，</view><view>许多种答案。</view></view><view class="subtitle"><view>问问景点的来历、推荐路线，</view><view>或眼前这处风景的故事。</view></view><view class="actions"><button data-text="这条路线有什么值得看的？" onTap="suggest">有什么值得看的？</button><button data-text="请介绍一下当前景点的历史" onTap="suggest">了解景点历史</button></view></view>
+      <view a:for="{{messages}}" a:for-item="message" a:for-index="messageIndex" a:key="domId" id="{{message.domId}}" class="message {{message.role === 'user' ? 'user-message' : 'assistant-message'}}">
+        <view class="eyebrow">{{message.role === 'user' ? '我' : '寻迹向导'}}</view><text class="story">{{message.content}}</text><view a:if="{{message.error}}" class="error">{{message.error}}</view>
+        <view a:if="{{message.audioPaths &amp;&amp; message.audioPaths.length}}" class="actions"><button size="mini" data-index="{{messageIndex}}" onTap="playAnswer">{{playingId === message.id ? '停止朗读' : '朗读回答'}}</button></view>
+        <view a:for="{{message.sources}}" a:for-item="source" a:for-index="sourceIndex" a:key="exhibitId" class="source row" data-index="{{messageIndex}}" data-source="{{sourceIndex}}" onTap="showSource"><image a:if="{{source.imageUrl}}" src="{{source.imageUrl}}" class="source-image" mode="aspectFill"/><text>{{source.name || source.formalName || '相关资料'}}</text></view>
+        <button a:for="{{message.locations}}" a:for-item="place" a:for-index="placeIndex" a:key="exhibitId" class="location-button" data-index="{{messageIndex}}" data-location="{{placeIndex}}" onTap="openLocation">查看位置 · {{place.exhibitName || (place.siteArea &amp;&amp; place.siteArea.name) || '景点'}}</button>
+        <view class="suggestions"><button a:for="{{message.suggestions}}" a:key="*this" size="mini" data-text="{{item}}" onTap="suggest" disabled="{{busy}}">{{item}}</button></view>
+      </view>
+    </view>
+  </scroll-view>
+  <view class="composer">
+    <view a:if="{{error}}" class="error">{{error}}</view><view a:if="{{recording || transcribing}}" class="record-note">{{transcribing ? '正在识别语音…' : cancelRecording ? '松开取消' : '正在录音，上滑取消'}}</view>
+    <view class="row"><textarea class="message-input grow" value="{{text}}" maxlength="4000" auto-height="true" placeholder="说说你的问题…" onInput="input" disabled="{{recording || transcribing}}"/><button a:if="{{!busy}}" class="primary" disabled="{{!text || loading || recording || transcribing}}" onTap="send">发送</button><button a:else onTap="cancel">停止</button></view>
+    <view class="row between voice-row"><view class="hold-button {{recording ? 'holding' : ''}} grow" onTouchStart="startRecording" onTouchMove="moveRecording" onTouchEnd="stopRecording" onTouchCancel="cancelTouch">按住说话</view><button size="mini" class="quiet" onTap="microphoneHelp">麦克风权限</button></view>
+  </view>
+</view>

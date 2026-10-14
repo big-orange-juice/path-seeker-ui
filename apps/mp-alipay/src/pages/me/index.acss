@@ -1,0 +1,6 @@
+.full-page { height: 100vh; }
+.avatar { width: 100rpx; height: 100rpx; border-radius: 50%; }
+.avatar-letter { background: #edf5ef; color: #183e43; font-family: 'Songti SC', serif; font-size: 52rpx; text-align: center; line-height: 100rpx; }
+.name { font-size: 36rpx; font-weight: 600; margin-bottom: 10rpx; }
+.link-row { width: 100%; padding: 24rpx 0; background: transparent; border-radius: 0; border-bottom: 1rpx solid #d4e0d9; display: flex; justify-content: space-between; text-align: left; }
+.save { margin-top: 24rpx; }

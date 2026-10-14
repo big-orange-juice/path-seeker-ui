@@ -1,0 +1,4 @@
+.full-page { height: 100vh; }
+.auth-page { padding-top: 80rpx; }
+.agreement { margin: 24rpx 0; }
+.agreement button { margin-top: 8rpx; }
