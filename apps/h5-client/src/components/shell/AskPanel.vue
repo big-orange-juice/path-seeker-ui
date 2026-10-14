@@ -18,7 +18,7 @@ import { useToastStore } from "@path-seeker/client-state"
 import AskLocationCard from "@/components/shell/AskLocationCard.vue"
 import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskSpeech } from "@/composables/useAskSpeech"
-import { useBrowserSpeechRecognition } from "@/composables/useBrowserSpeechRecognition"
+import { useMinimaxVoiceRecognition } from "@/composables/useMinimaxVoiceRecognition"
 import { useVoiceHold } from "@/composables/useVoiceHold"
 import {
   extractAskUserInstruction,
@@ -53,7 +53,8 @@ const {
 
 const speech = useAskSpeech()
 /** 与行程页语音键共用同一个识别单例：这里只做状态展示与开关 */
-const recognition = useBrowserSpeechRecognition()
+const recognition = useMinimaxVoiceRecognition()
+const microphoneLabel = computed(() => recognition.busy.value ? '正在处理语音…' : '按住说话')
 const msgsRef = useTemplateRef<HTMLElement>("msgsEl")
 const draft = useTemplateRef<HTMLInputElement>("draftEl")
 
@@ -74,10 +75,12 @@ const showSpeechProgress = computed(() => Boolean(speech.speakingSentence.value)
 
 /** 状态行提示；与相位同一行显示，过长时截断 */
 const voiceHintText = computed(() => {
+  if (recognition.error.value) return recognition.error.value
   if (voiceHold.cancelling.value) return "松开取消"
   if (askStore.voiceInputFinishing) return "正在识别你说的话，识别完成后自动发送"
   if (voiceHold.finishing.value) return "正在识别…"
-  if (recognition.listening.value) return "正在识别你说的话，松开即发送"
+  if (recognition.listening.value) return "正在收音，松开后上传识别"
+  if (voiceHold.held.value) return "正在开启麦克风…"
   if (speech.voicePhase.value === "speaking") return "正在朗读回复，开口说话可打断"
   if (speech.voicePhase.value === "thinking") return "正在组织回答…"
   return "回复会出现在下方气泡，可点位置卡"
@@ -271,6 +274,15 @@ const voiceHold = useVoiceHold({
   onCancel: () => askStore.clearDraftText(),
   onError: (message) => toastStore.warning("语音输入", message),
 })
+
+async function copyVoiceDiagnostics() {
+  try {
+    await navigator.clipboard.writeText(recognition.diagnostics())
+    toastStore.success('语音诊断', '已复制，可粘贴给技术人员排查')
+  } catch {
+    toastStore.warning('语音诊断', '浏览器未允许复制，请允许剪贴板权限后重试')
+  }
+}
 
 watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
 </script>
@@ -560,7 +572,7 @@ watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
             v-model="draftText"
             class="ask-input"
             type="text"
-            :placeholder="isVoiceMode ? '按住说话，松开后发送…' : '问问位置、故事或观察重点…'"
+            :placeholder="isVoiceMode ? microphoneLabel : '问问位置、故事或观察重点…'"
             autocomplete="off"
             :disabled="typing"
             maxlength="2000"
@@ -569,21 +581,21 @@ watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
             v-if="isVoiceMode && recognition.supported.value"
             type="button"
             class="ask-mic-button"
-            :class="{ 'is-listening': recognition.listening.value }"
+            :class="{ 'is-listening': recognition.audioActive.value }"
             :aria-pressed="recognition.listening.value"
-            aria-label="按住说话"
-            title="按住说话，松开后发送"
+            :aria-label="microphoneLabel"
+            :title="microphoneLabel"
             :style="{ touchAction: 'none', userSelect: 'none' }"
-            :disabled="voiceHold.finishing.value || askStore.voiceInputFinishing"
+            :disabled="!voiceHold.held.value && (recognition.busy.value || voiceHold.finishing.value || askStore.voiceInputFinishing)"
+            @contextmenu.prevent
             @pointerdown="voiceHold.pointerDown"
             @pointermove="voiceHold.pointerMove"
             @pointerup="voiceHold.pointerUp"
             @pointercancel="voiceHold.pointerCancel"
-            @lostpointercapture="voiceHold.pointerCancel"
             @click="voiceHold.click"
           >
             <span
-              v-if="recognition.listening.value"
+              v-if="recognition.audioActive.value"
               class="ask-voice-wave"
               aria-hidden="true"
             ><i /><i /><i /><i /></span>
@@ -600,13 +612,12 @@ watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
         </div>
       </form>
 
-      <p
-        v-if="recognition.error.value || speech.bargeInError.value"
-        class="ask-note"
-        role="status"
-      >
+      <div class="ask-input-feedback">
+        <p class="ask-note" role="status" :title="recognition.error.value || speech.bargeInError.value">
         {{ recognition.error.value || speech.bargeInError.value }}
-      </p>
+        </p>
+        <button v-if="recognition.error.value" type="button" class="ask-diagnostics" @click="copyVoiceDiagnostics">复制诊断</button>
+      </div>
     </div>
   </div>
 </template>

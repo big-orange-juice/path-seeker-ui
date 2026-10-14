@@ -167,7 +167,7 @@ function hexToUint8Array(hex) {
 ## 6. 当前边界
 
 - 本接口解决的是“文本问题输入，文字与语音同时流式返回”。
-- 当前没有增加麦克风音频上行、ASR、VAD、AEC 或用户开口自动打断。
+- 音频上行与 ASR 使用独立的 `POST /api/ExhibitChat/transcribe` 接口；识别后继续使用本接口问答。录音及验收流程见 [H5 MiniMax 语音输入](./h5-minimax-voice-verification.md)。
 - 客户端断开 SSE 会取消当前 LLM 和正在进行的 MiniMax HTTP 请求。
 - 音频事件为瞬态事件，断线重连只回放持久化文字终态，不重新合成已完成音频。
 - `clientMessageId` 重复请求不会重复调用模型；已完成 run 的回放不包含历史音频。

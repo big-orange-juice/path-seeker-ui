@@ -42,7 +42,7 @@ export function useTourPreviewPlayback(onEnd: () => void) {
     if (token !== generation) return
     const chunk = chunks[index]
     if (!chunk) { stop(); onEnd(); return }
-    if (language !== 'zh' || !chunk.audioUrl) { speak(chunk.text, token); return }
+    if (!chunk.audioUrl) { speak(chunk.text, token); return }
     let fallen = false
     const fallback = () => {
       if (fallen || token !== generation) return

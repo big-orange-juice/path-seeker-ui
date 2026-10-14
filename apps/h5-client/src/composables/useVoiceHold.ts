@@ -1,8 +1,25 @@
-import { computed, onScopeDispose, shallowRef, watch } from 'vue'
-import type { BrowserSpeechRecognition } from './useBrowserSpeechRecognition'
+import { computed, onScopeDispose, shallowRef, watch, type ComputedRef, type ShallowRef } from 'vue'
+import type { MicrophoneAccess } from './useMicrophoneAccess'
+
+export interface VoiceRecognitionController {
+  supported: ComputedRef<boolean>
+  busy: ComputedRef<boolean>
+  listening: ShallowRef<boolean>
+  finalText: ShallowRef<string>
+  interimText: ShallowRef<string>
+  transcript: ComputedRef<string>
+  error: ShallowRef<string>
+  errorCode: ShallowRef<string>
+  audioActive: ShallowRef<boolean>
+  diagnostics: () => string
+  start: (options?: { lang?: string; continuous?: boolean }) => boolean
+  stop: () => Promise<string>
+  abort: () => void
+}
 
 interface VoiceHoldOptions {
-  recognition: BrowserSpeechRecognition
+  recognition: VoiceRecognitionController
+  microphone?: MicrophoneAccess
   canStart?: () => boolean
   lang?: () => string
   onPress?: () => void
@@ -27,15 +44,59 @@ export function useVoiceHold(options: VoiceHoldOptions) {
   let suppressClick = false
   let unavailable = false
   let capturing = false
+  let globalPointerListenersAttached = false
+  let disposed = false
+  let reportedError = ''
+
+  function reportError(message: string) {
+    if (message === reportedError) return
+    reportedError = message
+    options.onError(message)
+  }
+
+  function handleDocumentPointerUp(event: PointerEvent) {
+    if (event.pointerId === pointerId) {
+      void pointerUp(event)
+    }
+  }
+
+  function handleDocumentPointerCancel(event: PointerEvent) {
+    if (event.pointerId === pointerId) {
+      pointerCancel(event)
+    }
+  }
+
+  function handleDocumentPointerMove(event: PointerEvent) {
+    pointerMove(event)
+  }
+
+  function attachGlobalPointerListeners() {
+    if (globalPointerListenersAttached) return
+    globalPointerListenersAttached = true
+    document.addEventListener('pointermove', handleDocumentPointerMove, true)
+    document.addEventListener('pointerup', handleDocumentPointerUp, true)
+    document.addEventListener('pointercancel', handleDocumentPointerCancel, true)
+  }
+
+  function detachGlobalPointerListeners() {
+    if (!globalPointerListenersAttached) return
+    globalPointerListenersAttached = false
+    document.removeEventListener('pointermove', handleDocumentPointerMove, true)
+    document.removeEventListener('pointerup', handleDocumentPointerUp, true)
+    document.removeEventListener('pointercancel', handleDocumentPointerCancel, true)
+  }
 
   function releasePointer() {
     const capturedId = pointerId
     const capturedTarget = target
     pointerId = null
     target = null
-    if (capturedId !== null && capturedTarget?.hasPointerCapture(capturedId)) {
-      capturedTarget.releasePointerCapture(capturedId)
-    }
+    detachGlobalPointerListeners()
+    try {
+      if (capturedId !== null && capturedTarget?.hasPointerCapture(capturedId)) {
+        capturedTarget.releasePointerCapture(capturedId)
+      }
+    } catch {}
   }
 
   function cancel() {
@@ -54,12 +115,28 @@ export function useVoiceHold(options: VoiceHoldOptions) {
   }
 
   function pointerDown(event: PointerEvent) {
-    if (event.button !== 0 || !event.isPrimary || active.value || options.recognition.listening.value || options.canStart?.() === false) return
+    if (event.button !== 0 || !event.isPrimary || active.value || options.recognition.busy.value || options.microphone?.preparing.value || options.canStart?.() === false) return
     suppressClick = true
     event.preventDefault()
+    reportedError = ''
+    if (options.recognition.supported.value && options.microphone && !options.microphone.ready.value) {
+      options.recognition.error.value = ''
+      options.recognition.errorCode.value = ''
+      options.onStart?.()
+      void options.microphone.prepare().then((ready) => {
+        if (disposed) return
+        options.onCancel?.()
+        if (!ready) reportError(options.microphone!.notice.value)
+      })
+      return
+    }
+    if (options.microphone) options.microphone.notice.value = ''
     pointerId = event.pointerId
     target = event.currentTarget as HTMLElement
-    target.setPointerCapture(pointerId)
+    try {
+      target.setPointerCapture(pointerId)
+    } catch {}
+    attachGlobalPointerListeners()
     startedAt = Date.now()
     startedY = event.clientY
     generation += 1
@@ -71,7 +148,7 @@ export function useVoiceHold(options: VoiceHoldOptions) {
       capturing = true
       options.onStart?.()
       if (!options.recognition.start({ lang: options.lang?.(), continuous: true })) {
-        options.onError(options.recognition.error.value || '无法启动语音识别，请重试。')
+        reportError(options.recognition.error.value || '无法启动语音识别，请重试。')
         if (!options.onRelease) cancel()
       }
     }
@@ -94,7 +171,7 @@ export function useVoiceHold(options: VoiceHoldOptions) {
     }
     if (unavailable) {
       const message = '当前浏览器不支持语音识别，请点击问一问使用文字输入。'
-      options.onError(message)
+      reportError(message)
       if (options.onRelease) {
         held.value = false
         releasePointer()
@@ -122,7 +199,7 @@ export function useVoiceHold(options: VoiceHoldOptions) {
     finishing.value = false
     capturing = false
     if (!text || options.recognition.error.value) {
-      options.onError(options.recognition.error.value || '没有识别到内容，请按住说话后重试。')
+      reportError(options.recognition.error.value || '没有识别到内容，请按住说话后重试。')
       options.onCancel?.()
       return
     }
@@ -140,7 +217,10 @@ export function useVoiceHold(options: VoiceHoldOptions) {
 
   watch(options.recognition.error, (message) => {
     if (!message || !active.value) return
-    options.onError(message)
+    if (options.microphone && ['not-allowed', 'audio-capture'].includes(options.recognition.errorCode.value)) {
+      options.microphone.ready.value = false
+    }
+    reportError(message)
     if (options.onRelease && held.value) return
     cancel()
   })
@@ -151,8 +231,10 @@ export function useVoiceHold(options: VoiceHoldOptions) {
 
   document.addEventListener('visibilitychange', visibilityChange)
   onScopeDispose(() => {
+    disposed = true
     cancel()
     document.removeEventListener('visibilitychange', visibilityChange)
+    detachGlobalPointerListeners()
   })
 
   return { held, finishing, cancelling, active, pointerDown, pointerMove, pointerUp, pointerCancel, click, cancel }

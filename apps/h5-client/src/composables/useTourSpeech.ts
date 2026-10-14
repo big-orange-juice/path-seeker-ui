@@ -443,8 +443,8 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     currentSentenceIndex.value = startSentence
     // 新条目从头发起，恢复精度重新按精确计
     restorePrecision.value = 'exact'
-    // 讲解章节只有中文走文件音频，其余语言沿用既有系统语音策略；额外音频一律是文件
-    if (item.audioUrl && (item.type !== 'chapter' || locale === 'zh')) { playFile(item, version); return }
+    // 只要接口返回了音频文件就直接播放；没有文件时才回退系统语音。
+    if (item.audioUrl) { playFile(item, version); return }
     speakItem(item, version, startSentence)
   }
 
@@ -452,7 +452,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   function prepareItemAt(targetIndex: number, seconds: number, sentence: number) {
     const item = items[targetIndex]
     if (!item) return
-    const isFile = Boolean(item.audioUrl && (item.type !== 'chapter' || locale === 'zh'))
+    const isFile = Boolean(item.audioUrl)
     index = targetIndex
     currentIndex.value = targetIndex
     currentItemId.value = item.id
@@ -589,7 +589,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
       return
     }
     // 断点恢复出来的"暂停中"条目还没有建立音频元素，这里补建
-    if (item.audioUrl && (item.type !== 'chapter' || locale === 'zh')) {
+    if (item.audioUrl) {
       restorePrecision.value = 'exact'
       playFile(item, version)
       return
@@ -609,7 +609,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     const item = items[index]
     if (!item) return { moved: false, precision: 'unavailable', reason: 'idle' }
 
-    if (audio || (status.value === 'paused' && item.audioUrl && (item.type !== 'chapter' || locale === 'zh'))) {
+    if (audio || (status.value === 'paused' && item.audioUrl)) {
       const duration = audio && Number.isFinite(audio.duration) && audio.duration > 0
         ? audio.duration
         : (item.durationSeconds ?? 0)
@@ -651,8 +651,8 @@ export function useTourSpeech(onNarrationEnd: () => void) {
       itemId: item?.id ?? currentItemId.value,
       itemType: item?.type ?? currentItemType.value,
       queueIndex: index,
-      currentTimeSeconds: item?.audioUrl && (item.type !== 'chapter' || locale === 'zh') ? Math.max(0, fileSeconds) : 0,
-      sentenceIndex: item?.audioUrl && (item.type !== 'chapter' || locale === 'zh') ? 0 : sentenceIndex,
+      currentTimeSeconds: item?.audioUrl ? Math.max(0, fileSeconds) : 0,
+      sentenceIndex: item?.audioUrl ? 0 : sentenceIndex,
       status: status.value,
     }
   }

@@ -11,7 +11,7 @@ import TourArrivalPrompt from '@/components/tour/TourArrivalPrompt.vue'
 import TourPlaybackQueue from '@/components/tour/TourPlaybackQueue.vue'
 import { useTourJourney } from '@/composables/useTourJourney'
 import { useFullscreen } from '@/composables/useFullscreen'
-import { useBrowserSpeechRecognition } from '@/composables/useBrowserSpeechRecognition'
+import { useMinimaxVoiceRecognition } from '@/composables/useMinimaxVoiceRecognition'
 import { useVoiceHold } from '@/composables/useVoiceHold'
 import { useAskStore } from '@/stores/useAskStore'
 import { tourMessages } from '@/utils/tourMessages'
@@ -23,7 +23,7 @@ const router = useRouter()
 const journey = useTourJourney()
 const fullscreen = useFullscreen()
 const askStore = useAskStore()
-const voice = useBrowserSpeechRecognition()
+const voice = useMinimaxVoiceRecognition()
 const tourMap = useTemplateRef<InstanceType<typeof TourMap>>('tourMap')
 const drawerRef = useTemplateRef<HTMLElement>('drawerHost')
 const dockRef = useTemplateRef<HTMLElement>('dockHost')
@@ -62,7 +62,9 @@ const voiceHold = useVoiceHold({
     askStore.clearDraftText()
     if (journey.endAskInterrupt() === 'blocked-paused') showResumeNotice()
   },
-  onError: (message) => { voiceNotice.value = message },
+  onError: (message) => {
+    voiceNotice.value = message
+  },
   onTap: () => {
     journey.beginAskInterrupt()
     setAskContext()
@@ -73,7 +75,7 @@ const voiceHold = useVoiceHold({
 const voiceHint = computed(() => voiceHold.cancelling.value
   ? messages.value.voiceCancel
   : voiceHold.finishing.value ? messages.value.voiceFinishing
-    : voiceHold.held.value ? (voice.transcript.value || messages.value.voiceReleaseHint) : messages.value.voiceHint)
+    : voiceHold.held.value ? (voice.transcript.value || '正在收音，松开后上传识别') : messages.value.voiceHint)
 const routes = computed(() => journey.catalog.value?.routes?.filter(item => item.locale === journey.locale.value) ?? [])
 const detail = computed(() => viewingJourney.value ? journey.active.value : journey.preview.value)
 const destinationName = computed(() => journey.catalog.value?.destinations?.[0]?.name || '后海')
@@ -522,22 +524,22 @@ onBeforeUnmount(() => {
         <button
           type="button"
           class="tour-voice-button"
-          :class="{ 'is-listening': voiceHold.active.value }"
-          :aria-label="messages.voiceHint"
-          :title="messages.voiceHint"
+          :class="{ 'is-listening': voice.audioActive.value }"
+          :aria-label="voiceHint"
+          :title="voiceHint"
           :aria-pressed="voiceHold.held.value"
-          :disabled="journey.pending.value"
+          :disabled="!voiceHold.held.value && (journey.pending.value || voice.busy.value)"
+          @contextmenu.prevent
           @pointerdown="voiceHold.pointerDown"
           @pointermove="voiceHold.pointerMove"
           @pointerup="voiceHold.pointerUp"
           @pointercancel="voiceHold.pointerCancel"
-          @lostpointercapture="voiceHold.pointerCancel"
           @click="voiceHold.click"
         >
-          <span v-if="voiceHold.active.value" class="tour-voice-wave" aria-hidden="true"><i /><i /><i /></span>
+          <span v-if="voice.audioActive.value" class="tour-voice-wave" aria-hidden="true"><i /><i /><i /></span>
           <Mic v-else :size="22" aria-hidden="true" />
         </button>
-        <p class="tour-voice-hint">
+        <p class="tour-voice-hint" :class="{ 'is-active': voiceHold.active.value || voice.error.value }" role="status">
           {{ voiceHint }}
         </p>
       </div>
@@ -580,7 +582,7 @@ onBeforeUnmount(() => {
 .tour-voice-button:active{transform:scale(.95)}
 .tour-voice-button:focus-visible{outline:2px solid var(--tour-lake);outline-offset:3px}
 .tour-voice-button.is-listening{background:#fff;color:var(--tour-lake);box-shadow:0 0 0 6px #183e431f,0 10px 26px #183e4340}
-.tour-voice-hint{max-width:min(300px,80vw);margin:0;overflow:hidden;padding:3px 10px;border-radius:999px;background:#f8faf9e6;box-shadow:0 3px 12px #183e4315;color:#5d7a70;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+.tour-voice-hint{max-width:min(300px,80vw);margin:0;overflow:hidden;padding:3px 10px;border-radius:999px;background:#f8faf9e6;box-shadow:0 3px 12px #183e4315;color:#5d7a70;font-size:11px;text-overflow:ellipsis;white-space:nowrap;pointer-events:none}
 .tour-voice-wave{display:flex;align-items:center;gap:3px;height:20px}
 .tour-voice-wave i{display:block;width:3px;border-radius:2px;background:currentColor;animation:tour-voice-pulse 1s ease-in-out infinite}
 .tour-voice-wave i:nth-child(1){height:8px}
@@ -589,4 +591,5 @@ onBeforeUnmount(() => {
 @keyframes tour-voice-pulse{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(1)}}
 @media(prefers-reduced-motion:reduce){.tour-voice-wave i{animation:none}}
 @media(max-width:760px){.tour-voice{left:auto;right:18px;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 166px);transform:none}}
+@media(max-width:760px){.tour-voice-hint.is-active{position:absolute;right:0;bottom:calc(100% + 12px);display:block;width:max-content;max-width:min(280px,80vw)}}
 </style>

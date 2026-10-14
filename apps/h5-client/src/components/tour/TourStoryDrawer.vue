@@ -116,10 +116,12 @@ function stopNumber(order: number) {
     <p v-if="stop.images?.[0]?.caption" class="tour-image-caption">{{ stop.images[0].caption }}</p>
     <div class="tour-story-controls">
       <button type="button" :disabled="(!canPlay && matchesPlaying) || pending" @click="emit('play')"><Play v-if="!playing || !matchesPlaying" :size="14" aria-hidden="true" /><Pause v-else :size="14" aria-hidden="true" />{{ playLabel }}</button>
-      <button type="button" class="tour-seek" :disabled="seekDisabled" :aria-label="messages.rewind15" :title="messages.rewind15" @click="emit('seek', -15)"><SkipBack :size="14" aria-hidden="true" />{{ messages.rewind15 }}</button>
-      <button type="button" class="tour-seek" :disabled="seekDisabled" :aria-label="messages.forward15" :title="messages.forward15" @click="emit('seek', 15)"><SkipForward :size="14" aria-hidden="true" />{{ messages.forward15 }}</button>
-      <button v-if="!matchesPlaying" type="button" :disabled="pending" @click="emit('keepPlaying')">{{ messages.keepNarration }}</button>
       <button type="button" :disabled="!matchesPlaying || !canPlay || pending" @click="emit('replay')"><RotateCcw :size="14" aria-hidden="true" />{{ messages.replayStop }}</button>
+      <div class="tour-seek-controls">
+        <button type="button" class="tour-seek" :disabled="seekDisabled" :aria-label="messages.rewind15" :title="messages.rewind15" @click="emit('seek', -15)"><SkipBack :size="14" aria-hidden="true" />{{ messages.rewind15 }}</button>
+        <button type="button" class="tour-seek" :disabled="seekDisabled" :aria-label="messages.forward15" :title="messages.forward15" @click="emit('seek', 15)"><SkipForward :size="14" aria-hidden="true" />{{ messages.forward15 }}</button>
+      </div>
+      <button v-if="!matchesPlaying" type="button" :disabled="pending" @click="emit('keepPlaying')">{{ messages.keepNarration }}</button>
       <select v-if="narrations.length > 1" :disabled="!matchesPlaying || pending" :value="narration?.guideId || ''" :aria-label="messages.guide" @change="emit('guide', ($event.target as HTMLSelectElement).value)"><option v-for="item in narrations" :key="item.id" :value="item.guideId || ''">{{ item.guideName }} · {{ item.specialty }}</option></select>
     </div>
     <p v-if="progressText" class="tour-queue-status" role="status">{{ messages.playbackProgress }}：{{ progressText }}</p>
@@ -177,4 +179,5 @@ function stopNumber(order: number) {
 .tour-story{bottom:max(20px,env(safe-area-inset-bottom))}
 @media(max-width:760px){.tour-story{left:10px;right:10px;top:72px;bottom:max(18px,env(safe-area-inset-bottom));width:auto;padding:14px;border-radius:14px}.tour-story-cover{height:150px}.tour-story-controls{gap:7px;margin:12px 0}.tour-story-controls button{flex:1;min-width:calc(50% - 7px);padding:9px 10px}.tour-story-controls button.tour-seek{min-width:calc(50% - 7px)}}
 .tour-stop-switcher{display:grid;gap:7px;margin:14px 0 16px}.tour-stop-switcher-heading{display:flex;align-items:center;justify-content:space-between;color:var(--tour-muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}.tour-stop-switcher-heading strong{color:var(--tour-lake);font-size:12px;letter-spacing:0}.tour-stop-tabs{display:flex;gap:7px;overflow-x:auto;margin:0;padding:2px 2px 8px;scroll-snap-type:x proximity;scrollbar-width:thin}.tour-stop-tabs button{display:flex;align-items:center;gap:8px;flex:0 0 auto;min-width:112px;padding:9px 11px;border:1px solid var(--tour-line);border-radius:10px;background:#fff;color:var(--tour-ink);font-size:12px;text-align:left;scroll-snap-align:start}.tour-stop-tabs button small{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;background:var(--tour-selected);color:var(--tour-muted);font-size:10px;font-weight:700}.tour-stop-tabs button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tour-stop-tabs button.active{border-color:var(--tour-lake);background:var(--tour-lake);color:#fff;box-shadow:0 5px 12px #183e4322}.tour-stop-tabs button.active small{background:#ffffff22;color:#fff}
+.tour-seek-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:inherit;width:100%}.tour-seek-controls button.tour-seek{min-width:0}
 </style>

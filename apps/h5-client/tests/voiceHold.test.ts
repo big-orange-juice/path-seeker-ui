@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { computed, effectScope, nextTick } from 'vue'
+import { computed, effectScope, nextTick, shallowRef } from 'vue'
 import { useBrowserSpeechRecognition } from '../src/composables/useBrowserSpeechRecognition.ts'
 import { useVoiceHold } from '../src/composables/useVoiceHold.ts'
+import type { MicrophoneAccess } from '../src/composables/useMicrophoneAccess.ts'
 
 class FakeRecognition {
   static latest: FakeRecognition
@@ -14,19 +15,21 @@ class FakeRecognition {
   stops = 0
   aborts = 0
   onstart: (() => void) | null = null
+  onaudiostart: (() => void) | null = null
+  onaudioend: (() => void) | null = null
   onend: (() => void) | null = null
   onerror: ((event: { error: string }) => void) | null = null
   onresult: ((event: any) => void) | null = null
   constructor() { FakeRecognition.latest = this }
   start() { this.starts += 1; this.onstart?.() }
   stop() { this.stops += 1 }
-  abort() { this.aborts += 1 }
+  abort() { this.aborts += 1; this.onend?.() }
   result(parts: Array<[string, boolean]>, resultIndex = 0) {
     this.onresult?.({ resultIndex, results: parts.map(([transcript, isFinal]) => ({ 0: { transcript }, length: 1, isFinal })) })
   }
 }
 
-function setup(testContext: any, supported = true, handoff = false) {
+function setup(testContext: any, supported = true, handoff = false, microphone?: MicrophoneAccess) {
   const previousWindow = globalThis.window
   const previousDocument = globalThis.document
   const fakeWindow = Object.assign(new EventTarget(), { SpeechRecognition: FakeRecognition })
@@ -37,10 +40,12 @@ function setup(testContext: any, supported = true, handoff = false) {
   const scope = effectScope()
   const recognition = useBrowserSpeechRecognition()
   recognition.abort()
+  FakeRecognition.latest?.onend?.()
   const actions: string[] = []
   const completions: Promise<string>[] = []
   const hold = scope.run(() => useVoiceHold({
     recognition: supported ? recognition : { ...recognition, supported: computed(() => false) },
+    microphone,
     lang: () => 'en-US',
     onStart: () => actions.push('start'),
     onSubmit: (text) => actions.push(`submit:${text}`),
@@ -64,6 +69,73 @@ function setup(testContext: any, supported = true, handoff = false) {
   return { recognition, hold, actions, completions, scope, pointer, target, advance: () => { now += 500; testContext.mock.timers.tick(500) }, fakeWindow }
 }
 
+function dispatchPointer(type: string, pointer: PointerEvent) {
+  const event = Object.assign(new Event(type, { cancelable: true }), {
+    pointerId: pointer.pointerId,
+    clientY: pointer.clientY,
+  })
+  document.dispatchEvent(event)
+}
+
+test('捕获指针失败仍立即启动导航收音，按钮外松手只交接一次', async (testContext) => {
+  const { hold, actions, pointer, target, completions } = setup(testContext, true, true)
+  testContext.mock.method(target, 'setPointerCapture', () => { throw new Error('capture unavailable') })
+  hold.pointerDown(pointer())
+  const engine = FakeRecognition.latest
+  assert.equal(engine.starts, 1)
+  assert.equal(hold.held.value, true)
+  engine.result([['导航问题', true]])
+  dispatchPointer('pointerup', pointer())
+  await hold.pointerUp(pointer())
+  assert.equal(engine.stops, 1)
+  engine.onend?.()
+  assert.equal(await completions[0], '导航问题')
+  assert.deepEqual(actions, ['start', 'release'])
+})
+
+test('提示布局变化失去指针捕获仍持续收音，文档松手正常发送', async (testContext) => {
+  const { hold, actions, pointer, target, advance } = setup(testContext)
+  hold.pointerDown(pointer())
+  const engine = FakeRecognition.latest
+  target.captured = false
+  dispatchPointer('lostpointercapture', pointer())
+  assert.equal(hold.held.value, true)
+  assert.equal(engine.aborts, 0)
+  engine.result([['提示变化后的问题', true]])
+  advance()
+  dispatchPointer('pointerup', pointer())
+  engine.onend?.()
+  await nextTick()
+  assert.deepEqual(actions, ['start', 'submit:提示变化后的问题'])
+})
+
+test('失去捕获后文档上滑仍可取消，取消后松手不发送', async (testContext) => {
+  const { hold, actions, pointer, target } = setup(testContext)
+  hold.pointerDown(pointer())
+  const engine = FakeRecognition.latest
+  target.captured = false
+  engine.result([['丢弃问题', true]])
+  dispatchPointer('pointermove', pointer(30))
+  assert.equal(hold.cancelling.value, true)
+  dispatchPointer('pointerup', pointer(30))
+  dispatchPointer('pointerup', pointer())
+  await nextTick()
+  assert.equal(engine.aborts, 1)
+  assert.deepEqual(actions, ['start', 'cancel'])
+})
+
+test('浏览器真正取消手势会停止收音，卸载后文档事件不再交接', async (testContext) => {
+  const { hold, actions, pointer, scope } = setup(testContext, true, true)
+  hold.pointerDown(pointer())
+  const engine = FakeRecognition.latest
+  dispatchPointer('pointercancel', pointer())
+  assert.equal(hold.active.value, false)
+  assert.equal(engine.aborts, 1)
+  scope.stop()
+  dispatchPointer('pointerup', pointer())
+  assert.deepEqual(actions, ['start', 'cancel'])
+})
+
 test('Chat 内按住收音，松开等最终识别结束后才提交一次', async (testContext) => {
   const { hold, actions, pointer, advance, target } = setup(testContext)
   hold.pointerDown(pointer())
@@ -71,7 +143,7 @@ test('Chat 内按住收音，松开等最终识别结束后才提交一次', asy
   assert.equal(FakeRecognition.latest.starts, 1)
   advance()
   const engine = FakeRecognition.latest
-  assert.equal(engine.continuous, true)
+  assert.equal(engine.continuous, false)
   assert.equal(engine.lang, 'en-US')
   engine.result([['临时内容', false]])
   assert.deepEqual(actions, ['start'])
@@ -99,8 +171,8 @@ test('持续说话累积完整结果，重复结果事件不重复文本，停�
   assert.equal(recognition.listening.value, true)
   testContext.mock.timers.tick(130)
   const restarted = FakeRecognition.latest
-  assert.notEqual(restarted, engine)
-  assert.equal(restarted.starts, 1)
+  assert.equal(restarted, engine)
+  assert.equal(restarted.starts, 2)
   restarted.result([['第三句。', false]])
   const completed = recognition.stop()
   restarted.onend?.()
@@ -226,44 +298,35 @@ test('松开后 aborted 正常收尾，保留已有识别内容并发送', async
   advance()
   const released = hold.pointerUp(pointer())
   engine.onerror?.({ error: 'aborted' })
+  engine.onend?.()
   await released
   assert.equal(recognition.error.value, '')
   assert.deepEqual(actions, ['start', 'submit:为什么是斜的'])
 })
 
-test('按住期间意外中断会重启，保留前后语音且迟到事件失效', async (testContext) => {
-  const { hold, actions, pointer, advance, recognition } = setup(testContext)
+test('中断直接结束本轮，不重复启动系统识别器', async (testContext) => {
+  const { hold, actions, pointer, recognition } = setup(testContext)
   hold.pointerDown(pointer())
   const engine = FakeRecognition.latest
   const lateError = engine.onerror
-  engine.result([['烟袋斜街', true]])
   engine.onerror?.({ error: 'aborted' })
   await nextTick()
-  assert.equal(hold.held.value, true)
-  assert.equal(recognition.error.value, '')
-  testContext.mock.timers.tick(100)
-  const restarted = FakeRecognition.latest
-  assert.notEqual(restarted, engine)
+  assert.equal(recognition.listening.value, false)
+  assert.equal(engine.aborts, 0)
+  assert.equal(recognition.errorCode.value, 'aborted')
+  assert.equal(FakeRecognition.latest, engine)
   lateError?.({ error: 'not-allowed' })
-  restarted.result([['为什么是斜的', false]])
-  advance()
-  const released = hold.pointerUp(pointer())
-  restarted.onend?.()
-  await released
-  assert.deepEqual(actions, ['start', 'submit:烟袋斜街为什么是斜的'])
+  assert.equal(recognition.errorCode.value, 'aborted')
 })
 
-test('连续中断超过重试上限提示失败，不循环占用麦克风', async (testContext) => {
+test('中断只提示一次且不循环占用麦克风', async (testContext) => {
   const { hold, actions, pointer, recognition } = setup(testContext)
   hold.pointerDown(pointer())
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    FakeRecognition.latest.onerror?.({ error: 'aborted' })
-    testContext.mock.timers.tick(100)
-  }
+  FakeRecognition.latest.onerror?.({ error: 'aborted' })
   await nextTick()
   assert.equal(hold.active.value, false)
   assert.equal(recognition.listening.value, false)
-  assert.ok(actions.some(action => action.includes('浏览器多次中断收音')))
+  assert.equal(actions.filter(action => action.includes('浏览器语音识别已中断')).length, 1)
   assert.equal(actions.some(action => action.startsWith('submit:')), false)
 })
 
@@ -290,6 +353,7 @@ test('意外中断的重启等待中松开，提交已有内容并取消重启',
   const engine = FakeRecognition.latest
   engine.result([['已有问题', false]])
   engine.onerror?.({ error: 'aborted' })
+  engine.onend?.()
   await hold.pointerUp(pointer())
   testContext.mock.timers.tick(100)
   assert.equal(FakeRecognition.latest, engine)
@@ -353,4 +417,131 @@ test('外部浏览器不支持识别，松手进入问答显示兼容性原因',
   assert.equal(actions.at(-1), 'release')
   assert.equal(await completions[0], '')
   assert.ok(recognition.error.value.includes('不支持语音识别'))
+})
+
+test('首次授权与长按隔离，松手或授权完成均不启动识别或导航', async (testContext) => {
+  let finishPermission!: (ready: boolean) => void
+  const microphone = {
+    ready: shallowRef(false), preparing: shallowRef(false), notice: shallowRef(''),
+    prepare: () => new Promise<boolean>(resolve => { finishPermission = resolve }),
+  }
+  const { hold, pointer, actions, recognition, advance } = setup(testContext, true, true, microphone)
+  hold.pointerDown(pointer())
+  assert.equal(hold.held.value, false)
+  assert.equal(recognition.listening.value, false)
+  await hold.pointerUp(pointer())
+  microphone.ready.value = true
+  finishPermission(true)
+  await nextTick()
+  assert.deepEqual(actions, ['start', 'cancel'])
+  hold.pointerDown(pointer())
+  assert.equal(recognition.listening.value, true)
+  advance()
+  FakeRecognition.latest.result([['重新按住后的问题', true]])
+  await hold.pointerUp(pointer())
+  FakeRecognition.latest.onend?.()
+  assert.deepEqual(actions, ['start', 'cancel', 'start', 'release'])
+})
+
+test('授权期间离开页面，迟到授权结果不触发原页面回调', async (testContext) => {
+  let finishPermission!: (ready: boolean) => void
+  const microphone = {
+    ready: shallowRef(false), preparing: shallowRef(false), notice: shallowRef(''),
+    prepare: () => new Promise<boolean>(resolve => { finishPermission = resolve }),
+  }
+  const { hold, pointer, actions, scope } = setup(testContext, true, true, microphone)
+  hold.pointerDown(pointer())
+  scope.stop()
+  finishPermission(false)
+  await nextTick()
+  assert.deepEqual(actions, ['start'])
+})
+
+test('旧实例报错后直接结束本轮，不创建竞争的识别实例', async (testContext) => {
+  const { recognition } = setup(testContext)
+  recognition.start({ continuous: true })
+  const engine = FakeRecognition.latest
+  engine.onerror?.({ error: 'aborted' })
+  assert.equal(FakeRecognition.latest, engine)
+  assert.equal(recognition.listening.value, false)
+  assert.equal(recognition.errorCode.value, 'aborted')
+  assert.equal(engine.aborts, 0)
+})
+
+test('启动无响应超时释放；只有真实 audio-start 才显示收音状态', async (testContext) => {
+  const { recognition } = setup(testContext)
+  testContext.mock.method(FakeRecognition.prototype, 'start', function (this: FakeRecognition) { this.starts += 1 })
+  recognition.start()
+  assert.equal(recognition.listening.value, true)
+  assert.equal(recognition.audioActive.value, false)
+  testContext.mock.timers.tick(8000)
+  assert.equal(recognition.listening.value, false)
+  assert.equal(recognition.errorCode.value, 'start-timeout')
+  recognition.start()
+  FakeRecognition.latest.onstart?.()
+  assert.equal(recognition.audioActive.value, false)
+  FakeRecognition.latest.onaudiostart?.()
+  assert.equal(recognition.audioActive.value, true)
+  FakeRecognition.latest.result([['私密问题不应出现在诊断记录中', true]])
+  FakeRecognition.latest.onaudioend?.()
+  assert.equal(recognition.audioActive.value, false)
+  const diagnostics = recognition.diagnostics()
+  assert.ok(diagnostics.includes('audio-start'))
+  assert.ok(diagnostics.includes('result'))
+  assert.equal(diagnostics.includes('私密问题'), false)
+})
+
+test('不同入口取得同一个控制器，跨轮次复用唯一底层实例', async testContext => {
+  const { recognition } = setup(testContext)
+  const chat = useBrowserSpeechRecognition()
+  const navigation = useBrowserSpeechRecognition()
+  assert.equal(chat, navigation)
+  assert.equal(chat, recognition)
+  assert.equal(navigation.start(), true)
+  const engine = FakeRecognition.latest
+  assert.equal(chat.start(), false)
+  engine.result([['第一轮', true]])
+  const completion = navigation.stop()
+  engine.onend?.()
+  assert.equal(await completion, '第一轮')
+  assert.equal(chat.start(), true)
+  assert.equal(FakeRecognition.latest, engine)
+  assert.equal(engine.starts, 2)
+  assert.equal(chat.transcript.value, '')
+})
+
+test('取消后等待原生 end，其他入口不能启动；旧回调不会影响新一轮', testContext => {
+  const { recognition } = setup(testContext)
+  testContext.mock.method(FakeRecognition.prototype, 'abort', function (this: FakeRecognition) { this.aborts += 1 })
+  recognition.start()
+  const engine = FakeRecognition.latest
+  const oldResult = engine.onresult
+  recognition.abort()
+  const drained = engine.onend
+  recognition.abort()
+  assert.equal(engine.onend, drained)
+  assert.equal(recognition.listening.value, false)
+  assert.equal(recognition.busy.value, true)
+  assert.equal(useBrowserSpeechRecognition().start(), false)
+  assert.equal(engine.starts, 1)
+  engine.onend?.()
+  assert.equal(recognition.busy.value, false)
+  assert.equal(recognition.start(), true)
+  drained?.()
+  oldResult?.({ resultIndex: 0, results: [{ 0: { transcript: '已取消的旧结果' }, isFinal: true, length: 1 }] })
+  assert.equal(recognition.busy.value, true)
+  assert.equal(recognition.transcript.value, '')
+  assert.equal(FakeRecognition.latest, engine)
+})
+
+test('非持有入口卸载不取消另一个入口的收音', testContext => {
+  const { recognition } = setup(testContext)
+  const idleScope = effectScope()
+  const idle = idleScope.run(() => useVoiceHold({ recognition, onError: () => undefined }))!
+  recognition.start()
+  const engine = FakeRecognition.latest
+  idle.cancel()
+  idleScope.stop()
+  assert.equal(engine.aborts, 0)
+  assert.equal(recognition.listening.value, true)
 })

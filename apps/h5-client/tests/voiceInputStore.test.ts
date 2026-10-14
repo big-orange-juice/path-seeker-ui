@@ -45,6 +45,7 @@ await build({
   entryPoints: [resolve(project, 'src/stores/useAskStore.ts')],
   bundle: true, platform: 'node', format: 'esm', outdir: temporary, outExtension: { '.js': '.mjs' },
   external: ['vue', 'pinia', 'uuid'], alias: { '@': resolve(project, 'src') },
+  define: { 'import.meta.env.VITE_API_BASE_URL': '"https://fixture.test/api"', 'import.meta.env.BASE_URL': '"/client/"' },
   plugins: [{ name: 'voice-fixture', setup(builder: any) {
     builder.onResolve({ filter: /^@\// }, (args: { path: string }) => fixtures[args.path] ? { path: args.path, namespace: 'fixture' } : undefined)
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, (args: { path: string }) => ({ contents: fixtures[args.path] }))

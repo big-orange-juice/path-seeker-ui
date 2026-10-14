@@ -35,7 +35,8 @@ import {
   type AskSpeechStatus,
 } from "@/utils/askSpeechPlayer"
 import { usePlaybackBargeIn } from "@/composables/usePlaybackBargeIn"
-import { useBrowserSpeechRecognition } from "@/composables/useBrowserSpeechRecognition"
+import { useMinimaxVoiceRecognition } from "@/composables/useMinimaxVoiceRecognition"
+import { useMicrophoneAccess } from "@/composables/useMicrophoneAccess"
 import { useVenueStore } from "@/stores/useVenueStore"
 
 /** 问一问交互模式：默认语音；语音模式仍打字输入，音频由后端 SSE 下发 */
@@ -254,7 +255,8 @@ export const useAskStore = defineStore("ask", () => {
   let audioRunHadError = false
 
   const bargeIn = usePlaybackBargeIn({ onBargeIn: () => interruptRun() })
-  const voiceRecognition = useBrowserSpeechRecognition()
+  const voiceRecognition = useMinimaxVoiceRecognition()
+  const microphone = useMicrophoneAccess()
   const voiceInputFinishing = shallowRef(false)
   let voiceInputGeneration = 0
 
@@ -462,7 +464,7 @@ export const useAskStore = defineStore("ask", () => {
 
   /** 在用户手势里申请麦克风；成功后若正在播则立即进入监听 */
   async function armBargeIn() {
-    if (voiceRecognition.listening.value || voiceInputFinishing.value) return false
+    if (microphone.preparing.value || voiceRecognition.busy.value || voiceInputFinishing.value) return false
     const ready = await bargeIn.arm()
     if (ready && isSseAudioBusy.value) {
       bargeIn.listen()
