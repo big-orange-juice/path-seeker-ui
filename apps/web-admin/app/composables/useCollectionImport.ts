@@ -123,10 +123,10 @@ export const useCollectionImport = () => {
   // 说明：候选类型较重，这里显式标注并用循环替代 Array.filter + computed 的泛型推断，
   // 否则 vue-tsc 会报 TS2589（类型实例化过深）。
   const confirmableCandidates = computed<CollectionImportCandidate[]>(() => {
-    const target: number = COLLECTION_IMPORT_CANDIDATE_STATUS.PENDING_CONFIRM;
     const result: CollectionImportCandidate[] = [];
     for (const candidate of candidates.value) {
-      if (candidate.status === target) {
+      if (candidate.status === COLLECTION_IMPORT_CANDIDATE_STATUS.PENDING_CONFIRM
+        || candidate.status === COLLECTION_IMPORT_CANDIDATE_STATUS.FAILED) {
         result.push(candidate);
       }
     }
@@ -346,7 +346,8 @@ export const useCollectionImport = () => {
         body: { batchId: batch.value.id },
       });
       applyBatch(detail.batch);
-      sources.value = detail.sources ?? [];
+      sources.value = [...(detail.sources ?? [])].sort((first, second) =>
+        first.id.length === second.id.length ? second.id.localeCompare(first.id) : second.id.length - first.id.length);
       const source = sources.value[0];
       if (source?.header && typeof source.header === 'object' && !Array.isArray(source.header)) {
         const header = source.header as Record<string, unknown>;

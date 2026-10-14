@@ -48,7 +48,7 @@ function statusLabel(status: PlaybackSequenceItem['status']) {
         <Play :size="14" aria-hidden="true" /><span>{{ messages.queueAutoPlay }}</span><strong>{{ autoPlayEnabled ? messages.queueOn : messages.queueOff }}</strong>
       </button>
       <button type="button" class="queue-setting" role="switch" :aria-checked="contentAutoSwitchLocked" @click="emit('toggleContentLock', !contentAutoSwitchLocked)">
-        <Lock v-if="contentAutoSwitchLocked" :size="14" aria-hidden="true" /><LockOpen v-else :size="14" aria-hidden="true" /><span>{{ messages.queueLockContent }}</span><span class="queue-toggle" :class="{ 'is-on': contentAutoSwitchLocked }" aria-hidden="true" />
+        <Lock v-if="contentAutoSwitchLocked" :size="14" aria-hidden="true" /><LockOpen v-else :size="14" aria-hidden="true" /><span>{{ messages.queueLockContent }}</span><strong>{{ contentAutoSwitchLocked ? messages.queueOff : messages.queueOn }}</strong><span class="queue-toggle" :class="{ 'is-on': contentAutoSwitchLocked }" aria-hidden="true" />
       </button>
     </div>
     <ol v-if="sequence.length" class="queue-list">

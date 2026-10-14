@@ -337,7 +337,7 @@ const handleReset = () => {
           </div>
 
           <!-- 第二步：候选条目预览 -->
-          <section v-if="sourceColumns.length && step === 'preview' && !batch?.createCount && !batch?.updateCount" class="warm-panel rounded-md border p-4">
+          <section v-if="sourceColumns.length && step === 'preview'" class="warm-panel rounded-md border p-4">
             <h3>人工列映射</h3>
             <div class="mt-2 grid gap-2 sm:grid-cols-2">
               <label v-for="field in mappingFields" :key="field" class="flex items-center gap-2 text-sm">

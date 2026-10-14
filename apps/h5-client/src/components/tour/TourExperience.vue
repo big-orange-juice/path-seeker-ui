@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Focus, Languages, ListMusic, MapPin, MessageCircle, Mic, Minus, Navigation, Pause, Play, Plus, Route, SkipBack, SkipForward } from 'lucide-vue-next'
+import { Focus, Languages, ListMusic, MapPin, Maximize2, MessageCircle, Mic, Minimize2, Minus, Navigation, Pause, Play, Plus, Route, SkipBack, SkipForward } from 'lucide-vue-next'
 import { isTourLocale, TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
 import TourLanguageGate from '@/components/tour/TourLanguageGate.vue'
 import TourMap from '@/components/tour/TourMap.vue'
@@ -10,6 +10,7 @@ import TourStoryDrawer from '@/components/tour/TourStoryDrawer.vue'
 import TourArrivalPrompt from '@/components/tour/TourArrivalPrompt.vue'
 import TourPlaybackQueue from '@/components/tour/TourPlaybackQueue.vue'
 import { useTourJourney } from '@/composables/useTourJourney'
+import { useFullscreen } from '@/composables/useFullscreen'
 import { useBrowserSpeechRecognition } from '@/composables/useBrowserSpeechRecognition'
 import { useVoiceHold } from '@/composables/useVoiceHold'
 import { useAskStore } from '@/stores/useAskStore'
@@ -20,6 +21,7 @@ const props = defineProps<{ museumId: string }>()
 const route = useRoute()
 const router = useRouter()
 const journey = useTourJourney()
+const fullscreen = useFullscreen()
 const askStore = useAskStore()
 const voice = useBrowserSpeechRecognition()
 const tourMap = useTemplateRef<InstanceType<typeof TourMap>>('tourMap')
@@ -406,10 +408,12 @@ onBeforeUnmount(() => {
       <template v-if="viewingJourney">
         <button type="button" @click="back">{{ messages.back }}</button>
         <strong>{{ detail?.route?.title || messages.routes }}</strong>
+        <button v-if="fullscreen.isSupported.value" type="button" class="tour-fullscreen" :aria-label="fullscreen.isFullscreen.value ? messages.exitFullscreen : messages.enterFullscreen" :title="fullscreen.isFullscreen.value ? messages.exitFullscreen : messages.enterFullscreen" @click="fullscreen.toggle"><Minimize2 v-if="fullscreen.isFullscreen.value" :size="16" aria-hidden="true" /><Maximize2 v-else :size="16" aria-hidden="true" /></button>
         <button type="button" :disabled="journey.pending.value" @click="end">{{ messages.end }}</button>
       </template>
       <template v-else>
         <div class="tour-area-name"><strong>{{ destinationName }}</strong><small>HOUHAI</small></div>
+        <button v-if="fullscreen.isSupported.value" type="button" class="tour-fullscreen" :aria-label="fullscreen.isFullscreen.value ? messages.exitFullscreen : messages.enterFullscreen" :title="fullscreen.isFullscreen.value ? messages.exitFullscreen : messages.enterFullscreen" @click="fullscreen.toggle"><Minimize2 v-if="fullscreen.isFullscreen.value" :size="16" aria-hidden="true" /><Maximize2 v-else :size="16" aria-hidden="true" /></button>
         <label class="tour-language"><Languages :size="17" aria-hidden="true" /><span>{{ currentLanguage.label }}</span><select :value="journey.locale.value" :disabled="journey.pending.value" :aria-label="messages.changeLanguage" @change="changeLanguage"><option v-for="language in TOUR_LANGUAGES" :key="language.value" :value="language.value">{{ language.label }}</option></select></label>
       </template>
     </header>
@@ -429,9 +433,8 @@ onBeforeUnmount(() => {
     <button v-if="!viewingJourney && journey.active.value" class="tour-return" type="button" @click="viewingJourney = true">{{ journey.active.value.route?.title }} · {{ messages.resume }}</button>
     <template v-if="viewingJourney && journey.currentStop.value">
       <TourArrivalPrompt v-if="showArrivalPrompt" :candidates="visibleArrivalCandidates" :pending="journey.pending.value" :messages="messages" :playing-stop-name="journey.currentStop.value?.name || null" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
-      <div class="tour-location-status" :class="{ 'is-active': journey.tracking.value && !journey.approachUnknown.value }" role="status"><MapPin :size="12" aria-hidden="true" /><span>{{ locationStatus }}</span></div>
+      <button type="button" class="tour-location-status" :class="{ 'is-active': journey.tracking.value && !journey.approachUnknown.value }" :aria-pressed="journey.tracking.value" :disabled="journey.pending.value" :title="journey.tracking.value ? messages.stopLocate : messages.locate" @click="toggleTracking"><MapPin :size="12" aria-hidden="true" /><span>{{ locationStatus }}</span></button>
       <nav class="tour-tools" :aria-label="messages.routeTools">
-        <button type="button" :class="{ active: journey.tracking.value }" :aria-pressed="journey.tracking.value" :aria-label="journey.tracking.value ? messages.stopLocate : messages.locate" :title="journey.tracking.value ? messages.stopLocate : messages.locate" @click="toggleTracking"><MapPin :size="16" /></button>
         <button type="button" :class="{ active: routeVisible }" :aria-pressed="routeVisible" :aria-label="routeVisible ? messages.hideRoute : messages.showRoute" :title="routeVisible ? messages.hideRoute : messages.showRoute" @click="toggleRoute"><Route :size="16" /></button>
         <span class="toolbar-divider" aria-hidden="true" />
         <button type="button" :aria-label="messages.zoomOut" :title="messages.zoomOut" @click="tourMap?.zoomBy(-1)"><Minus :size="16" /></button>
@@ -464,7 +467,6 @@ onBeforeUnmount(() => {
             :can-seek="canSeek && journey.drawerMatchesPlaying.value"
             :played-seconds="journey.speech.playedSeconds.value"
             :duration-seconds="journey.speech.currentItemDuration.value"
-            :content-locked="journey.contentAutoSwitchLocked.value"
             @close="closeDrawer"
             @play="drawerPlay"
             @keep-playing="journey.openContentDrawer(journey.currentIndex.value, 'manual')"
@@ -472,7 +474,6 @@ onBeforeUnmount(() => {
             @seek="seek"
             @select="journey.selectStop"
             @guide="journey.selectGuide"
-            @complete="journey.completeStop"
             @skip-extra-audio="journey.setSkipExtraAudio"
             @play-extra="journey.playExtraAudio"
             @content-lock="journey.setContentAutoSwitchLocked"
@@ -495,7 +496,7 @@ onBeforeUnmount(() => {
           @skip="journey.skipQueuedStop"
         />
       </Transition>
-      <footer ref="dockHost" class="tour-story-dock">
+      <footer v-if="!journey.drawerOpen.value" ref="dockHost" class="tour-story-dock">
         <div class="tour-dock-controls">
           <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !journey.canGoPrevious.value" :aria-label="messages.prevStop" :title="messages.prevStop" @click="journey.previousStop()"><SkipBack :size="16" aria-hidden="true" /><span>{{ messages.prevStop }}</span></button>
           <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !canSeek" :aria-label="messages.rewind15" :title="messages.rewind15" @click="seek(-15)"><SkipBack :size="14" aria-hidden="true" /><span>{{ messages.rewind15 }}</span></button>
@@ -547,9 +548,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .tour-experience{--tour-lake:#183e43;--tour-ink:#2b4039;--tour-muted:#7b8a80;--tour-paper:#f8faf9;--tour-paper-strong:#f8faf9f5;--tour-paper-fade:#f8faf9db;--tour-selected:#edf5ef;--tour-line:#d4e0d9;--tour-display:"Noto Serif SC","Songti SC","STSong","SimSun",serif;position:fixed;inset:0;z-index:30;overflow:hidden;background:var(--tour-paper);color:var(--tour-ink)}
-.tour-header{position:absolute;left:0;right:0;top:0;z-index:8;display:flex;align-items:center;gap:16px;min-height:58px;padding:0 28px;border-bottom:1px solid #dbe5df;background:var(--tour-paper);color:var(--tour-lake)}.tour-header.journey{left:12px;right:12px;top:max(12px,env(safe-area-inset-top));min-height:44px;padding:12px;border:0;border-radius:10px;background:#f8faf9f2;box-shadow:0 3px 14px #183e4315}.tour-header strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.tour-header button{border:0;background:transparent;color:var(--tour-lake);font-size:12px}.tour-area-name{display:flex;align-items:baseline;gap:10px}.tour-area-name strong{font:600 17px var(--tour-display);letter-spacing:3px}.tour-area-name small{color:#78917e;font:9px/1 sans-serif;letter-spacing:2px}.tour-language{display:flex;align-items:center;gap:7px;color:var(--tour-lake);font-size:12px}.tour-language select{border:0;background:transparent;color:var(--tour-lake);font-size:12px;outline:none}.tour-notices{position:absolute;top:76px;left:12px;right:12px;z-index:4;pointer-events:none}.tour-notices p{width:fit-content;margin:4px 0;padding:8px 12px;border-radius:8px;background:#f8faf9ed;box-shadow:0 3px 14px #183e4310;font-size:12px;pointer-events:auto}.tour-notices button{margin-left:10px;text-decoration:underline}
+.tour-header{position:absolute;left:0;right:0;top:0;z-index:8;display:flex;align-items:center;gap:16px;min-height:58px;padding:0 28px;border-bottom:1px solid #dbe5df;background:var(--tour-paper);color:var(--tour-lake)}.tour-header.journey{left:12px;right:12px;top:max(12px,env(safe-area-inset-top));min-height:44px;padding:12px;border:0;border-radius:10px;background:#f8faf9f2;box-shadow:0 3px 14px #183e4315}.tour-header strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.tour-header button{border:0;background:transparent;color:var(--tour-lake);font-size:12px}.tour-header .tour-fullscreen{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;padding:0;border:1px solid var(--tour-line);border-radius:9px;background:#fff}.tour-area-name{display:flex;align-items:baseline;gap:10px}.tour-area-name strong{font:600 17px var(--tour-display);letter-spacing:3px}.tour-area-name small{color:#78917e;font:9px/1 sans-serif;letter-spacing:2px}.tour-language{display:flex;align-items:center;gap:7px;color:var(--tour-lake);font-size:12px}.tour-language select{border:0;background:transparent;color:var(--tour-lake);font-size:12px;outline:none}.tour-notices{position:absolute;top:76px;left:12px;right:12px;z-index:4;pointer-events:none}.tour-notices p{width:fit-content;margin:4px 0;padding:8px 12px;border-radius:8px;background:#f8faf9ed;box-shadow:0 3px 14px #183e4310;font-size:12px;pointer-events:auto}.tour-notices button{margin-left:10px;text-decoration:underline}
 .tour-tools{position:absolute;left:12px;top:50%;z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;width:52px;padding:4px;border:1px solid #dbe5df;border-radius:15px;background:#fffffff2;box-shadow:0 7px 25px #183e4330;backdrop-filter:blur(12px);transform:translateY(-50%)}.tour-tools button{display:flex;align-items:center;justify-content:center;width:42px;height:38px;padding:0;border:0;border-radius:10px;background:transparent;color:#263f55}.tour-tools button:hover,.tour-tools button.active{background:#e4f0ea}.tour-tools button:focus-visible{outline:2px solid #263f55;outline-offset:-2px}.toolbar-divider{width:28px;height:1px;margin:2px 0;background:#dbe5df}.toolbar-ask{height:43px!important}
-.tour-location-status{position:absolute;left:12px;top:82px;z-index:3;display:flex;align-items:center;gap:5px;max-width:min(360px,calc(100% - 24px));padding:6px 9px;border:1px solid var(--tour-line);border-radius:8px;background:var(--tour-paper-fade);color:var(--tour-muted);font-size:10px;line-height:1.4;backdrop-filter:blur(8px)}.tour-location-status.is-active{color:var(--tour-lake);background:var(--tour-selected)}
+.tour-location-status{position:absolute;left:12px;top:82px;z-index:3;display:flex;align-items:center;gap:5px;max-width:min(360px,calc(100% - 24px));padding:6px 9px;border:1px solid var(--tour-line);border-radius:8px;background:var(--tour-paper-fade);color:var(--tour-muted);font-size:10px;line-height:1.4;text-align:left;backdrop-filter:blur(8px)}.tour-location-status:hover{border-color:var(--tour-lake);color:var(--tour-lake)}.tour-location-status:disabled{cursor:wait;opacity:.65}.tour-location-status.is-active{color:var(--tour-lake);background:var(--tour-selected)}
 .tour-experience.is-journey .tour-notices{top:116px}.tour-dock-button span{white-space:normal;overflow-wrap:anywhere;text-align:center}
 .tour-return{position:absolute;top:74px;right:12px;z-index:4;max-width:75%;padding:12px;border:1px solid #dbe5df;border-radius:8px;background:#f8faf9ed;color:var(--tour-lake);font-size:12px;box-shadow:0 3px 12px #183e4315}
 /* 底部迷你控制条：两行（按钮行 + 信息行），是主播放控制条（方案 §4.1） */
@@ -571,7 +572,7 @@ onBeforeUnmount(() => {
 .story-drawer-enter-to,.story-drawer-leave-from{opacity:1;transform:translateX(0)}
 .queue-panel-enter-active,.queue-panel-leave-active{transition:opacity .18s ease,transform .18s ease}.queue-panel-enter-from,.queue-panel-leave-to{opacity:0;transform:translateY(8px)}
 @media(prefers-reduced-motion:reduce){.story-drawer-enter-active,.story-drawer-leave-active,.queue-panel-enter-active,.queue-panel-leave-active{transition:none}}
-@media(max-width:760px){.tour-header{min-height:56px;padding:0 16px}.tour-area-name strong{font-size:16px}.tour-language{font-size:11px}.tour-language select{max-width:76px;font-size:11px}.tour-tools{left:10px}.tour-notices{top:70px}.tour-dock-button span{display:none}.tour-dock-button{min-height:46px}}
+@media(max-width:760px){.tour-header{min-height:56px;padding:0 16px;gap:10px}.tour-header.journey{left:8px;right:8px}.tour-area-name strong{font-size:16px}.tour-language{font-size:11px}.tour-language select{max-width:76px;font-size:11px}.tour-tools{left:10px}.tour-notices{top:70px}.tour-dock-button span{display:none}.tour-dock-button{min-height:46px}.tour-location-status{left:10px;top:76px}.tour-voice{left:auto;right:18px;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 166px);transform:none}.tour-voice-button{width:50px;height:50px}.tour-voice-hint{display:none}.tour-story-dock{left:10px;width:calc(100% - 20px);padding:8px;gap:6px}}
 .tour-voice-button{touch-action:none;user-select:none}
 .tour-voice-button:disabled{opacity:.5}
 .tour-voice{position:absolute;left:50%;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 126px);z-index:9;display:flex;flex-direction:column;align-items:center;gap:6px;transform:translateX(-50%)}
@@ -587,4 +588,5 @@ onBeforeUnmount(() => {
 .tour-voice-wave i:nth-child(3){height:11px;animation-delay:.3s}
 @keyframes tour-voice-pulse{0%,100%{transform:scaleY(.5)}50%{transform:scaleY(1)}}
 @media(prefers-reduced-motion:reduce){.tour-voice-wave i{animation:none}}
+@media(max-width:760px){.tour-voice{left:auto;right:18px;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 166px);transform:none}}
 </style>

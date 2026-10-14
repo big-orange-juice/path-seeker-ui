@@ -30,6 +30,7 @@ import OutdoorRouteWorkspace from '@/components/routes/OutdoorRouteWorkspace.vue
 import OutdoorRoutePreview from '@/components/routes/OutdoorRoutePreview.vue';
 import StageEditDialog from '@/components/routes/StageEditDialog.vue';
 import { useActionFeedback } from '@/composables/useActionFeedback';
+import { useChatAttachmentLimits } from '@/composables/useChatAttachmentLimits';
 import { useCulturalPlaces } from '@/composables/useCulturalPlaces';
 import type { ChatAttachmentReference } from '@/types/chat';
 import type { RouteWorkflowActions } from '@/constants/routeWorkflow';
@@ -118,6 +119,7 @@ const chatPaneRef = shallowRef<{
 const chatReferenceIds = computed(() =>
   props.chatReferences.map((item) => item.attachmentId),
 );
+const { maxAttachments } = useChatAttachmentLimits();
 
 const addChatReference = (attachment: ChatAttachmentReference) => {
   const attachmentId = String(attachment.attachmentId).trim();
@@ -130,8 +132,8 @@ const addChatReference = (attachment: ChatAttachmentReference) => {
     return;
   }
 
-  if (props.chatReferences.length >= 4) {
-    actionFeedback.error('每条消息最多引用 4 张图片。', '无法继续添加');
+  if (maxAttachments.value != null && props.chatReferences.length >= maxAttachments.value) {
+    actionFeedback.error(`每条消息最多引用 ${maxAttachments.value} 张图片。`, '无法继续添加');
     return;
   }
 

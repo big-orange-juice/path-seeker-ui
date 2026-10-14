@@ -2,8 +2,9 @@
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue';
 import AppIcon from '@/components/ui/AppIcon.vue';
 import type { ChatAttachmentReference, ChatComposerSubmitPayload } from '@/types/chat';
+import { useChatAttachmentLimits } from '@/composables/useChatAttachmentLimits';
 
-const MAX_IMAGE_COUNT = 4;
+const { maxAttachments } = useChatAttachmentLimits();
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_TOTAL_IMAGE_SIZE = 25 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -43,7 +44,7 @@ const referenceAttachmentIds = computed(() =>
     props.referencedAttachments
       .map((item) => String(item.attachmentId).trim())
       .filter(Boolean),
-  )).slice(0, MAX_IMAGE_COUNT),
+  )),
 );
 
 const canSubmit = computed(() =>
@@ -53,8 +54,18 @@ const canSubmit = computed(() =>
     || referenceAttachmentIds.value.length > 0
   )
   && !props.disabled
+  && (maxAttachments.value == null
+    || pendingImages.value.length + referenceAttachmentIds.value.length <= maxAttachments.value)
   && !props.sending,
 );
+const attachmentError = computed(() => {
+  const count = pendingImages.value.length + referenceAttachmentIds.value.length;
+  if (!count) return '';
+  if (maxAttachments.value == null) return '';
+  return count > maxAttachments.value
+    ? `每条消息最多添加 ${maxAttachments.value} 张图片，请移除多余图片。`
+    : '';
+});
 
 const resizeTextarea = async () => {
   await nextTick();
@@ -119,12 +130,12 @@ const addPastedImages = (files: File[]) => {
     pasteError.value = '仅支持 JPEG、PNG 或 WebP 图片。';
   }
 
-  const availableCount = MAX_IMAGE_COUNT
-    - referenceAttachmentIds.value.length
-    - pendingImages.value.length;
+  const availableCount = maxAttachments.value == null
+    ? acceptedFiles.length
+    : maxAttachments.value - referenceAttachmentIds.value.length - pendingImages.value.length;
   const candidates = acceptedFiles.slice(0, Math.max(availableCount, 0));
   if (acceptedFiles.length > availableCount) {
-    pasteError.value = `每条消息最多粘贴 ${MAX_IMAGE_COUNT} 张图片。`;
+    pasteError.value = `每条消息最多添加 ${maxAttachments.value} 张图片。`;
   }
 
   let totalSize = pendingImages.value.reduce((total, item) => total + item.file.size, 0);
@@ -233,7 +244,7 @@ onBeforeUnmount(clearPendingImages);
         </div>
       </div>
 
-      <p v-if="pasteError" class="chat-composer__error">{{ pasteError }}</p>
+      <p v-if="pasteError || attachmentError" class="chat-composer__error">{{ pasteError || attachmentError }}</p>
 
       <div class="chat-composer__actions">
         <p class="chat-composer__hint">

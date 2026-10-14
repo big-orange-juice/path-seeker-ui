@@ -80,7 +80,7 @@ const evidenceEntries = computed(() => {
   }))
 })
 
-const isPending = computed(() => Number(props.candidate?.status ?? -1) === 0)
+const isPending = computed(() => [0, 4].includes(Number(props.candidate?.status ?? -1)))
 
 const isExhibit = computed(() => Number(props.candidate?.targetType ?? 1) === 1)
 

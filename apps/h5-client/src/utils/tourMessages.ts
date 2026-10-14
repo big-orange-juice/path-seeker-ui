@@ -2,14 +2,14 @@ import type { TourLocale } from '@path-seeker/ts-shared'
 
 const zh = {
   chooseLanguage: '选择讲解语言', routes: '选择这一程', routeHint: '跟随不同导游，听见不同的北京。', search: '搜索路线、导游或途经点', start: '开始行程', startHint: '开启定位，沿途为你讲解', back: '返回地图', end: '结束行程',
-  play: '播放讲解', pause: '暂停', resume: '继续', content: '查看内容', close: '收起', next: '接下来看', complete: '完成这一站', locate: '开启近站讲解', stopLocate: '关闭定位', locationFailed: '定位不可用，仍可手动选择站点', loading: '正在加载…', retry: '重试',
+  play: '播放讲解', pause: '暂停', resume: '继续', content: '查看内容', close: '收起', next: '接下来看', complete: '完成这一站', locate: '开启近站讲解', stopLocate: '关闭定位', locationFailed: '定位不可用，仍可手动选择站点', enterFullscreen: '进入全屏', exitFullscreen: '退出全屏', loading: '正在加载…', retry: '重试',
   noRoutes: '暂无该语言的已发布路线', noNarration: '本站暂无该语言的讲解', voiceMissing: '设备未安装该语言语音，可继续阅读讲解', playbackFailed: '无法播放讲解，请重试或阅读正文', minutes: '分钟', stops: '站', finished: '行程已完成', ask: '问一问',
   routeUnavailable: '扫码路线不存在或尚未发布该语言版本，请重新选择', loadFailed: '加载失败，请重试', startFailed: '开始行程失败，请重试', saveFailed: '进度保存失败，请重试', video: '观看视频', guide: '导游', noMap: '地图服务尚未配置，仍可选择路线和播放讲解', changeLanguage: '切换语言',
   zoomIn: '放大地图', zoomOut: '缩小地图', overview: '路线全览', follow: '跟随视角', unfollow: '退出跟随', routeTools: '路线工具', showRoute: '显示路线', hideRoute: '隐藏路线', locationReady: '近站讲解已开启', locationOff: '近站讲解未开启', locationWeak: '正在等待更准确的定位',
   voiceAsk: '语音提问', voiceStop: '结束语音', voiceHint: '按住说话，松开发送', voiceReleaseHint: '松开发送，上滑取消', voiceCancel: '松开取消', voiceFinishing: '正在识别…', voiceUnsupported: '当前浏览器不支持语音识别，请点击问一问使用文字输入',
   extraAudio: '额外音频', beforeAudio: '讲解前', afterAudio: '讲解后', skipExtraAudio: '跳过额外音频', replayStop: '重新播放整站', playingNow: '正在播放', approximateResume: '系统语音按句恢复，位置为近似', autoplayBlocked: '浏览器阻止了自动播放', continuePlayback: '继续播放', extraAudioFailed: '额外音频播放失败，已跳过：', locationUnknown: '定位精度不足，接近提示暂不可用，可手动选择站点', secondsShort: '秒',
   prevStop: '上一节点', nextStop: '下一节点', rewind15: '-15 秒', forward15: '+15 秒', enterStopPlay: '进入本节点播放', drawerNotPlaying: '正在播放其他节点：', browsingNoProgress: '浏览中，未切换行程进度', playbackProgress: '播放进度', seekAtStart: '已到本段开头', seekAtEnd: '已到本段末尾', nearbyAutoPlayHint: '走近下一站将自动播放', sequentialAutoHint: '定位不可用，播完自动进入下一站', voiceFellBack: '当前音色不可用，已使用默认音色',
-  queueTitle: '播放序列', queuePending: '个待播放', queueHint: '附近景点会按距离加入，并按顺序播放', queueAutoPlay: '接近时自动播放', queueOn: '已开启', queueOff: '已暂停', queueLockContent: '锁定当前内容', queueUnlockContent: '允许自动切换', queuePlaying: '正在播放', queueCompleted: '已完成', queueSkipped: '已跳过', queueQueued: '待播放', queueEmpty: '还没有排队的景点', queuePlay: '立即播放', queueSkip: '跳过',
+  queueTitle: '播放序列', queuePending: '个待播放', queueHint: '附近景点会按距离加入，并按顺序播放', queueAutoPlay: '接近时自动播放', queueOn: '已开启', queueOff: '已暂停', queueLockContent: '自动切换内容', queueUnlockContent: '允许自动切换', queuePlaying: '正在播放', queueCompleted: '已完成', queueSkipped: '已跳过', queueQueued: '待播放', queueEmpty: '还没有排队的景点', queuePlay: '立即播放', queueSkip: '跳过',
 }
 
 /** v5 新增文案的各语言翻译；缺失时回落中文基线（见 tourMessages） */

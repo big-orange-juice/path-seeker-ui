@@ -44,6 +44,7 @@ import {
 import { mapGuideResponse } from '@/composables/useGuideManagement'
 import type { GuideRecord, GuideResponseListTotalPageResult } from '@/types/guide'
 import type { RouteNodeResponse } from '@/types/route'
+import { buildStageHints } from '@/utils/stageHints'
 
 interface Props {
   open: boolean
@@ -668,7 +669,7 @@ const resetForm = () => {
   const cols = Number(form.gridCols) || 3
   form.puzzlePieces = orderPuzzlePieces(
     parsePuzzlePieces(config.pieces ?? config.Pieces ?? config.items ?? config.fragments ?? config.peace),
-    config.correct_order ?? config.correctOrder ?? answerExtra.correct_order ?? answerExtra.correctOrder,
+    config.answer_pieces ?? config.correct_order ?? config.correctOrder ?? answerExtra.correct_order ?? answerExtra.correctOrder,
     cols,
   )
   // 按行列铺满网格槽位，与渲染盘面一致
@@ -1464,9 +1465,8 @@ const parsePiecesForSave = (cols: number): PuzzlePieceConfig[] => {
   syncCorrectOrderFromPieces()
 
   return form.puzzlePieces
-    .map((item, index): PuzzlePieceConfig | null => {
+    .map((item, index): PuzzlePieceConfig => {
       const imageUrl = item.imageUrl.trim()
-      if (!imageUrl) return null
       const id = item.id.trim() || createPieceId(index)
       const label = item.label.trim() || `碎片 ${index + 1}`
       return {
@@ -1475,17 +1475,14 @@ const parsePiecesForSave = (cols: number): PuzzlePieceConfig[] => {
         key: id,
         label,
         hint: item.hint.trim() || null,
-        image_url: imageUrl,
+        image_url: imageUrl || null,
         correct_row: Math.floor(index / span),
         correct_col: index % span,
       }
     })
-    .filter((item): item is PuzzlePieceConfig => item !== null)
 }
 
-const parseHints = () => form.hintsInput.split('\n')
-  .map((content, index) => ({ content: content.trim(), sort_order: index + 1 }))
-  .filter((item) => Boolean(item.content))
+const parseHints = () => buildStageHints(form.hintsInput, baseConfig.value.hints, uuidv4)
 const buildRegularConfig = () => {
   const config: Record<string, unknown> = { ...baseConfig.value }
   const hints = parseHints()
@@ -1521,18 +1518,6 @@ const buildRegularConfig = () => {
     const cols = puzzleGridCols.value
     const pieces = parsePiecesForSave(cols)
     const correctOrder = pieces.map((item) => item.id)
-    if (!form.prompt.trim()) {
-      errorMessage.value = '请填写题目。'
-      return null
-    }
-    if (form.puzzlePieces.some((item) => !item.imageUrl.trim())) {
-      errorMessage.value = '请为网格中每一格上传碎片图片。'
-      return null
-    }
-    if (pieces.length !== rows * cols || pieces.length < 2) {
-      errorMessage.value = `请按 ${rows} × ${cols} 网格上传全部碎片（至少 2 格）。`
-      return null
-    }
     config.content = form.prompt.trim()
     // 底图可选：取首片图作兼容字段；游玩端以 pieces[].image_url 为准
     const firstPieceUrl = pieces[0]?.image_url ?? null
@@ -1543,6 +1528,7 @@ const buildRegularConfig = () => {
     delete config.grid_size
     config.pieces = pieces
     config.correct_order = correctOrder
+    config.answer_pieces = correctOrder
   } else if (isFindScan.value) {
     if (!form.clueText.trim()) {
       errorMessage.value = '请填写寻找线索。'
@@ -1567,6 +1553,7 @@ const saveRegularStage = async () => {
       config: JSON.stringify(config),
     },
   })
+  baseConfig.value = config
   return true
 }
 

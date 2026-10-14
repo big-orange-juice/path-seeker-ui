@@ -261,8 +261,8 @@ defineExpose({ openDialog })
               <td class="px-3 py-2">
                 <div class="flex gap-1.5">
                   <Button variant="ghost" size="sm" class="h-7 px-2 text-xs" @click="detailCandidate = candidate">证据与差异</Button>
-                  <Button v-if="candidate.status === 0" variant="outline" size="sm" class="h-7 px-2 text-xs" @click="handleConfirmOne(candidate.id)">确认</Button>
-                  <Button v-if="candidate.status === 0" variant="ghost" size="sm" class="h-7 px-2 text-xs" @click="handleSkipOne(candidate.id)">跳过</Button>
+                  <Button v-if="candidate.status === 0 || candidate.status === 4" variant="outline" size="sm" class="h-7 px-2 text-xs" @click="handleConfirmOne(candidate.id)">{{ candidate.status === 4 ? '重新确认' : '确认' }}</Button>
+                  <Button v-if="candidate.status === 0 || candidate.status === 4" variant="ghost" size="sm" class="h-7 px-2 text-xs" @click="handleSkipOne(candidate.id)">跳过</Button>
                 </div>
               </td>
             </tr>

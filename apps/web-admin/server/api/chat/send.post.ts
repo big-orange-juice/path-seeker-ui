@@ -61,7 +61,6 @@ export default defineEventHandler(async (event) => {
     !sessionId
     || !clientMessageId
     || (!message && !attachmentIds.length)
-    || attachmentIds.length > 4
   ) {
     throw createError({
       statusCode: 400,

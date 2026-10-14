@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Lock, LockOpen, Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-vue-next'
+import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-vue-next'
 import type { ClientStopExtraAudio, ClientTourStop, TourGuideNarration } from '@/types/clientCatalog'
 import type { TourMessages } from '@/utils/tourMessages'
 
@@ -38,7 +38,6 @@ const props = defineProps<{
   /** 已播秒数与总时长，用于展示进度（系统语音无精确时长时总时长为 0） */
   playedSeconds: number
   durationSeconds: number
-  contentLocked: boolean
 }>()
 const emit = defineEmits<{
   close: []
@@ -48,7 +47,6 @@ const emit = defineEmits<{
   seek: [deltaSeconds: number]
   select: [index: number]
   guide: [id: string | null]
-  complete: []
   skipExtraAudio: [value: boolean]
   playExtra: [id: string]
   contentLock: [value: boolean]
@@ -99,13 +97,19 @@ function durationText(item: ClientStopExtraAudio) {
 function itemLabel(item: ClientStopExtraAudio, index: number) {
   return item.title || `${props.messages.extraAudio} ${index + 1}`
 }
+
+function stopNumber(order: number) {
+  return String(order).padStart(2, '0')
+}
 </script>
 
 <template>
   <aside v-if="stop" class="tour-story" role="dialog" aria-modal="false" :aria-label="stop.name || messages.content">
     <header><h2>{{ stop.name }}</h2><button type="button" @click="emit('close')">{{ messages.close }}</button></header>
-    <button type="button" class="tour-content-lock" :aria-pressed="contentLocked" @click="emit('contentLock', !contentLocked)"><Lock v-if="contentLocked" :size="14" aria-hidden="true" /><LockOpen v-else :size="14" aria-hidden="true" /><span>{{ messages.queueLockContent }}</span></button>
-    <nav class="tour-stop-tabs"><button v-for="(item, index) in stops" :key="item.id" type="button" :class="{ active: item.id === stop.id }" :disabled="pending" @click="emit('select', index)">{{ item.order }}. {{ item.name }}</button></nav>
+    <div class="tour-stop-switcher">
+      <div class="tour-stop-switcher-heading"><span>{{ messages.stops }}</span><strong>{{ stop.order }} / {{ stops.length }}</strong></div>
+      <nav class="tour-stop-tabs" :aria-label="messages.stops"><button v-for="(item, index) in stops" :key="item.id" type="button" :class="{ active: item.id === stop.id }" :disabled="pending" :aria-current="item.id === stop.id ? 'step' : undefined" @click="emit('select', index)"><small>{{ stopNumber(item.order) }}</small><span>{{ item.name }}</span></button></nav>
+    </div>
     <p v-if="!matchesPlaying && playingStopName" class="tour-story-alert" role="status">{{ messages.drawerNotPlaying }}{{ playingStopName }}</p>
     <p v-if="browsing" class="tour-story-alert" role="status">{{ messages.browsingNoProgress }}</p>
     <img v-if="stop.images?.[0]?.url" class="tour-story-cover" :src="stop.images[0].url" :alt="stop.images[0].altText || stop.name || ''">
@@ -161,7 +165,6 @@ function itemLabel(item: ClientStopExtraAudio, index: number) {
     <p v-else class="tour-story-text">{{ messages.noNarration }}</p>
     <details v-if="stop.video"><summary>{{ messages.video }}</summary><video :src="stop.video" controls playsinline preload="none" /></details>
     <div v-if="(stop.images?.length ?? 0) > 1" class="tour-story-images"><figure v-for="image in stop.images?.slice(1)" :key="image.id"><img v-if="image.url" :src="image.url" :alt="image.altText || ''" loading="lazy"><figcaption v-if="image.caption">{{ image.caption }}</figcaption></figure></div>
-    <button class="tour-complete" type="button" :disabled="!matchesPlaying || pending" @click="emit('complete')">{{ messages.complete }}</button>
   </aside>
 </template>
 
@@ -171,4 +174,7 @@ function itemLabel(item: ClientStopExtraAudio, index: number) {
 .tour-extra{margin:16px 0;padding:12px;border:1px solid #dbe5df;border-radius:10px;background:#f6faf7}.tour-extra h3{margin:0 0 8px;font-size:14px}.tour-extra-toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:#41565f}.tour-extra-group{margin-top:10px}.tour-extra-group h4{margin:0 0 6px;color:#647382;font-size:11px;font-weight:600}.tour-extra-group ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}.tour-extra-group button{display:flex;align-items:center;gap:7px;width:100%;padding:8px 10px;border:1px solid #dbe5df;border-radius:8px;background:#fff;color:#263f55;font-size:12px;text-align:left}.tour-extra-group button span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tour-extra-group button small{color:#78878f;font-size:11px}.tour-extra-group li.is-playing button{border-color:#263f55;background:#e4f0ea}
 .tour-story{border:1px solid var(--tour-line);background:var(--tour-paper-strong);color:var(--tour-ink);box-shadow:0 6px 24px #183e4320}.tour-stop-tabs button.active,.tour-story-controls button,.tour-complete{background:var(--tour-lake);color:#fff}.tour-stop-tabs button,.tour-extra-group button{border-color:var(--tour-line)}.tour-story-controls button.tour-seek,.tour-queue-status,.tour-extra{background:var(--tour-selected);color:var(--tour-lake)}.tour-extra-group li.is-playing button{border-color:var(--tour-lake);background:var(--tour-selected)}.tour-story header button{min-height:36px;border:0;background:transparent;padding:4px;color:var(--tour-muted)}
 @media(min-width:900px){.tour-story{width:clamp(380px,32vw,440px)}}
+.tour-story{bottom:max(20px,env(safe-area-inset-bottom))}
+@media(max-width:760px){.tour-story{left:10px;right:10px;top:72px;bottom:max(18px,env(safe-area-inset-bottom));width:auto;padding:14px;border-radius:14px}.tour-story-cover{height:150px}.tour-story-controls{gap:7px;margin:12px 0}.tour-story-controls button{flex:1;min-width:calc(50% - 7px);padding:9px 10px}.tour-story-controls button.tour-seek{min-width:calc(50% - 7px)}}
+.tour-stop-switcher{display:grid;gap:7px;margin:14px 0 16px}.tour-stop-switcher-heading{display:flex;align-items:center;justify-content:space-between;color:var(--tour-muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}.tour-stop-switcher-heading strong{color:var(--tour-lake);font-size:12px;letter-spacing:0}.tour-stop-tabs{display:flex;gap:7px;overflow-x:auto;margin:0;padding:2px 2px 8px;scroll-snap-type:x proximity;scrollbar-width:thin}.tour-stop-tabs button{display:flex;align-items:center;gap:8px;flex:0 0 auto;min-width:112px;padding:9px 11px;border:1px solid var(--tour-line);border-radius:10px;background:#fff;color:var(--tour-ink);font-size:12px;text-align:left;scroll-snap-align:start}.tour-stop-tabs button small{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;background:var(--tour-selected);color:var(--tour-muted);font-size:10px;font-weight:700}.tour-stop-tabs button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tour-stop-tabs button.active{border-color:var(--tour-lake);background:var(--tour-lake);color:#fff;box-shadow:0 5px 12px #183e4322}.tour-stop-tabs button.active small{background:#ffffff22;color:#fff}
 </style>

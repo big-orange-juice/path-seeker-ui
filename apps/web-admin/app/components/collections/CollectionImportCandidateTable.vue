@@ -18,7 +18,8 @@ const emit = defineEmits<{
   skip: [candidateId: string];
 }>();
 
-const confirmableCandidates = computed(() => props.candidates.filter(candidate => candidate.status === 0));
+const canConfirmCandidate = (candidate: CollectionImportCandidate) => candidate.status === 0 || candidate.status === 4;
+const confirmableCandidates = computed(() => props.candidates.filter(canConfirmCandidate));
 const allSelected = computed(() => confirmableCandidates.value.length > 0
   && confirmableCandidates.value.every(candidate => props.selectedCandidateIds.includes(candidate.id)));
 
@@ -93,7 +94,7 @@ const candidateHasOverwrite = (candidate: CollectionImportCandidate): boolean =>
               type="checkbox"
               class="h-4 w-4"
               :checked="selectedCandidateIds.includes(candidate.id)"
-              :disabled="busy || candidate.status !== 0"
+              :disabled="busy || !canConfirmCandidate(candidate)"
               @change="emit('toggle', candidate.id, ($event.target as HTMLInputElement).checked)">
           </td>
           <td class="px-3 py-2 text-muted-foreground">{{ candidate.rowNo }}</td>
@@ -128,16 +129,16 @@ const candidateHasOverwrite = (candidate: CollectionImportCandidate): boolean =>
                 差异详情
               </Button>
               <Button
-                v-if="candidate.status === 0"
+                v-if="canConfirmCandidate(candidate)"
                 variant="outline"
                 size="sm"
                 class="h-7 px-2 text-xs"
                 :disabled="busy"
                 @click="emit('confirm', candidate.id)">
-                确认
+                {{ candidate.status === 4 ? '重新确认' : '确认' }}
               </Button>
               <Button
-                v-if="candidate.status === 0"
+                v-if="canConfirmCandidate(candidate)"
                 variant="ghost"
                 size="sm"
                 class="h-7 px-2 text-xs"
