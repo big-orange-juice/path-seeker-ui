@@ -80,4 +80,6 @@ function recorder(onState, onResult, onError) {
     destroy() { closed = true; cancelled = true; held = false; if (state === 'recording') manager.stop(); if (state === 'idle') { release(); detach(); } }
   };
 }
-module.exports = { audioFiles, cleanup, multipartWav, transcribe, recorder };
+function reserveRecorder(owner) { if (recorderOwner) return false; recorderOwner = owner; return true; }
+function releaseRecorder(owner) { if (recorderOwner === owner) recorderOwner = null; }
+module.exports = { audioFiles, cleanup, multipartWav, transcribe, recorder, reserveRecorder, releaseRecorder };

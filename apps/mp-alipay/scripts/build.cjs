@@ -38,6 +38,8 @@ function build() {
   }
   const messages = path.join(repo, 'apps/h5-client/src/utils/tourMessages.ts');
   fs.writeFileSync(path.join(out, 'shared/tourMessages.js'), compile(fs.readFileSync(messages, 'utf8'), messages));
+  const markedEntry = require.resolve('marked', { paths: [path.join(repo, 'apps/h5-client')] });
+  fs.writeFileSync(path.join(out, 'shared/marked.js'), compile(fs.readFileSync(path.join(path.dirname(markedEntry), 'marked.umd.js'), 'utf8'), 'marked.js'));
   const app = JSON.parse(fs.readFileSync(path.join(out, 'app.json'), 'utf8'));
   for (const page of app.pages) for (const ext of ['js', 'json', 'axml', 'acss']) {
     if (!fs.existsSync(path.join(out, page + '.' + ext))) throw Error('缺少页面文件: ' + page + '.' + ext);
@@ -55,20 +57,38 @@ function build() {
   marker();
   console.log('支付宝原生工程构建完成：' + out);
 }
-function validateTemplate(page) {
-  const template = fs.readFileSync(path.join(out, page + '.axml'), 'utf8');
-  const js = fs.readFileSync(path.join(out, page + '.js'), 'utf8');
+function validateTemplate(page, checked = new Set()) {
+  if (checked.has(page)) return;
+  checked.add(page);
+  for (const ext of ['js', 'json', 'axml', 'acss']) if (!fs.existsSync(path.join(out, page + '.' + ext))) throw Error('缺少组件文件: ' + page + '.' + ext);
+  const templateFile = path.join(out, page + '.axml');
+  function included(file, parents = new Set()) {
+    if (parents.has(file)) throw Error('模板循环引用: ' + file);
+    const nextParents = new Set(parents); nextParents.add(file);
+    return fs.readFileSync(file, 'utf8').replace(/<include\s+src="([^"]+)"\s*\/>/g, (_, relative) => included(path.resolve(path.dirname(file), relative), nextParents));
+  }
+  const template = included(templateFile), visited = new Set();
+  function methods(file) {
+    if (visited.has(file)) return '';
+    visited.add(file);
+    const source = fs.readFileSync(file, 'utf8');
+    return source + [...source.matchAll(/require\(['"](\.[^'"]+)['"]\)/g)].map(match => methods(path.resolve(path.dirname(file), match[1] + '.js'))).join('\n');
+  }
+  const javascript = methods(path.join(out, page + '.js'));
+  const config = JSON.parse(fs.readFileSync(path.join(out, page + '.json'), 'utf8'));
+  const components = config.usingComponents || {};
   for (const match of template.matchAll(/\b(?:on|catch)[A-Z]\w*="([\w]+)"/g)) {
-    if (!new RegExp('\\b' + match[1] + '\\s*\\(').test(js)) throw Error('模板事件没有处理函数: ' + page + ':' + match[1]);
+    if (!new RegExp('\\b' + match[1] + '\\s*\\(').test(javascript)) throw Error('模板事件没有处理函数: ' + page + ':' + match[1]);
   }
   const tags = [];
-  const nativeTags = new Set(['view', 'text', 'button', 'image', 'input', 'textarea', 'scroll-view', 'picker', 'switch', 'slider', 'checkbox-group', 'checkbox', 'label', 'map', 'video', 'block']);
+  const nativeTags = new Set(['view', 'text', 'rich-text', 'button', 'image', 'input', 'textarea', 'scroll-view', 'picker', 'switch', 'slider', 'checkbox-group', 'checkbox', 'label', 'map', 'video', 'block']);
   for (const match of template.matchAll(/<\/?([a-z][\w-]*)\b[^>]*>/g)) {
-    if (!nativeTags.has(match[1])) throw Error('不支持的原生组件: ' + page + ':' + match[1]);
+    if (!nativeTags.has(match[1]) && !components[match[1]]) throw Error('不支持的原生组件: ' + page + ':' + match[1]);
     if (match[0].startsWith('</')) { if (tags.pop() !== match[1]) throw Error('模板标签不匹配: ' + page); }
     else if (!match[0].endsWith('/>')) tags.push(match[1]);
   }
   if (tags.length) throw Error('模板标签未关闭: ' + page);
+  for (const relative of Object.values(components)) validateTemplate(path.relative(out, path.resolve(path.dirname(templateFile), relative)).replaceAll(path.sep, '/'), checked);
 }
 // 地图标记随构建生成，无外部图片依赖。
 function marker() {

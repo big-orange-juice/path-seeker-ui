@@ -9,7 +9,7 @@ function watch(onFix, onError) {
         const gcj = { longitude: Number(result.longitude), latitude: Number(result.latitude) };
         const accuracy = Number(result.horizontalAccuracy || result.accuracy);
         if (!Number.isFinite(gcj.longitude) || !Number.isFinite(gcj.latitude)) onError(Error('无法获得有效定位'));
-        else onFix(Object.assign(gcj02ToWgs84(gcj), { gcj, accuracy: Number.isFinite(accuracy) ? accuracy : 999, timestamp: Date.now() }));
+        else onFix(Object.assign(gcj02ToWgs84(gcj), { gcj, accuracy: Number.isFinite(accuracy) ? accuracy : 999, heading: typeof result.direction === 'number' && result.direction >= 0 && result.direction <= 360 ? result.direction : null, timestamp: Date.now() }));
       },
       fail(result) {
         if (closed) return;

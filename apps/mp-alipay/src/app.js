@@ -4,5 +4,5 @@ App({
   globalData: { chatContext: null, selectedRoute: '', foreground: true },
   onLaunch() { auth.restore(); },
   onShow() { this.globalData.foreground = true; },
-  onHide() { this.globalData.foreground = false; audio.pause(); }
+  onHide() { this.globalData.foreground = false; this.globalData.backgroundAudio = audio.snapshot(); if (this.globalData.cancelVoiceInput) this.globalData.cancelVoiceInput(); audio.pause(); }
 });

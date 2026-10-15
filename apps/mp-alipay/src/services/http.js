@@ -1,22 +1,37 @@
 const config = require('../config');
+const { createUtf8Decoder } = require('../core/utf8');
 let authHooks = null;
 function configureAuth(hooks) { authHooks = hooks; }
 function raw(path, options = {}) {
   let task;
   let settled = false;
   let rejectRequest;
+  const decoder = createUtf8Decoder();
+  let chunkError = null;
   const promise = new Promise((resolve, reject) => {
     rejectRequest = reject;
     task = my.request({
       url: config.apiBase + path, method: options.method || 'GET', data: options.data,
       headers: Object.assign({ 'Content-Type': 'application/json' }, options.headers),
       dataType: options.dataType || 'json', timeout: options.timeout || 30000,
-      success(response) { settled = true; resolve(response); },
+      ...(options.onChunk ? { enableChunked: true } : {}),
+      success(response) {
+        if (settled) return;
+        settled = true;
+        try { decoder.finish(); if (chunkError) reject(chunkError); else resolve(response); }
+        catch (error) { reject(error); }
+      },
       fail(error) {
+        if (settled) return;
         settled = true;
         if (error.status) resolve(error);
         else reject(Object.assign(new Error(error.errorMessage || '网络连接失败，请稍后重试'), { cause: error }));
       }
+    });
+    if (options.onChunk && task && typeof task.onChunkReceived === 'function') task.onChunkReceived(chunk => {
+      if (settled || chunkError) return;
+      try { options.onChunk(decoder.decode(typeof chunk === 'string' ? chunk : chunk && chunk.data)); }
+      catch (error) { chunkError = error; settled = true; reject(error); if (task.abort) task.abort(); }
     });
   });
   promise.abort = () => {
@@ -43,7 +58,7 @@ function request(path, options = {}) {
       if (cancelled) throw Object.assign(Error('请求已取消'), { cancelled: true });
       if (!options.public && authHooks && version !== authHooks.version()) throw Error('账号已切换，请重试');
       const token = options.public ? '' : authHooks && authHooks.token();
-      active = raw(path, Object.assign({}, options, { headers: Object.assign({}, options.headers, token ? { Authorization: 'Bearer ' + token } : {}) }));
+      active = raw(path, Object.assign({}, options, { onChunk: options.onChunk ? chunk => { if (!cancelled && (!authHooks || version === authHooks.version())) options.onChunk(chunk); } : undefined, headers: Object.assign({}, options.headers, token ? { Authorization: 'Bearer ' + token } : {}) }));
       try {
         const response = await active;
         if (!options.public && authHooks && version !== authHooks.version()) throw Error('账号已切换，请重试');

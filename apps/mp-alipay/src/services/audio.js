@@ -1,5 +1,6 @@
 // 按 owner 排他使用；每段重建上下文，迟到的旧段事件不可推进新队列。
 let context = null, owner = '', queue = [], index = 0, hooks = {}, generation = 0, failed = false, playing = false;
+let accepting = false, finished = false;
 const listeners = {};
 function dispose() {
   const old = context; context = null;
@@ -54,7 +55,7 @@ function next(token) {
   const item = queue[index];
   if (!item) {
     notify();
-    if (hooks.finished) hooks.finished({ failed });
+    if (!accepting && !finished) { finished = true; if (hooks.finished) hooks.finished({ failed }); }
     return;
   }
   if (!item.url) {
@@ -86,7 +87,7 @@ function resume(expectedOwner) {
 function stop(expectedOwner) {
   if (expectedOwner && owner !== expectedOwner) return;
   generation++;
-  hooks = {}; playing = false; pendingSeek = null;
+  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false;
   dispose();
   queue = []; index = 0; owner = ''; failed = false;
 }
@@ -96,4 +97,18 @@ function seek(seconds, expectedOwner) {
 function destroy() {
   stop();
 }
-module.exports = { playQueue, pause, resume, stop, seek, snapshot, destroy };
+function beginStream(nextOwner, nextHooks) {
+  stop(); owner = nextOwner; hooks = nextHooks || {}; accepting = true;
+  return generation;
+}
+function appendStream(token, item) {
+  if (token !== generation || !accepting || failed) return;
+  queue.push(item);
+  if (!context && index === queue.length - 1) next(token);
+}
+function finishStream(token) {
+  if (token !== generation) return;
+  accepting = false;
+  if (index >= queue.length) next(token);
+}
+module.exports = { playQueue, pause, resume, stop, seek, snapshot, destroy, beginStream, appendStream, finishStream };

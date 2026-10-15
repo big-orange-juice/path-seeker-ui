@@ -27,6 +27,35 @@ async function login(data, register = false) {
   const captured = ++epoch;
   const result = await http.post(register ? '/AppUser/Register' : '/AppUser/Login', Object.assign({ platform: 4, device: device(), langCode: storage.read('locale', 'zh') }, data), { public: true });
   if (captured !== epoch) throw Error('账号已切换');
+  epoch++;
+  return save(result);
+}
+async function loginAlipay() {
+  const captured = ++epoch;
+  const guestAccessToken = session && session.isGuest ? session.accessToken : null;
+  const authorization = await new Promise((resolve, reject) => my.getAuthCode({
+    scopes: ['auth_user'],
+    success: resolve,
+    fail: () => reject(Error('未完成支付宝授权，可重试或继续游客浏览'))
+  }));
+  if (captured !== epoch) throw Error('账号已切换');
+  if (!authorization || typeof authorization.authCode !== 'string' || !authorization.authCode.trim()) throw Error('未取得支付宝授权码，请重新授权');
+  let result;
+  try {
+    result = await http.post('/AppUser/MiniProgramLogin', {
+      provider: 'alipay', code: authorization.authCode, guestAccessToken,
+      device: device(), langCode: storage.read('locale', 'zh')
+    }, { public: true });
+  } catch (error) {
+    if (captured === epoch && guestAccessToken && (error.status === 401 || error.code === 10002)) {
+      await refresh();
+      throw Error('游客会话已更新，请再次点击授权登录');
+    }
+    throw error;
+  }
+  if (captured !== epoch) throw Error('账号已切换');
+  if (!result || result.isGuest !== false) throw Error('支付宝登录未完成，请重试');
+  epoch++;
   return save(result);
 }
 function ensure() {
@@ -39,4 +68,4 @@ function ensure() {
   guestPending = pending; return pending.promise;
 }
 http.configureAuth({ token: () => session && session.accessToken, version: () => epoch, refresh });
-module.exports = { restore, current, ensure, login, logout, refresh };
+module.exports = { restore, current, ensure, login, loginAlipay, logout, refresh };

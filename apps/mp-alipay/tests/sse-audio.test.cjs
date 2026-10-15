@@ -17,6 +17,16 @@ test('incomplete answers and invalid audio do not play as complete replies', () 
   const interrupted = answerFrom(parseSSE(event('audio.delta', { audio: 'aaff', isFinal: true }) + event('audio.error', { message: 'TTS failed' }) + event('done', {})));
   assert.equal(interrupted.audio.length, 0); assert.equal(interrupted.audioError, 'TTS failed');
 });
+test('incremental SSE parser keeps incomplete frames until the next chunk', () => {
+  const { createSSEStreamParser, answerFrom } = harness().load('core/sse');
+  const parser = createSSEStreamParser();
+  const first = parser.push('data: {"type":"text.delta","payload":{"content":"分"');
+  assert.equal(first.length, 0);
+  const second = parser.push('}}\n\ndata: {"type":"done","payload":{}}\n\n');
+  assert.equal(answerFrom(second).content, '分');
+  assert.equal(answerFrom(second).done, true);
+  assert.equal(parser.pending(), false);
+});
 test('audio queue order and completion resist callbacks from disposed contexts', () => {
   const h = harness(), audio = h.load('services/audio'); let finished = 0;
   audio.playQueue('tour', [{ id: 'before', url: 'before' }, { id: 'chapter', url: 'chapter' }], { finished: () => finished++ });

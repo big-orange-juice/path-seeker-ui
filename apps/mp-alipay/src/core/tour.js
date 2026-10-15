@@ -41,7 +41,7 @@ function mapData(detail, destination, places = []) {
     }
   });
   const center = markers[0] || (validPoint(destination) ? toGcj02(destination, destination.coordinateSystem || 1) : { longitude: 116.383, latitude: 39.937 });
-  return { markers, polyline: boundaries.concat(lines), longitude: center.longitude, latitude: center.latitude, includePoints: markers.map(m => ({ longitude: m.longitude, latitude: m.latitude })) };
+  return { markers, polyline: boundaries.concat(lines), routeLines: lines, boundaryLines: boundaries, longitude: center.longitude, latitude: center.latitude, includePoints: markers.map(m => ({ longitude: m.longitude, latitude: m.latitude })) };
 }
 function candidates(stops, places, fix, completed, system = 1, now = Date.now(), after = -1) {
   if (!isUsableLocation(fix, DEFAULT_APPROACH_POLICY, now)) return [];
@@ -52,7 +52,7 @@ function candidates(stops, places, fix, completed, system = 1, now = Date.now(),
     const range = place && place.range;
     const policy = Object.assign({}, DEFAULT_APPROACH_POLICY, range ? { proximityMeters: range.defaultProximityDistanceMeters || DEFAULT_APPROACH_POLICY.proximityMeters, releaseMeters: range.defaultReleaseDistanceMeters || DEFAULT_APPROACH_POLICY.releaseMeters } : {}, stop.triggerRadiusMeters > 0 ? { proximityMeters: stop.triggerRadiusMeters, releaseMeters: Math.max(range && range.defaultReleaseDistanceMeters || DEFAULT_APPROACH_POLICY.releaseMeters, stop.triggerRadiusMeters) } : {});
     const result = evaluateApproach(fix, place && place.range, anchor, policy);
-    return { index, order: stop.order || 0, id: stop.id, name: stop.name, distance: result.distanceMeters, approaching: result.approaching };
+    return { index, order: stop.order || 0, id: stop.id, name: stop.name, distance: result.distanceMeters, withinRange: result.withinRange, approaching: result.approaching };
   }).filter(c => c.approaching).sort((a, b) => Number(a.index <= after) - Number(b.index <= after) || a.order - b.order || a.distance - b.distance);
 }
 function checkpointMatches(cp, userId, visit, stopId, guideId) {

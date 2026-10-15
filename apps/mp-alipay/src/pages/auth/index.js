@@ -10,6 +10,17 @@ Page({
   mode() { if (!this.data.busy) this.setData({ register: !this.data.register, error: '' }); },
   agree(event) { this.setData({ agreed: ui.value(event).includes('agree') }); },
   privacy() { my.navigateTo({ url: '/pages/privacy/index' }); },
+  async alipay() {
+    if (this.data.busy) return;
+    if (!this.data.agreed) { this.setData({ error: '请先阅读并同意隐私说明' }); return; }
+    this.setData({ busy: true, error: '' });
+    try {
+      await auth.loginAlipay();
+      this.setData({ password: '' });
+      if (this._visible) my.switchTab({ url: '/pages/me/index' });
+    } catch (error) { if (this._visible) ui.error(this, error); }
+    finally { this.setData({ busy: false }); }
+  },
   async submit() {
     if (this.data.busy) return;
     const d = this.data;

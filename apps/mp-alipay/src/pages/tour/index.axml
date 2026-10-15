@@ -1,7 +1,10 @@
-<view class="tour-page">
-  <map id="tour-map" class="map" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="15" markers="{{map.markers}}" polyline="{{map.polyline}}" include-points="{{map.includePoints}}" show-location="{{locationEnabled}}" optimize="true" onMarkerTap="marker" onCalloutTap="marker" />
-  <view class="map-actions row between"><text class="muted grow">{{route ? route.title : '在城市里，寻找故事'}}</text><view class="row"><button size="mini" onTap="overview">{{messages.overview}}</button><button size="mini" onTap="recenter" disabled="{{!locationEnabled}}">{{messages.follow}}</button></view></view>
-  <scroll-view class="panel" scroll-y="true">
+<view class="tour-page {{immersive ? 'immersive' : ''}}">
+  <map a:if="{{!chatOpen}}" id="tour-map" class="map" longitude="{{map.longitude}}" latitude="{{map.latitude}}" scale="{{mapScale || 15}}" rotate="{{mapRotation || 0}}" skew="{{following ? 40 : 0}}" markers="{{map.markers}}" polyline="{{map.polyline}}" include-points="{{map.includePoints}}" show-location="{{locationEnabled}}" optimize="true" onMarkerTap="marker" onCalloutTap="marker" />
+  <view a:else class="map"/>
+  <view class="map-actions row between"><text class="muted grow">{{route ? route.title : '在城市里，寻找故事'}}</text><view class="row"><button size="mini" onTap="overview">{{messages.overview}}</button><button size="mini" onTap="toggleRoute">{{showRoute ? '隐藏路线' : '显示路线'}}</button><button size="mini" onTap="toggleFollow" disabled="{{!locationEnabled}}">{{following ? '停止跟随' : messages.follow}}</button></view></view>
+  <view class="row map-tools"><button size="mini" onTap="zoomOut">−</button><button size="mini" onTap="zoomIn">＋</button><button size="mini" onTap="toggleImmersive">{{immersive ? '展开内容' : '地图全屏'}}</button><button size="mini" onTap="ask">{{messages.ask}}</button></view>
+  <view a:if="{{candidates.length}}" class="arrival-prompt card"><view class="row between"><view class="section">{{messages.nearbyStop}}</view><text class="muted">{{candidates.length > 1 ? messages.overlappingStops : messages.nearbyStop}}</text></view><view a:for="{{candidates}}" a:key="id" class="arrival-candidate"><view class="grow"><view class="arrival-title">{{item.withinRange ? messages.arrived : messages.approaching}} {{item.name}}</view><view a:if="{{item.distanceLabel}}" class="muted">{{item.distanceLabel}}</view></view><button size="mini" class="primary" data-id="{{item.id}}" onTap="enterCandidate">{{messages.enterStop}}</button></view><button size="mini" class="quiet arrival-keep" onTap="dismissCandidates">{{messages.keepNarration}}</button></view>
+  <scroll-view a:if="{{!immersive}}" class="panel" scroll-y="true">
     <view class="page">
       <view class="eyebrow">PATH SEEKER · 城市漫游</view>
       <view class="title">沿途，听见故事</view>
@@ -32,10 +35,12 @@
           <view a:if="{{!chapters.length}}" class="empty">{{messages.noNarration}}</view>
           <view a:if="{{stop.extraAudios &amp;&amp; stop.extraAudios.length}}" class="section">{{messages.extraAudio}}</view>
           <view a:for="{{stop.extraAudios}}" a:key="id" class="row extra-row"><text class="muted grow">{{item.position === 'before' ? messages.beforeAudio : messages.afterAudio}} · {{item.title}}</text><button size="mini" data-id="{{item.id}}" onTap="playExtra" disabled="{{busy || loading || !item.url}}">{{messages.play}}</button></view>
+          <view a:if="{{recording || transcribing}}" class="record-note">{{transcribing ? '正在识别语音…' : cancelRecording ? '松开取消' : '正在录音，上滑取消'}}</view><view class="row voice-row"><view class="hold-button {{recording ? 'holding' : ''}} grow" onTouchStart="startRecording" onTouchMove="moveRecording" onTouchEnd="stopRecording" onTouchCancel="cancelTouch">按住提问</view></view>
         </view>
         <view class="card stack"><view class="row between"><text class="grow">{{messages.queueAutoPlay}}</text><switch checked="{{autoplay}}" onChange="changeAutoplay" color="#183e43"/></view><view class="row between"><text class="grow">{{messages.queueLockContent}}</text><switch checked="{{lockContent}}" onChange="changeLock" color="#183e43"/></view><view class="row between"><text class="grow">{{messages.skipExtraAudio}}</text><switch checked="{{skipExtra}}" onChange="changeExtra" color="#183e43"/></view><view class="row between"><text class="grow">{{messages.locate}}</text><switch checked="{{locationEnabled}}" onChange="toggleLocation" color="#183e43"/></view><view class="muted">{{locationNote}}</view></view>
         <view a:if="{{visit &amp;&amp; visit.status === 1}}" class="card"><view class="section">{{messages.queueTitle}}</view><view class="muted">{{messages.queueHint}}</view><view a:if="{{!sequence.length}}" class="empty">{{messages.queueEmpty}}</view><view a:for="{{sequence}}" a:key="id" class="sequence-row"><view class="row between"><text class="grow">{{item.name}}</text><text class="muted">{{item.status === 'playing' ? messages.queuePlaying : item.status === 'completed' ? messages.queueCompleted : item.status === 'skipped' ? messages.queueSkipped : messages.queueQueued}}</text></view><view a:if="{{item.status === 'queued'}}" class="actions"><button size="mini" data-id="{{item.id}}" onTap="playQueued" disabled="{{busy || loading}}">{{messages.queuePlay}}</button><button size="mini" data-id="{{item.id}}" onTap="skipQueued" disabled="{{busy || loading}}">{{messages.queueSkip}}</button></view></view></view>
       </block>
     </view>
   </scroll-view>
+  <chat-panel a:if="{{chatOpen}}" onClose="closeChat" onInterrupt="chatInterrupt" onSettled="chatSettled"/>
 </view>

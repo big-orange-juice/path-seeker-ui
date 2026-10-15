@@ -33,5 +33,5 @@ Page({
     } catch (e) { if (seq === this._seq && this._visible) ui.error(this, e); }
     finally { if (seq === this._seq && this._visible) this.setData({ loading: false }); }
   },
-  resume(event) { const id = ui.dataset(event).id, record = this.data.records.find(r => r.routeId === id); if (record && locales.some(l => l.value === record.locale)) storage.write('locale', record.locale); getApp().globalData.selectedRoute = id; my.switchTab({ url: '/pages/tour/index' }); }
+  resume(event) { const id = ui.dataset(event).id, record = this.data.records.find(item => item.routeId === id); if (typeof id !== 'string' || !id || !record) { this.setData({ error: '该记录缺少可用路线，请重新选择路线' }); return; } if (locales.some(locale => locale.value === record.locale)) storage.write('locale', record.locale); getApp().globalData.selectedRoute = id; my.switchTab({ url: '/pages/tour/index' }); }
 });

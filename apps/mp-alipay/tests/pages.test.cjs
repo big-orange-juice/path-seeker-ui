@@ -81,7 +81,7 @@ test('queued nearby stop starts after current narration completes and preserves 
 });
 test('manual browsing and content lock block automatic queued playback while explicit play is available', async () => {
   const h = harness(), p = tourPage(h, visit()); p.setData({ stops: [stop(), stop('next', 2)], autoplay: true });
-  p.browse({ currentTarget: { dataset: { index: 0 } } });
+  p._manualBrowse = true; p.showStop(0, true);
   p.enqueueCandidates([{ id: 'next', index: 1, order: 2, distance: 3 }]); assert.equal(h.requests.length, 0);
   p._manualBrowse = false; p.setData({ lockContent: true }); p.startNextSequence(); assert.equal(h.requests.length, 0);
   p.playQueued({ currentTarget: { dataset: { id: 'next' } } }); assert.equal(h.requests[0].options.data.stageId, 'next');
@@ -126,10 +126,20 @@ test('GPS stability adds nearby stops while manual browsing keeps current conten
   const candidate = { id: 'next', index: 1, order: 2, distance: 4 };
   h.load('core/tour').candidates = () => [candidate];
   p.setData({ stops: [stop(), stop('next', 2)], locationEnabled: true, autoplay: true });
-  p.browse({ currentTarget: { dataset: { index: 0 } } }); p.watchLocation();
+  p._manualBrowse = true; p.showStop(0, true); p.watchLocation();
   fix({ accuracy: 10 }); assert.equal(p.data.sequence.length, 0);
   p._dwell.at = Date.now() - 2000; fix({ accuracy: 10 });
-  assert.equal(p.data.sequence[0].id, 'next'); assert.equal(h.requests.length, 0); assert.equal(p.data.stop.id, stageId);
+  assert.equal(p.data.sequence[0].id, 'next'); assert.equal(h.requests.length, 0); assert.equal(p.data.stop.id, stageId); assert.equal(p.data.candidates[0].id, 'next');
+  p.dismissCandidates(); fix({ accuracy: 10 }); assert.equal(p.data.candidates.length, 0);
+});
+
+test('nearby prompt can explicitly enter a candidate and starts that stop', async () => {
+  const h = harness(), p = tourPage(h, visit());
+  p.setData({ stops: [stop(), stop('next', 2)], candidates: [{ id: 'next', index: 1, name: '下一站', distance: 5, distanceLabel: '5 米', approaching: true }] });
+  p.enterCandidate({ currentTarget: { dataset: { id: 'next' } } });
+  assert.equal(h.requests[0].options.data.stageId, 'next');
+  h.requests[0].ok(visit({ currentStageId: 'next' })); await tick();
+  assert.equal(p.data.browsing, false); assert.equal(p.data.stop.id, 'next');
 });
 
 test('skipped queued stop is not added again by repeated nearby fixes', () => {

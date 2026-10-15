@@ -20,3 +20,11 @@
 .hold-button { background: #edf5ef; text-align: center; padding: 18rpx; border-radius: 14rpx; }
 .holding { background: #183e43; color: #fff; }
 .record-note { color: #183e43; padding: 14rpx; text-align: center; }
+.chat-sheet, .chat-expanded { position: fixed; z-index: 50; left: 0; right: 0; bottom: 0; background: #f8faf9; box-shadow: 0 -12rpx 50rpx #183e4326; }
+.chat-sheet { height: 80vh; border-radius: 24rpx 24rpx 0 0; overflow: hidden; }
+.chat-expanded { height: 100vh; }
+.chat-header .row { flex-wrap: wrap; }
+.barge-toggle { padding: 10rpx 26rpx; }
+.caption { padding: 16rpx 26rpx; color: #183e43; background: #edf5ef; font-size: 26rpx; }
+.caption-track { height: 4rpx; margin-top: 10rpx; background: #d4e0d9; }
+.caption-progress { height: 4rpx; background: #183e43; }

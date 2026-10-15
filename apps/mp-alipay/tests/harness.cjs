@@ -22,7 +22,7 @@ function harness(initial = session()) {
   const my = {
     getStorageSync: ({ key }) => ({ data: storage.get(key) }), setStorageSync: ({ key, data }) => storage.set(key, data), removeStorageSync: ({ key }) => storage.delete(key),
     getSystemInfoSync: () => ({ platform: 'Android', model: 'test' }),
-    request(options) { const task = { options, aborted: false, abort() { this.aborted = true; }, ok(data, status = 200) { options.success({ data: { code: 0, data }, status }); }, text(data) { options.success({ data, status: 200 }); }, reject(error) { options.fail(error); } }; requests.push(task); return task; },
+    request(options) { let chunk; const task = { options, aborted: false, abort() { this.aborted = true; }, ok(data, status = 200) { options.success({ data: { code: 0, data }, status }); }, text(data) { options.success({ data, status: 200 }); }, reject(error) { options.fail(error); }, chunk(data) { if (chunk) chunk({ data }); } }; if (my.chunked) task.onChunkReceived = callback => { chunk = callback; }; requests.push(task); return task; },
     createInnerAudioContext() {
       const audio = Object.assign(emitter(), { currentTime: 0, duration: 60, stopped: false, destroyed: false, play() { this.emit('Play'); }, pause() { this.emit('Pause'); }, stop() { this.stopped = true; this.emit('Stop'); }, destroy() { this.destroyed = true; }, seek(time) { this.currentTime = time; } });
       audioContexts.push(audio); return audio;
@@ -32,9 +32,9 @@ function harness(initial = session()) {
     confirm(p) { confirms.push(p); }, showToast() {}, switchTab() {}, navigateTo() {},
     getLocation() {},
   };
-  let definition;
+  let definition, componentDefinition;
   const app = { globalData: { chatContext: null, selectedRoute: '' } };
-  const context = vm.createContext({ my, Page: d => { definition = d; }, getApp: () => app, console, setTimeout, clearTimeout, ArrayBuffer, Uint8Array });
+  const context = vm.createContext({ my, Page: d => { definition = d; }, Component: d => { componentDefinition = d; }, getApp: () => app, console, setTimeout, clearTimeout, ArrayBuffer, Uint8Array });
   const cache = new Map();
   function load(name) {
     const filename = path.resolve(dist, name.endsWith('.js') ? name : name + '.js');
@@ -46,11 +46,15 @@ function harness(initial = session()) {
   }
   function page(name) {
     load('pages/' + name + '/index');
-    const p = Object.assign({}, definition, { data: JSON.parse(JSON.stringify(definition.data)), setData(update) { for (const [key, value] of Object.entries(update)) { const parts = key.split('.'); let target = this.data; for (const part of parts.slice(0, -1)) target = target[part]; target[parts.at(-1)] = value; } } });
+    return instance(definition);
+  }
+  function instance(definition) {
+    const p = Object.assign({}, definition, definition.methods || {}, { data: JSON.parse(JSON.stringify(definition.data)), props: Object.assign({}, definition.props || {}), setData(update) { for (const [key, value] of Object.entries(update)) { const parts = key.split('.'); let target = this.data; for (const part of parts.slice(0, -1)) target = target[part]; target[parts.at(-1)] = value; } } });
     return p;
   }
+  function component(name) { load('components/' + name + '/index'); return instance(componentDefinition); }
   const auth = load('services/auth'); auth.restore();
-  return { load, page, auth, my, storage, requests, audioContexts, recorder, removed, writes, confirms, wav, wavBuffer, app };
+  return { load, page, component, auth, my, storage, requests, audioContexts, recorder, removed, writes, confirms, wav, wavBuffer, app };
 }
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const plain = data => JSON.parse(JSON.stringify(data));
