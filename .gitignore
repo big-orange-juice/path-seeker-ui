@@ -28,3 +28,4 @@ apps/admin-web/node_modules
 apps/web-admin/public/ffmpeg/
 /.vs
 /deliverables
+/outputs/outdoor-product-review
