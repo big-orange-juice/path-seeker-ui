@@ -7,10 +7,50 @@ const stop = (id = stageId, order = 1) => ({ id, name: '站点 ' + order, order,
 const visit = (overrides = {}) => Object.assign({ visitId, routeId, status: 1, currentStageId: stageId, completedStageIds: [] }, overrides);
 function tourPage(h, active = null) {
   const p = h.page('tour'); p._rev = 0; p._user = userId; p._visible = true; p._places = [];
-  p.setData({ route: route(), stops: [stop()], visit: active, loading: false, autoplay: false });
+  p.setData({ tourStage: 'navigation', route: route(), stops: [stop()], visit: active, loading: false, autoplay: false });
   p._detail = { route: p.data.route, stops: p.data.stops, coordinateSystem: 1 };
   p.showStop(0, !active); return p;
 }
+test('new guest session opens the authorization page before loading the tour catalog', async () => {
+  const h = harness(null), page = h.page('tour');
+  page.onLoad(); await tick();
+  assert.match(h.requests[0].options.url, /\/AppUser\/GuestLogin$/);
+  h.requests[0].ok(session()); await tick();
+  assert.equal(h.requests.length, 1);
+  const storage = h.load('services/storage');
+  assert.equal(storage.read(storage.scoped(userId, 'alipay-auth-prompted')), true);
+});
+test('first tour launch waits for language selection and preserves a linked route before entering navigation', async () => {
+  const h = harness(), p = h.page('tour');
+  p.onLoad({ routeId }); await tick();
+  assert.equal(p.data.tourStage, 'language'); assert.equal(h.requests.length, 0);
+  const selection = p.chooseLanguage({ currentTarget: { dataset: { index: 0 } } }); await tick();
+  assert.match(h.requests[0].options.url, /ClientCatalog\/Catalog/);
+  h.requests[0].ok({ routes: [route()], destinations: [], places: [] }); await tick();
+  assert.match(h.requests[1].options.url, new RegExp('routeId=' + routeId));
+  h.requests[1].ok({ route: route(), stops: [stop()] }); await tick(); h.requests[2].ok(null); await selection;
+  assert.equal(p.data.tourStage, 'overview'); assert.equal(p.data.contentOpen, false);
+  const start = p.startVisit(); h.requests[3].ok(visit()); await tick();
+  h.requests[4].ok(visit()); await start;
+  assert.equal(p.data.tourStage, 'navigation'); assert.equal(p.data.contentOpen, false);
+  p.openContent(); assert.equal(p.data.contentOpen, true);
+  p.closeContent(); assert.equal(p.data.contentOpen, false); assert.equal(h.load('services/audio').snapshot().playing, true);
+  p.openContent(); p.toggleQueue(); assert.equal(p.data.contentOpen, false); assert.equal(p.data.queueOpen, true);
+  p.backToOverview(); assert.equal(p.data.tourStage, 'overview'); assert.equal(p.data.queueOpen, false);
+  assert.equal(p.data.visit.visitId, visitId); assert.equal(h.requests.length, 5);
+  p.onUnload();
+});
+test('remembered language opens an empty overview and restored visits open the navigation map', async () => {
+  const empty = harness(), page = empty.page('tour');
+  empty.load('services/storage').write('tour-locale', 'en');
+  page.onLoad(); await tick(); empty.requests[0].ok({ routes: [], destinations: [], places: [] }); await tick();
+  assert.equal(page.data.tourStage, 'overview'); assert.equal(page.data.locale, 'en'); assert.equal(page.data.loading, false);
+  const h = harness(), restored = h.page('tour');
+  restored.onLoad({ lang: 'zh', routeId }); await tick(); h.requests[0].ok({ routes: [route()], destinations: [], places: [] }); await tick();
+  h.requests[1].ok({ route: route(), stops: [stop()] }); await tick(); h.requests[2].ok(visit()); await tick();
+  assert.equal(restored.data.tourStage, 'navigation'); assert.equal(restored.data.contentOpen, false);
+  restored.onUnload(); page.onUnload();
+});
 test('route selection accepts a null active visit and defaults to browsing the first stop', async () => {
   const h = harness(), p = tourPage(h);
   const selection = p.selectRoute(routeId); h.requests[0].ok({ route: route(), stops: [stop()], coordinateSystem: 1 }); await tick();
@@ -100,6 +140,9 @@ test('destination boundaries, polygon holes and circular place ranges render alo
   const detail = { route: route(), coordinateSystem: 1, stops: [{ ...stop(), placeId: 'place' }], geometry: { type: 'LineString', coordinates: [[116.38, 39.93], [116.39, 39.94]] } };
   const map = tour.mapData(detail, { boundaryGeoJson: JSON.stringify({ type: 'Polygon', coordinates: [ring, ring] }) }, [{ id: 'place', longitude: 116.383, latitude: 39.937, range: { type: 'circle', radiusMeters: 30 } }]);
   assert.equal(map.markers[0].id, 1); assert.equal(map.polyline.length, 4); assert.ok(map.polyline[2].points.length > 4); assert.notEqual(map.markers[0].longitude, 116.383);
+  const unsafe = tour.mapData({ route: {}, stops: [{ id: 'invalid', longitude: 'not-a-number', latitude: undefined }] }, null);
+  assert.equal(unsafe.markers.length, 0); assert.equal(unsafe.longitude, 116.383); assert.equal(unsafe.latitude, 39.937);
+  assert.ok(unsafe.polyline.every(line => line.points.every(point => Number.isFinite(point.longitude) && Number.isFinite(point.latitude))));
 });
 test('old account confirmation cannot log out or clear the newly logged-in account', async () => {
   for (const action of ['logout', 'clearHistory']) {

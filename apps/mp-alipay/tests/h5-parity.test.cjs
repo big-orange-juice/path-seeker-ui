@@ -6,7 +6,7 @@ function setupTour(h) {
   const page = h.page('tour');
   page._rev = 0; page._user = userId; page._visible = true; page._places = [];
   const stops = ['9223372036854775804', '9223372036854775803'].map((id, index) => ({ id, name: '站' + index, order: index, longitude: 116.38, latitude: 39.93, images: [], guideNarrations: [{ guideId: 'guide', locale: 'zh', chapters: [{ id: 'c-' + id, title: '故事', text: '正文', audioUrl: 'chapter.mp3' }] }] }));
-  page.setData({ route: { id: '9223372036854775805', locale: 'zh' }, stops, autoplay: false, loading: false, chatOpen: false, visit: { visitId: 'visit', routeId: '9223372036854775805', status: 1, currentStageId: stops[0].id, completedStageIds: [] } });
+  page.setData({ tourStage: 'navigation', route: { id: '9223372036854775805', locale: 'zh' }, stops, autoplay: false, loading: false, chatOpen: false, visit: { visitId: 'visit', routeId: '9223372036854775805', status: 1, currentStageId: stops[0].id, completedStageIds: [] } });
   page._detail = { coordinateSystem: 1 }; page.showStop(0, false);
   return page;
 }

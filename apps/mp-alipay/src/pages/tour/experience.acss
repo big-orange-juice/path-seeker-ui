@@ -1,0 +1,93 @@
+page { height: 100%; overflow: hidden; }
+.tour-page { position: relative; height: 100vh; min-height: 100vh; overflow: hidden; background: #f8faf9; color: #2b4039; }
+.stage-language { min-height: 100vh; background: #171710; }
+.tour-map { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.language-gate { position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32rpx 42rpx; background: #171710; color: #fff8e8; }
+.stage-language .language-gate { position: relative; min-height: 100vh; box-sizing: border-box; }
+.stage-overview .language-gate, .stage-navigation .language-gate { display: none; }
+.language-gate .eyebrow { color: #d6b773; margin-bottom: 22rpx; }
+.language-title { font-size: 44rpx; line-height: 1.35; margin-bottom: 30rpx; }
+.language-options { width: 100%; max-width: 600rpx; }
+.language-option { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 20rpx; padding: 22rpx 32rpx; border: 1rpx solid #d6b77366; border-radius: 20rpx; background: #d6b7730d; font-size: 32rpx; color: #fff8e8; }
+.language-arrow, .language-status { color: #d6b773; }
+.language-status { margin-top: 20rpx; }
+.tour-header { position: absolute; left: 0; right: 0; top: 0; z-index: 8; min-height: 100rpx; display: flex; align-items: center; gap: 16rpx; padding: 18rpx 28rpx; background: #f8faf9; border-bottom: 1rpx solid #d4e0d9; }
+.area-name { font: 600 32rpx 'Songti SC', 'STSong', serif; letter-spacing: 3rpx; }
+.area-caption { display: inline-block; margin-left: 14rpx; color: #7b8a80; font: 18rpx sans-serif; letter-spacing: 2rpx; }
+.tour-header .header-button { padding: 10rpx; background: transparent; font-size: 23rpx; }
+.journey-header { left: 14rpx; right: 14rpx; top: 16rpx; min-height: 80rpx; padding: 10rpx 14rpx; border: 0; border-radius: 16rpx; box-shadow: 0 5rpx 20rpx #183e4320; background: #f8faf9f5; }
+.header-route { font-size: 25rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overview-heading { position: absolute; left: 0; right: 0; top: 100rpx; z-index: 3; padding: 28rpx; background: linear-gradient(#f8faf9, #f8faf9db, #f8faf900); }
+.overview-title { font: 600 44rpx/1.3 'Songti SC', 'STSong', serif; margin-bottom: 10rpx; }
+.overview-heading .muted { font-size: 22rpx; }
+.route-search { height: 80rpx; margin-top: 24rpx; padding: 0 24rpx; border: 1rpx solid #d4e0d9; border-radius: 20rpx; background: #fff; font-size: 24rpx; box-shadow: 0 6rpx 26rpx #183e4310; }
+.start-area { position: absolute; z-index: 4; top: 46%; left: 0; right: 0; display: flex; flex-direction: column; align-items: center; }
+.start-ride { display: flex; justify-content: center; align-items: center; gap: 24rpx; max-width: 90%; min-height: 118rpx; padding: 24rpx 36rpx; border: 8rpx solid #ffffffbd; border-radius: 40rpx; background: #183e43; color: #fff; font-size: 34rpx; font-weight: 600; box-shadow: 0 16rpx 54rpx #183e4333; }
+.start-icon { font-size: 42rpx; }
+.start-hint { margin-top: 14rpx; max-width: 90%; padding: 10rpx 22rpx; border-radius: 30rpx; background: #f8faf9f5; color: #183e43; font-size: 21rpx; text-align: center; }
+.route-deck { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 40rpx 0 30rpx; background: linear-gradient(#f8faf900, #f8faf9db 22%, #f8faf9); }
+.route-list { width: 100%; }
+.route-row { display: flex; gap: 20rpx; padding: 8rpx 56rpx 18rpx; }
+.route-card { flex: 0 0 540rpx; width: 540rpx; min-height: 310rpx; padding: 26rpx; border: 1rpx solid #ceddd3; background: #fffffff5; border-radius: 26rpx; text-align: left; white-space: normal; opacity: .78; }
+.route-card.selected { border: 3rpx solid #183e43; padding: 24rpx; background: #edf5ef; opacity: 1; }
+.route-guide { display: flex; align-items: center; justify-content: space-between; color: #183e43; font-size: 22rpx; }
+.route-name { margin: 16rpx 0; color: #2b4039; font: 600 34rpx/1.35 'Songti SC', 'STSong', serif; }
+.route-style { color: #587466; font-size: 22rpx; }
+.route-facts { margin-top: 18rpx; font-size: 22rpx; color: #2b4039; }
+.route-subtitle { margin-top: 16rpx; padding-top: 12rpx; border-top: 1rpx solid #d4e0d9; color: #7b8a80; font-size: 20rpx; }
+.route-dots { display: flex; gap: 10rpx; justify-content: center; margin-top: 6rpx; }
+.route-dot { width: 10rpx; height: 10rpx; border-radius: 8rpx; background: #b9cec3; }
+.route-dot.active { width: 30rpx; background: #183e43; }
+.tour-notices { position: absolute; top: 108rpx; left: 20rpx; right: 20rpx; z-index: 12; }
+.tour-notices .error { margin: 8rpx 0; font-size: 22rpx; padding: 14rpx; }
+.notice { padding: 12rpx 18rpx; border-radius: 14rpx; background: #f8faf9ed; font-size: 22rpx; }
+.location-status { position: absolute; top: 114rpx; left: 18rpx; z-index: 4; font-size: 20rpx; padding: 10rpx 16rpx; border-radius: 30rpx; background: #f8faf9f5; box-shadow: 0 3rpx 12rpx #183e4315; }
+.map-tools { position: absolute; z-index: 4; top: 200rpx; left: 18rpx; display: flex; flex-direction: column; overflow: hidden; border: 1rpx solid #d4e0d9; border-radius: 16rpx; background: #f8faf9f5; box-shadow: 0 4rpx 20rpx #183e4315; }
+.map-tools button { padding: 16rpx 12rpx; border-radius: 0; background: transparent; font-size: 21rpx; border-bottom: 1rpx solid #d4e0d9; }
+.content-sidebar, .queue-sidebar { position: absolute; top: 114rpx; right: 18rpx; bottom: 24rpx; z-index: 7; display: flex; flex-direction: column; width: 72%; max-width: 800rpx; border: 1rpx solid #d4e0d9; border-radius: 22rpx; box-shadow: 0 8rpx 40rpx #183e4326; background: #f8faf9f5; overflow: hidden; }
+.queue-sidebar { bottom: 280rpx; z-index: 9; }
+.drawer-header { display: flex; align-items: center; gap: 12rpx; padding: 18rpx 22rpx; border-bottom: 1rpx solid #d4e0d9; }
+.drawer-heading { font-size: 32rpx; font-weight: 600; }
+.drawer-scroll { flex: 1; height: 0; }
+.drawer-inner { padding: 22rpx; }
+.stop-tabs { width: 100%; margin: 20rpx 0; }
+.stop-tab-row { display: flex; gap: 12rpx; padding-bottom: 10rpx; }
+.stop-tab { display: flex; align-items: center; gap: 10rpx; flex: 0 0 auto; min-width: 180rpx; padding: 14rpx 18rpx; font-size: 22rpx; border: 1rpx solid #d4e0d9; border-radius: 12rpx; background: #fff; text-align: left; }
+.stop-tab.selected { background: #183e43; color: #fff; }
+.stop-number { display: grid; place-items: center; width: 40rpx; height: 40rpx; flex: 0 0 40rpx; border-radius: 10rpx; background: #edf5ef; color: #587466; font-size: 19rpx; font-weight: 700; }
+.stop-tab.selected .stop-number { background: #ffffff22; color: #fff; }
+.stop-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stop-cover { width: 100%; height: 280rpx; border-radius: 14rpx; margin-top: 20rpx; }
+.stop-video { width: 100%; margin-top: 20rpx; }
+.story-alert, .playback-status { margin: 16rpx 0; padding: 14rpx 16rpx; border-radius: 12rpx; background: #edf5ef; color: #41565f; font-size: 21rpx; }
+.story-alert { background: #fdf1e3; color: #8a5a24; }
+.story-controls { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 22rpx; }
+.story-controls button { font-size: 23rpx; padding: 16rpx 18rpx; }
+.story-controls .seek-controls { display: flex; width: 100%; gap: 12rpx; }
+.story-controls .seek-controls button { flex: 1; }
+.story-controls picker { width: 100%; }
+.story-controls .field { padding: 16rpx 18rpx; border: 1rpx solid #d4e0d9; border-radius: 12rpx; background: #fff; color: #183e43; font-size: 22rpx; }
+.arrival-note { margin-top: 16rpx; color: #587466; font-size: 21rpx; line-height: 1.6; }
+.extra-audio { margin-top: 24rpx; padding: 16rpx; border: 1rpx solid #d4e0d9; border-radius: 14rpx; background: #f6faf7; }
+.story-body .actions button { font-size: 23rpx; padding: 16rpx 18rpx; }
+.chapter { margin-top: 24rpx; border-top: 1rpx solid #d4e0d9; }
+.extra-row, .sequence-row { padding: 20rpx 0; border-top: 1rpx solid #d4e0d9; }
+.settings-row { display: flex; align-items: center; gap: 12rpx; padding: 18rpx 0; }
+.playback-dock { position: absolute; left: 18rpx; right: 18rpx; bottom: 24rpx; z-index: 5; padding: 16rpx; border: 1rpx solid #d4e0d9; border-radius: 24rpx; background: #f8faf9f5; box-shadow: 0 8rpx 32rpx #183e4320; }
+.dock-controls { display: flex; gap: 10rpx; }
+.dock-controls button { flex: 1; padding: 18rpx 8rpx; font-size: 22rpx; }
+.dock-controls .primary { flex: 2; }
+.dock-summary { padding-top: 14rpx; }
+.dock-title { font-weight: 600; font-size: 28rpx; }
+.dock-summary .muted { font-size: 20rpx; }
+.voice-button { position: absolute; right: 30rpx; bottom: 300rpx; z-index: 6; display: flex; align-items: center; justify-content: center; width: 84rpx; height: 84rpx; border-radius: 50%; background: #183e43; color: #fff; box-shadow: 0 6rpx 26rpx #183e4333; }
+.voice-mic-icon { position: relative; width: 28rpx; height: 38rpx; }
+.voice-mic-head { position: absolute; left: 7rpx; top: 0; width: 14rpx; height: 24rpx; border: 3rpx solid currentColor; border-radius: 10rpx; }
+.voice-mic-stem { position: absolute; left: 4rpx; bottom: 0; width: 20rpx; height: 14rpx; border: 3rpx solid currentColor; border-top: 0; border-radius: 0 0 12rpx 12rpx; }
+.voice-button.holding { background: #a4483b; }
+.record-note { position: absolute; bottom: 390rpx; right: 24rpx; z-index: 12; padding: 16rpx; border-radius: 14rpx; background: #f8faf9; color: #183e43; }
+.arrival-prompt { position: absolute; right: 20rpx; top: 170rpx; z-index: 11; width: 560rpx; max-width: calc(100vw - 40rpx); max-height: 65%; overflow-y: auto; padding: 22rpx; border: 1rpx solid #d4e0d9; border-radius: 22rpx; background: #f8faf9; box-shadow: 0 12rpx 36rpx #183e4330; }
+.arrival-candidate { display: flex; align-items: center; gap: 16rpx; padding: 18rpx 0; border-top: 1rpx solid #d4e0d9; }
+.arrival-title { color: #183e43; font-weight: 600; line-height: 1.5; }
+@media (max-width: 760px) { .content-sidebar { left: 18rpx; width: auto; max-width: none; } .queue-sidebar { left: 18rpx; width: auto; max-width: none; } }
+@media (max-height: 640px) { .start-area { top: 40%; } .route-card { min-height: 230rpx; } .route-subtitle { display: none; } .route-name { margin: 10rpx 0; font-size: 30rpx; } .route-deck { padding-bottom: 18rpx; } }

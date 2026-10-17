@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createRequire } = require('node:module');
 const { deflateSync } = require('node:zlib');
+const { validateRegularExpressions, validateTemplateExpressions } = require('./compat.cjs');
 let ts;
 try { ts = require('typescript'); } catch (_) { ts = createRequire(path.resolve(__dirname, '../../h5-client/package.json'))('typescript'); }
 const root = path.resolve(__dirname, '..');
@@ -21,6 +22,22 @@ function compile(source, name) {
   if (errors.length) throw Error(errors.map(d => ts.flattenDiagnosticMessageText(d.messageText, '\n')).join('\n'));
   return result.outputText;
 }
+function expandAxml(file, parents = new Set()) {
+  if (parents.has(file)) throw Error('模板循环引用: ' + file);
+  if (!fs.existsSync(file)) throw Error('缺少模板文件: ' + file);
+  const nextParents = new Set(parents); nextParents.add(file);
+  return fs.readFileSync(file, 'utf8').replace(/<include\s+src="([^"]+)"\s*\/?\s*>/g, (_, relative) => {
+    return expandAxml(path.resolve(path.dirname(file), relative), nextParents);
+  });
+}
+function expandAcss(file, parents = new Set()) {
+  if (parents.has(file)) throw Error('样式循环引用: ' + file);
+  if (!fs.existsSync(file)) throw Error('缺少样式文件: ' + file);
+  const nextParents = new Set(parents); nextParents.add(file);
+  return fs.readFileSync(file, 'utf8').replace(/@import\s+["']([^"']+)["']\s*;?/g, (_, relative) => {
+    return expandAcss(path.resolve(path.dirname(file), relative), nextParents);
+  });
+}
 function build() {
   fs.mkdirSync(out, { recursive: true });
   for (const file of files(src)) {
@@ -29,7 +46,11 @@ function build() {
     if (!/\.(js|json|axml|acss)$/.test(file)) { fs.copyFileSync(file, dest); continue; }
     const text = fs.readFileSync(file, 'utf8');
     if (file.endsWith('.json')) JSON.parse(text);
-    fs.writeFileSync(dest, file.endsWith('.js') ? compile(text, file) : text);
+    let output = text;
+    if (file.endsWith('.js')) output = compile(text, file);
+    else if (file.endsWith('.axml')) output = expandAxml(file);
+    else if (file.endsWith('.acss')) output = expandAcss(file);
+    fs.writeFileSync(dest, output);
   }
   fs.mkdirSync(path.join(out, 'shared'), { recursive: true });
   for (const name of shared) {
@@ -38,7 +59,7 @@ function build() {
   }
   const messages = path.join(repo, 'apps/h5-client/src/utils/tourMessages.ts');
   fs.writeFileSync(path.join(out, 'shared/tourMessages.js'), compile(fs.readFileSync(messages, 'utf8'), messages));
-  const markedEntry = require.resolve('marked', { paths: [path.join(repo, 'apps/h5-client')] });
+  const markedEntry = require.resolve('marked', { paths: [root] });
   fs.writeFileSync(path.join(out, 'shared/marked.js'), compile(fs.readFileSync(path.join(path.dirname(markedEntry), 'marked.umd.js'), 'utf8'), 'marked.js'));
   const app = JSON.parse(fs.readFileSync(path.join(out, 'app.json'), 'utf8'));
   for (const page of app.pages) for (const ext of ['js', 'json', 'axml', 'acss']) {
@@ -46,6 +67,7 @@ function build() {
   }
   for (const file of files(out).filter(f => f.endsWith('.js'))) {
     const content = fs.readFileSync(file, 'utf8');
+    validateRegularExpressions(content, file, ts);
     for (const match of content.matchAll(/require\(['"](\.[^'"]+)['"]\)/g)) {
       if (!fs.existsSync(path.resolve(path.dirname(file), match[1] + '.js'))) throw Error('模块未打包: ' + match[1]);
     }
@@ -62,12 +84,8 @@ function validateTemplate(page, checked = new Set()) {
   checked.add(page);
   for (const ext of ['js', 'json', 'axml', 'acss']) if (!fs.existsSync(path.join(out, page + '.' + ext))) throw Error('缺少组件文件: ' + page + '.' + ext);
   const templateFile = path.join(out, page + '.axml');
-  function included(file, parents = new Set()) {
-    if (parents.has(file)) throw Error('模板循环引用: ' + file);
-    const nextParents = new Set(parents); nextParents.add(file);
-    return fs.readFileSync(file, 'utf8').replace(/<include\s+src="([^"]+)"\s*\/>/g, (_, relative) => included(path.resolve(path.dirname(file), relative), nextParents));
-  }
-  const template = included(templateFile), visited = new Set();
+  const template = expandAxml(templateFile), visited = new Set();
+  validateTemplateExpressions(template, templateFile, ts);
   function methods(file) {
     if (visited.has(file)) return '';
     visited.add(file);
@@ -92,13 +110,41 @@ function validateTemplate(page, checked = new Set()) {
 }
 // 地图标记随构建生成，无外部图片依赖。
 function marker() {
-  const width = 26, height = 34, data = Buffer.alloc(height * (width * 4 + 1));
-  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    const inside = y < 24 ? (x - 12.5) ** 2 + (y - 12) ** 2 <= 144 : Math.abs(x - 12.5) <= (33 - y) * .55;
+  const scale = 3, width = 26 * scale, height = 34 * scale;
+  const data = Buffer.alloc(height * (width * 4 + 1));
+  const colors = { teal: [24, 62, 67, 218], ivory: [248, 238, 207, 236], gold: [214, 175, 91, 230] };
+  const pixel = (x, y, color) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
     const p = y * (width * 4 + 1) + 1 + x * 4;
-    const white = (x - 12.5) ** 2 + (y - 12) ** 2 < 16;
-    data[p] = white ? 255 : 24; data[p + 1] = white ? 255 : 62; data[p + 2] = white ? 255 : 67; data[p + 3] = inside ? 255 : 0;
+    data[p] = color[0]; data[p + 1] = color[1]; data[p + 2] = color[2]; data[p + 3] = color[3];
+  };
+  const polygon = (points, color) => {
+    const minX = Math.max(0, Math.floor(Math.min(...points.map(point => point[0]))));
+    const maxX = Math.min(width - 1, Math.ceil(Math.max(...points.map(point => point[0]))));
+    const minY = Math.max(0, Math.floor(Math.min(...points.map(point => point[1]))));
+    const maxY = Math.min(height - 1, Math.ceil(Math.max(...points.map(point => point[1]))));
+    for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
+      let hit = false;
+      for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+        const [xi, yi] = points[i], [xj, yj] = points[j];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) hit = !hit;
+      }
+      if (hit) pixel(x, y, color);
+    }
+  };
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const ux = x / scale, uy = y / scale;
+    const inside = uy < 25
+      ? (ux - 13) ** 2 + (uy - 12) ** 2 <= 144
+      : Math.abs(ux - 13) <= (34 - uy) * .56;
+    if (inside) pixel(x, y, colors.teal);
   }
+  polygon([[7 * scale, 10 * scale], [13 * scale, 5 * scale], [19 * scale, 10 * scale]], colors.gold);
+  polygon([[5.5 * scale, 10 * scale], [20.5 * scale, 10 * scale], [19 * scale, 12 * scale], [7 * scale, 12 * scale]], colors.ivory);
+  polygon([[8 * scale, 13 * scale], [18 * scale, 13 * scale], [18 * scale, 15 * scale], [8 * scale, 15 * scale]], colors.gold);
+  polygon([[9 * scale, 15 * scale], [11 * scale, 15 * scale], [11 * scale, 21 * scale], [9 * scale, 21 * scale]], colors.ivory);
+  polygon([[15 * scale, 15 * scale], [17 * scale, 15 * scale], [17 * scale, 21 * scale], [15 * scale, 21 * scale]], colors.ivory);
+  polygon([[7 * scale, 21 * scale], [19 * scale, 21 * scale], [20 * scale, 23 * scale], [6 * scale, 23 * scale]], colors.gold);
   function chunk(type, body) {
     const payload = Buffer.concat([Buffer.from(type), body]); let crc = 0xffffffff;
     for (const byte of payload) { crc ^= byte; for (let bit = 0; bit < 8; bit++) crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0); }

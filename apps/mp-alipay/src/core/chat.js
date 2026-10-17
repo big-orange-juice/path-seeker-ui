@@ -10,7 +10,7 @@ const { toGcj02 } = require('../shared/map-coordinates');
 const ui = require('./ui');
 const config = require('../config');
 module.exports = function createChat() { return {
-  data: { text: '', messages: [], sessions: [], sessionId: '', busy: false, loading: false, error: '', contextTitle: '随时提问，了解沿途的故事', recording: false, transcribing: false, cancelRecording: false, enableAudio: true, playingId: '', scrollTarget: '', voiceId: '', showSessions: false, caption: '', captionProgress: 0, bargeInEnabled: false, bargeInSupported: false, expanded: false, embedded: false, transport: 'buffered' },
+  data: { text: '', messages: [], sessions: [], sessionId: '', busy: false, loading: false, error: '', contextTitle: '随时提问，了解沿途的故事', recording: false, transcribing: false, cancelRecording: false, enableAudio: true, mode: 'voice', playingId: '', scrollTarget: '', voiceId: '', showSessions: false, caption: '', captionProgress: 0, bargeInEnabled: false, bargeInSupported: false, expanded: false, embedded: false, transport: 'buffered' },
   onLoad() { this._seq = 0; this._files = []; this.setData({ bargeInSupported: bargeIn.supported() }); },
   onShow() {
     this._visible = true;
@@ -80,6 +80,7 @@ module.exports = function createChat() { return {
     try { await http.post('/ExhibitChat/archive', { id }); if (!this.valid(seq, user)) return; if (id === this.data.sessionId) this.newSession(); await this.loadSessions(); } catch (e) { if (this.valid(seq, user)) ui.error(this, e); } finally { if (this.valid(seq, user)) this.setData({ busy: false }); }
   },
   input(event) { this.setData({ text: ui.value(event) }); },
+  toggleMode(event) { const mode = ui.dataset(event).mode; if (mode !== 'voice' && mode !== 'text') return; this.setData({ mode }); },
   changeAudio(event) { this.setData({ enableAudio: !!ui.value(event) }); storage.write(storage.scoped(this._user, 'chatAudio'), this.data.enableAudio); if (!this.data.enableAudio) { if (this._playbackTask) this._playbackTask.mute(); this.stopBargeIn(); audio.stop('chat'); this.setData({ playingId: '', caption: '' }); this.settleTour(); } },
   scroll() { const messages = this.data.messages; if (messages.length) this.setData({ scrollTarget: messages[messages.length - 1].domId }); },
   suggest(event) { const text = ui.dataset(event).text; this.setData({ text }); this.send(text); },

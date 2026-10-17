@@ -8,5 +8,10 @@
     "test": "node scripts/build.cjs && node --test tests/*.test.cjs",
     "validate": "node scripts/build.cjs"
   },
-  "devDependencies": { "typescript": "^6.0.3" }
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "marked": "4.3.0"
+  }
 }

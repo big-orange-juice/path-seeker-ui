@@ -1,0 +1,26 @@
+<view class="story-body">
+  <view a:if="{{browsing}}" class="story-alert">{{messages.browsingNoProgress}}</view>
+  <image a:if="{{stop.images.length}}" class="stop-cover" src="{{stop.images[0].url}}" mode="aspectFill" onTap="previewImages" />
+  <view class="story-controls">
+    <button class="primary grow" onTap="togglePlay" disabled="{{busy || loading || !canPlayStop}}">{{playingStopId && playingStopId !== stop.id ? messages.enterStopPlay : playing ? messages.pause : paused ? messages.resume : messages.play}}</button>
+    <button onTap="replay" disabled="{{busy || loading || !canPlayStop || playingStopId && playingStopId !== stop.id}}">{{messages.replayStop}}</button>
+    <view class="seek-controls">
+      <button size="mini" onTap="backAudio" disabled="{{busy || loading || !playingStopId || playingStopId !== stop.id}}">{{messages.rewind15}}</button>
+      <button size="mini" onTap="forwardAudio" disabled="{{busy || loading || !playingStopId || playingStopId !== stop.id}}">{{messages.forward15}}</button>
+    </view>
+    <picker a:if="{{guides.length > 1}}" range="{{guides}}" range-key="guideName" value="{{guideIndex}}" onChange="chooseGuide"><view class="field">{{messages.guide}}：{{guides[guideIndex].guideName}} ▾</view></picker>
+  </view>
+  <view a:if="{{hasDuration}}" class="playback-status"><text>{{messages.playbackProgress}}：{{timeLabel}} / {{durationLabel}}</text></view>
+  <view a:if="{{itemTitle}}" class="playback-status"><text>{{messages.playingNow}}：{{itemTitle}}</text></view>
+  <slider value="{{progress}}" min="0" max="100" activeColor="#183e43" onChange="seek" disabled="{{busy || loading || !playingStopId || playingStopId !== stop.id}}" />
+  <view a:if="{{audioError}}" class="error">{{audioError}}</view>
+  <view a:if="{{stop.arrivalNote}}" class="arrival-note">{{stop.arrivalNote}}</view>
+  <view a:if="{{stop.extraAudios && stop.extraAudios.length}}" class="extra-audio">
+    <view class="section">{{messages.extraAudio}}</view>
+    <view class="settings-row"><text class="grow">{{messages.skipExtraAudio}}</text><switch checked="{{skipExtra}}" onChange="changeExtra" color="#183e43" /></view>
+    <view a:for="{{stop.extraAudios}}" a:key="id" class="row extra-row"><text class="muted grow">{{item.position === 'before' ? messages.beforeAudio : messages.afterAudio}} · {{item.title}}</text><button size="mini" data-id="{{item.id}}" onTap="playExtra" disabled="{{busy || loading || !item.url}}">{{messages.play}}</button></view>
+  </view>
+  <view a:for="{{chapters}}" a:key="id" class="chapter"><view a:if="{{item.title}}" class="section">{{item.title}}</view><text class="story">{{item.text}}</text></view>
+  <view a:if="{{!chapters.length}}" class="empty">{{messages.noNarration}}</view>
+  <video a:if="{{stop.video}}" src="{{stop.video}}" controls="true" class="stop-video" />
+</view>
