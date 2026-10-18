@@ -6,6 +6,7 @@ const speech = require('../services/speech');
 const { sendChat } = require('../services/chat-run');
 const { markdownNodes } = require('./markdown');
 const bargeIn = require('../services/barge-in');
+const { diag } = require('../services/diag');
 const { toGcj02 } = require('../shared/map-coordinates');
 const ui = require('./ui');
 const config = require('../config');
@@ -187,7 +188,8 @@ module.exports = function createChat() { return {
     else { const urls = (item.maps || []).filter(m => m.mapImageUrl).map(m => m.mapImageUrl); if (urls.length) my.previewImage({ urls }); else my.alert({ title: item.exhibitName || '位置', content: item.gallery ? [item.gallery.floorName, item.gallery.galleryName, item.showcaseNo].filter(Boolean).join(' · ') : '暂无可用位置' }); }
   },
   async startRecording(event) {
-    if (this.data.loading || this.data.transcribing || this.data.recording) return;
+    diag('mic', { event: 'press', mode: this.data.mode, loading: !!this.data.loading, transcribing: !!this.data.transcribing, recording: !!this.data.recording, visible: !!this._visible });
+    if (this.data.loading || this.data.transcribing || this.data.recording) { diag('mic', { event: 'ignored' }); return; }
     const press = this._press = {};
     this.cancel(); this.interruptTour();
     this.setData({ error: '', cancelRecording: false, recording: true }); audio.stop('chat');
@@ -195,21 +197,34 @@ module.exports = function createChat() { return {
     const user = this._user;
     try {
       if (this._bargeStopping) await this._bargeStopping;
-      if (this._press !== press || !this._visible || user !== ui.userId()) return;
+      if (this._press !== press || !this._visible || user !== ui.userId()) { diag('mic', { event: 'aborted' }); return; }
       if (!this._recorder) this._recorder = speech.recorder((recording, transcribing) => {
+        diag('mic', { event: 'state', recording, transcribing });
         if (this._visible && user === ui.userId()) this.setData({ recording, transcribing });
       }, text => {
         if (!this._visible || user !== ui.userId()) return;
         this.setData({ transcribing: false, text });
         if (!text.trim()) this.setData({ error: '没有识别到语音，请重试' });
         else this.send(text);
-      }, e => { if (this._visible && user === ui.userId()) { this.setData({ recording: false, transcribing: false }); ui.error(this, e); } });
+      }, e => {
+        diag('mic', { event: 'error', message: e.message });
+        // ASR 失败后原生管理器可能仍保留 processing 状态；丢弃实例，确保下一次按住能重新申请录音。
+        if (this._recorder) {
+          this._recorder.destroy();
+          this._recorder = null;
+        }
+        if (this._visible && user === ui.userId()) {
+          this.setData({ recording: false, transcribing: false });
+          ui.error(this, e);
+        }
+      });
       this._recorder.start();
-    } catch (e) { if (this._visible) { this.setData({ recording: false }); ui.error(this, e); } }
+      diag('mic', { event: 'recording' });
+    } catch (e) { diag('mic', { event: 'start-failed', message: e.message }); if (this._visible) { this.setData({ recording: false }); ui.error(this, e); } }
   },
   moveRecording(event) { const y = event.touches && event.touches[0] && event.touches[0].clientY; if (typeof y === 'number') this.setData({ cancelRecording: this._startY - y > 60 }); },
-  stopRecording() { this._press = null; if (this._recorder) this._recorder.stop(this.data.cancelRecording); this.setData({ recording: false }); },
-  cancelTouch() { this._press = null; if (this._recorder) this._recorder.stop(true); this.setData({ recording: false, transcribing: false }); },
+  stopRecording() { diag('mic', { event: 'release', cancel: !!this.data.cancelRecording, hasRecorder: !!this._recorder }); this._press = null; if (this._recorder) this._recorder.stop(this.data.cancelRecording); this.setData({ recording: false }); },
+  cancelTouch() { diag('mic', { event: 'cancel' }); this._press = null; if (this._recorder) this._recorder.stop(true); this.setData({ recording: false, transcribing: false }); },
   destroyRecorder(silent = false) { this._press = null; if (this._recorder) this._recorder.destroy(); this._recorder = null; if (!silent && this._visible) this.setData({ recording: false, transcribing: false }); },
   microphoneHelp() { if (my.showAuthGuide) my.showAuthGuide({ authType: 'MICROPHONE' }); },
   interruptTour() { if (this.props && this.props.onInterrupt) this.props.onInterrupt(); },

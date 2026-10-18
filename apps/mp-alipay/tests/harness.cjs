@@ -22,7 +22,7 @@ function harness(initial = session()) {
   const my = {
     getStorageSync: ({ key }) => ({ data: storage.get(key) }), setStorageSync: ({ key, data }) => storage.set(key, data), removeStorageSync: ({ key }) => storage.delete(key),
     getSystemInfoSync: () => ({ platform: 'Android', model: 'test' }),
-    request(options) { let chunk; const task = { options, aborted: false, abort() { this.aborted = true; }, ok(data, status = 200) { options.success({ data: { code: 0, data }, status }); }, text(data) { options.success({ data, status: 200 }); }, reject(error) { options.fail(error); }, chunk(data) { if (chunk) chunk({ data }); } }; if (my.chunked) task.onChunkReceived = callback => { chunk = callback; }; requests.push(task); return task; },
+    request(options) { let chunk; const task = { options, aborted: false, abort() { this.aborted = true; }, ok(data, status = 200) { options.success({ data: { code: 0, data }, status }); }, text(data) { options.success({ data, status: 200 }); }, head(status = 200) { options.success({ status }); }, reject(error) { options.fail(error); }, chunk(data) { if (chunk) chunk({ data }); } }; if (my.chunked) task.onChunkReceived = callback => { chunk = callback; }; requests.push(task); return task; },
     createInnerAudioContext() {
       const audio = Object.assign(emitter(), { currentTime: 0, duration: 60, stopped: false, destroyed: false, play() { this.emit('Play'); }, pause() { this.emit('Pause'); }, stop() { this.stopped = true; this.emit('Stop'); }, destroy() { this.destroyed = true; }, seek(time) { this.currentTime = time; } });
       audioContexts.push(audio); return audio;

@@ -133,6 +133,21 @@ test('chat recording stops an active answer and automatically sends recognized t
   assert.equal(h.requests[2].options.data.message, '新问题'); assert.equal(page.data.recording, false);
   h.requests[2].text(event('done', {})); await tick(); await old; page.onHide();
 });
+test('chat recording resets the native recorder after transcription failure', async () => {
+  const h = harness(), page = setupChat(h);
+  await page.startRecording({ touches: [{ clientY: 100 }] });
+  h.recorder.emit('Start'); page.stopRecording();
+  const stopped = h.recorder.emit('Stop', { tempFilePath: '/failed.audio' }); await tick();
+  h.requests[0].reject({ errorMessage: '语音服务暂不可用' }); await Promise.all(stopped); await tick();
+  assert.equal(page.data.recording, false);
+  assert.equal(page.data.transcribing, false);
+  assert.equal(page._recorder, null);
+  await page.startRecording({ touches: [{ clientY: 100 }] });
+  assert.equal(h.recorder.starts.length, 2);
+  page.cancelTouch();
+  h.recorder.emit('Stop', { tempFilePath: '/cancelled.audio' });
+  page.onHide();
+});
 test('streamed text and sentence audio play before completion and full response does not duplicate them', async () => {
   const h = harness(); h.my.chunked = true; const page = setupChat(h);
   page.setData({ text: '问题' }); const pending = page.send(); await tick();
@@ -147,6 +162,19 @@ test('streamed text and sentence audio play before completion and full response 
   h.requests[0].text(first + last); await pending;
   assert.equal(page.data.messages[1].content, '**第一句**。第二句。'); assert.equal(h.writes.length, 2); assert.equal(page.data.messages[1].audioPaths.length, 2);
   h.audioContexts[1].currentTime = 30; h.audioContexts[1].emit('TimeUpdate'); assert.equal(page.data.captionProgress, 50);
+  page.onHide();
+});
+test('chunked mode keeps consuming chunks when success reports headers with no body', async () => {
+  const h = harness(); h.my.chunked = true; const page = setupChat(h);
+  page.setData({ text: '问题' }); const pending = page.send(); await tick();
+  // 支付宝真机：分块请求的 success 会先带着空 body 到达，真正的 SSE 分块在其后。
+  h.requests[0].head(); await tick();
+  assert.equal(page.data.busy, true); assert.equal(page.data.messages[1].pending, true); assert.equal(h.requests[0].aborted, false);
+  h.requests[0].chunk(event('text.delta', { content: '分块答复。' }, '1')); await tick();
+  assert.equal(page.data.messages[1].content, '分块答复。'); assert.equal(page.data.busy, true);
+  h.requests[0].chunk(event('done', { assistantMessageId: 'assistant' }, '2')); await tick();
+  await pending;
+  assert.equal(page.data.messages[1].pending, false); assert.equal(page.data.busy, false);
   page.onHide();
 });
 test('buffered fallback and stopped streams do not replay late audio', async () => {

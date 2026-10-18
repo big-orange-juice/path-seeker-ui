@@ -1,13 +1,24 @@
 const config = require('../config');
 const { createUtf8Decoder } = require('../core/utf8');
+const { diag } = require('./diag');
 let authHooks = null;
 function configureAuth(hooks) { authHooks = hooks; }
 function raw(path, options = {}) {
   let task;
   let settled = false;
+  let streamOpen = false;
   let rejectRequest;
   const decoder = createUtf8Decoder();
   let chunkError = null;
+  const started = Date.now();
+  let chunks = 0;
+  if (options.onChunk) {
+    let info = {};
+    try { info = my.getSystemInfoSync ? my.getSystemInfoSync() : {}; } catch (_) {}
+    const canIUse = key => typeof my.canIUse === 'function' && my.canIUse(key);
+    diag('client', { version: info.version, sdk: info.SDKVersion, platform: info.platform, model: info.model });
+    diag('chunked', { enable: canIUse('request.object.enableChunked'), chunk: canIUse('request.return.onChunkReceived') });
+  }
   const promise = new Promise((resolve, reject) => {
     rejectRequest = reject;
     task = my.request({
@@ -18,26 +29,51 @@ function raw(path, options = {}) {
       success(response) {
         if (settled) return;
         settled = true;
+        // 支付宝分块模式可能先回调一次“响应头到达”（data 为空），body 仍从 onChunkReceived 流入；
+        // 此时不能结束解码器，也不能把空响应当成整轮结束。只有 2xx 才按流继续等待。
+        const streaming = !!options.onChunk
+          && (!response || response.status === undefined || (response.status >= 200 && response.status < 300))
+          && (!response || response.data === undefined || response.data === null);
+        streamOpen = streaming;
+        if (options.onChunk) diag('success', { ms: Date.now() - started, status: response && response.status, keys: response && Object.keys(response), type: response && typeof response.data, size: response && typeof response.data === 'string' ? response.data.length : response && response.data && response.data.byteLength, chunks, streaming });
+        if (streaming) { resolve(response); return; }
         try { decoder.finish(); if (chunkError) reject(chunkError); else resolve(response); }
         catch (error) { reject(error); }
       },
       fail(error) {
         if (settled) return;
         settled = true;
+        streamOpen = false;
+        if (options.onChunk) diag('fail', { ms: Date.now() - started, status: error && error.status, code: error && error.error, message: error && error.errorMessage });
         if (error.status) resolve(error);
         else reject(Object.assign(new Error(error.errorMessage || '网络连接失败，请稍后重试'), { cause: error }));
       }
     });
-    if (options.onChunk && task && typeof task.onChunkReceived === 'function') task.onChunkReceived(chunk => {
-      if (settled || chunkError) return;
-      try { options.onChunk(decoder.decode(typeof chunk === 'string' ? chunk : chunk && chunk.data)); }
-      catch (error) { chunkError = error; settled = true; reject(error); if (task.abort) task.abort(); }
-    });
+    if (options.onChunk) {
+      if (task && typeof task.onChunkReceived === 'function') {
+        diag('chunk-api', 'attached');
+        task.onChunkReceived(chunk => {
+          if (chunkError || (settled && !streamOpen)) return;
+          chunks++;
+          if (chunks <= 3 || chunks % 20 === 0) diag('chunk', { n: chunks, ms: Date.now() - started, type: typeof chunk, data: chunk && typeof chunk.data, size: chunk && (typeof chunk === 'string' ? chunk.length : chunk.data && (chunk.data.byteLength || chunk.data.length)) });
+          try { options.onChunk(decoder.decode(typeof chunk === 'string' ? chunk : chunk && chunk.data)); }
+          catch (error) { diag('chunk-error', error.message); chunkError = error; streamOpen = false; settled = true; reject(error); if (task.abort) task.abort(); }
+        });
+      } else diag('chunk-api', 'missing');
+    }
   });
+  promise.streamOpen = () => streamOpen;
+  promise.finishStream = () => {
+    if (!streamOpen) return;
+    streamOpen = false;
+    decoder.finish();
+  };
   promise.abort = () => {
-    if (settled) return;
-    settled = true;
-    rejectRequest(Object.assign(new Error('请求已取消'), { cancelled: true }));
+    streamOpen = false;
+    if (!settled) {
+      settled = true;
+      rejectRequest(Object.assign(new Error('请求已取消'), { cancelled: true }));
+    }
     if (task && task.abort) task.abort();
   };
   return promise;
@@ -74,6 +110,8 @@ function request(path, options = {}) {
   };
   const promise = run();
   promise.abort = () => { cancelled = true; if (active) active.abort(); };
+  promise.streamOpen = () => !!(active && active.streamOpen && active.streamOpen());
+  promise.finishStream = () => { if (active && active.finishStream) active.finishStream(); };
   return promise;
 }
 function post(path, data, options = {}) { return request(path, Object.assign({}, options, { method: 'POST', data })); }

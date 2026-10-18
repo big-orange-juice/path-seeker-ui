@@ -5,7 +5,7 @@
 .chat-expanded { height: 100vh; }
 .chat-grab { display: flex; justify-content: center; padding: 12rpx 0 2rpx; }
 .chat-grab-bar { width: 72rpx; height: 7rpx; border-radius: 8rpx; background: #b9cec3; }
-.chat-header { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 18rpx 24rpx 14rpx; border-bottom: 1rpx solid #d4e0d9; }
+.chat-header { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; min-height: 108rpx; padding: 16rpx 24rpx; border-bottom: 1rpx solid #d4e0d9; }
 .chat-brand, .chat-head-actions, .mode-switch, .composer-inner, .composer-footer { display: flex; align-items: center; }
 .chat-brand { min-width: 0; gap: 14rpx; }
 .chat-avatar { display: grid; place-items: center; width: 62rpx; height: 62rpx; flex: 0 0 62rpx; border: 1rpx solid #b9cec3; border-radius: 50%; background: #edf5ef; color: #183e43; }
@@ -15,19 +15,19 @@
 .audio-lines-icon view:nth-child(2), .mini-audio-icon view:nth-child(2) { height: 24rpx; }
 .audio-lines-icon view:nth-child(3), .mini-audio-icon view:nth-child(3) { height: 17rpx; }
 .audio-lines-icon view:nth-child(4) { height: 9rpx; }
-.chat-title { font-family: 'Songti SC', serif; font-size: 34rpx; font-weight: 600; }
-.chat-head-actions { gap: 8rpx; }
+.chat-title { font-family: 'Songti SC', serif; font-size: 34rpx; font-weight: 600; line-height: 1.35; }
+.chat-head-actions { flex: 0 0 auto; gap: 8rpx; }
 .mode-switch { padding: 4rpx; border-radius: 24rpx; background: #edf5ef; }
-.mode-button, .icon-button { min-width: 62rpx; min-height: 52rpx; padding: 8rpx 12rpx; border: 0; border-radius: 20rpx; background: transparent; color: #587466; font-size: 21rpx; }
-.mode-button { display: flex; align-items: center; justify-content: center; gap: 5rpx; }
+.mode-button, .icon-button { display: flex; align-items: center; justify-content: center; min-width: 62rpx; height: 56rpx; padding: 0 12rpx; line-height: 1; border: 0; border-radius: 18rpx; background: transparent; color: #587466; font-size: 21rpx; }
+.mode-button { gap: 7rpx; white-space: nowrap; }
 .mode-button.active, .icon-button.active { background: #183e43; color: #fff; }
-.icon-button { min-width: 50rpx; padding: 8rpx; border: 1rpx solid #d4e0d9; background: #fff; font-size: 28rpx; }
+.icon-button { width: 54rpx; min-width: 54rpx; padding: 0; border: 1rpx solid #d4e0d9; background: #fff; font-size: 28rpx; }
 .header-mic-icon { position: relative; width: 24rpx; height: 30rpx; margin: auto; }
 .header-mic-head { position: absolute; left: 6rpx; top: 0; width: 12rpx; height: 18rpx; border: 2rpx solid currentColor; border-radius: 8rpx; }
 .header-mic-stem { position: absolute; left: 3rpx; bottom: 0; width: 18rpx; height: 11rpx; border: 2rpx solid currentColor; border-top: 0; border-radius: 0 0 10rpx 10rpx; }
-.context { margin: 10rpx 26rpx 4rpx; color: #71857b; font-size: 22rpx; }
+.context { margin: 10rpx 26rpx 4rpx; color: #71857b; font-size: 22rpx; line-height: 1.5; }
 .chat-banner, .voice-status { margin: 8rpx 26rpx; padding: 12rpx 16rpx; border-radius: 12rpx; font-size: 22rpx; }
-.voice-status { display: flex; align-items: center; gap: 12rpx; background: #edf5ef; }
+.voice-status { display: flex; align-items: center; min-height: 54rpx; gap: 12rpx; background: #edf5ef; line-height: 1.45; }
 .voice-phase { color: #183e43; font-weight: 600; }
 .voice-hint { color: #71857b; }
 .conversation { flex: 1; height: 0; }
@@ -37,24 +37,26 @@
 .welcome-copy { margin-top: 16rpx; color: #71857b; font-size: 25rpx; line-height: 1.75; }
 .suggestions { display: flex; flex-wrap: wrap; gap: 12rpx; margin-top: 22rpx; }
 .suggestions button { padding: 16rpx 20rpx; border: 0; border-radius: 14rpx; background: #edf5ef; color: #183e43; font-size: 23rpx; }
-.message { margin: 20rpx 0; padding: 20rpx; border-radius: 18rpx; border: 1rpx solid #d4e0d9; }
-.user-message { margin-left: 70rpx; background: #edf5ef; }
-.assistant-message { margin-right: 24rpx; background: #fffef8; }
-.message-label { margin-bottom: 10rpx; color: #71857b; font-size: 20rpx; }
-.message-actions { margin-top: 12rpx; }
+.message { margin: 18rpx 0; padding: 22rpx; border-radius: 16rpx; border: 1rpx solid #d4e0d9; }
+.user-message { margin-left: 54rpx; background: #edf5ef; }
+.assistant-message { margin-right: 12rpx; background: #fffef8; }
+.message-label { margin-bottom: 12rpx; color: #71857b; font-size: 21rpx; line-height: 1.4; }
+.message rich-text, .message .story { display: block; color: #304a43; line-height: 1.75; }
+.message-actions { margin-top: 16rpx; }
+.message-actions button, .location-button { min-height: 60rpx; padding: 10rpx 18rpx; line-height: 1.4; border-radius: 12rpx; }
 .message-actions button, .location-button { color: #183e43; }
 .history-card { padding: 16rpx; border: 1rpx solid #d4e0d9; border-radius: 14rpx; background: #fff; }
 .session { padding: 16rpx 0; border-bottom: 1rpx solid #d4e0d9; }
 .source { padding: 14rpx 0; border-top: 1rpx solid #d4e0d9; margin-top: 14rpx; font-size: 23rpx; }
 .source-image { width: 64rpx; height: 64rpx; border-radius: 10rpx; }
-.composer { padding: 12rpx 24rpx 22rpx; padding-bottom: calc(22rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid #d4e0d9; background: #f8faf9; }
+.composer { padding: 12rpx 24rpx 18rpx; padding-bottom: calc(18rpx + env(safe-area-inset-bottom)); border-top: 1rpx solid #d4e0d9; background: #f8faf9; }
 .context-chip { display: flex; align-items: center; gap: 10rpx; margin-bottom: 10rpx; padding: 12rpx 16rpx; border: 1rpx solid #d9c58e; border-radius: 24rpx; background: #fff8df; color: #71857b; font-size: 21rpx; }
 .chip-label { padding: 4rpx 10rpx; border-radius: 12rpx; background: #eadcad; color: #806d35; }
 .chip-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip-close { font-size: 28rpx; }
 .composer-inner { gap: 10rpx; }
-.message-input { min-height: 74rpx; max-height: 180rpx; padding: 16rpx; border: 1rpx solid #d4e0d9; border-radius: 16rpx; background: #fff; font-size: 26rpx; }
-.mic-button, .send-button { display: grid; place-items: center; width: 76rpx; height: 76rpx; flex: 0 0 76rpx; padding: 0; border: 0; border-radius: 50%; background: #edf5ef; color: #183e43; }
+.message-input { display: block; min-height: 76rpx; max-height: 180rpx; padding: 16rpx 18rpx; border: 1rpx solid #d4e0d9; border-radius: 14rpx; background: #fff; font-size: 26rpx; line-height: 1.5; }
+.mic-button, .send-button { display: flex; align-items: center; justify-content: center; width: 76rpx; height: 76rpx; min-height: 76rpx; flex: 0 0 76rpx; padding: 0; line-height: 1; border: 0; border-radius: 50%; background: #edf5ef; color: #183e43; }
 .send-button { background: #183e43; color: #fff; font-size: 34rpx; }
 .mic-button.holding { background: #183e43; color: #fff; }
 .mic-icon, .voice-mic-icon { position: relative; width: 28rpx; height: 38rpx; }
