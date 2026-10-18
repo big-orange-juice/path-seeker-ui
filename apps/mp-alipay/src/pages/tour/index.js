@@ -30,8 +30,8 @@ function sanitizeMap(map) {
   return Object.assign({}, map, center, { markers, polyline, routeLines, boundaryLines, includePoints: markers.map(finiteCoordinate) });
 }
 Page({
-  data: { messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: true, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: '开启定位后可在到达景点时自动讲解', candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
-  onLoad(query = {}) { this._rev = 0; this._visible = true; this._dismissedCandidates = new Set(); this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, sequence: [], lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0 }); this.initialize(); },
+  data: { mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: true, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: '开启定位后可在到达景点时自动讲解', candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
+  onLoad(query = {}) { this._rev = 0; this._visible = true; this._dismissedCandidates = new Set(); this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, sequence: [], lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
   onShow() {
     this._visible = true;
     if (this._user && this._user !== ui.userId()) { this.reset(); this.initialize(); return; }
@@ -134,6 +134,7 @@ Page({
       if (visit) { visits.remember(visit, detail.route); this._heldVisit = { visit, route: detail.route }; }
       const current = visit ? stops.findIndex(s => s.id === visit.currentStageId) : -1;
       this.showStop(current >= 0 ? current : 0, !(visit && visit.status === 1 && visit.currentStageId));
+      if (this.data.tourStage === 'navigation') this.focusNavigationMap();
     } catch (e) { if (rev === this._rev) ui.error(this, e); }
     finally { if (rev === this._rev) this.setData({ loading: false }); }
   },
@@ -154,9 +155,58 @@ Page({
   previous() { this.browseBy(-1); },
   next() { this.browseBy(1); },
   marker(event) { const id = event.detail && event.detail.markerId !== undefined ? event.detail.markerId : event.markerId; const index = Number(id) - 1; if (index < 0 || index >= this.data.stops.length || this.data.busy || this.data.loading) return; if (this.data.visit && this.data.visit.status === 1) this.mutate(() => this.enter(index)); else { this._manualBrowse = true; this.showStop(index); } },
-  overview() { this.setData({ following: false, 'map.includePoints': this.data.map.markers.map(m => ({ longitude: m.longitude, latitude: m.latitude })) }); if (my.createMapContext) my.createMapContext('tour-map').includePoints({ points: this.data.map.includePoints, padding: [30, 30, 30, 30] }); },
+  mapReady() {
+    if (!my.createMapContext || !this._visible) return;
+    const context = my.createMapContext('tour-map');
+    const camera = this.data.tourStage === 'navigation' && this.data.mapSkew > 0 ? {
+      longitude: this.data.map.longitude, latitude: this.data.map.latitude,
+      scale: this.data.mapScale, 'include-points': []
+    } : {};
+    if (context.updateComponents) context.updateComponents(Object.assign({}, camera, {
+      setting: this.data.mapSettings,
+      success: () => this.inspectMapCamera(),
+      fail: error => console.warn('[tour-map] camera/settings update failed', error)
+    }));
+    else this.inspectMapCamera();
+    if (context.getMapProperties) context.getMapProperties({
+      success: properties => {
+        if (!this._visible) return;
+        this._mapProperties = properties; console.info('[tour-map] engine', properties);
+        if (this.data.tourStage === 'navigation' && !this._notified2d && (properties.is3d === false || properties.is3d === 0) && my.showToast) {
+          this._notified2d = true; my.showToast({ content: '当前地图引擎不支持立体建筑', type: 'none' });
+        }
+      },
+      fail: error => console.warn('[tour-map] engine query failed', error)
+    });
+  },
+  inspectMapCamera(event) {
+    if (!this._visible || this.data.chatOpen || !my.createMapContext) return;
+    const change = event && (event.detail || event);
+    if (change && (change.type === 'begin' || change.regionChangedType === 'begin')) return;
+    const context = my.createMapContext('tour-map');
+    const requestedSkew = this.data.tourStage === 'navigation' ? this.data.mapSkew : 0;
+    if (context.getSkew) context.getSkew({
+      success: result => {
+        if (!this._visible || this.data.chatOpen || requestedSkew !== (this.data.tourStage === 'navigation' ? this.data.mapSkew : 0)) return;
+        const actualSkew = Number(result.skew);
+        if (!Number.isFinite(actualSkew)) return;
+        this._mapCamera = { requestedSkew, actualSkew };
+        console.info('[tour-map] camera', this._mapCamera);
+        if (requestedSkew > 0 && actualSkew === 0) console.warn('[tour-map] requested tilt is not applied; is3d alone does not confirm a tilted map or visible buildings');
+      },
+      fail: error => console.warn('[tour-map] camera query failed', error)
+    });
+  },
+  focusNavigationMap() {
+    if (this.data.tourStage !== 'navigation') return;
+    const marker = this.data.map.markers.find(item => item.id === this.data.stopIndex + 1);
+    const center = finiteCoordinate(marker) || finiteCoordinate(this.data.map);
+    if (!center) return;
+    this.setData({ mapSkew: 50, mapScale: 18, mapRotation: 0, following: false, 'map.longitude': center.longitude, 'map.latitude': center.latitude, 'map.includePoints': [] }, () => this.mapReady());
+  },
+  overview() { this.setData({ following: false, mapSkew: 0, mapRotation: 0, 'map.includePoints': this.data.map.markers.map(finiteCoordinate).filter(Boolean) }); if (my.createMapContext && this.data.map.includePoints.length) my.createMapContext('tour-map').includePoints({ points: this.data.map.includePoints, padding: [30, 30, 30, 30] }); },
   recenter() { this.setData({ following: true }); if (my.createMapContext) my.createMapContext('tour-map').moveToLocation(); },
-  toggleFollow() { if (!this.data.locationEnabled) return; this.setData({ following: !this.data.following, 'map.includePoints': [] }); if (this.data.following && this._fix) this.followLocation(this._fix); },
+  toggleFollow() { if (!this.data.locationEnabled) return; this.setData({ following: !this.data.following, mapSkew: 50, mapScale: 18, 'map.includePoints': [] }); if (this.data.following && this._fix) this.followLocation(this._fix); },
   toggleRoute() { const showRoute = !this.data.showRoute; this.setData({ showRoute, 'map.polyline': showRoute ? (this._fullPolyline || []) : (this.data.map.boundaryLines || []) }); },
   zoomIn() { this.setData({ mapScale: Math.min(20, (this.data.mapScale || 15) + 1) }); },
   zoomOut() { this.setData({ mapScale: Math.max(5, (this.data.mapScale || 15) - 1) }); },
@@ -181,7 +231,7 @@ Page({
       this.setData({ visit }); this._heldVisit = { visit, route: this.data.route };
       if (previousVisitId !== visit.visitId) this.restoreSequence();
       await this.enter(this.data.stopIndex);
-      if (rev === this._rev && user === ui.userId()) this.setData({ tourStage: 'navigation', contentOpen: false, queueOpen: false });
+      if (rev === this._rev && user === ui.userId()) { this.setData({ tourStage: 'navigation', contentOpen: false, queueOpen: false }); this.focusNavigationMap(); }
     } catch (e) { if (rev === this._rev && user === ui.userId()) ui.error(this, e); }
     finally { if (rev === this._rev && user === ui.userId()) { this.setData({ busy: false }); this.flushFinished(); } }
   },
@@ -373,7 +423,7 @@ Page({
     getApp().globalData.voiceInput = voice;
     this.setData({ recording: false, transcribing: false });
     this.syncContext();
-    my.switchTab({ url: '/pages/chat/index', fail: () => { this._handedVoice = false; voice.cancel(); this.setData({ error: '无法打开问答，请重试' }); this.resumeAfterAsk(); } });
+    my.navigateTo({ url: '/pages/chat/index', fail: () => { this._handedVoice = false; voice.cancel(); this.setData({ error: '无法打开问答，请重试' }); this.resumeAfterAsk(); } });
   },
   cancelVoice() { if (this._voice && !this._handedVoice) this._voice.cancel(); this._voice = null; this._recorder = null; this._handedVoice = false; this.setData({ recording: false, transcribing: false }); },
   cancelTouch() { this.cancelVoice(); this.resumeAfterAsk(); },

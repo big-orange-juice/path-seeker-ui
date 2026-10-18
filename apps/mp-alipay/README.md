@@ -40,6 +40,20 @@ node --test apps/mp-alipay/tests/*.test.cjs
 
 ## 功能与 H5 对应关系
 
+### 地图 3D 验证边界
+
+导航请求原生地图的建筑图层、50° 倾角和 18 级缩放，路线总览仍使用俯视视野。镜头在视图提交后更新，并在地图初始化完成后重新应用中心和缩放。`[tour-map] engine` 的 `is3d` 仅表示引擎模式；`[tour-map] camera` 才记录请求和实际读取的倾角。实际倾角也不能证明当前区域有建筑模型，必须检查画面。
+
+2026-10-17 核对本机支付宝开发者工具随附 `modules.asar` 中的 `@ali/lyra-integration-ide/dist/ide/runtime.bundle.js`：`drawMap` 创建 `viewMode: '3D'`，但不读取 `skew`、不设置 pitch；`updateComponents` 不处理 `enableBuilding`，`tiltGesturesEnabled` 是空实现；`getMapProperties` 根据 `getViewMode_()` 返回 `is3d`。因此原版模拟器可报告支持 3D，却不应用小程序请求的俯仰角。AppX 属性表包含 `enable-building`、`enable-overlooking`、`skew`，这些原生属性继续供客户端使用。
+
+本机模拟器 3D 补丁已因点击交互异常撤回，脚本 `scripts/simulator-map-3d.cjs` 已禁用生成和安装，仅保留恢复入口。原文件备份为安装目录下的 `modules.asar.path-seeker-3d-backup`。恢复需要管理员权限，恢复后必须完全退出并重启开发者工具；单元测试不代表模拟器交互通过验收。
+
+```powershell
+node apps/mp-alipay/scripts/simulator-map-3d.cjs restore 'C:/Program Files/小程序开发者工具/resources/app/modules.asar'
+```
+
+真机预览时进入行程并点击左侧 3D，检查镜头是否聚焦当前站点、`actualSkew` 是否大于 0，以及当前区域是否显示建筑侧面。若实际倾角为 0，仍属客户端未应用镜头；若倾角正常但没有建筑，需要继续核对客户端建筑图层支持及地图覆盖。构建和单元测试不证明真机建筑已渲染。若最终要求与 H5 完全一致，需要另行接入 H5 WebView 导览，并完成业务域名、鉴权和定位/音频交互配置。
+
 移植范围依据 `apps/h5-client/src/router/index.ts` 当前启用的路由。
 
 | H5 入口 | 原生页面 | 行为 |
@@ -89,6 +103,8 @@ pages/tour/index?routeId=字符串路线ID&destinationId=字符串目的地ID&la
 API: https://www.omahaaigc.com/path-seeker/api
 默认问答音色: male-qn-qingse
 ```
+
+授权页额外登录入口通过 `src/config.js` 的 `authOptions` 配置：`guestLogin` 控制游客登录，`passwordLogin` 控制账号密码登录及注册。两项默认均为 `false`，默认仅显示支付宝授权登录；将对应值改为 `true` 并重新构建即可开启。此配置仅控制授权页入口，不关闭后台游客会话的创建与恢复。
 
 部署环境切换时修改 `apiBase` 并重新构建。AppID 在根目录 `mini.project.json` 和 `src/config.js` 中保持一致。
 

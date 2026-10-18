@@ -14,6 +14,7 @@ module.exports = function createChat() { return {
   onLoad() { this._seq = 0; this._files = []; this.setData({ bargeInSupported: bargeIn.supported() }); },
   onShow() {
     this._visible = true;
+    this.setData({ busy: false, loading: false, recording: false, transcribing: false, playingId: '', caption: '', messages: this.data.messages.map(message => Object.assign({}, message, { pending: false, audioPaths: [] })) });
     const show = this._show = (this._show || 0) + 1, app = getApp(), context = app.globalData.chatContext;
     const handoff = app.globalData.voiceInput;
     if (handoff) app.globalData.voiceInput = null;
@@ -32,7 +33,7 @@ module.exports = function createChat() { return {
       }).catch(error => { if (this._visible && show === this._show && handoff.userId === ui.userId()) { this._voiceHandoff = null; this.setData({ transcribing: false, error: error.message }); } });
     } else { if (handoff) handoff.cancel(); }
   },
-  onHide() { this._visible = false; this._show = (this._show || 0) + 1; this._init = (this._init || 0) + 1; if (this._voiceHandoff) this._voiceHandoff.cancel(); this._voiceHandoff = null; this.cancel(); this.destroyRecorder(); this.stopBargeIn(); audio.stop('chat'); speech.cleanup(this._files); this._files = []; this.setData({ playingId: '', caption: '', messages: this.data.messages.map(m => Object.assign({}, m, { audioPaths: [] })) }); },
+  onHide() { this._visible = false; this._show = (this._show || 0) + 1; this._init = (this._init || 0) + 1; if (this._voiceHandoff) this._voiceHandoff.cancel(); this._voiceHandoff = null; this.cancel(true); this.destroyRecorder(true); this.stopBargeIn(); audio.stop('chat'); speech.cleanup(this._files); this._files = []; },
   onUnload() { this.onHide(); speech.cleanup(this._files); this._files = []; },
   async initialize() {
     const init = this._init = (this._init || 0) + 1;
@@ -136,7 +137,7 @@ module.exports = function createChat() { return {
           if (state.playing) this.startBargeIn(); else this.stopBargeIn();
         },
         audioError: error => { if (this.valid(seq, user)) { this.stopBargeIn(); this.setData({ error: error.message, playingId: '', caption: '' }); } },
-        settled: () => { this.stopBargeIn(); this.setData({ playingId: '', caption: '' }); this.settleTour(); }
+        settled: () => { this.stopBargeIn(); if (this._visible && this.valid(seq, user)) this.setData({ playingId: '', caption: '' }); this.settleTour(); }
       });
       this._task = task; this._playbackTask = task;
       const result = await task;
@@ -157,13 +158,13 @@ module.exports = function createChat() { return {
     }
   },
   retry(event) { const message = this.data.messages[Number(ui.dataset(event).index)]; if (!message || !message.retryText || this.data.busy) return; this.setData({ text: message.retryText }); this.send(message.retryText); },
-  cancel() {
+  cancel(silent = false) {
     const hadRun = !!(this._task || this._playbackTask || this.data.playingId);
     this._seq++; if (this._task) this._task.abort(); this._task = null;
     if (this._playbackTask) this._playbackTask.abort(); this._playbackTask = null;
     this.stopBargeIn(); audio.stop('chat');
     const messages = this.data.messages.map(m => m.pending ? Object.assign({}, m, { pending: false, content: '已停止等待回答，可打开对话历史查看结果。' }) : m);
-    this.setData({ busy: false, loading: false, messages, playingId: '', caption: '' });
+    if (silent !== true && this._visible) this.setData({ busy: false, loading: false, messages, playingId: '', caption: '' });
     if (hadRun) this.settleTour();
   },
   playAnswer(event) { const message = this.data.messages[Number(ui.dataset(event).index)]; if (!message) return; if (this.data.playingId === message.id) { if (this._playbackTask) this._playbackTask.mute(); this.stopBargeIn(); audio.stop('chat'); this.setData({ playingId: '', caption: '' }); this.settleTour(); } else if (!this.data.busy) this.playMessage(message); },
@@ -172,9 +173,9 @@ module.exports = function createChat() { return {
     this.interruptTour();
     try { audio.playQueue('chat', message.audioPaths.map((url, index) => ({ id: message.id + '-' + index, url, text: (message.audioTexts || [])[index] || '', kind: 'answer' })), {
       change: state => { if (!this._visible) return; this.setData({ playingId: state.playing ? message.id : '', caption: state.playing && state.item ? state.item.text || '' : '', captionProgress: state.duration ? Math.round(state.time / state.duration * 100) : 0 }); if (state.playing) this.startBargeIn(); else this.stopBargeIn(); },
-      error: error => { this.stopBargeIn(); ui.error(this, error); this.setData({ playingId: '', caption: '' }); this.settleTour(); },
-      finished: () => { this.stopBargeIn(); this.setData({ playingId: '', caption: '' }); this.settleTour(); }
-    }); } catch (error) { ui.error(this, error); }
+      error: error => { if (!this._visible) return; this.stopBargeIn(); ui.error(this, error); this.setData({ playingId: '', caption: '' }); this.settleTour(); },
+      finished: () => { if (!this._visible) return; this.stopBargeIn(); this.setData({ playingId: '', caption: '' }); this.settleTour(); }
+    }); } catch (error) { if (this._visible) ui.error(this, error); }
   },
   showSource(event) { const source = this.data.messages[Number(ui.dataset(event).index)].sources[Number(ui.dataset(event).source)]; if (source.imageUrl) my.previewImage({ urls: [source.imageUrl] }); else my.alert({ title: source.name || source.formalName || '资料来源', content: source.formalName || source.name || '暂无更多资料' }); },
   openLocation(event) {
@@ -204,24 +205,24 @@ module.exports = function createChat() { return {
         else this.send(text);
       }, e => { if (this._visible && user === ui.userId()) { this.setData({ recording: false, transcribing: false }); ui.error(this, e); } });
       this._recorder.start();
-    } catch (e) { this.setData({ recording: false }); ui.error(this, e); }
+    } catch (e) { if (this._visible) { this.setData({ recording: false }); ui.error(this, e); } }
   },
   moveRecording(event) { const y = event.touches && event.touches[0] && event.touches[0].clientY; if (typeof y === 'number') this.setData({ cancelRecording: this._startY - y > 60 }); },
   stopRecording() { this._press = null; if (this._recorder) this._recorder.stop(this.data.cancelRecording); this.setData({ recording: false }); },
   cancelTouch() { this._press = null; if (this._recorder) this._recorder.stop(true); this.setData({ recording: false, transcribing: false }); },
-  destroyRecorder() { this._press = null; if (this._recorder) this._recorder.destroy(); this._recorder = null; this.setData({ recording: false, transcribing: false }); },
+  destroyRecorder(silent = false) { this._press = null; if (this._recorder) this._recorder.destroy(); this._recorder = null; if (!silent && this._visible) this.setData({ recording: false, transcribing: false }); },
   microphoneHelp() { if (my.showAuthGuide) my.showAuthGuide({ authType: 'MICROPHONE' }); },
   interruptTour() { if (this.props && this.props.onInterrupt) this.props.onInterrupt(); },
   settleTour() { if (this._visible && !this.data.busy && !this.data.recording && !this.data.transcribing && this.props && this.props.onSettled) this.props.onSettled(); },
   toggleBargeIn(event) { const enabled = !!ui.value(event); this.setData({ bargeInEnabled: enabled, error: '' }); if (enabled && audio.snapshot().owner === 'chat' && audio.snapshot().playing) this.startBargeIn(); else this.stopBargeIn(); },
   startBargeIn() {
     if (!this.data.bargeInEnabled || !this._visible || this._bargeIn) return;
-    this._bargeIn = bargeIn.monitor(() => { this.cancel(); this.setData({ error: '已打断朗读，可按住说话继续提问' }); }, error => { this.setData({ bargeInEnabled: false, error: error.message }); });
+    this._bargeIn = bargeIn.monitor(() => { this.cancel(); if (this._visible) this.setData({ error: '已打断朗读，可按住说话继续提问' }); }, error => { if (this._visible) this.setData({ bargeInEnabled: false, error: error.message }); });
   },
   stopBargeIn() { if (this._bargeIn) this._bargeStopping = this._bargeIn.stop(); this._bargeIn = null; return this._bargeStopping; },
   toggleExpanded() {
     if (this.data.embedded) this.setData({ expanded: !this.data.expanded });
-    else { getApp().globalData.openChat = true; getApp().globalData.chatDraft = { userId: ui.userId(), text: this.data.text }; my.switchTab({ url: '/pages/tour/index' }); }
+    else { getApp().globalData.openChat = true; getApp().globalData.chatDraft = { userId: ui.userId(), text: this.data.text }; my.reLaunch({ url: '/pages/tour/index' }); }
   },
-  backToTour() { if (this.props && this.props.onClose) this.props.onClose(); else my.switchTab({ url: '/pages/tour/index' }); }
+  backToTour() { if (this.props && this.props.onClose) this.props.onClose(); else my.reLaunch({ url: '/pages/tour/index' }); }
 }; };

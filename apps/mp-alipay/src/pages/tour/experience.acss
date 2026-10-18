@@ -2,6 +2,7 @@ page { height: 100%; overflow: hidden; }
 .tour-page { position: relative; height: 100vh; min-height: 100vh; overflow: hidden; background: #f8faf9; color: #2b4039; }
 .stage-language { min-height: 100vh; background: #171710; }
 .tour-map { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.tour-map.map-obscured { visibility: hidden; pointer-events: none; }
 .language-gate { position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32rpx 42rpx; background: #171710; color: #fff8e8; }
 .stage-language .language-gate { position: relative; min-height: 100vh; box-sizing: border-box; }
 .stage-overview .language-gate, .stage-navigation .language-gate { display: none; }
@@ -42,8 +43,19 @@ page { height: 100%; overflow: hidden; }
 .tour-notices .error { margin: 8rpx 0; font-size: 22rpx; padding: 14rpx; }
 .notice { padding: 12rpx 18rpx; border-radius: 14rpx; background: #f8faf9ed; font-size: 22rpx; }
 .location-status { position: absolute; top: 114rpx; left: 18rpx; z-index: 4; font-size: 20rpx; padding: 10rpx 16rpx; border-radius: 30rpx; background: #f8faf9f5; box-shadow: 0 3rpx 12rpx #183e4315; }
-.map-tools { position: absolute; z-index: 4; top: 200rpx; left: 18rpx; display: flex; flex-direction: column; overflow: hidden; border: 1rpx solid #d4e0d9; border-radius: 16rpx; background: #f8faf9f5; box-shadow: 0 4rpx 20rpx #183e4315; }
-.map-tools button { padding: 16rpx 12rpx; border-radius: 0; background: transparent; font-size: 21rpx; border-bottom: 1rpx solid #d4e0d9; }
+.map-tools { position: absolute; z-index: 4; top: 50%; left: 18rpx; display: flex; flex-direction: column; align-items: center; gap: 4rpx; width: 76rpx; padding: 8rpx 6rpx; border: 1rpx solid #d4e0d9; border-radius: 22rpx; background: #f8faf9f2; box-shadow: 0 8rpx 28rpx #183e4330; transform: translateY(-50%); }
+.map-tools .tool-button { display: flex; align-items: center; justify-content: center; width: 62rpx; height: 60rpx; padding: 0; border-radius: 14rpx; background: transparent; color: #263f55; }
+.map-tools .tool-button.active { background: #e4f0ea; color: #183e43; }
+.map-tools .tool-button:disabled { background: transparent; }
+.tool-divider { width: 42rpx; height: 1rpx; margin: 3rpx 0; background: #d4e0d9; }
+.tool-glyph { font-size: 38rpx; line-height: 1; font-weight: 300; }
+.tool-icon { position: relative; display: block; width: 34rpx; height: 34rpx; color: currentColor; }
+.route-icon:before, .route-icon:after { content: ''; position: absolute; width: 10rpx; height: 10rpx; border: 3rpx solid currentColor; border-radius: 50%; }
+.route-icon:before { left: 1rpx; top: 3rpx; }.route-icon:after { right: 1rpx; bottom: 3rpx; }.route-icon view { position: absolute; left: 8rpx; top: 14rpx; width: 18rpx; height: 3rpx; background: currentColor; transform: rotate(-28deg); }
+.focus-icon { border: 3rpx solid currentColor; border-radius: 50%; transform: scale(.64); }.focus-icon:before, .focus-icon:after { content: ''; position: absolute; background: currentColor; }.focus-icon:before { left: 14rpx; top: -10rpx; width: 3rpx; height: 54rpx; }.focus-icon:after { left: -10rpx; top: 14rpx; width: 54rpx; height: 3rpx; }.focus-icon view { position: absolute; inset: 10rpx; border: 3rpx solid currentColor; border-radius: 50%; }
+.nav-icon:before { content: ''; position: absolute; left: 7rpx; top: 2rpx; border-left: 11rpx solid transparent; border-right: 11rpx solid transparent; border-bottom: 30rpx solid currentColor; transform: rotate(32deg); }.nav-icon view { position: absolute; left: 15rpx; top: 13rpx; width: 5rpx; height: 5rpx; border-radius: 50%; background: #f8faf9; z-index: 1; }
+.chat-icon { border: 3rpx solid currentColor; border-radius: 50%; }.chat-icon:after { content: ''; position: absolute; right: -3rpx; bottom: -8rpx; width: 11rpx; height: 11rpx; border-left: 3rpx solid currentColor; transform: skew(-22deg); }
+.tool-ask { height: 64rpx !important; }
 .content-sidebar, .queue-sidebar { position: absolute; top: 114rpx; right: 18rpx; bottom: 24rpx; z-index: 7; display: flex; flex-direction: column; width: 72%; max-width: 800rpx; border: 1rpx solid #d4e0d9; border-radius: 22rpx; box-shadow: 0 8rpx 40rpx #183e4326; background: #f8faf9f5; overflow: hidden; }
 .queue-sidebar { bottom: 280rpx; z-index: 9; }
 .drawer-header { display: flex; align-items: center; gap: 12rpx; padding: 18rpx 22rpx; border-bottom: 1rpx solid #d4e0d9; }
@@ -80,7 +92,7 @@ page { height: 100%; overflow: hidden; }
 .dock-summary { padding-top: 14rpx; }
 .dock-title { font-weight: 600; font-size: 28rpx; }
 .dock-summary .muted { font-size: 20rpx; }
-.voice-button { position: absolute; right: 30rpx; bottom: 300rpx; z-index: 6; display: flex; align-items: center; justify-content: center; width: 84rpx; height: 84rpx; border-radius: 50%; background: #183e43; color: #fff; box-shadow: 0 6rpx 26rpx #183e4333; }
+.voice-button { position: absolute; right: 30rpx; bottom: 320rpx; z-index: 6; display: flex; align-items: center; justify-content: center; width: 84rpx; height: 84rpx; border-radius: 50%; background: #183e43; color: #fff; box-shadow: 0 6rpx 26rpx #183e4333; }
 .voice-mic-icon { position: relative; width: 28rpx; height: 38rpx; }
 .voice-mic-head { position: absolute; left: 7rpx; top: 0; width: 14rpx; height: 24rpx; border: 3rpx solid currentColor; border-radius: 10rpx; }
 .voice-mic-stem { position: absolute; left: 4rpx; bottom: 0; width: 20rpx; height: 14rpx; border: 3rpx solid currentColor; border-top: 0; border-radius: 0 0 12rpx 12rpx; }

@@ -152,7 +152,7 @@ test('old account confirmation cannot log out or clear the newly logged-in accou
   }
 });
 test('login completion after leaving the page does not navigate unexpectedly', async () => {
-  const h = harness(), p = h.page('auth'); let navigations = 0; h.my.switchTab = () => navigations++;
+  const h = harness(); h.load('config').authOptions.passwordLogin = true; const p = h.page('auth'); let navigations = 0; h.my.reLaunch = () => navigations++;
   p.onShow(); p.setData({ agreed: true, account: 'name', password: 'password' }); const pending = p.submit(); p.onHide(); h.requests[0].ok(session('registered', 'registered-token')); await pending;
   assert.equal(navigations, 0); assert.equal(h.auth.current().userId, 'registered'); assert.equal(p.data.password, '');
 });

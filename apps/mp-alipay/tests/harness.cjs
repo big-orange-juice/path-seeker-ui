@@ -29,7 +29,7 @@ function harness(initial = session()) {
     },
     getRecorderManager: () => recorder, env: { USER_DATA_PATH: '/data' },
     getFileSystemManager: () => ({ readFile(p) { p.success({ data: wavBuffer() }); }, writeFile(p) { writes.push(p); p.success({}); }, unlink(p) { removed.push(p.filePath); p.success({}); } }),
-    confirm(p) { confirms.push(p); }, showToast() {}, switchTab() {}, navigateTo() {},
+    confirm(p) { confirms.push(p); }, showToast() {}, reLaunch() {}, navigateTo() {},
     getLocation() {},
   };
   let definition, componentDefinition;
@@ -49,7 +49,7 @@ function harness(initial = session()) {
     return instance(definition);
   }
   function instance(definition) {
-    const p = Object.assign({}, definition, definition.methods || {}, { data: JSON.parse(JSON.stringify(definition.data)), props: Object.assign({}, definition.props || {}), setData(update) { for (const [key, value] of Object.entries(update)) { const parts = key.split('.'); let target = this.data; for (const part of parts.slice(0, -1)) target = target[part]; target[parts.at(-1)] = value; } } });
+    const p = Object.assign({}, definition, definition.methods || {}, { data: JSON.parse(JSON.stringify(definition.data)), props: Object.assign({}, definition.props || {}), setData(update, callback) { for (const [key, value] of Object.entries(update)) { const parts = key.split('.'); let target = this.data; for (const part of parts.slice(0, -1)) target = target[part]; target[parts.at(-1)] = value; } if (callback) callback(); } });
     return p;
   }
   function component(name) { load('components/' + name + '/index'); return instance(componentDefinition); }

@@ -2,6 +2,32 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { harness, tick, plain, session, userId } = require('./harness.cjs');
 
+test('optional login entries default off and their handlers do not authenticate', async () => {
+  const h = harness(), page = h.page('auth'); let attempts = 0;
+  h.auth.login = async () => { attempts++; };
+  h.auth.ensure = async () => { attempts++; };
+  assert.equal(page.data.guestLoginEnabled, false);
+  assert.equal(page.data.passwordLoginEnabled, false);
+  page.setData({ agreed: true, account: 'account', password: 'password' });
+  page.mode(); await page.submit(); await page.guest();
+  assert.equal(page.data.register, false); assert.equal(attempts, 0);
+});
+
+test('guest and password login can be enabled independently', async () => {
+  for (const guestLogin of [false, true]) for (const passwordLogin of [false, true]) {
+    const h = harness(); Object.assign(h.load('config').authOptions, { guestLogin, passwordLogin });
+    const page = h.page('auth'); let guests = 0, passwords = 0;
+    h.auth.ensure = async () => { guests++; };
+    h.auth.login = async () => { passwords++; };
+    assert.equal(page.data.guestLoginEnabled, guestLogin);
+    assert.equal(page.data.passwordLoginEnabled, passwordLogin);
+    page.setData({ agreed: true, account: 'account', password: 'password' });
+    await page.submit(); await page.guest(); page.mode();
+    assert.equal(guests, Number(guestLogin)); assert.equal(passwords, Number(passwordLogin));
+    assert.equal(page.data.register, passwordLogin);
+  }
+});
+
 test('authorization is requested only by an explicit agreed tap and duplicate taps are blocked', async () => {
   const h = harness(), page = h.page('auth'), authorizations = [];
   h.my.getAuthCode = options => authorizations.push(options);

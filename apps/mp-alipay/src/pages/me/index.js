@@ -23,7 +23,7 @@ Page({
   login() { my.navigateTo({ url: '/pages/auth/index' }); },
   records() { my.navigateTo({ url: '/pages/records/index' }); },
   privacy() { my.navigateTo({ url: '/pages/privacy/index' }); },
-  tour() { my.switchTab({ url: '/pages/tour/index' }); },
+  tour() { my.reLaunch({ url: '/pages/tour/index' }); },
   edit() { this.setData({ editing: !this.data.editing }); },
   input(event) { const field = ui.dataset(event).field; if (['nickname', 'country', 'voiceId'].includes(field)) this.setData({ [field]: ui.value(event) }); },
   locale(event) { const index = Number(ui.value(event)); storage.write('locale', locales[index].value); this.setData({ localeIndex: index }); },

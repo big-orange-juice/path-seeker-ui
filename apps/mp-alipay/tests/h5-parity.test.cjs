@@ -14,6 +14,59 @@ function setupChat(h) {
   const page = h.page('chat'); page.onLoad(); page._visible = true; page._user = userId; page.setData({ sessionId: 'session', loading: false });
   return page;
 }
+
+test('navigation requests buildings and focuses the selected map marker instead of fitting the route', () => {
+  const h = harness(), page = setupTour(h), updates = [];
+  h.my.createMapContext = () => ({
+    updateComponents: value => updates.push(value),
+    getMapProperties: options => options.success({ is3d: 1 }),
+    includePoints: () => {}
+  });
+  page.setData({ map: { longitude: 116, latitude: 39, markers: [{ id: 1, longitude: 116.4, latitude: 39.95 }, { id: 2, longitude: 116.5, latitude: 39.96 }], includePoints: [{ longitude: 116, latitude: 39 }] } });
+  page.focusNavigationMap();
+  assert.equal(updates[0].setting.enableBuilding, 1);
+  assert.equal(updates[0].setting.tiltGesturesEnabled, 1);
+  assert.equal(updates[0].scale, 18); assert.equal(updates[0].longitude, 116.4);
+  assert.equal(page.data.mapScale, 18); assert.equal(page.data.mapSkew, 50);
+  assert.equal(page.data.map.longitude, 116.4); assert.deepEqual(plain(page.data.map.includePoints), []);
+  page.overview(); assert.equal(page.data.mapSkew, 0); assert.equal(page.data.map.includePoints.length, 2);
+  page.setData({ stopIndex: 1 }); page.focusNavigationMap(); assert.equal(page.data.map.longitude, 116.5);
+  page.ask(); page.closeChat(); assert.equal(page.data.mapScale, 18); assert.equal(page.data.mapSkew, 50);
+});
+
+test('camera update waits for the view commit and is reapplied when the map initializes', () => {
+  const h = harness(), page = setupTour(h), updates = [], commits = [];
+  const setData = page.setData.bind(page);
+  page.setData = (value, callback) => { setData(value); if (callback) commits.push(callback); };
+  h.my.createMapContext = () => ({ updateComponents: value => updates.push(value) });
+  page.focusNavigationMap(); assert.equal(updates.length, 0);
+  commits.shift()(); assert.equal(updates.length, 1); assert.equal(updates[0].scale, 18);
+  page.mapReady(); assert.equal(updates.length, 2); assert.equal(updates[1].scale, 18);
+  page._visible = false; page.mapReady(); assert.equal(updates.length, 2);
+});
+
+test('3D engine flag does not mask an unapplied pitch and late readbacks are ignored', () => {
+  const h = harness(), page = setupTour(h); let readback;
+  h.my.createMapContext = () => ({
+    getMapProperties: options => options.success({ is3d: true }),
+    getSkew: options => { readback = options.success; }
+  });
+  page.focusNavigationMap(); readback({ skew: 0 });
+  assert.equal(page._mapProperties.is3d, true);
+  assert.deepEqual(plain(page._mapCamera), { requestedSkew: 50, actualSkew: 0 });
+  page.inspectMapCamera(); readback({ skew: 50 }); assert.equal(page._mapCamera.actualSkew, 50);
+  page.inspectMapCamera(); page._visible = false; readback({ skew: 0 }); assert.equal(page._mapCamera.actualSkew, 50);
+  page._visible = true; page.inspectMapCamera(); page.setData({ mapSkew: 0 }); readback({ skew: 0 }); assert.equal(page._mapCamera.actualSkew, 50);
+});
+
+test('native 2D engine is reported without blocking navigation and missing map APIs remain usable', () => {
+  const h = harness(), page = setupTour(h), notices = [];
+  h.my.createMapContext = () => ({ getMapProperties: options => options.success({ is3d: 0 }) });
+  h.my.showToast = options => notices.push(options.content);
+  page.focusNavigationMap(); assert.equal(notices.length, 1); assert.equal(page.data.mapScale, 18);
+  delete h.my.createMapContext; page.focusNavigationMap();
+  page.setData({ tourStage: 'overview', mapScale: 15 }); page.focusNavigationMap(); assert.equal(page.data.mapScale, 15);
+});
 test('map and list selections enter a stop; previous and next only browse and play', async () => {
   for (const action of ['marker', 'browse']) {
     const h = harness(), page = setupTour(h), next = page.data.stops[1].id;
@@ -50,7 +103,7 @@ test('map follows GCJ coordinates, ignores weak fixes and retains range outlines
   page.onHide();
 });
 test('tour voice release hands off immediately and sends once after recognition', async () => {
-  const h = harness(), tour = setupTour(h); let navigations = 0; h.my.switchTab = () => navigations++;
+  const h = harness(), tour = setupTour(h); let navigations = 0; h.my.navigateTo = () => navigations++;
   tour.play(); tour.startRecording({ touches: [{ clientY: 100 }] }); h.recorder.emit('Start'); tour.stopRecording();
   assert.equal(navigations, 1); assert.ok(h.app.globalData.voiceInput); assert.equal(h.load('services/audio').snapshot().playing, false);
   tour.onHide();
@@ -66,7 +119,7 @@ test('tour voice release hands off immediately and sends once after recognition'
 });
 test('tour voice swipe cancellation and hiding never upload or navigate on late callbacks', async () => {
   for (const cancel of ['cancelTouch', 'onHide']) {
-    const h = harness(), page = setupTour(h); let navigations = 0; h.my.switchTab = () => navigations++;
+    const h = harness(), page = setupTour(h); let navigations = 0; h.my.navigateTo = () => navigations++;
     page.startRecording({ touches: [{ clientY: 100 }] }); page[cancel](); h.recorder.emit('Start');
     await Promise.all(h.recorder.emit('Stop', { tempFilePath: '/cancel.audio' }));
     assert.equal(h.requests.length, 0); assert.equal(navigations, 0); assert.ok(h.removed.includes('/cancel.audio'));
@@ -119,7 +172,28 @@ test('embedded component expands without cancelling the answer and unmount relea
   component.setData({ sessionId: 'session', text: '问题' }); const pending = component.send(); await tick();
   component.toggleExpanded(); assert.equal(component.data.expanded, true); assert.equal(h.requests[1].aborted, false);
   component.toggleExpanded(); assert.equal(component.data.expanded, false); assert.equal(h.requests[1].aborted, false);
+  component.setData = () => assert.fail('unmounted component must not update its view');
   component.didUnmount(); await pending; assert.equal(h.requests[1].aborted, true); assert.equal(component._visible, false);
+});
+
+test('closing chat during initialization ignores late history and a fresh component can open', async () => {
+  const h = harness(), component = h.component('chat');
+  component.didMount(); await tick();
+  component.setData = () => assert.fail('unmounted component must not update its view');
+  component.didUnmount(); h.requests[0].ok([]); await tick();
+  const reopened = h.component('chat'); reopened.didMount(); await tick();
+  h.requests[1].ok([]); await tick();
+  assert.equal(reopened._visible, true); assert.equal(reopened.data.loading, false);
+  reopened.didUnmount();
+});
+
+test('hidden chat resets transient state on show without retaining deleted audio paths', async () => {
+  const h = harness(), page = setupChat(h);
+  page.setData({ busy: true, recording: true, transcribing: true, messages: [{ pending: true, audioPaths: ['deleted.mp3'] }] });
+  page.onHide(); page.onShow(); await tick(); h.requests[0].ok([]); await tick();
+  assert.equal(page.data.busy, false); assert.equal(page.data.recording, false); assert.equal(page.data.transcribing, false);
+  assert.equal(page.data.messages[0].pending, false); assert.deepEqual(plain(page.data.messages[0].audioPaths), []);
+  page.onHide();
 });
 test('failed answer retries the original question and native tap events never become message text', async () => {
   const h = harness(), page = setupChat(h); page.setData({ text: '原始问题' }); const pending = page.send({ type: 'tap' }); await tick();
@@ -133,7 +207,7 @@ test('malformed or truncated streamed data never leaves answer audio playing', a
   h.requests[0].chunk('data: {broken}\n\n'); await pending; assert.equal(h.requests[0].aborted, true); assert.equal(h.load('services/audio').snapshot().playing, false); assert.ok(page.data.error); page.onHide();
 });
 test('all history types preserve string route IDs and reject missing route identities', () => {
-  const h = harness(), page = h.page('records'); const id = '9223372036854775805'; let navigations = 0; h.my.switchTab = () => navigations++;
+  const h = harness(), page = h.page('records'); const id = '9223372036854775805'; let navigations = 0; h.my.reLaunch = () => navigations++;
   for (const tab of [0, 1, 2, 3]) { page.setData({ tab, records: [{ routeId: id, locale: 'en' }] }); page.resume({ currentTarget: { dataset: { id } } }); assert.equal(h.app.globalData.selectedRoute, id); }
   assert.equal(navigations, 4); page.resume({ currentTarget: { dataset: { id: 123 } } }); assert.equal(navigations, 4); assert.ok(page.data.error);
 });
