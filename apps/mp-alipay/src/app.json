@@ -7,6 +7,7 @@
     "pages/records/index",
     "pages/privacy/index"
   ],
+  "requiredBackgroundModes": ["audio"],
   "window": {
     "defaultTitle": "寻迹 · 城市漫游",
     "titleBarColor": "#f8faf9",

@@ -7,7 +7,8 @@ const speech = require('../../services/speech');
 const location = require('../../services/location');
 const tour = require('../../core/tour');
 const ui = require('../../core/ui');
-const { locales } = require('../../config');
+const config = require('../../config');
+const { locales } = config;
 const { tourMessages } = require('../../shared/tourMessages');
 const { toGcj02 } = require('../../shared/map-coordinates');
 function finiteCoordinate(value) {
@@ -31,7 +32,7 @@ function sanitizeMap(map) {
 }
 Page({
   data: { mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: true, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: '开启定位后可在到达景点时自动讲解', candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
-  onLoad(query = {}) { this._rev = 0; this._visible = true; this._dismissedCandidates = new Set(); this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, sequence: [], lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
+  onLoad(query = {}) { this._rev = 0; this._visible = true; this._asking = false; this._dismissedCandidates = new Set(); this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, sequence: [], lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
   onShow() {
     this._visible = true;
     if (this._user && this._user !== ui.userId()) { this.reset(); this.initialize(); return; }
@@ -43,19 +44,27 @@ Page({
     if (this.data.locationEnabled) this.watchLocation();
     if (getApp().globalData.openChat) { getApp().globalData.openChat = false; this.ask(); return; }
     if (this._askResume) this.resumeAfterAsk();
-    else if (this._backgroundResume) { const snapshot = this._backgroundResume; this._backgroundResume = null; this.restorePlayback(snapshot); }
+    else if (this._backgroundResume) {
+      const snapshot = this._backgroundResume; this._backgroundResume = null;
+      const state = audio.snapshot();
+      // 后台期间整轮已经播完时不再从头恢复；否则恢复暂停点或继续播放。
+      if (!(state.owner === 'tour' && !state.playing && !state.item)) this.restorePlayback(snapshot);
+    }
   },
   onHide() {
     this._backgroundResume = this.capturePlayback();
     this._visible = false; this.saveCheckpoint();
     if (this._recorder && !this._handedVoice) this.cancelVoice();
     this.setData({ chatOpen: false });
-    if (this._watch) { this._watch(); this._watch = null; }
     this._dwell = null;
-    if (audio.snapshot().owner === 'tour') audio.pause();
+    // 后台模式保留定位轮询与讲解播放；关闭时维持“离开页面即暂停”。
+    if (!config.background) {
+      if (this._watch) { this._watch(); this._watch = null; }
+      if (audio.snapshot().owner === 'tour') audio.pause();
+    }
   },
-  onUnload() { this.onHide(); if (!this._handedVoice) this.cancelVoice(); this._initToken = null; this._rev++; audio.stop('tour'); },
-  reset() { this.cancelVoice(); this._askResume = null; this._backgroundResume = null; this._initToken = null; this._initializing = false; this._manualBrowse = false; this._pendingFinish = ''; this._rev++; audio.stop('tour'); this._heldVisit = null; this._detail = null; this._places = []; this._routes = []; this._dismissedCandidates = new Set(); getApp().globalData.chatContext = null; if (this._watch) this._watch(); this._watch = null; this.setData({ tourStage: 'language', contentOpen: false, queueOpen: false, route: null, stop: null, visit: null, stops: [], guides: [], chapters: [], candidates: [], sequence: [], routes: [], busy: false, playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, chatOpen: false, locationEnabled: false, following: false, showRoute: true, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } }); },
+  onUnload() { this.onHide(); if (!this._handedVoice) this.cancelVoice(); if (this._watch) { this._watch(); this._watch = null; } this._initToken = null; this._rev++; audio.stop('tour'); },
+  reset() { this.cancelVoice(); this._asking = false; this._askResume = null; this._backgroundResume = null; this._initToken = null; this._initializing = false; this._manualBrowse = false; this._pendingFinish = ''; this._rev++; audio.stop('tour'); this._heldVisit = null; this._detail = null; this._places = []; this._routes = []; this._dismissedCandidates = new Set(); getApp().globalData.chatContext = null; if (this._watch) this._watch(); this._watch = null; this.setData({ tourStage: 'language', contentOpen: false, queueOpen: false, route: null, stop: null, visit: null, stops: [], guides: [], chapters: [], candidates: [], sequence: [], routes: [], busy: false, playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, chatOpen: false, locationEnabled: false, following: false, showRoute: true, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } }); },
   clearSelection() { if (this.data.visit && this.data.visit.status === 1) this._heldVisit = { visit: this.data.visit, route: this.data.route }; this._detail = null; this._manualBrowse = false; this._pendingFinish = ''; this.setData({ tourStage: 'overview', contentOpen: false, queueOpen: false, route: null, visit: null, stop: null, stops: [], guides: [], chapters: [], sequence: [], candidates: [], playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, itemTitle: '', progress: 0, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } }); this.syncContext(); },
   async initialize() {
     if (this._initializing) return;
@@ -244,7 +253,7 @@ Page({
     this.setData({ sequence: this.data.sequence.map(item => item.status === 'playing' && item.id !== stop.id ? Object.assign({}, item, { status: 'queued' }) : item) });
     this.setData({ visit: result }); this._heldVisit = { visit: result, route: this.data.route };
     this.sequenceStatus(stop.id, 'playing', index);
-    this._manualBrowse = false; this.showStop(index, false); this.setData({ tourStage: 'navigation', contentOpen: true }); if (this._visible) this.play(true);
+    this._manualBrowse = false; this.showStop(index, false); this.setData({ tourStage: 'navigation', contentOpen: true }); if (this._visible || config.background) this.play(true);
   },
   async chooseLanguage(event) {
     const index = Number(ui.dataset(event).index);
@@ -264,7 +273,7 @@ Page({
   showLanguage() { if (this.data.busy || this.data.loading) return; this._dwell = null; this.setData({ tourStage: 'language', contentOpen: false, queueOpen: false, candidates: [] }); },
   enterCurrent() { if (!this.data.visit || this.data.visit.status !== 1) return this.startVisit(); this.mutate(() => this.enter(this.data.stopIndex)); },
   async mutate(action) { if (this.data.busy || this.data.loading) return; const rev = this._rev, user = this._user; this.setData({ busy: true, error: '' }); try { await action(); } catch (e) { if (rev === this._rev && user === ui.userId()) ui.error(this, e); } finally { if (rev === this._rev && user === ui.userId()) { this.setData({ busy: false }); this.flushFinished(); } } },
-  flushFinished() { const key = this._pendingFinish; this._pendingFinish = ''; if (key && key === this.contextKey() && this._visible) { if (this.data.busy) this._pendingFinish = key; else this.complete(2); } },
+  flushFinished() { const key = this._pendingFinish; this._pendingFinish = ''; if (key && key === this.contextKey() && (this._visible || config.background) && !this._asking) { if (this.data.busy) this._pendingFinish = key; else this.complete(2); } },
   async complete(source = 1) {
     if (!this.data.stop || !this.data.visit || this.data.visit.status !== 1 || this.data.browsing || this.data.busy || this.data.loading || (this.data.visit.completedStageIds || []).includes(this.data.stop.id)) return;
     const stageId = this.data.stop.id, rev = this._rev, user = this._user;
@@ -276,7 +285,7 @@ Page({
       this._heldVisit = result.status === 1 ? { visit: result, route: this.data.route } : null;
       storage.remove(storage.scoped(user, 'checkpoint'));
       if (result.status !== 1) { my.showToast({ content: '行程已完成', type: 'success' }); return; }
-      if (this.data.tourStage === 'navigation' && this.data.autoplay && this._visible && !this.data.lockContent && !this._userPaused) {
+      if (this.data.tourStage === 'navigation' && this.data.autoplay && (this._visible || config.background) && !this._asking && !this.data.lockContent && !this._userPaused) {
         const queued = this.nextSequenceIndex();
         const index = queued >= 0 ? queued : !this.data.locationEnabled ? this.data.stops.findIndex(s => !(result.completedStageIds || []).includes(s.id) && !this.data.sequence.some(item => item.id === s.id && item.status === 'skipped')) : -1;
         if (index >= 0) await this.enter(index);
@@ -309,7 +318,7 @@ Page({
   },
   playedKey() { return storage.scoped(this._user, 'before:' + (this.data.visit ? this.data.visit.visitId : 'preview')); },
   play(restore = false, replay = false, localCheckpoint = null) {
-    if (!this.data.stop || !this._visible || this._user !== ui.userId()) return;
+    if (!this.data.stop || (!this._visible && !config.background) || this._asking || this._user !== ui.userId()) return;
     const guide = this.data.guides[this.data.guideIndex];
     if (!guide) { this.setData({ audioError: this.data.messages.noNarration }); return; }
     const items = tour.queueFor(this.data.stop, guide, { skipExtra: this.data.skipExtra, playedBefore: this.data.browsing || replay ? [] : storage.read(this.playedKey(), []) });
@@ -324,7 +333,7 @@ Page({
         change: state => { if (key !== this.contextKey()) return; this.setData({ playing: state.playing, paused: !!state.item && !state.playing, hasDuration: state.duration > 0, itemTitle: state.item && state.item.title || '', timeLabel: ui.clock(state.time), durationLabel: ui.clock(state.duration), progress: state.duration ? Math.min(100, state.time / state.duration * 100) : 0 }); this.saveCheckpoint(); },
         itemEnded: item => { if (key === this.contextKey() && item && item.kind === 'before' && !this.data.browsing) { const played = storage.read(this.playedKey(), []); if (!played.includes(item.id)) storage.write(this.playedKey(), played.concat(item.id)); } },
         error: e => { if (key === this.contextKey()) this.setData({ audioError: e.message }); },
-        finished: state => { if (key === this.contextKey() && this._visible && tour.canCompleteAudio(items, state.failed, this.data.browsing)) { if (this.data.busy) this._pendingFinish = key; else this.complete(2); } }
+        finished: state => { if (key === this.contextKey() && (this._visible || config.background) && !this._asking && tour.canCompleteAudio(items, state.failed, this.data.browsing)) { if (this.data.busy) this._pendingFinish = key; else this.complete(2); } }
       }, checkpoint);
     } catch (e) { this.setData({ audioError: e.message }); }
   },
@@ -343,8 +352,8 @@ Page({
   forwardAudio() { if (this.data.playingStopId !== (this.data.stop && this.data.stop.id)) return; audio.seek(audio.snapshot().time + 15, 'tour'); },
   capturePlayback() { const state = audio.snapshot(); const background = getApp().globalData.backgroundAudio; const wasPlaying = state.playing || getApp().globalData.foreground === false && background && background.owner === 'tour' && background.generation === state.generation && background.playing; return state.owner === 'tour' && state.item && wasPlaying && !this._userPaused ? { key: this.contextKey(), userId: this._user, generation: state.generation, index: state.index, time: state.time, items: this._playbackItems, extra: this._extraPlayback } : null; },
   restorePlayback(snapshot) { if (!snapshot || !this._visible || this._userPaused || snapshot.key !== this.contextKey() || snapshot.userId !== ui.userId()) return; const state = audio.snapshot(); if (state.owner === 'tour' && state.playing) return; if (state.owner === 'tour' && state.generation === snapshot.generation && state.item) { audio.resume('tour'); return; } if (snapshot.extra && snapshot.items && snapshot.items[0]) this.playExtraItem(snapshot.items[0], snapshot.time); else this.play(true, false, snapshot); },
-  suspendForAsk() { const snapshot = this.capturePlayback(); if (snapshot) this._askResume = snapshot; this.saveCheckpoint(); this.syncContext(); if (audio.snapshot().owner === 'tour') audio.pause(); },
-  resumeAfterAsk() { if (this.data.chatOpen) return; const snapshot = this._askResume; this._askResume = null; this._backgroundResume = null; this.restorePlayback(snapshot); },
+  suspendForAsk() { this._asking = true; const snapshot = this.capturePlayback(); if (snapshot) this._askResume = snapshot; this.saveCheckpoint(); this.syncContext(); if (audio.snapshot().owner === 'tour') audio.pause(); },
+  resumeAfterAsk() { if (this.data.chatOpen) return; this._asking = false; const snapshot = this._askResume; this._askResume = null; this._backgroundResume = null; this.restorePlayback(snapshot); },
   ask() { this.suspendForAsk(); this.setData({ chatOpen: true }); },
   closeChat() { this.setData({ chatOpen: false }); this.resumeAfterAsk(); },
   chatInterrupt() { this.suspendForAsk(); },
@@ -362,7 +371,7 @@ Page({
   sequenceStatus(id, status, index) { if (!this.data.stops[index]) return; const items = this.data.sequence.slice(), existing = items.findIndex(item => item.id === id), item = { id, name: this.data.stops[index].name, index, status }; if (existing < 0) items.push(item); else items[existing] = item; this.setData({ sequence: items }); this.saveSequence(); },
   enqueueCandidates(candidates) { candidates.slice().sort((a, b) => a.distance - b.distance || a.order - b.order).forEach(candidate => { if (!this.data.sequence.some(item => item.id === candidate.id) && !(this.data.visit.completedStageIds || []).includes(candidate.id)) this.sequenceStatus(candidate.id, 'queued', candidate.index); }); this.startNextSequence(); },
   nextSequenceIndex() { const next = this.data.sequence.find(item => item.status === 'queued' && !(this.data.visit && this.data.visit.completedStageIds || []).includes(item.id)); return next ? next.index : -1; },
-  startNextSequence() { if (this.data.tourStage !== 'navigation' || !this._visible || this._user !== ui.userId() || this.data.busy || this.data.loading || !this.data.visit || this.data.visit.status !== 1 || !this.data.autoplay || this.data.lockContent || this._manualBrowse || this._userPaused || audio.snapshot().playing || !this.data.browsing) return; const index = this.nextSequenceIndex(); if (index >= 0) this.mutate(() => this.enter(index)); },
+  startNextSequence() { if (this.data.tourStage !== 'navigation' || (!this._visible && !config.background) || this._asking || this._user !== ui.userId() || this.data.busy || this.data.loading || !this.data.visit || this.data.visit.status !== 1 || !this.data.autoplay || this.data.lockContent || this._manualBrowse || this._userPaused || audio.snapshot().playing || !this.data.browsing) return; const index = this.nextSequenceIndex(); if (index >= 0) this.mutate(() => this.enter(index)); },
   playQueued(event) { const item = this.data.sequence.find(s => s.id === ui.dataset(event).id && s.status === 'queued'); if (item) { this._userPaused = false; this.mutate(() => this.enter(item.index)); } },
   skipQueued(event) { if (this.data.busy || this.data.loading) return; const item = this.data.sequence.find(s => s.id === ui.dataset(event).id && s.status === 'queued'); if (item) { this.sequenceStatus(item.id, 'skipped', item.index); this.startNextSequence(); } },
   toggleLocation(event) {
@@ -370,11 +379,11 @@ Page({
     if (enabled) this.watchLocation(); else { if (this._watch) this._watch(); this._watch = null; this.setData({ candidates: [], following: false }); }
   },
   watchLocation() {
-    if (this._watch || !this._visible) return;
+    if (this._watch || (!this._visible && !config.background)) return;
     const stopWatch = location.watch(fix => {
       this._fix = fix; this.setData({ locationNote: fix.accuracy > 65 ? '定位精度不足，可手动选择站点' : '定位已开启 · 精度约 ' + Math.round(fix.accuracy) + ' 米' });
       if (this.data.following) this.followLocation(fix);
-      if (this.data.tourStage !== 'navigation' || !this.data.route || !this.data.visit || this.data.visit.status !== 1 || this.data.busy || this.data.loading || this.data.chatOpen || this.data.recording || this.data.transcribing || !this._visible || this._user !== ui.userId()) { this._dwell = null; return; }
+      if (this.data.tourStage !== 'navigation' || !this.data.route || !this.data.visit || this.data.visit.status !== 1 || this.data.busy || this.data.loading || this.data.chatOpen || this.data.recording || this.data.transcribing || this._asking || (!this._visible && !config.background) || this._user !== ui.userId()) { this._dwell = null; return; }
       const candidates = tour.candidates(this.data.stops, this._places || [], fix, this.data.visit.completedStageIds || [], this._detail.coordinateSystem || 1, Date.now(), this.data.stops.findIndex(s => s.id === this.data.visit.currentStageId));
       const key = candidates.map(c => c.id).join('|');
       if (!key) { this._dwell = null; this._dismissedCandidates = new Set(); this.setData({ candidates: [] }); return; }

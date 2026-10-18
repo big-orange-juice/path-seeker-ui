@@ -78,12 +78,21 @@ test('map and list selections enter a stop; previous and next only browse and pl
     h.audioContexts[1].emit('Ended'); await tick(); assert.equal(h.requests.length, 1);
   }
 });
-test('foreground restores playing audio once and never resumes a user pause or another stop', () => {
-  const h = harness(), page = setupTour(h); page.play(); h.audioContexts[0].currentTime = 17;
-  page.onHide(); assert.equal(h.load('services/audio').snapshot().playing, false); page.onShow();
-  assert.equal(h.load('services/audio').snapshot().playing, true); assert.equal(h.audioContexts.length, 1);
-  page.togglePlay(); page.onHide(); page.onShow(); assert.equal(h.load('services/audio').snapshot().playing, false);
-  page.togglePlay(); page.onHide(); page.showStop(1, true); page.onShow(); assert.equal(h.load('services/audio').snapshot().playing, false);
+test('background mode keeps narration across hide, and legacy mode pauses then restores', () => {
+  const h = harness(), page = setupTour(h), config = h.load('config'), audio = h.load('services/audio');
+  assert.equal(config.background, true);
+  page.play(); h.audioContexts[0].currentTime = 17;
+  page.onHide(); assert.equal(audio.snapshot().playing, true, 'hide keeps playing'); page.onShow();
+  assert.equal(audio.snapshot().playing, true, 'show keeps playing'); assert.equal(h.audioContexts.length, 1, 'no new context');
+  page.togglePlay(); assert.equal(audio.snapshot().playing, false, 'toggle pauses');
+  page.onHide(); page.onShow(); assert.equal(audio.snapshot().playing, false, 'paused stays paused');
+  config.background = false;
+  const legacy = harness(), page2 = setupTour(legacy), audio2 = legacy.load('services/audio');
+  legacy.load('config').background = false;
+  page2.play(); legacy.audioContexts[0].currentTime = 17;
+  page2.onHide(); assert.equal(audio2.snapshot().playing, false, 'legacy hide pauses'); page2.onShow();
+  assert.equal(audio2.snapshot().playing, true, 'legacy show resumes'); assert.equal(legacy.audioContexts.length, 1, 'legacy no new context');
+  page2.togglePlay(); page2.onHide(); page2.onShow(); assert.equal(audio2.snapshot().playing, false, 'legacy pause stays');
 });
 test('overlay answer completion and close restore the same position without restarting narration', () => {
   const h = harness(), page = setupTour(h); page.play(); h.audioContexts[0].currentTime = 14;

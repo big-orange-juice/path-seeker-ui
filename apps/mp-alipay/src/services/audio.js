@@ -15,6 +15,8 @@ function create(token) {
   const valid = () => token === generation && active === context;
   context.autoplay = false;
   context.obeyMuteSwitch = false;
+  // 息屏/切后台继续播放；需 app.json 声明 requiredBackgroundModes: ["audio"]。
+  try { context.supportBackgroundPlay = true; } catch (_) {}
   listeners.Play = () => { if (valid()) { playing = true; notify(); } };
   listeners.Pause = () => { if (valid()) { playing = false; notify(); } };
   listeners.Stop = () => { if (valid()) { playing = false; notify(); } };
