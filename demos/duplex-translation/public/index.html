@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>实时翻译 · 双工 Demo</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header><div><p class="eyebrow">PATH SEEKER / LIVE TRANSLATION</p><h1>说你的语言。<br /><span>听世界的回声。</span></h1><p class="intro">持续讲话 · 同步翻译 · 按语义衔接</p></div><span id="status" role="status">准备就绪</span></header>
+      <details class="connection" hidden>
+        <summary>连接与会话</summary>
+        <div class="settings">
+          <label class="wide">C 端登录 Token<input id="token" type="password" autocomplete="off" placeholder="粘贴 Token，可带 Bearer 前缀" /></label>
+          <label>会话 ID<input id="session" type="text" placeholder="已有的活动会话 ID" /></label>
+          <label>场馆 ID<input id="museum" type="text" value="610000000000000001" placeholder="创建会话时填写" /></label>
+          <label>路线 ID<input id="route" type="text" placeholder="与场馆至少填写一项" /></label>
+          <div class="connection-actions"><button id="create" type="button">新建翻译会话</button><button id="history" type="button">读取会话历史</button></div>
+        </div>
+        <p class="hint">Token 仅保存在当前页面内存中。可使用已有会话，也可以为翻译新建独立会话。</p>
+      </details>
+      <section class="toolbar" aria-label="翻译设置">
+        <label>讲话语言<select id="source-language"><option value="">自动识别</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁体中文</option><option value="en">英语</option><option value="ja">日语</option><option value="ko">韩语</option><option value="fr">法语</option><option value="de">德语</option><option value="es">西班牙语</option></select></label><span class="arrow" aria-hidden="true">→</span>
+        <label>翻译为<select id="language"><option value="en">英语</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁体中文</option><option value="ja">日语</option><option value="ko">韩语</option><option value="fr">法语</option><option value="de">德语</option><option value="es">西班牙语</option></select></label>
+        <label class="voice">音色<input id="voice" placeholder="默认音色" value="male-qn-qingse" /></label>
+        <label class="check"><input id="audio" type="checkbox" checked />朗读译文</label>
+      </section>
+      <details id="transcript-panel" class="logs" hidden open><summary>最近识别原文 · 翻译采用原文见下方各段</summary><pre id="transcripts" aria-live="polite"></pre></details>
+      <main id="thread" aria-label="翻译记录"><div id="empty"><span aria-hidden="true">译</span><h2>让一句话，抵达另一种语言。</h2><p>开始聆听后持续讲话，完整语义会依次翻译。<br />译文朗读期间继续录音，结束讲话后等待剩余译文。</p></div></main>
+      <section class="console">
+        <div class="mic-controls"><button id="mic" class="primary" type="button">开始聆听</button><button id="flush" type="button" disabled>提交当前音频</button><button id="interrupt" type="button">停止当前朗读</button><button id="cancel" type="button" disabled>取消连接</button><meter id="level" min="0" max="0.15" value="0" aria-label="麦克风音量"></meter><span id="mic-state">麦克风未开启</span></div>
+        <form id="text-form"><label for="text">或单独输入文字翻译</label><div class="compose"><textarea id="text" maxlength="2000" rows="2" placeholder="这件青铜器距今已有三千多年历史。" required></textarea><button id="send" class="primary" type="submit">翻译</button></div></form>
+        <p id="notice" role="status">正在准备翻译会话…</p>
+      </section>
+      <footer><span id="metrics">识别 0 段 · 提交 0 段 · 完成 0 段 · 错误 0 段</span><button id="clear" type="button">清空本页记录</button></footer>
+      <details class="logs"><summary>事件日志</summary><pre id="log"></pre></details>
+    </div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
