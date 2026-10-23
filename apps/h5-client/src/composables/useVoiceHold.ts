@@ -11,6 +11,7 @@ export interface VoiceRecognitionController {
   error: ShallowRef<string>
   errorCode: ShallowRef<string>
   audioActive: ShallowRef<boolean>
+  audioLevel?: ShallowRef<number>
   diagnostics: () => string
   start: (options?: { lang?: string; continuous?: boolean }) => boolean
   stop: () => Promise<string>

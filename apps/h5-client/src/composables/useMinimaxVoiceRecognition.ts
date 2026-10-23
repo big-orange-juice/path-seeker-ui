@@ -11,6 +11,7 @@ const supported = computed(() => typeof window !== 'undefined'
   && typeof AudioWorkletNode !== 'undefined')
 const listening = shallowRef(false)
 const audioActive = shallowRef(false)
+const audioLevel = shallowRef(0)
 const finalText = shallowRef('')
 const interimText = shallowRef('')
 const error = shallowRef('')
@@ -69,6 +70,7 @@ function settle(session: CaptureSession, text: string) {
   starting.value = false
   listening.value = false
   audioActive.value = false
+  audioLevel.value = 0
   uploading.value = false
 }
 
@@ -114,7 +116,7 @@ function encodeWav(input: Float32Array, fromRate: number) {
 async function finishUpload(session: CaptureSession) {
   try {
     if (session.sampleCount < session.context.sampleRate * 0.2) {
-      fail(session, 'record-too-short', '说话时间太短，请按住麦克风说完整一句。')
+      fail(session, 'record-too-short', '说话时间太短，请点击麦克风说完整一句后再结束。')
       return
     }
     const merged = new Float32Array(session.sampleCount)
@@ -156,12 +158,16 @@ async function initialize(session: CaptureSession, resumed: Promise<void>) {
     session.node.port.onmessage = event => {
       if (current !== session || session.stopped) return
       const chunk = new Float32Array(event.data)
+      let energy = 0
+      for (const sample of chunk) energy += sample * sample
+      audioLevel.value = Math.min(1, Math.sqrt(energy / Math.max(1, chunk.length)) * 8)
       const remaining = session.context.sampleRate * MAX_RECORDING_SECONDS - session.sampleCount
       if (remaining > 0) {
         const accepted = chunk.slice(0, remaining)
         session.samples.push(accepted)
         session.sampleCount += accepted.length
       }
+      if (session.sampleCount >= session.context.sampleRate * MAX_RECORDING_SECONDS) void stop()
     }
     session.source.connect(session.node).connect(session.mute).connect(session.context.destination)
     clearTimeout(session.startTimer)
@@ -218,12 +224,13 @@ function stop() {
   session.stopped = true
   trace('record-stop-request')
   if (starting.value) {
-    fail(session, 'record-not-ready', '麦克风还未就绪，请允许权限后重新按住说话。')
+    fail(session, 'record-not-ready', '麦克风还未就绪，请允许权限后点击麦克风重试。')
     return session.completion
   }
   releaseAudio(session)
   listening.value = false
   audioActive.value = false
+  audioLevel.value = 0
   uploading.value = true
   void finishUpload(session)
   return session.completion
@@ -245,7 +252,7 @@ function diagnostics() {
 }
 
 // 导航页、悬浮入口和 Chat 页复用同一控制器与同一活动会话。
-const controller: VoiceRecognitionController = { supported, busy, listening, finalText, interimText, transcript, error, errorCode, audioActive, diagnostics, start, stop, abort }
+const controller: VoiceRecognitionController = { supported, busy, listening, finalText, interimText, transcript, error, errorCode, audioActive, audioLevel, diagnostics, start, stop, abort }
 
 export function useMinimaxVoiceRecognition(): VoiceRecognitionController {
   return controller

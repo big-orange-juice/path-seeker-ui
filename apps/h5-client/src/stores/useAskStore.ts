@@ -258,7 +258,18 @@ export const useAskStore = defineStore("ask", () => {
   const voiceRecognition = useMinimaxVoiceRecognition()
   const microphone = useMicrophoneAccess()
   const voiceInputFinishing = shallowRef(false)
+  const voiceInputActive = shallowRef(false)
   let voiceInputGeneration = 0
+
+  watch(voiceRecognition.error, (message) => {
+    if (message) voiceInputActive.value = false
+  })
+
+  watch(voiceRecognition.listening, (listening, wasListening) => {
+    if (!listening && wasListening && voiceInputActive.value && !voiceRecognition.error.value) {
+      void stopVoiceInput()
+    }
+  })
 
   /** 记录本轮音频收尾原因；每轮只记一次，供行程页恢复路线讲解 */
   function settleAudioRun(reason: AskAudioSettleReason) {
@@ -404,6 +415,43 @@ export const useAskStore = defineStore("ask", () => {
     stopSseAudio()
   }
 
+  function startVoiceInput() {
+    if (voiceInputActive.value || voiceInputFinishing.value || voiceRecognition.busy.value) return false
+    setInteractionMode("voice")
+    unlockSseAudio()
+    beginVoiceInput()
+    clearDraftText()
+    errorMessage.value = ""
+    if (!voiceRecognition.supported.value) {
+      errorMessage.value = "当前浏览器不支持语音输入，请使用文字提问。"
+      setInteractionMode("text")
+      return false
+    }
+    voiceInputActive.value = voiceRecognition.start()
+    if (!voiceInputActive.value) errorMessage.value = voiceRecognition.error.value || "无法开启收音，请重试。"
+    return voiceInputActive.value
+  }
+
+  function stopVoiceInput() {
+    if (!voiceInputActive.value) return
+    voiceInputActive.value = false
+    return finishVoiceInput(voiceRecognition.stop())
+  }
+
+  function cancelVoiceInput() {
+    if (!voiceInputActive.value && !voiceInputFinishing.value) return
+    voiceInputGeneration += 1
+    voiceInputActive.value = false
+    voiceInputFinishing.value = false
+    voiceRecognition.abort()
+    clearDraftText()
+  }
+
+  function toggleVoiceInput() {
+    if (voiceInputActive.value) return stopVoiceInput()
+    startVoiceInput()
+  }
+
   async function finishVoiceInput(completion: Promise<string>) {
     const generation = voiceInputGeneration
     voiceInputFinishing.value = true
@@ -421,7 +469,7 @@ export const useAskStore = defineStore("ask", () => {
       if (generation !== voiceInputGeneration) return
       voiceInputFinishing.value = false
       if (!text || voiceRecognition.error.value) {
-        errorMessage.value = voiceRecognition.error.value || "没有识别到内容，请按住说话后重试。"
+        errorMessage.value = voiceRecognition.error.value || "没有识别到内容，请点击麦克风重新说话。"
         return
       }
       clearDraftText()
@@ -1103,6 +1151,11 @@ export const useAskStore = defineStore("ask", () => {
     autoArmBargeIn,
     interruptRun,
     beginVoiceInput,
+    startVoiceInput,
+    stopVoiceInput,
+    cancelVoiceInput,
+    toggleVoiceInput,
+    voiceInputActive,
     finishVoiceInput,
     voiceInputFinishing,
     hasStageContext,

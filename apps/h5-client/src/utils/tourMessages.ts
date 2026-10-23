@@ -6,7 +6,7 @@ const zh = {
   noRoutes: '暂无该语言的已发布路线', noNarration: '本站暂无该语言的讲解', voiceMissing: '设备未安装该语言语音，可继续阅读讲解', playbackFailed: '无法播放讲解，请重试或阅读正文', minutes: '分钟', stops: '站', finished: '行程已完成', ask: '问一问',
   routeUnavailable: '扫码路线不存在或尚未发布该语言版本，请重新选择', loadFailed: '加载失败，请重试', startFailed: '开始行程失败，请重试', saveFailed: '进度保存失败，请重试', video: '观看视频', guide: '导游', noMap: '地图服务尚未配置，仍可选择路线和播放讲解', changeLanguage: '切换语言',
   zoomIn: '放大地图', zoomOut: '缩小地图', overview: '路线全览', follow: '跟随视角', unfollow: '退出跟随', routeTools: '路线工具', showRoute: '显示路线', hideRoute: '隐藏路线', locationReady: '近站讲解已开启', locationOff: '近站讲解未开启', locationWeak: '正在等待更准确的定位',
-  voiceAsk: '语音提问', voiceStop: '结束语音', voiceHint: '按住说话，松开发送', voiceReleaseHint: '松开发送，上滑取消', voiceCancel: '松开取消', voiceFinishing: '正在识别…', voiceUnsupported: '当前浏览器不支持语音识别，请点击问一问使用文字输入',
+  voiceAsk: '语音提问', voiceStop: '结束语音', voiceHint: '点击收音并打开问一问', voiceReleaseHint: '再次点击结束并发送', voiceCancel: '取消收音', voiceFinishing: '正在识别…', voiceUnsupported: '当前浏览器不支持语音识别，请点击问一问使用文字输入',
   extraAudio: '额外音频', beforeAudio: '讲解前', afterAudio: '讲解后', skipExtraAudio: '跳过额外音频', replayStop: '重新播放整站', playingNow: '正在播放', approximateResume: '系统语音按句恢复，位置为近似', autoplayBlocked: '浏览器阻止了自动播放', continuePlayback: '继续播放', extraAudioFailed: '额外音频播放失败，已跳过：', locationUnknown: '定位精度不足，接近提示暂不可用，可手动选择站点', secondsShort: '秒',
   prevStop: '上一节点', nextStop: '下一节点', rewind15: '-15 秒', forward15: '+15 秒', enterStopPlay: '进入本节点播放', drawerNotPlaying: '正在播放其他节点：', browsingNoProgress: '浏览中，未切换行程进度', playbackProgress: '播放进度', seekAtStart: '已到本段开头', seekAtEnd: '已到本段末尾', nearbyAutoPlayHint: '走近下一站将自动播放', sequentialAutoHint: '定位不可用，播完自动进入下一站', voiceFellBack: '当前音色不可用，已使用默认音色',
   queueTitle: '播放序列', queuePending: '个待播放', queueHint: '附近景点会按距离加入，并按顺序播放', queueAutoPlay: '接近时自动播放', queueOn: '已开启', queueOff: '已暂停', queueLockContent: '自动切换内容', queueUnlockContent: '允许自动切换', queuePlaying: '正在播放', queueCompleted: '已完成', queueSkipped: '已跳过', queueQueued: '待播放', queueEmpty: '还没有排队的景点', queuePlay: '立即播放', queueSkip: '跳过',
@@ -32,12 +32,12 @@ const arrivalMessages = {
 }
 
 const voiceMessages = {
-  zh: { voiceHint: '按住说话，松开发送', voiceReleaseHint: '松开发送，上滑取消', voiceCancel: '松开取消', voiceFinishing: '正在识别…', voiceUnsupported: '当前浏览器不支持语音识别，请点击问一问使用文字输入' },
-  en: { voiceHint: 'Hold to speak, release to send', voiceReleaseHint: 'Release to send, slide up to cancel', voiceCancel: 'Release to cancel', voiceFinishing: 'Recognizing…', voiceUnsupported: 'Voice input is unavailable. Tap Ask to type.' },
-  ru: { voiceHint: 'Удерживайте, чтобы говорить; отпустите для отправки', voiceReleaseHint: 'Отпустите для отправки, сдвиньте вверх для отмены', voiceCancel: 'Отпустите для отмены', voiceFinishing: 'Распознавание…', voiceUnsupported: 'Голосовой ввод недоступен. Нажмите «Спросить», чтобы ввести текст.' },
-  es: { voiceHint: 'Mantén pulsado para hablar, suelta para enviar', voiceReleaseHint: 'Suelta para enviar, desliza hacia arriba para cancelar', voiceCancel: 'Suelta para cancelar', voiceFinishing: 'Reconociendo…', voiceUnsupported: 'La voz no está disponible. Toca Preguntar para escribir.' },
-  fr: { voiceHint: 'Maintenez pour parler, relâchez pour envoyer', voiceReleaseHint: 'Relâchez pour envoyer, glissez vers le haut pour annuler', voiceCancel: 'Relâchez pour annuler', voiceFinishing: 'Reconnaissance…', voiceUnsupported: 'La saisie vocale est indisponible. Appuyez sur la question pour écrire.' },
-  ja: { voiceHint: '長押しで話す、離すと送信', voiceReleaseHint: '離すと送信、上にスライドでキャンセル', voiceCancel: '離すとキャンセル', voiceFinishing: '認識中…', voiceUnsupported: '音声入力は利用できません。「質問する」をタップして文字を入力してください。' },
+  zh: { voiceHint: '点击收音并打开问一问', voiceReleaseHint: '再次点击结束并发送', voiceCancel: '取消收音', voiceFinishing: '正在识别…', voiceUnsupported: '当前浏览器不支持语音识别，请点击问一问使用文字输入' },
+  en: { voiceHint: 'Tap to record and open Ask', voiceReleaseHint: 'Tap again to stop and send', voiceCancel: 'Cancel recording', voiceFinishing: 'Recognizing…', voiceUnsupported: 'Voice input is unavailable. Tap Ask to type.' },
+  ru: { voiceHint: 'Нажмите, чтобы начать запись и открыть чат', voiceReleaseHint: 'Нажмите ещё раз, чтобы остановить и отправить', voiceCancel: 'Отменить запись', voiceFinishing: 'Распознавание…', voiceUnsupported: 'Голосовой ввод недоступен. Нажмите «Спросить», чтобы ввести текст.' },
+  es: { voiceHint: 'Toca para grabar y abrir Preguntar', voiceReleaseHint: 'Toca de nuevo para detener y enviar', voiceCancel: 'Cancelar grabación', voiceFinishing: 'Reconociendo…', voiceUnsupported: 'La voz no está disponible. Toca Preguntar para escribir.' },
+  fr: { voiceHint: 'Appuyez pour enregistrer et ouvrir la discussion', voiceReleaseHint: 'Appuyez à nouveau pour arrêter et envoyer', voiceCancel: 'Annuler l’enregistrement', voiceFinishing: 'Reconnaissance…', voiceUnsupported: 'La saisie vocale est indisponible. Appuyez sur la question pour écrire.' },
+  ja: { voiceHint: 'タップして録音と質問を開く', voiceReleaseHint: 'もう一度タップして停止・送信', voiceCancel: '録音をキャンセル', voiceFinishing: '認識中…', voiceUnsupported: '音声入力は利用できません。「質問する」をタップして文字を入力してください。' },
 }
 
 const experienceMessages: Record<TourLocale, Partial<Record<keyof typeof zh, string>>> = {

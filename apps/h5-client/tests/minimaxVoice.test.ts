@@ -78,7 +78,7 @@ function setup(context: any) {
     media: (value: typeof media) => { media = value }, response: (value: typeof response) => { response = value } }
 }
 
-test('三个入口共享唯一控制器，松手只上传一次，WAV 为16k单声道16位PCM', async context => {
+test('三个入口共享唯一控制器，结束收音只上传一次，WAV 为16k单声道16位PCM', async context => {
   const fixture = setup(context)
   const { voice, record, requests, contexts, streams } = fixture
   assert.equal(voice, useMinimaxVoiceRecognition())
@@ -105,6 +105,20 @@ test('三个入口共享唯一控制器，松手只上传一次，WAV 为16k单�
   assert.equal(streams[0].track.stops, 1)
   assert.equal(contexts[0].state, 'closed')
   assert.deepEqual(contexts[0].modulePaths, ['/client/worklets/voice-recording.worklet.js'])
+})
+
+test('波浪音量跟随输入，达到60秒自动上传并释放麦克风', async context => {
+  const { voice, record, nodes, requests, streams } = setup(context)
+  await record()
+  assert.equal(voice.audioLevel.value, 1)
+  nodes.at(-1).port.onmessage({ data: new Float32Array(48000) })
+  assert.equal(voice.audioLevel.value, 0)
+  nodes.at(-1).port.onmessage({ data: new Float32Array(48000 * 58).fill(0.1) })
+  assert.equal(voice.listening.value, false)
+  assert.equal(voice.audioLevel.value, 0)
+  assert.equal(streams[0].track.stops, 1)
+  assert.equal(await voice.stop(), '这里有什么历史？')
+  assert.equal(requests.length, 1)
 })
 
 test('短录音立即结束等待，不上传且允许重试', async context => {

@@ -19,7 +19,7 @@ import AskLocationCard from "@/components/shell/AskLocationCard.vue"
 import AskMarkdown from "@/components/shell/AskMarkdown.vue"
 import { useAskSpeech } from "@/composables/useAskSpeech"
 import { useMinimaxVoiceRecognition } from "@/composables/useMinimaxVoiceRecognition"
-import { useVoiceHold } from "@/composables/useVoiceHold"
+import VoiceWave from "@/components/shell/VoiceWave.vue"
 import {
   extractAskUserInstruction,
   formatStageContextChipLabel,
@@ -54,7 +54,9 @@ const {
 const speech = useAskSpeech()
 /** 与行程页语音键共用同一个识别单例：这里只做状态展示与开关 */
 const recognition = useMinimaxVoiceRecognition()
-const microphoneLabel = computed(() => recognition.busy.value ? '正在处理语音…' : '按住说话')
+const microphoneLabel = computed(() => askStore.voiceInputActive
+  ? '结束收音并发送'
+  : askStore.voiceInputFinishing ? '正在识别…' : '点击开始收音')
 const msgsRef = useTemplateRef<HTMLElement>("msgsEl")
 const draft = useTemplateRef<HTMLInputElement>("draftEl")
 
@@ -76,11 +78,9 @@ const showSpeechProgress = computed(() => Boolean(speech.speakingSentence.value)
 /** 状态行提示；与相位同一行显示，过长时截断 */
 const voiceHintText = computed(() => {
   if (recognition.error.value) return recognition.error.value
-  if (voiceHold.cancelling.value) return "松开取消"
   if (askStore.voiceInputFinishing) return "正在识别你说的话，识别完成后自动发送"
-  if (voiceHold.finishing.value) return "正在识别…"
-  if (recognition.listening.value) return "正在收音，松开后上传识别"
-  if (voiceHold.held.value) return "正在开启麦克风…"
+  if (recognition.audioActive.value) return "正在收音，点击麦克风结束并发送"
+  if (askStore.voiceInputActive) return "正在开启麦克风…"
   if (speech.voicePhase.value === "speaking") return "正在朗读回复，开口说话可打断"
   if (speech.voicePhase.value === "thinking") return "正在组织回答…"
   return "回复会出现在下方气泡，可点位置卡"
@@ -159,6 +159,11 @@ watch(open, (value) => {
 
 function handleSubmit(event: Event) {
   event.preventDefault()
+  if (askStore.voiceInputActive) {
+    void askStore.stopVoiceInput()
+    return
+  }
+  if (askStore.voiceInputFinishing) return
   const text = draftText.value.trim()
   if (!text || typing.value) {
     return
@@ -181,7 +186,6 @@ function switchMode(mode: AskInteractionMode) {
 }
 
 function maximize() {
-  askStore.closeAsk()
   void router.push("/shell/ask")
 }
 
@@ -196,6 +200,7 @@ function minifyToSheet() {
 }
 
 function close() {
+  askStore.cancelVoiceInput()
   if (props.fullPage) {
     // 优先回上一页（如从路线 map 最大化进入），无历史再回户外主线
     if (window.history.length > 1) {
@@ -260,21 +265,6 @@ const composerSuggestions = computed(() => {
   return []
 })
 
-const voiceHold = useVoiceHold({
-  recognition,
-  canStart: () => props.fullPage || open.value,
-  onPress: () => speech.unlock(),
-  onStart: () => {
-    askStore.beginVoiceInput()
-  },
-  onSubmit: (text) => {
-    askStore.clearDraftText()
-    void askStore.send(text)
-  },
-  onCancel: () => askStore.clearDraftText(),
-  onError: (message) => toastStore.warning("语音输入", message),
-})
-
 async function copyVoiceDiagnostics() {
   try {
     await navigator.clipboard.writeText(recognition.diagnostics())
@@ -284,7 +274,6 @@ async function copyVoiceDiagnostics() {
   }
 }
 
-watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
 </script>
 
 <template>
@@ -567,14 +556,19 @@ watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
           </button>
         </div>
         <div class="ask-composer-inner">
+          <div v-if="isVoiceMode && askStore.voiceInputActive" class="ask-recording-island" role="status" aria-live="polite">
+            <VoiceWave v-if="recognition.audioActive.value" :level="recognition.audioLevel?.value" />
+            <span>{{ recognition.audioActive.value ? '正在聆听' : '正在开启麦克风…' }}</span>
+          </div>
           <input
+            v-else
             ref="draftEl"
             v-model="draftText"
             class="ask-input"
             type="text"
             :placeholder="isVoiceMode ? microphoneLabel : '问问位置、故事或观察重点…'"
             autocomplete="off"
-            :disabled="typing"
+            :disabled="typing || askStore.voiceInputFinishing"
             maxlength="2000"
           >
           <button
@@ -582,30 +576,20 @@ watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
             type="button"
             class="ask-mic-button"
             :class="{ 'is-listening': recognition.audioActive.value }"
-            :aria-pressed="recognition.listening.value"
+            :aria-pressed="askStore.voiceInputActive"
             :aria-label="microphoneLabel"
             :title="microphoneLabel"
-            :style="{ touchAction: 'none', userSelect: 'none' }"
-            :disabled="!voiceHold.held.value && (recognition.busy.value || voiceHold.finishing.value || askStore.voiceInputFinishing)"
-            @contextmenu.prevent
-            @pointerdown="voiceHold.pointerDown"
-            @pointermove="voiceHold.pointerMove"
-            @pointerup="voiceHold.pointerUp"
-            @pointercancel="voiceHold.pointerCancel"
-            @click="voiceHold.click"
+            :disabled="askStore.voiceInputFinishing || (!askStore.voiceInputActive && recognition.busy.value)"
+            @click="askStore.toggleVoiceInput()"
           >
-            <span
-              v-if="recognition.audioActive.value"
-              class="ask-voice-wave"
-              aria-hidden="true"
-            ><i /><i /><i /><i /></span>
+            <Square v-if="askStore.voiceInputActive" class="h-4 w-4" />
             <Mic v-else class="h-4 w-4" />
           </button>
           <button
             type="submit"
             class="ask-send"
             aria-label="发送"
-            :disabled="typing"
+            :disabled="typing || askStore.voiceInputFinishing"
           >
             <Send class="h-4 w-4" />
           </button>
@@ -621,3 +605,9 @@ watch(open, (value) => { if (!value && !props.fullPage) voiceHold.cancel() })
     </div>
   </div>
 </template>
+
+<style scoped>
+.ask-recording-island { display: flex; flex: 1; min-width: 0; height: 2.6rem; align-items: center; gap: .5rem; padding: 0 .8rem; border-radius: 999px; background: rgba(209, 178, 111, .1); color: #d1b26f; }
+.ask-recording-island .voice-wave { flex: 1; min-width: 0; }
+.ask-recording-island > span { flex-shrink: 0; font-size: .72rem; }
+</style>

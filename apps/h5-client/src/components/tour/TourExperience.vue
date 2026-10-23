@@ -12,7 +12,7 @@ import TourPlaybackQueue from '@/components/tour/TourPlaybackQueue.vue'
 import { useTourJourney } from '@/composables/useTourJourney'
 import { useFullscreen } from '@/composables/useFullscreen'
 import { useMinimaxVoiceRecognition } from '@/composables/useMinimaxVoiceRecognition'
-import { useVoiceHold } from '@/composables/useVoiceHold'
+import VoiceWave from '@/components/shell/VoiceWave.vue'
 import { useAskStore } from '@/stores/useAskStore'
 import { tourMessages } from '@/utils/tourMessages'
 import { resolveTourVoiceContext } from '@/utils/tourPlaybackContext'
@@ -42,40 +42,19 @@ let resumeNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let drawerReturnFocus: HTMLElement | null = null
 let previousBodyOverflow = ''
 const messages = computed(() => tourMessages(journey.locale.value))
-const voiceHold = useVoiceHold({
-  recognition: voice,
-  canStart: () => !journey.pending.value && Boolean(journey.active.value?.route && journey.currentStop.value),
-  lang: () => RECOGNITION_LANGS[journey.locale.value],
-  onPress: () => askStore.unlockSseAudio(),
-  onStart: () => {
-    journey.beginAskInterrupt()
-    askStore.beginVoiceInput()
-    voiceNotice.value = ''
-    setAskContext()
-  },
-  onRelease: (completion) => {
-    askStore.setInteractionMode('voice')
-    void askStore.finishVoiceInput(completion)
-    void router.push('/shell/ask')
-  },
-  onCancel: () => {
-    askStore.clearDraftText()
-    if (journey.endAskInterrupt() === 'blocked-paused') showResumeNotice()
-  },
-  onError: (message) => {
-    voiceNotice.value = message
-  },
-  onTap: () => {
-    journey.beginAskInterrupt()
-    setAskContext()
-    askStore.setInteractionMode('voice')
-    void router.push('/shell/ask')
-  },
-})
-const voiceHint = computed(() => voiceHold.cancelling.value
-  ? messages.value.voiceCancel
-  : voiceHold.finishing.value ? messages.value.voiceFinishing
-    : voiceHold.held.value ? (voice.transcript.value || '正在收音，松开后上传识别') : messages.value.voiceHint)
+function openVoiceAsk() {
+  if (journey.pending.value || !journey.currentStop.value) return
+  journey.beginAskInterrupt()
+  voiceNotice.value = ''
+  setAskContext()
+  askStore.openAsk()
+  askStore.startVoiceInput()
+  if (askStore.errorMessage) voiceNotice.value = askStore.errorMessage
+}
+
+const voiceHint = computed(() => askStore.voiceInputActive
+  ? messages.value.voiceStop
+  : askStore.voiceInputFinishing ? messages.value.voiceFinishing : messages.value.voiceHint)
 const routes = computed(() => journey.catalog.value?.routes?.filter(item => item.locale === journey.locale.value) ?? [])
 const detail = computed(() => viewingJourney.value ? journey.active.value : journey.preview.value)
 const destinationName = computed(() => journey.catalog.value?.destinations?.[0]?.name || '后海')
@@ -130,9 +109,6 @@ const showArrivalPrompt = computed(() => {
 })
 const queuedCount = computed(() => journey.playbackSequence.value.filter(item => item.status === 'queued').length)
 
-/** 语音识别语言跟随当前讲解语言，否则中文机型认不出俄语 / 西语 */
-const RECOGNITION_LANGS: Record<TourLocale, string> = { zh: 'zh-CN', en: 'en-US', ru: 'ru-RU', es: 'es-ES', fr: 'fr-FR', ja: 'ja-JP' }
-
 // 识别结果写回输入框由 AskPanel 统一负责（它始终挂载且是草稿的视图），这里只管提示
 watch(() => voice.error.value, (message) => {
   if (message) voiceNotice.value = message
@@ -140,7 +116,7 @@ watch(() => voice.error.value, (message) => {
 
 /** 接近行为抑制：问一问浮层打开、语音识别中、页面后台时不自动打开/自动开播（方案 §7.5） */
 watch(
-  () => askStore.open || voiceHold.active.value || voice.listening.value || pageHidden.value,
+  () => askStore.open || askStore.voiceInputActive || voice.listening.value || pageHidden.value,
   (suppressed) => journey.setApproachSuppressed(suppressed),
   { immediate: true },
 )
@@ -152,7 +128,7 @@ watch(() => journey.journeyRestored.value, (restored) => {
 
 /** 问答音频四类收尾：问答前在播就尽量自动恢复路线讲解（方案 §5.2） */
 watch(() => askStore.askAudioSettle, (settle) => {
-  if (!settle || !viewingJourney.value || voiceHold.active.value) return
+  if (!settle || !viewingJourney.value || askStore.voiceInputActive) return
   const result = journey.endAskInterrupt()
   if (result === 'blocked-paused') showResumeNotice()
 })
@@ -375,13 +351,13 @@ function toggleRoute() {
 }
 
 async function end() {
-  voiceHold.cancel()
+  askStore.cancelVoiceInput()
   voice.abort()
   if (await journey.end()) { viewingJourney.value = false; queueOpen.value = false; journey.closeContentDrawer() }
 }
 
 function back() {
-  voiceHold.cancel()
+  askStore.cancelVoiceInput()
   voice.abort()
   if (viewingJourney.value) { viewingJourney.value = false; queueOpen.value = false; journey.closeContentDrawer() }
   else void router.push('/shell/me')
@@ -530,19 +506,14 @@ onBeforeUnmount(() => {
           :class="{ 'is-listening': voice.audioActive.value }"
           :aria-label="voiceHint"
           :title="voiceHint"
-          :aria-pressed="voiceHold.held.value"
-          :disabled="!voiceHold.held.value && (journey.pending.value || voice.busy.value)"
-          @contextmenu.prevent
-          @pointerdown="voiceHold.pointerDown"
-          @pointermove="voiceHold.pointerMove"
-          @pointerup="voiceHold.pointerUp"
-          @pointercancel="voiceHold.pointerCancel"
-          @click="voiceHold.click"
+          :aria-pressed="askStore.voiceInputActive"
+          :disabled="journey.pending.value || voice.busy.value || askStore.voiceInputFinishing"
+          @click="openVoiceAsk"
         >
-          <span v-if="voice.audioActive.value" class="tour-voice-wave" aria-hidden="true"><i /><i /><i /></span>
+          <VoiceWave v-if="voice.audioActive.value" :level="voice.audioLevel?.value" />
           <Mic v-else :size="22" aria-hidden="true" />
         </button>
-        <p class="tour-voice-hint" :class="{ 'is-active': voiceHold.active.value || voice.error.value }" role="status">
+        <p class="tour-voice-hint" :class="{ 'is-active': askStore.voiceInputActive || voice.error.value }" role="status">
           {{ voiceHint }}
         </p>
       </div>
