@@ -33,7 +33,7 @@ test('monitor stops once on speech, never uploads detection frames and releases 
 test('unsupported realtime frames fail without requesting microphone', () => {
   const h = harness(), bargeIn = h.load('services/barge-in'); let error;
   assert.equal(bargeIn.supported(), false); assert.equal(bargeIn.monitor(() => {}, reason => { error = reason; }), null);
-  assert.match(error.message, /按住说话/); assert.equal(h.recorder.starts.length, 0);
+  assert.match(error.message, /点击麦克风/); assert.equal(h.recorder.starts.length, 0);
 });
 test('hide before detector native start still stops the microphone and does not upload', async () => {
   const h = harness(); frames(h); const page = h.page('chat'); page.onLoad(); page._visible = true; page._user = userId;

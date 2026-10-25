@@ -65,7 +65,7 @@ function recorder(onState, onResult, onError) {
     held = false; state = 'idle'; release();
     if (closed) { detach(); return; }
     onState(false, false);
-    if (!cancelled) onError(Object.assign(Error(Number(result.error) === 7 ? '录音太短，请按住至少一秒' : Number(result.error) === 10 ? '麦克风权限未开启，请允许后重试' : result.errorMessage || '录音失败，请使用文字提问'), { denied: Number(result.error) === 10 }));
+    if (!cancelled) onError(Object.assign(Error(Number(result.error) === 7 ? '录音太短，请点击麦克风说至少一秒后再结束' : Number(result.error) === 10 ? '麦克风权限未开启，请允许后重试' : result.errorMessage || '录音失败，请使用文字提问'), { denied: Number(result.error) === 10 }));
   };
   manager.onStart(start); manager.onStop(stop); manager.onError(error);
   return {

@@ -54,6 +54,7 @@ Page({
   onHide() {
     this._backgroundResume = this.capturePlayback();
     this._visible = false; this.saveCheckpoint();
+    if (getApp().globalData.voiceInput === this._voice && this._voice) { this._voice.cancel(); getApp().globalData.voiceInput = null; }
     if (this._recorder && !this._handedVoice) this.cancelVoice();
     this.setData({ chatOpen: false });
     this._dwell = null;
@@ -355,7 +356,7 @@ Page({
   suspendForAsk() { this._asking = true; const snapshot = this.capturePlayback(); if (snapshot) this._askResume = snapshot; this.saveCheckpoint(); this.syncContext(); if (audio.snapshot().owner === 'tour') audio.pause(); },
   resumeAfterAsk() { if (this.data.chatOpen) return; this._asking = false; const snapshot = this._askResume; this._askResume = null; this._backgroundResume = null; this.restorePlayback(snapshot); },
   ask() { this.suspendForAsk(); this.setData({ chatOpen: true }); },
-  closeChat() { this.setData({ chatOpen: false }); this.resumeAfterAsk(); },
+  closeChat() { if (getApp().globalData.voiceInput === this._voice && this._voice) { this._voice.cancel(); getApp().globalData.voiceInput = null; } this.setData({ chatOpen: false }); this.resumeAfterAsk(); },
   chatInterrupt() { this.suspendForAsk(); },
   chatSettled() { this.restorePlayback(this._askResume); },
   restoreSequence() {
@@ -398,43 +399,33 @@ Page({
   enterCandidate(event) { const id = ui.dataset(event).id; if (!this.data.candidates.some(candidate => candidate.id === id)) return; this.dismissCandidates(); this.mutate(() => this.enter(this.data.stops.findIndex(s => s.id === id))); },
   dismissCandidates() { const dismissedCandidates = this._dismissedCandidates || (this._dismissedCandidates = new Set()); (this.data.candidates || []).forEach(candidate => dismissedCandidates.add(candidate.id)); this.setData({ candidates: [] }); },
   previewImages() { if (this.data.stop && this.data.stop.images && this.data.stop.images.length) my.previewImage({ urls: this.data.stop.images.map(i => i.url) }); },
-  startRecording(event) {
-    if (this.data.busy || this.data.loading || this.data.recording || this.data.transcribing || !this.data.stop) return;
+  startRecording() {
+    if (this.data.busy || this.data.loading || this.data.chatOpen || this.data.recording || this.data.transcribing || !this.data.stop) return;
     this.cancelVoice();
     this.suspendForAsk();
     const user = ui.userId(), key = this.contextKey();
     this.setData({ recording: true, transcribing: false, cancelRecording: false, error: '' });
-    this._startY = event.touches && event.touches[0] && event.touches[0].clientY || 0;
     let resolveVoice, rejectVoice;
     const promise = new Promise((resolve, reject) => { resolveVoice = resolve; rejectVoice = reject; });
     promise.catch(() => {});
-    const voice = { userId: user, promise, cancel: () => { if (voice.recorder) voice.recorder.destroy(); rejectVoice(Object.assign(Error('录音已取消'), { cancelled: true })); if (getApp().globalData.cancelVoiceInput === voice.cancel) getApp().globalData.cancelVoiceInput = null; } };
+    const voice = { userId: user, promise, state: { recording: true, transcribing: false, microphoneStarting: true }, cancel: () => { if (voice.recorder) voice.recorder.destroy(); rejectVoice(Object.assign(Error('录音已取消'), { cancelled: true })); if (getApp().globalData.cancelVoiceInput === voice.cancel) getApp().globalData.cancelVoiceInput = null; } };
     this._voice = voice;
     getApp().globalData.cancelVoiceInput = voice.cancel;
     const active = () => this._voice === voice && user === ui.userId() && key === this.contextKey();
     try {
-      voice.recorder = speech.recorder((recording, transcribing) => { if (active() && this._visible && !this._handedVoice) this.setData({ recording, transcribing }); }, text => {
+      voice.recorder = speech.recorder((recording, transcribing) => { voice.state = { recording, transcribing, microphoneStarting: false }; if (voice.onState) voice.onState(voice.state); if (active() && this._visible && !this._handedVoice) this.setData({ recording, transcribing }); }, text => {
         if (getApp().globalData.cancelVoiceInput === voice.cancel) getApp().globalData.cancelVoiceInput = null;
         if (user !== ui.userId()) { voice.cancel(); return; }
         resolveVoice(text); voice.recorder.destroy();
-      }, error => { rejectVoice(error); if (getApp().globalData.cancelVoiceInput === voice.cancel) getApp().globalData.cancelVoiceInput = null; if (active() && this._visible && !this._handedVoice) { this.setData({ recording: false, transcribing: false, error: error.message }); this.resumeAfterAsk(); } });
+      }, error => { voice.recorder.destroy(); rejectVoice(error); if (getApp().globalData.cancelVoiceInput === voice.cancel) getApp().globalData.cancelVoiceInput = null; if (active() && this._visible && !this._handedVoice) { this.setData({ recording: false, transcribing: false, error: error.message }); this.resumeAfterAsk(); } });
       this._recorder = voice.recorder;
       voice.recorder.start();
+      this._handedVoice = true;
+      getApp().globalData.voiceInput = voice;
+      this.syncContext();
+      this.setData({ recording: false, chatOpen: true });
     } catch (error) { voice.cancel(); this.setData({ recording: false, transcribing: false, error: error.message }); this.resumeAfterAsk(); }
   },
-  moveRecording(event) { const y = event.touches && event.touches[0] && event.touches[0].clientY; if (typeof y === 'number') this.setData({ cancelRecording: this._startY - y > 60 }); },
-  stopRecording() {
-    const voice = this._voice;
-    if (!voice || !this._recorder) return;
-    if (this.data.cancelRecording) { this.cancelTouch(); return; }
-    this._handedVoice = true;
-    voice.recorder.stop();
-    getApp().globalData.voiceInput = voice;
-    this.setData({ recording: false, transcribing: false });
-    this.syncContext();
-    my.navigateTo({ url: '/pages/chat/index', fail: () => { this._handedVoice = false; voice.cancel(); this.setData({ error: '无法打开问答，请重试' }); this.resumeAfterAsk(); } });
-  },
   cancelVoice() { if (this._voice && !this._handedVoice) this._voice.cancel(); this._voice = null; this._recorder = null; this._handedVoice = false; this.setData({ recording: false, transcribing: false }); },
-  cancelTouch() { this.cancelVoice(); this.resumeAfterAsk(); },
   retry() { this.initialize(); }
 });

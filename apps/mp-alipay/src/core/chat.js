@@ -12,10 +12,10 @@ const ui = require('./ui');
 const config = require('../config');
 module.exports = function createChat() { return {
   data: { text: '', messages: [], sessions: [], sessionId: '', busy: false, loading: false, error: '', contextTitle: '随时提问，了解沿途的故事', recording: false, transcribing: false, cancelRecording: false, enableAudio: true, mode: 'voice', playingId: '', scrollTarget: '', voiceId: '', showSessions: false, caption: '', captionProgress: 0, bargeInEnabled: false, bargeInSupported: false, expanded: false, embedded: false, transport: 'buffered' },
-  onLoad() { this._seq = 0; this._files = []; this.setData({ bargeInSupported: bargeIn.supported() }); },
+  onLoad() { this._seq = 0; this._files = []; this.setData({ microphoneStarting: false, bargeInSupported: bargeIn.supported() }); },
   onShow() {
     this._visible = true;
-    this.setData({ busy: false, loading: false, recording: false, transcribing: false, playingId: '', caption: '', messages: this.data.messages.map(message => Object.assign({}, message, { pending: false, audioPaths: [] })) });
+    this.setData({ busy: false, loading: false, recording: false, microphoneStarting: false, transcribing: false, playingId: '', caption: '', messages: this.data.messages.map(message => Object.assign({}, message, { pending: false, audioPaths: [] })) });
     const show = this._show = (this._show || 0) + 1, app = getApp(), context = app.globalData.chatContext;
     const handoff = app.globalData.voiceInput;
     if (handoff) app.globalData.voiceInput = null;
@@ -25,13 +25,16 @@ module.exports = function createChat() { return {
     const ready = this.initialize();
     if (handoff && handoff.userId === ui.userId()) {
       this._voiceHandoff = handoff;
-      this.setData({ transcribing: true });
+      handoff.onState = state => {
+        if (this._visible && this._voiceHandoff === handoff && handoff.userId === ui.userId()) this.setData(state);
+      };
+      this.setData(Object.assign({ mode: 'voice' }, handoff.state || { transcribing: true }));
       Promise.all([ready, handoff.promise]).then(([initialized, text]) => {
         if (!this._visible || show !== this._show || handoff.userId !== ui.userId() || this._voiceHandoff !== handoff) return;
-        this._voiceHandoff = null; this.setData({ transcribing: false, text });
+        this._voiceHandoff = null; this.setData({ recording: false, microphoneStarting: false, transcribing: false, text });
         if (!initialized) return;
         if (text.trim()) this.send(text); else this.setData({ error: '没有识别到语音，请重试' });
-      }).catch(error => { if (this._visible && show === this._show && handoff.userId === ui.userId()) { this._voiceHandoff = null; this.setData({ transcribing: false, error: error.message }); } });
+      }).catch(error => { if (this._visible && show === this._show && handoff.userId === ui.userId() && this._voiceHandoff === handoff) { this._voiceHandoff = null; this.setData({ recording: false, microphoneStarting: false, transcribing: false, error: error.message }); } });
     } else { if (handoff) handoff.cancel(); }
   },
   onHide() { this._visible = false; this._show = (this._show || 0) + 1; this._init = (this._init || 0) + 1; if (this._voiceHandoff) this._voiceHandoff.cancel(); this._voiceHandoff = null; this.cancel(true); this.destroyRecorder(true); this.stopBargeIn(); audio.stop('chat'); speech.cleanup(this._files); this._files = []; },
@@ -43,9 +46,9 @@ module.exports = function createChat() { return {
     try {
       await auth.ensure(); if (!active()) return;
       const user = ui.userId();
-      if (this._user !== user) { this.cancel(); this.destroyRecorder(); audio.stop('chat'); speech.cleanup(this._files); this._files = []; this._user = user; this.setData({ messages: [], sessions: [], sessionId: '', enableAudio: storage.read(storage.scoped(user, 'chatAudio'), true), voiceId: storage.read(storage.scoped(user, 'voice'), '') }); }
+      if (this._user !== user) { this.cancel(); this.destroyRecorder(false, !!this._voiceHandoff && this._voiceHandoff.userId === user); audio.stop('chat'); speech.cleanup(this._files); this._files = []; this._user = user; this.setData({ messages: [], sessions: [], sessionId: '', enableAudio: storage.read(storage.scoped(user, 'chatAudio'), true), voiceId: storage.read(storage.scoped(user, 'voice'), '') }); }
       this.setData({ voiceId: storage.read(storage.scoped(user, 'voice'), '') });
-      if (this._voiceHandoff && this._voiceHandoff.userId === user) this.setData({ transcribing: true });
+      if (this._voiceHandoff && this._voiceHandoff.userId === user) this.setData(this._voiceHandoff.state || { transcribing: true });
       const seq = this._seq; await this.loadSessions();
       if (!active() || seq !== this._seq || user !== ui.userId()) return;
       if (!this.data.sessionId) {
@@ -82,7 +85,7 @@ module.exports = function createChat() { return {
     try { await http.post('/ExhibitChat/archive', { id }); if (!this.valid(seq, user)) return; if (id === this.data.sessionId) this.newSession(); await this.loadSessions(); } catch (e) { if (this.valid(seq, user)) ui.error(this, e); } finally { if (this.valid(seq, user)) this.setData({ busy: false }); }
   },
   input(event) { this.setData({ text: ui.value(event) }); },
-  toggleMode(event) { const mode = ui.dataset(event).mode; if (mode !== 'voice' && mode !== 'text') return; this.setData({ mode }); },
+  toggleMode(event) { const mode = ui.dataset(event).mode; if (mode !== 'voice' && mode !== 'text') return; if (mode === 'text') this.cancelTouch(); this.setData({ mode }); },
   changeAudio(event) { this.setData({ enableAudio: !!ui.value(event) }); storage.write(storage.scoped(this._user, 'chatAudio'), this.data.enableAudio); if (!this.data.enableAudio) { if (this._playbackTask) this._playbackTask.mute(); this.stopBargeIn(); audio.stop('chat'); this.setData({ playingId: '', caption: '' }); this.settleTour(); } },
   scroll() { const messages = this.data.messages; if (messages.length) this.setData({ scrollTarget: messages[messages.length - 1].domId }); },
   suggest(event) { const text = ui.dataset(event).text; this.setData({ text }); this.send(text); },
@@ -187,20 +190,20 @@ module.exports = function createChat() { return {
     else if (locations.length > 1) my.showActionSheet({ title: '选择位置', items: locations.map(l => l.locationName || l.entranceName || '位置'), success: r => { if (r.index >= 0) open(locations[r.index]); } });
     else { const urls = (item.maps || []).filter(m => m.mapImageUrl).map(m => m.mapImageUrl); if (urls.length) my.previewImage({ urls }); else my.alert({ title: item.exhibitName || '位置', content: item.gallery ? [item.gallery.floorName, item.gallery.galleryName, item.showcaseNo].filter(Boolean).join(' · ') : '暂无可用位置' }); }
   },
-  async startRecording(event) {
+  toggleRecording() { if (this.data.recording) this.stopRecording(); else if (!this.data.transcribing) return this.startRecording(); },
+  async startRecording() {
     diag('mic', { event: 'press', mode: this.data.mode, loading: !!this.data.loading, transcribing: !!this.data.transcribing, recording: !!this.data.recording, visible: !!this._visible });
     if (this.data.loading || this.data.transcribing || this.data.recording) { diag('mic', { event: 'ignored' }); return; }
     const press = this._press = {};
     this.cancel(); this.interruptTour();
-    this.setData({ error: '', cancelRecording: false, recording: true }); audio.stop('chat');
-    this._startY = event.touches && event.touches[0] && event.touches[0].clientY || 0;
+    this.setData({ error: '', text: '', cancelRecording: false, recording: true, microphoneStarting: true }); audio.stop('chat');
     const user = this._user;
     try {
       if (this._bargeStopping) await this._bargeStopping;
       if (this._press !== press || !this._visible || user !== ui.userId()) { diag('mic', { event: 'aborted' }); return; }
       if (!this._recorder) this._recorder = speech.recorder((recording, transcribing) => {
         diag('mic', { event: 'state', recording, transcribing });
-        if (this._visible && user === ui.userId()) this.setData({ recording, transcribing });
+        if (this._visible && user === ui.userId()) this.setData({ recording, transcribing, microphoneStarting: false });
       }, text => {
         if (!this._visible || user !== ui.userId()) return;
         this.setData({ transcribing: false, text });
@@ -208,31 +211,37 @@ module.exports = function createChat() { return {
         else this.send(text);
       }, e => {
         diag('mic', { event: 'error', message: e.message });
-        // ASR 失败后原生管理器可能仍保留 processing 状态；丢弃实例，确保下一次按住能重新申请录音。
         if (this._recorder) {
           this._recorder.destroy();
           this._recorder = null;
         }
         if (this._visible && user === ui.userId()) {
-          this.setData({ recording: false, transcribing: false });
+          this.setData({ recording: false, transcribing: false, microphoneStarting: false });
           ui.error(this, e);
         }
       });
       this._recorder.start();
       diag('mic', { event: 'recording' });
-    } catch (e) { diag('mic', { event: 'start-failed', message: e.message }); if (this._visible) { this.setData({ recording: false }); ui.error(this, e); } }
+    } catch (e) { diag('mic', { event: 'start-failed', message: e.message }); if (this._visible) { this.setData({ recording: false, microphoneStarting: false }); ui.error(this, e); } }
   },
-  moveRecording(event) { const y = event.touches && event.touches[0] && event.touches[0].clientY; if (typeof y === 'number') this.setData({ cancelRecording: this._startY - y > 60 }); },
-  stopRecording() { diag('mic', { event: 'release', cancel: !!this.data.cancelRecording, hasRecorder: !!this._recorder }); this._press = null; if (this._recorder) this._recorder.stop(this.data.cancelRecording); this.setData({ recording: false }); },
-  cancelTouch() { diag('mic', { event: 'cancel' }); this._press = null; if (this._recorder) this._recorder.stop(true); this.setData({ recording: false, transcribing: false }); },
-  destroyRecorder(silent = false) { this._press = null; if (this._recorder) this._recorder.destroy(); this._recorder = null; if (!silent && this._visible) this.setData({ recording: false, transcribing: false }); },
+  stopRecording() {
+    if (!this.data.recording) return;
+    this._press = null;
+    if (this.data.microphoneStarting) { this.cancelTouch(); return; }
+    this.setData({ recording: false, transcribing: true });
+    if (this._voiceHandoff) this._voiceHandoff.recorder.stop();
+    else if (this._recorder) this._recorder.stop();
+    else this.setData({ transcribing: false });
+  },
+  cancelTouch() { this.destroyRecorder(); },
+  destroyRecorder(silent = false, preserveHandoff = false) { this._press = null; if (!preserveHandoff) { if (this._voiceHandoff) this._voiceHandoff.cancel(); this._voiceHandoff = null; } if (this._recorder) this._recorder.destroy(); this._recorder = null; if (!silent && this._visible && !preserveHandoff) this.setData({ recording: false, transcribing: false, microphoneStarting: false }); },
   microphoneHelp() { if (my.showAuthGuide) my.showAuthGuide({ authType: 'MICROPHONE' }); },
   interruptTour() { if (this.props && this.props.onInterrupt) this.props.onInterrupt(); },
   settleTour() { if (this._visible && !this.data.busy && !this.data.recording && !this.data.transcribing && this.props && this.props.onSettled) this.props.onSettled(); },
   toggleBargeIn(event) { const enabled = !!ui.value(event); this.setData({ bargeInEnabled: enabled, error: '' }); if (enabled && audio.snapshot().owner === 'chat' && audio.snapshot().playing) this.startBargeIn(); else this.stopBargeIn(); },
   startBargeIn() {
     if (!this.data.bargeInEnabled || !this._visible || this._bargeIn) return;
-    this._bargeIn = bargeIn.monitor(() => { this.cancel(); if (this._visible) this.setData({ error: '已打断朗读，可按住说话继续提问' }); }, error => { if (this._visible) this.setData({ bargeInEnabled: false, error: error.message }); });
+    this._bargeIn = bargeIn.monitor(() => { this.cancel(); if (this._visible) this.setData({ error: '已打断朗读，可点击麦克风继续提问' }); }, error => { if (this._visible) this.setData({ bargeInEnabled: false, error: error.message }); });
   },
   stopBargeIn() { if (this._bargeIn) this._bargeStopping = this._bargeIn.stop(); this._bargeIn = null; return this._bargeStopping; },
   toggleExpanded() {

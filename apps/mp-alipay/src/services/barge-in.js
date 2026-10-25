@@ -25,7 +25,7 @@ function createDetector() {
   };
 }
 function monitor(onVoice, onError) {
-  if (!supported()) { onError(Error('当前支付宝版本未提供实时收音，请按住说话打断')); return null; }
+  if (!supported()) { onError(Error('当前支付宝版本未提供实时收音，请点击麦克风提问')); return null; }
   const manager = my.getRecorderManager(), owner = {};
   if (!speech.reserveRecorder(owner)) return null;
   let closed = false, started = false, released = false, resolveStopped;
@@ -41,7 +41,7 @@ function monitor(onVoice, onError) {
   };
   const start = () => { if (released) return; started = true; if (closed) manager.stop(); };
   const stop = result => { detach(result); };
-  const error = reason => { detach(); if (!closed) { closed = true; onError(Error(reason.errorMessage || '当前设备无法边播放边检测人声，请按住说话打断')); } };
+  const error = reason => { detach(); if (!closed) { closed = true; onError(Error(reason.errorMessage || '当前设备无法边播放边检测人声，请点击麦克风提问')); } };
   const close = () => { if (!closed) { closed = true; if (started && !released) manager.stop(); } return stopped; };
   const frame = result => {
     if (closed || released || !result.frameBuffer) return;
@@ -49,7 +49,7 @@ function monitor(onVoice, onError) {
   };
   manager.onStart(start); manager.onStop(stop); manager.onError(error); manager.onFrameRecorded(frame);
   try { manager.start({ format: 'pcm', sampleRate: 16000, numberOfChannels: 1, frameSize: 2, duration: 60000 }); }
-  catch (reason) { detach(); closed = true; onError(Error(reason.message || '实时收音不可用，请按住说话打断')); }
+  catch (reason) { detach(); closed = true; onError(Error(reason.message || '实时收音不可用，请点击麦克风提问')); }
   return { stop: close };
 }
 module.exports = { supported, createDetector, monitor };

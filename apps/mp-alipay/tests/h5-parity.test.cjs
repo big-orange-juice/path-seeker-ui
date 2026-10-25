@@ -111,13 +111,18 @@ test('map follows GCJ coordinates, ignores weak fixes and retains range outlines
   page.toggleRoute(); assert.deepEqual(plain(page.data.map.polyline), ['boundary']); page.toggleRoute(); assert.deepEqual(plain(page.data.map.polyline), ['boundary', 'route']);
   page.onHide();
 });
-test('tour voice release hands off immediately and sends once after recognition', async () => {
+test('tour voice tap opens sheet and keeps recording until chat toggles off', async () => {
   const h = harness(), tour = setupTour(h); let navigations = 0; h.my.navigateTo = () => navigations++;
-  tour.play(); tour.startRecording({ touches: [{ clientY: 100 }] }); h.recorder.emit('Start'); tour.stopRecording();
-  assert.equal(navigations, 1); assert.ok(h.app.globalData.voiceInput); assert.equal(h.load('services/audio').snapshot().playing, false);
-  tour.onHide();
+  tour.play(); tour.startRecording();
+  assert.equal(tour.data.chatOpen, true); assert.equal(navigations, 0); assert.ok(h.app.globalData.voiceInput); assert.equal(h.load('services/audio').snapshot().playing, false);
+  tour.startRecording(); assert.equal(h.recorder.starts.length, 1);
   const chat = h.page('chat'); chat.onLoad(); chat.onShow(); await tick();
+  assert.equal(chat.data.recording, true); assert.equal(chat.data.microphoneStarting, true);
+  h.recorder.emit('Start'); assert.equal(chat.data.microphoneStarting, false);
   h.requests[0].ok([]); await tick();
+  assert.equal(chat.data.recording, true); assert.equal(h.recorder.stops, 0);
+  chat.toggleExpanded(); chat.toggleExpanded(); assert.equal(h.recorder.stops, 0);
+  chat.toggleRecording(); chat.toggleRecording(); assert.equal(h.recorder.stops, 1);
   const stopped = h.recorder.emit('Stop', { tempFilePath: '/voice.audio' }); await tick();
   h.requests[1].ok({ text: '这是哪里？' }); await Promise.all(stopped); await tick();
   assert.equal(h.requests[2].options.data.title, '这是哪里？');
@@ -126,13 +131,71 @@ test('tour voice release hands off immediately and sends once after recognition'
   h.requests[3].text(event('text.delta', { content: '沿途景点' }) + event('done', {})); await tick();
   chat.onHide();
 });
-test('tour voice swipe cancellation and hiding never upload or navigate on late callbacks', async () => {
-  for (const cancel of ['cancelTouch', 'onHide']) {
+test('closing sheet before mount or hiding cancels pending microphone handoff', async () => {
+  for (const cancel of ['closeChat', 'onHide']) {
     const h = harness(), page = setupTour(h); let navigations = 0; h.my.navigateTo = () => navigations++;
-    page.startRecording({ touches: [{ clientY: 100 }] }); page[cancel](); h.recorder.emit('Start');
+    page.startRecording(); page[cancel](); h.recorder.emit('Start');
     await Promise.all(h.recorder.emit('Stop', { tempFilePath: '/cancel.audio' }));
     assert.equal(h.requests.length, 0); assert.equal(navigations, 0); assert.ok(h.removed.includes('/cancel.audio'));
   }
+});
+
+test('chat toggle persists after tap, shows actual native start and cancels on text mode', async () => {
+  const h = harness(), page = setupChat(h);
+  await page.toggleRecording();
+  assert.equal(page.data.recording, true); assert.equal(page.data.microphoneStarting, true);
+  h.recorder.emit('Start');
+  assert.equal(page.data.microphoneStarting, false); assert.equal(h.recorder.stops, 0);
+  page.toggleMode({ currentTarget: { dataset: { mode: 'text' } } });
+  assert.equal(page.data.recording, false); assert.equal(page.data.mode, 'text');
+  await Promise.all(h.recorder.emit('Stop', { tempFilePath: '/text-cancel.audio' }));
+  assert.equal(h.requests.length, 0); assert.ok(h.removed.includes('/text-cancel.audio'));
+  page.onHide();
+});
+
+test('second tap during permission startup cancels and ignores late native start', async () => {
+  const h = harness(), page = setupChat(h);
+  await page.toggleRecording(); page.toggleRecording();
+  assert.equal(page.data.recording, false);
+  h.recorder.emit('Start'); assert.equal(h.recorder.stops, 1);
+  await Promise.all(h.recorder.emit('Stop', { tempFilePath: '/startup-cancel.audio' }));
+  assert.equal(h.requests.length, 0); page.onHide();
+});
+
+test('native duration limit stops recording and automatically submits once without another tap', async () => {
+  const h = harness(), page = setupChat(h);
+  await page.toggleRecording(); assert.equal(h.recorder.starts[0].duration, 60000);
+  h.recorder.emit('Start');
+  const stopped = h.recorder.emit('Stop', { tempFilePath: '/duration.audio' }); await tick();
+  assert.equal(page.data.recording, false); assert.equal(page.data.transcribing, true);
+  page.toggleRecording(); assert.equal(h.recorder.starts.length, 1);
+  h.requests[0].ok({ text: '自动结束的问题' }); await Promise.all(stopped); await tick();
+  assert.equal(h.requests[1].options.data.message, '自动结束的问题'); page.onHide();
+});
+
+test('handed-off permission failure clears starting state and releases recorder listeners', async () => {
+  const h = harness(), tour = setupTour(h);
+  tour.startRecording();
+  const chat = h.page('chat'); chat.onLoad(); chat.onShow(); await tick();
+  h.requests[0].ok([]); await tick();
+  h.recorder.emit('Error', { error: 10 }); await tick();
+  assert.equal(chat.data.recording, false); assert.equal(chat.data.microphoneStarting, false);
+  assert.match(chat.data.error, /权限/); assert.equal(h.recorder.callbacks('Start').length, 0);
+  await chat.toggleRecording(); assert.equal(h.recorder.starts.length, 2); chat.onHide();
+  h.recorder.emit('Start'); await Promise.all(h.recorder.emit('Stop', { tempFilePath: '/retry-cancel.audio' }));
+});
+
+test('switching text mode cancels handed-off transcription and ignores its late result', async () => {
+  const h = harness(), tour = setupTour(h);
+  tour.startRecording();
+  const chat = h.page('chat'); chat.onLoad(); chat.onShow(); await tick();
+  h.requests[0].ok([]); await tick(); h.recorder.emit('Start');
+  chat.toggleRecording();
+  const stopped = h.recorder.emit('Stop', { tempFilePath: '/late.audio' }); await tick();
+  chat.toggleMode({ currentTarget: { dataset: { mode: 'text' } } });
+  h.requests[1].ok({ text: '取消的问题' }); await Promise.all(stopped); await tick();
+  assert.equal(h.requests.length, 2); assert.equal(chat.data.text, '');
+  assert.equal(chat.data.transcribing, false); assert.equal(chat.data.error, ''); chat.onHide();
 });
 test('chat recording stops an active answer and automatically sends recognized text once', async () => {
   const h = harness(), page = setupChat(h); page.setData({ text: '旧问题' }); const old = page.send(); await tick();

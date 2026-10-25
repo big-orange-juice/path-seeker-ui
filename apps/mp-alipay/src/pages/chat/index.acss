@@ -69,3 +69,14 @@
 .caption { padding: 12rpx 26rpx; color: #183e43; background: #edf5ef; font-size: 23rpx; }
 .caption-track { height: 4rpx; margin-top: 8rpx; background: #d4e0d9; }
 .caption-progress { height: 4rpx; background: #183e43; }
+.mic-stop { width: 24rpx; height: 24rpx; border-radius: 5rpx; background: currentColor; }
+.mic-button[disabled] { opacity: .45; }
+.recording-island { display: flex; align-items: center; gap: 16rpx; min-width: 0; height: 76rpx; padding: 0 20rpx; border-radius: 38rpx; background: #edf5ef; color: #183e43; }
+.recording-island text { flex-shrink: 0; font-size: 23rpx; }
+.recording-wave { position: relative; flex: 1; min-width: 0; height: 48rpx; overflow: hidden; }
+.wave-line { position: absolute; inset: 0; display: flex; align-items: center; animation: recording-flow 1.4s ease-in-out infinite alternate; transform-origin: center; }
+.wave-line view { flex: 1; height: 22rpx; border-top: 3rpx solid currentColor; border-radius: 50% 50% 0 0; transform: translateY(-10rpx); }
+.wave-line view:nth-child(even) { border-top: 0; border-bottom: 3rpx solid currentColor; border-radius: 0 0 50% 50%; transform: translateY(10rpx); }
+.wave-echo { opacity: .35; animation-delay: -.7s; }
+@keyframes recording-flow { from { transform: scaleY(.3); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .wave-line { animation: none; } }
