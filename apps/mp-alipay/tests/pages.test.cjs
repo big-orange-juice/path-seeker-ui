@@ -34,7 +34,7 @@ test('first tour launch waits for language selection and preserves a linked rout
   h.requests[4].ok(visit()); await start;
   assert.equal(p.data.tourStage, 'navigation'); assert.equal(p.data.contentOpen, false);
   p.openContent(); assert.equal(p.data.contentOpen, true);
-  p.closeContent(); assert.equal(p.data.contentOpen, false); assert.equal(h.load('services/audio').snapshot().playing, true);
+  p.closeContent(); assert.equal(p.data.contentOpen, false); assert.equal(h.load('services/audio').snapshot().playing, false);
   p.openContent(); p.toggleQueue(); assert.equal(p.data.contentOpen, false); assert.equal(p.data.queueOpen, true);
   p.backToOverview(); assert.equal(p.data.tourStage, 'overview'); assert.equal(p.data.queueOpen, false);
   assert.equal(p.data.visit.visitId, visitId); assert.equal(h.requests.length, 5);

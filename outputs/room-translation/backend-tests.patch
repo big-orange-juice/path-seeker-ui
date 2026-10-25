@@ -1,0 +1,121 @@
+*** Begin Patch
+*** Add File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.ApiTests/TranslationRoomTests.cs
++using System.Reflection;
++using System.Text.Json;
++using CulturalTourismSystem.Common;
++using CulturalTourismSystem.Common.Exceptions;
++using CulturalTourismSystem.IRepository;
++using CulturalTourismSystem.Model.DataBase;
++using CulturalTourismSystem.Model.Request;
++using CulturalTourismSystem.Service.Chat;
++using Microsoft.Extensions.Configuration;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Logging.Abstractions;
++using Xunit;
++
++namespace CulturalTourismSystem.ApiTests;
++
++public sealed class TranslationRoomTests
++{
++    [Fact]
++    public void Shared_results_respect_each_member_start_and_subscription_version()
++    {
++        var room = State();
++        var host = room.Host = new();
++        var oldListener = new TranslationRoomConnection();
++        var newListener = new TranslationRoomConnection();
++        var otherLanguage = new TranslationRoomConnection();
++        room.Members[2] = new() { UserId = 2, Language = TranslationTargetLanguage.English, Version = 2, StartSequence = 1, Connection = oldListener };
++        room.Members[3] = new() { UserId = 3, Language = TranslationTargetLanguage.English, Version = 7, StartSequence = 11, Connection = newListener };
++        room.Members[4] = new() { UserId = 4, Language = TranslationTargetLanguage.Japanese, Version = 1, StartSequence = 1, Connection = otherLanguage };
++
++        var commit = new TranslationRoomCommit(9223372036854775001, 10, new(10, 10, 10, "source", "semantic"));
++        room.Send("audio.delta", new { audio = "aabb" }, commit, TranslationTargetLanguage.English);
++        Assert.True(oldListener.Events.Reader.TryRead(out var first));
++        Assert.False(newListener.Events.Reader.TryRead(out _));
++        Assert.False(otherLanguage.Events.Reader.TryRead(out _));
++        Assert.False(host.Events.Reader.TryRead(out _));
++        using var firstJson = JsonDocument.Parse(first);
++        Assert.Equal("9223372036854775000", firstJson.RootElement.GetProperty("roomId").GetString());
++        Assert.Equal(2, firstJson.RootElement.GetProperty("subscriptionVersion").GetInt32());
++
++        room.Send("audio.delta", new { audio = "ccdd" }, commit with { Sequence = 11 }, TranslationTargetLanguage.English);
++        Assert.True(oldListener.Events.Reader.TryRead(out var oldBytes));
++        Assert.True(newListener.Events.Reader.TryRead(out var newBytes));
++        using var oldJson = JsonDocument.Parse(oldBytes);
++        using var newJson = JsonDocument.Parse(newBytes);
++        Assert.Equal(oldJson.RootElement.GetProperty("eventId").GetString(), newJson.RootElement.GetProperty("eventId").GetString());
++        Assert.Equal(7, newJson.RootElement.GetProperty("subscriptionVersion").GetInt32());
++    }
++
++    [Fact]
++    public void Slow_listener_is_cancelled_without_blocking_others()
++    {
++        var room = State();
++        var slow = new TranslationRoomConnection();
++        var fast = new TranslationRoomConnection();
++        room.Members[2] = new() { UserId = 2, Language = TranslationTargetLanguage.English, Connection = slow };
++        room.Members[3] = new() { UserId = 3, Language = TranslationTargetLanguage.English, Connection = fast };
++        for (var index = 0; index < 129; index++)
++        {
++            room.Send("room.paused");
++            Assert.True(fast.Events.Reader.TryRead(out _));
++        }
++        Assert.True(slow.Lifetime.IsCancellationRequested);
++        Assert.False(fast.Lifetime.IsCancellationRequested);
++    }
++
++    [Fact]
++    public void Language_limit_counts_connections_and_allows_switch_away_from_last_listener()
++    {
++        var room = State();
++        room.Members[2] = new() { UserId = 2, Language = TranslationTargetLanguage.English, Connection = new() };
++        room.Members[3] = new() { UserId = 3, Language = TranslationTargetLanguage.Japanese, Connection = new() };
++        room.Members[4] = new() { UserId = 4, Language = TranslationTargetLanguage.German, Connection = new() };
++        Assert.Throws<ValidationException>(() => TranslationRoomService.EnsureLanguageCapacity(room, TranslationTargetLanguage.French, 5));
++        TranslationRoomService.EnsureLanguageCapacity(room, TranslationTargetLanguage.French, 4);
++        TranslationRoomService.EnsureLanguageCapacity(room, TranslationTargetLanguage.English, 5);
++    }
++
++    [Fact]
++    public async Task Matching_phone_does_not_authorize_a_different_or_unbound_account()
++    {
++        var services = new ServiceCollection();
++        var user = DispatchProxy.Create<IAppUserRepository, RepositoryProxy>();
++        ((RepositoryProxy)(object)user).Entity = new AppUser { Id = 42, Phone = "13800138000", Status = 1, RegisterChannel = 6 };
++        var vehicles = DispatchProxy.Create<IRickshawVehicleRepository, RepositoryProxy>();
++        var vehicle = new RickshawVehicle { Id = 8, DriverPhone = "13800138000", Status = RickshawStatuses.Enabled, DriverUserId = 99 };
++        ((RepositoryProxy)(object)vehicles).Entity = vehicle;
++        services.AddSingleton(user);
++        services.AddSingleton(vehicles);
++        using var provider = services.BuildServiceProvider();
++        var service = new TranslationRoomService(provider.GetRequiredService<IServiceScopeFactory>(),
++            new SnowflakeIdGenerator(1, 1), NullLogger<TranslationRoomService>.Instance, new ConfigurationBuilder().Build());
++
++        var request = new CreateTranslationRoomRequest { RickshawId = "8", SourceLanguage = TranslationTargetLanguage.SimplifiedChinese };
++        await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.CreateAsync(42, request));
++        vehicle.DriverUserId = null;
++        await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.CreateAsync(42, request));
++        vehicle.DriverUserId = 42;
++        vehicle.Status = RickshawStatuses.Disabled;
++        await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.CreateAsync(42, request));
++    }
++
++    private static TranslationRoomState State() => new()
++    {
++        Record = new TranslationRoom { Id = 9223372036854775000, HostUserId = 1 }
++    };
++
++    public class RepositoryProxy : DispatchProxy
++    {
++        public object? Entity { get; set; }
++        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
++        {
++            if (method!.Name == "GetByIdAsync")
++                return typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(method.ReturnType.GenericTypeArguments[0])
++                    .Invoke(null, [Entity]);
++            throw new NotSupportedException(method.Name);
++        }
++    }
++}
+*** End Patch

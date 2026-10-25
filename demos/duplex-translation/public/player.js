@@ -7,6 +7,7 @@ export function createTranslationPlayer(ctx, onState, onError) {
   let playhead = 0;
   let format = "mp3";
   let sampleRate = 32000;
+  let maxQueueSeconds = Infinity;
   const sources = new Set();
   function busy() { return Boolean(sources.size || decoding || queued || pending.length); }
   function stop() {
@@ -28,6 +29,7 @@ export function createTranslationPlayer(ctx, onState, onError) {
     if (options.format && !["mp3", "pcm"].includes(options.format)) throw new Error(`不支持的音频格式：${options.format}`);
     format = options.format || format;
     sampleRate = Number(options.sampleRate) || sampleRate;
+    if (Number.isFinite(options.maxQueueSeconds)) maxQueueSeconds = options.maxQueueSeconds;
   }
   function push(payload) {
     configure(payload);
@@ -65,6 +67,11 @@ export function createTranslationPlayer(ctx, onState, onError) {
           for (let index = 0; index < channel.length; index += 1) channel[index] = view.getInt16(index * 2, true) / 32768;
         } else buffer = await ctx.decodeAudioData(bytes.buffer);
         if (current !== generation) return;
+        if (playhead - ctx.currentTime + buffer.duration > maxQueueSeconds) {
+          stop();
+          onError(new Error("收听积压超过两分钟，请重新接入最新讲解"));
+          return;
+        }
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         source.connect(ctx.destination);

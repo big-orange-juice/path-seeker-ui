@@ -118,7 +118,8 @@ test("PCM encoder flushes tail before input.end and continues after manual flush
   assert.equal(new DataView(packets[1]).getInt16(0, true), 32767);
 });
 
-test("WebSocket proxy preserves deployment prefix, subprotocol auth and binary traffic", { timeout: 10000 }, async () => {
+for (const route of ['/api/ExhibitChat/translate-realtime', '/api/TranslationRooms/9223372036854775805/input', '/api/TranslationRooms/9223372036854775805/events']) {
+test("WebSocket proxy preserves deployment prefix, subprotocol auth and binary traffic: " + route, { timeout: 10000 }, async () => {
   let received;
   let peer;
   const backend = http.createServer();
@@ -137,7 +138,7 @@ test("WebSocket proxy preserves deployment prefix, subprotocol auth and binary t
   await once(demo, "listening");
   let client;
   try {
-    const request = http.request(`http://127.0.0.1:${demo.address().port}/demo/api/ExhibitChat/translate-realtime`, { headers: {
+    const request = http.request(`http://127.0.0.1:${demo.address().port}/demo${route}`, { headers: {
       Connection: "Upgrade", Upgrade: "websocket", "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==", "Sec-WebSocket-Version": "13",
       "Sec-WebSocket-Protocol": "translation, bearer.test-token",
     } });
@@ -145,7 +146,7 @@ test("WebSocket proxy preserves deployment prefix, subprotocol auth and binary t
     const [response, socket] = await once(request, "upgrade");
     client = socket;
     assert.equal(response.headers["sec-websocket-protocol"], "translation");
-    assert.equal(received.path, "/path-seeker/api/ExhibitChat/translate-realtime");
+    assert.equal(received.path, '/path-seeker' + route);
     assert.equal(received.protocols, "translation, bearer.test-token");
     const bytes = Buffer.from([0x82, 0x02, 0x01, 0x02]);
     const next = once(socket, "data");
@@ -162,3 +163,4 @@ test("WebSocket proxy preserves deployment prefix, subprotocol auth and binary t
     await Promise.all([new Promise((resolve) => demo.close(resolve)), new Promise((resolve) => backend.close(resolve))]);
   }
 });
+}

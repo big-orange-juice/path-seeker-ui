@@ -27,12 +27,14 @@ test('concurrent creates send one request, preserve string IDs and disable autom
     calls.push({ path, options })
     return new Promise(resolve => { release = resolve })
   })
-  const draft = { museumId: '9007199254740993', vehicleNo: ' 001 ', driverName: '', remark: '' }
+  const draft = { museumId: '9007199254740993', vehicleNo: ' 001 ', driverName: '', driverPhone: ' 13800138000 ', driverUserNo: ' driver-account ', remark: '' }
   const first = model.save(draft)
   await assert.rejects(model.save(draft), /等待/)
   assert.equal(calls.length, 1)
   assert.equal(calls[0].options.body.museumId, draft.museumId)
   assert.equal(calls[0].options.body.vehicleNo, '001')
+  assert.equal(calls[0].options.body.driverPhone, '13800138000')
+  assert.equal(calls[0].options.body.driverUserNo, 'driver-account')
   assert.equal(calls[0].options.retry, 0)
   assert.equal(model.acting.value, true)
   release('9007199254740995')

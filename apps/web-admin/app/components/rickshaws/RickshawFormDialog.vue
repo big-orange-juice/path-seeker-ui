@@ -10,7 +10,7 @@ import type { RickshawDraft } from '@/types/rickshaw';
 
 const props = defineProps<{ open: boolean; initial: RickshawDraft; destinations: { id: string; name: string }[]; pending: boolean; error: string }>();
 const emit = defineEmits<{ 'update:open': [open: boolean]; save: [draft: RickshawDraft]; search: [keyword: string] }>();
-const draft = reactive<RickshawDraft>({ museumId: '', vehicleNo: '', driverName: '', remark: '' });
+const draft = reactive<RickshawDraft>({ museumId: '', vehicleNo: '', driverName: '', driverPhone: '', driverUserNo: '', remark: '' });
 watch(() => props.open, (open) => { if (open) Object.assign(draft, props.initial, { id: props.initial.id }); }, { immediate: true });
 const model = computed({ get: () => props.open, set: (open: boolean) => {
   if (props.pending) return;
@@ -32,6 +32,8 @@ const submit = () => { if (!props.pending) emit('save', { ...draft }); };
         </label>
         <label class="grid gap-2 text-sm">车号<Input v-model="draft.vehicleNo" required maxlength="64" :disabled="pending" /></label>
         <label class="grid gap-2 text-sm">车夫<Input v-model="draft.driverName" maxlength="100" :disabled="pending" /></label>
+        <label class="grid gap-2 text-sm">车夫手机号<Input v-model="draft.driverPhone" type="tel" pattern="1[3-9][0-9]{9}" maxlength="11" :disabled="pending" /></label>
+        <label class="grid gap-2 text-sm">车夫账号编号<Input v-model="draft.driverUserNo" maxlength="64" :disabled="pending" /><span class="text-xs text-muted-foreground">首次关联小程序账号时，填写车夫「我的」页面显示的账号编号。</span></label>
         <label class="grid gap-2 text-sm">备注<Input v-model="draft.remark" maxlength="500" :disabled="pending" /></label>
         <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}</p>
         <div class="flex justify-end gap-2">

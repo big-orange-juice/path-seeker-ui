@@ -52,8 +52,8 @@ onMounted(() => { void refresh(); void loadDestinations(); });
 const openForm = (record?: RickshawRecord) => {
   if (acting.value) return;
   selected.value = record ?? null;
-  draft.value = record ? { id: record.id, museumId: record.museumId || '', vehicleNo: record.vehicleNo, driverName: record.driverName || '', remark: record.remark || '' }
-    : { museumId: museumId.value, vehicleNo: '', driverName: '', remark: '' };
+  draft.value = record ? { id: record.id, museumId: record.museumId || '', vehicleNo: record.vehicleNo, driverName: record.driverName || '', driverPhone: record.driverPhone || '', driverUserNo: record.driverUserNo || '', remark: record.remark || '' }
+    : { museumId: museumId.value, vehicleNo: '', driverName: '', driverPhone: '', driverUserNo: '', remark: '' };
   formError.value = '';
   formOpen.value = true;
   void loadDestinations();

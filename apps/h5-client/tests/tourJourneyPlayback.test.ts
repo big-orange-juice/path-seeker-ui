@@ -29,7 +29,7 @@ await build({
 })
 const { useTourJourney } = await import(pathToFileURL(resolve(temporary, 'useTourJourney.mjs')).href)
 
-test('首站、切站、浏览和自动推进均打开右侧内容并同步当前景点', async () => {
+test('进入黄包车导航保持静音，手动切站可播放，播完后不自动推进', async () => {
   const previousAudio = globalThis.Audio
   const previousWindow = globalThis.window
   const previousStorage = globalThis.localStorage
@@ -61,7 +61,9 @@ test('首站、切站、浏览和自动推进均打开右侧内容并同步当�
       guideNarrations: [{ id: `guide-${index}`, locale: 'zh', chapters: [{ id: `chapter-${index}`, order: 1, text: '讲解', audioUrl: 'audio.mp3' }] }],
     })) }
     assert.equal(await journey.start(), true)
-    assert.equal(journey.drawerOpen.value, true)
+    assert.equal(journey.drawerOpen.value, false)
+    assert.equal(audios.length, 0)
+    assert.equal(journey.autoPlayEnabled.value, false)
     assert.equal(journey.drawerStop.value.id, 'stage-0')
     journey.closeContentDrawer()
     await journey.selectStop(1)
@@ -79,8 +81,8 @@ test('首站、切站、浏览和自动推进均打开右侧内容并同步当�
     journey.closeContentDrawer()
     audios[audios.length - 1]!.onended?.()
     await new Promise(resolve => setTimeout(resolve, 0))
-    assert.equal(journey.drawerOpen.value, true)
-    assert.equal(journey.drawerStop.value.id, 'stage-2')
+    assert.equal(journey.drawerOpen.value, false)
+    assert.equal(journey.drawerStop.value.id, 'stage-1')
   } finally {
     app.unmount()
     Object.assign(globalThis, { Audio: previousAudio, window: previousWindow, localStorage: previousStorage })
@@ -119,6 +121,7 @@ test('队列去重、暂停自动推进、内容锁定与立即播放保持一�
       extraAudios: [], guideNarrations: [{ id: `guide-${index}`, locale: 'zh', chapters: [{ id: `chapter-${index}`, order: 1, text: '讲解', audioUrl: 'audio.mp3' }] }],
     })) }
     assert.equal(await journey.start(), true)
+    await journey.selectStop(0)
     const candidate = {
       index: 1,
       stop: journey.stops.value[1],

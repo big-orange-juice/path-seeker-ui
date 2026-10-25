@@ -385,6 +385,7 @@ onBeforeUnmount(() => {
   <main class="tour-experience" :class="{ 'is-journey': viewingJourney }" :lang="journey.locale.value">
     <TourMap ref="tourMap" :catalog="journey.catalog.value" :detail="detail" :current-stop-id="viewingJourney ? journey.currentStop.value?.id || null : null" :journey="viewingJourney" :location="journey.location.value" :show-route="routeVisible" @select="selectStop" @error="mapFailed = true" />
     <header class="tour-header" :class="{ preview: !viewingJourney, journey: viewingJourney }">
+      <button type="button" @click="router.push('/translation-room')">实时讲解</button>
       <template v-if="viewingJourney">
         <button type="button" @click="back">{{ messages.back }}</button>
         <strong>{{ detail?.route?.title || messages.routes }}</strong>
@@ -416,6 +417,8 @@ onBeforeUnmount(() => {
       <TourArrivalPrompt v-if="showArrivalPrompt" :candidates="visibleArrivalCandidates" :pending="journey.pending.value" :messages="messages" :playing-stop-name="journey.currentStop.value?.name || null" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
       <button type="button" class="tour-location-status" :class="{ 'is-active': journey.tracking.value && !journey.approachUnknown.value }" :aria-pressed="journey.tracking.value" :disabled="journey.pending.value" :title="journey.tracking.value ? messages.stopLocate : messages.locate" @click="toggleTracking"><MapPin :size="12" aria-hidden="true" /><span>{{ locationStatus }}</span></button>
       <nav class="tour-tools" :aria-label="messages.routeTools">
+        <button type="button" :aria-label="messages.content" :title="messages.content" @click="openDrawerFromDock"><ListMusic :size="17" /></button>
+        <button type="button" :aria-label="messages.queueTitle" :title="messages.queueTitle" @click="toggleQueue"><span>{{ queuedCount }}</span></button>
         <button type="button" :class="{ active: routeVisible }" :aria-pressed="routeVisible" :aria-label="routeVisible ? messages.hideRoute : messages.showRoute" :title="routeVisible ? messages.hideRoute : messages.showRoute" @click="toggleRoute"><Route :size="16" /></button>
         <span class="toolbar-divider" aria-hidden="true" />
         <button type="button" :aria-label="messages.zoomOut" :title="messages.zoomOut" @click="tourMap?.zoomBy(-1)"><Minus :size="16" /></button>
@@ -477,28 +480,6 @@ onBeforeUnmount(() => {
           @skip="journey.skipQueuedStop"
         />
       </Transition>
-      <footer v-if="!journey.drawerOpen.value" ref="dockHost" class="tour-story-dock">
-        <div class="tour-dock-controls">
-          <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !journey.canGoPrevious.value" :aria-label="messages.prevStop" :title="messages.prevStop" @click="journey.previousStop()"><SkipBack :size="16" aria-hidden="true" /><span>{{ messages.prevStop }}</span></button>
-          <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !canSeek" :aria-label="messages.rewind15" :title="messages.rewind15" @click="seek(-15)"><SkipBack :size="14" aria-hidden="true" /><span>{{ messages.rewind15 }}</span></button>
-          <button type="button" class="tour-dock-button is-primary" :disabled="journey.pending.value || (!canPlayCurrent && !isPlaying && !isPaused)" @click="journey.togglePlayback()"><Pause v-if="isPlaying" :size="16" aria-hidden="true" /><Play v-else :size="16" aria-hidden="true" /><span>{{ playLabel }}</span></button>
-          <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !canSeek" :aria-label="messages.forward15" :title="messages.forward15" @click="seek(15)"><SkipForward :size="14" aria-hidden="true" /><span>{{ messages.forward15 }}</span></button>
-          <button type="button" class="tour-dock-button" :disabled="journey.pending.value || !journey.canGoNext.value" :aria-label="messages.nextStop" :title="messages.nextStop" @click="journey.nextStop()"><SkipForward :size="16" aria-hidden="true" /><span>{{ messages.nextStop }}</span></button>
-        </div>
-        <div class="tour-dock-summary">
-          <button type="button" class="tour-dock-info" @click="openDrawerFromDock">
-            <strong>{{ journey.currentStop.value.name }}</strong>
-            <small v-if="playingItemLabel">{{ messages.playingNow }}：{{ playingItemLabel }}</small>
-            <span>{{ journey.visit.value?.status === 2 ? messages.finished : `${journey.currentIndex.value + 1} / ${journey.stops.value.length}` }} · {{ messages.content }}<template v-if="progressLabel"> · {{ progressLabel }}</template></span>
-            <small v-if="journey.browsing.value">{{ messages.browsingNoProgress }}</small>
-            <small v-else-if="autoAdvanceHint">{{ autoAdvanceHint }}</small>
-          </button>
-          <button type="button" class="tour-dock-queue" :class="{ active: queueOpen }" :aria-expanded="queueOpen" :aria-label="messages.queueTitle" :title="messages.queueTitle" @click="toggleQueue">
-            <ListMusic :size="17" aria-hidden="true" />
-            <span>{{ queuedCount }}</span>
-          </button>
-        </div>
-      </footer>
       <div class="tour-voice">
         <button
           type="button"

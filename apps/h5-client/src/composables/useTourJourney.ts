@@ -70,10 +70,7 @@ function readSkipExtraAudio() {
 }
 
 function readAutoPlay() {
-  try {
-    const stored = localStorage.getItem(AUTO_PLAY_KEY)
-    return stored == null || stored === '1'
-  } catch { return true }
+  return false
 }
 
 function readStoredActiveRoute(): StoredActiveRoute | null {
@@ -381,7 +378,7 @@ export function useTourJourney() {
       itemId: checkpoint.itemId,
       currentTimeSeconds: checkpoint.currentTimeSeconds,
       sentenceIndex: checkpoint.sentenceIndex,
-      paused: checkpoint.statusBeforeInterrupt === 'paused',
+      paused: true,
     })
     selectionMode.value = 'resume'
     return true
@@ -571,7 +568,7 @@ export function useTourJourney() {
       resetAutoOpenState()
       journeyRestored.value = false
       writeStoredActiveRoute({ routeId: selected.route.id, stageId: currentStop.value?.id ?? null, locale: locale.value, updatedAt: Date.now() })
-      await selectStop(currentIndex.value)
+      await enterStop(currentIndex.value, 'resume')
       return true
     } catch (caught) { error.value = caught instanceof Error ? caught.message : 'startFailed'; return false }
     finally { pending.value = false }
@@ -603,7 +600,7 @@ export function useTourJourney() {
       }
       writeStoredActiveRoute({ routeId: active.value?.route?.id ?? '', stageId: stop.id, locale: locale.value, updatedAt: Date.now() })
       if (alive && version === journeyVersion) {
-        playCurrentStop()
+        if (reason !== 'resume') playCurrentStop()
         if (sequenceStopId && sequenceStopId === stop.id) updateSequenceItem(stop.id, 'playing')
         if (reason === 'arrival') {
           // 自动开始播放：去重记账，若被浏览器拦下则走既有的 blocked 提示

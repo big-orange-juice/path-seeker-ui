@@ -1,0 +1,62 @@
+*** Begin Patch
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.ApiTests/RickshawServiceTests.cs
+@@
+-    private sealed class Fixture
++    [Fact]
++    public async Task Admin_binds_existing_mini_program_account_to_phone_and_vehicle()
++    {
++        var fixture = new Fixture();
++        fixture.Users[0].UserNo = "driver-account";
++        fixture.Users[0].RegisterChannel = 6;
++        var service = fixture.Service();
++        await service.UpdateAsync(new UpdateRickshawRequest
++        {
++            Id = "1", MuseumId = "2", VehicleNo = "SCHA-001",
++            DriverPhone = "13800138000", DriverUserNo = "driver-account"
++        });
++        Assert.Equal("13800138000", fixture.Users[0].Phone);
++        Assert.Equal(9, fixture.Vehicles[0].DriverUserId);
++        Assert.Equal("13800138000", fixture.Vehicles[0].DriverPhone);
++        var response = await service.GetAsync(1);
++        Assert.Equal("9", response.DriverUserId);
++        Assert.Equal("driver-account", response.DriverUserNo);
++    }
++
++    [Fact]
++    public async Task Admin_cannot_bind_missing_guest_or_conflicting_phone_account()
++    {
++        var fixture = new Fixture();
++        fixture.Users[0].UserNo = "driver-account";
++        var request = new UpdateRickshawRequest
++        {
++            Id = "1", MuseumId = "2", VehicleNo = "SCHA-001",
++            DriverPhone = "13800138000", DriverUserNo = "missing"
++        };
++        await Assert.ThrowsAsync<ValidationException>(() => fixture.Service().UpdateAsync(request));
++        request.DriverUserNo = "driver-account";
++        fixture.Users[0].RegisterChannel = 5;
++        await Assert.ThrowsAsync<ValidationException>(() => fixture.Service().UpdateAsync(request));
++        fixture.Users[0].RegisterChannel = 6;
++        fixture.Users[1].Phone = request.DriverPhone;
++        await Assert.ThrowsAsync<ValidationException>(() => fixture.Service().UpdateAsync(request));
++        Assert.Null(fixture.Users[0].Phone);
++        Assert.Null(fixture.Vehicles[0].DriverUserId);
++    }
++
++    private sealed class Fixture
+@@
+         public List<UserRouteStopProgress> Stops { get; } = [];
++        public List<AppUser> Users { get; } = [new() { Id = 9 }, new() { Id = 10 }];
+@@
+-            Repository<IAppUserRepository, AppUser>([new() { Id = 9 }, new() { Id = 10 }]),
++            Repository<IAppUserRepository, AppUser>(Users),
+@@
+         if (method == "GetListAsync")
+@@
+         }
++        if (method == "ExistsAsync")
++        {
++            var predicate = ((Expression<Func<TEntity, bool>>)args[0]!).Compile();
++            return Task.FromResult(items.Any(item => item.IsDeleted == 0 && predicate(item)));
++        }
+*** End Patch

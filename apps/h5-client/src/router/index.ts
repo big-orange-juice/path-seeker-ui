@@ -17,6 +17,7 @@ const router = createRouter({
   // 与 vite.config base 对齐，否则访问 /path-seeker/client/ 会报 No match found
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    { path: '/translation-room', component: () => import('@/components/translation/TranslationRoomExperience.vue'), meta: { title: '实时讲解', showTabBar: false } },
     {
       path: "/",
       redirect: "/ride",

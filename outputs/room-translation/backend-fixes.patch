@@ -1,0 +1,76 @@
+*** Begin Patch
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/Chat/TranslationRoomService.cs
+@@
+-                if (frame.Type != WebSocketMessageType.Text
+-                    || JsonDocument.Parse(frame.Data).RootElement.GetProperty("type").GetString() != "ping")
++                if (frame.Type != WebSocketMessageType.Text) throw Invalid("收听连接仅接受心跳消息");
++                using var command = JsonDocument.Parse(frame.Data);
++                var type = command.RootElement.GetProperty("type").GetString();
++                if (host && type == "input.start")
++                {
++                    await InputAsync(socket, userId, roomId, lifetime.Token);
++                    continue;
++                }
++                if (type != "ping")
+                     throw Invalid("收听连接仅接受心跳消息");
+@@
+                     var frame = await ReceiveFrameAsync(socket, input.Token);
++                    lock (room.Gate)
++                    {
++                        if (room.Host != null) room.Host.LastSeen = DateTimeOffset.UtcNow;
++                    }
+@@
+-                Enqueue(segmenter.Flush());
+-                audio.Writer.TryComplete();
++                try { Enqueue(segmenter.Flush()); }
++                finally { audio.Writer.TryComplete(); }
+@@
+-            socket.Abort();
+         }
+         if (room.Record.Status == "draining") await EndRoomAsync(room, false, "host_ended");
+@@
+-                await SaveTextAsync(room, commit, Language(language), text.ToString());
++                await SaveTextAsync(room, commit, Language(language), text.ToString());
+@@
+-                        foreach (var language in room.Languages.ToArray())
+-                        {
+-                            if (now - language.Value.LastUsed <= TimeSpan.FromSeconds(15)
+-                                || room.Members.Values.Any(member => member.Connection != null && member.Language == language.Key)) continue;
+-                            language.Value.Queue.Writer.TryComplete();
+-                            if (language.Value.Worker.IsCompleted) room.Languages.Remove(language.Key);
+-                        }
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/Chat/TranslationRoomState.cs
+@@
+     public DateTimeOffset PausedAt { get; set; } = DateTimeOffset.UtcNow;
++    public string? QrImageDataUri { get; set; }
+@@
+         epochId = EpochId.ToString(), sequence = Sequence,
++        qrImageDataUri = QrImageDataUri,
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/Chat/TranslationRoomService.cs
+@@
+ using Microsoft.Extensions.Logging;
++using Microsoft.Extensions.Configuration;
++using QRCoder;
+@@
+-    IServiceScopeFactory scopes, SnowflakeIdGenerator ids, ILogger<TranslationRoomService> logger) : BackgroundService
++    IServiceScopeFactory scopes, SnowflakeIdGenerator ids, ILogger<TranslationRoomService> logger,
++    IConfiguration configuration) : BackgroundService
+@@
+                 if (existing.Record.HostUserId != userId) throw Forbidden("该车辆已有其他车夫的讲解房间");
++                if (existing.Record.SourceLanguage != Language(request.SourceLanguage!.Value))
++                    throw Invalid("现有房间的讲话语言不可更改，请先结束当前房间");
+@@
+             var state = new TranslationRoomState { Record = record };
++            var baseUrl = configuration["TranslationRooms:ClientUrl"];
++            if (Uri.TryCreate(baseUrl, UriKind.Absolute, out var clientUrl)
++                && clientUrl.Scheme is "https" or "http")
++            {
++                using var qr = QRCodeGenerator.GenerateQrCode(baseUrl!.TrimEnd('/') + "?roomCode=" + code, QRCodeGenerator.ECCLevel.Q);
++                using var image = new PngByteQRCode(qr);
++                state.QrImageDataUri = "data:image/png;base64," + Convert.ToBase64String(image.GetGraphic(6));
++            }
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.WebApi/Controllers/TranslationRoomsController.cs
+@@
+-        try { await action(socket); }
++        try { await action(socket); }
+*** End Patch

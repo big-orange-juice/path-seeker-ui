@@ -48,6 +48,19 @@ function fakeAudioContext() {
   };
 }
 
+test("room audio queue has a configured delay limit and asks for explicit reconnect", async () => {
+  const context = fakeAudioContext(), errors = [];
+  const player = createTranslationPlayer(context, () => {}, error => errors.push(error));
+  player.configure({ maxQueueSeconds: 120 });
+  player.push({ audio: 'aabb', isFinal: true });
+  await Promise.resolve();
+  context.decodes[0].resolve({ duration: 121 });
+  await new Promise(setImmediate);
+  assert.equal(context.played.length, 0);
+  assert.equal(player.busy(), false);
+  assert.match(errors[0].message, /积压/);
+});
+
 test("MP3 chunks merge until final, play serially and account for queued decoding", async () => {
   const ctx = fakeAudioContext();
   const errors = [];

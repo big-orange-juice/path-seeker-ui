@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/tour/index",
+    "pages/translation-room/index",
     "pages/chat/index",
     "pages/me/index",
     "pages/auth/index",

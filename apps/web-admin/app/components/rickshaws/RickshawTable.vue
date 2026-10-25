@@ -22,7 +22,7 @@ defineEmits<{
         <tr v-for="row in rows" :key="row.id" class="border-b border-border/50 last:border-0">
           <td class="px-4 py-3 font-medium">{{ row.vehicleNo }}</td>
           <td class="px-4 py-3">{{ row.museumName || '—' }}</td>
-          <td class="px-4 py-3">{{ row.driverName || '未分配' }}</td>
+          <td class="px-4 py-3"><div>{{ row.driverName || '未分配' }}</div><div v-if="row.driverPhone" class="text-xs text-muted-foreground">{{ row.driverPhone }}</div></td>
           <td class="w-32 px-4 py-3">
             <Select :model-value="String(row.status)" :disabled="disabled" @update:model-value="$emit('status', row, Number($event))">
               <option v-for="item in RICKSHAW_STATUSES" :key="item.value" :value="String(item.value)">{{ item.label }}</option>

@@ -51,6 +51,8 @@ export const useRickshawManagement = () => {
   const save = (draft: RickshawDraft) => mutate<string | null>(
     `/api/rickshaw/${draft.id ? 'update' : 'create'}`, {
       ...draft, vehicleNo: draft.vehicleNo.trim(), driverName: draft.driverName.trim(), remark: draft.remark.trim(),
+      driverPhone: draft.driverPhone?.trim() || null,
+      driverUserNo: draft.driverUserNo?.trim() || null,
     });
   const updateStatus = (id: string, nextStatus: number) => mutate('/api/rickshaw/status', { id, status: nextStatus });
   const generateQr = (id: string, rotate = false) => mutate<RickshawQr>('/api/rickshaw/qr', { id, rotate });

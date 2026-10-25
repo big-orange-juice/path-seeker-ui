@@ -34,7 +34,7 @@ function harness(initial = session()) {
   };
   let definition, componentDefinition;
   const app = { globalData: { chatContext: null, selectedRoute: '' } };
-  const context = vm.createContext({ my, Page: d => { definition = d; }, Component: d => { componentDefinition = d; }, getApp: () => app, console, setTimeout, clearTimeout, ArrayBuffer, Uint8Array });
+  const context = vm.createContext({ my, Page: d => { definition = d; }, Component: d => { componentDefinition = d; }, getApp: () => app, console, setTimeout, clearTimeout, setInterval, clearInterval, ArrayBuffer, Uint8Array });
   const cache = new Map();
   function load(name) {
     const filename = path.resolve(dist, name.endsWith('.js') ? name : name + '.js');

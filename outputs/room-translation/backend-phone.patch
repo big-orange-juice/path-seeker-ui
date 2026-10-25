@@ -1,0 +1,61 @@
+*** Begin Patch
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Model/DataBase/Rickshaw.cs
+@@
+     [Column("driver_phone")] public string? DriverPhone { get; set; }
++    [Column("driver_user_no")] public string? DriverUserNo { get; set; }
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Model/Request/RickshawRequests.cs
+@@
+     [RegularExpression(@"^1[3-9]\d{9}$")] public string? DriverPhone { get; set; }
++    [StringLength(64)] public string? DriverUserNo { get; set; }
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Model/Response/RickshawResponses.cs
+@@
+     public string? DriverPhone { get; set; }
++    public string? DriverUserNo { get; set; }
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/RickshawService.cs
+@@
+-            DriverUserId = await ResolveDriverAsync(request.DriverPhone),
++            DriverUserNo = request.DriverUserNo?.Trim(),
++            DriverUserId = await ResolveDriverAsync(request.DriverPhone, request.DriverUserNo),
+@@
+-        vehicle.DriverUserId = await ResolveDriverAsync(request.DriverPhone);
++        vehicle.DriverUserNo = request.DriverUserNo?.Trim();
++        vehicle.DriverUserId = await ResolveDriverAsync(request.DriverPhone, request.DriverUserNo);
+@@
+-    private async Task<long?> ResolveDriverAsync(string? value)
++    private async Task<long?> ResolveDriverAsync(string? value, string? accountNo)
+     {
+         var phone = NormalizeDriverPhone(value);
+         if (phone == null) return null;
+-        var users = await _users.GetListAsync(user => user.Phone == phone && user.Status == 1 && user.RegisterChannel != 5);
++        var userNo = accountNo?.Trim();
++        var users = string.IsNullOrWhiteSpace(userNo)
++            ? await _users.GetListAsync(user => user.Phone == phone && user.Status == 1 && user.RegisterChannel != 5)
++            : await _users.GetListAsync(user => user.UserNo == userNo && user.Status == 1 && user.RegisterChannel != 5);
+         if (users.Count != 1)
+-            throw new ValidationException(ErrorCodes.InvalidParameter, "请先让车夫登录并关联手机号，再保存车辆授权");
++            throw new ValidationException(ErrorCodes.InvalidParameter, "请核对车夫手机号或提供其小程序账号编号");
++        var selected = users[0];
++        if (!string.IsNullOrWhiteSpace(selected.Phone) && selected.Phone != phone)
++            throw new ValidationException(ErrorCodes.InvalidParameter, "车夫账号已关联其他手机号，请先核实账号");
++        if (await _users.ExistsAsync(user => user.Phone == phone && user.Id != selected.Id))
++            throw new ValidationException(ErrorCodes.InvalidParameter, "手机号已关联其他账号，请先核实身份");
++        if (string.IsNullOrWhiteSpace(selected.Phone))
++        {
++            selected.Phone = phone;
++            await _users.UpdateAsync(selected);
++        }
+-        return users[0].Id;
++        return selected.Id;
+@@
+         DriverPhone = vehicle.DriverPhone,
++        DriverUserNo = vehicle.DriverUserNo,
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/doc/97-translation-room-ddl.sql
+@@
+ ALTER TABLE rickshaw_vehicle ADD COLUMN IF NOT EXISTS driver_phone varchar(20);
++ALTER TABLE rickshaw_vehicle ADD COLUMN IF NOT EXISTS driver_user_no varchar(64);
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Repository/SqlSugarDbConfig.cs
+@@
+             typeof(Model.DataBase.RickshawVehicle),
++            typeof(Model.DataBase.TranslationRoom),
++            typeof(Model.DataBase.TranslationRoomSegment),
+*** End Patch

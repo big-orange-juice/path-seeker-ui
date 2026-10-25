@@ -1,0 +1,975 @@
+*** Begin Patch
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Model/DataBase/Rickshaw.cs
+@@
+     [Column("driver_name")] public string? DriverName { get; set; }
++    [Column("driver_phone")] public string? DriverPhone { get; set; }
++    [Column("driver_user_id")] public long? DriverUserId { get; set; }
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Model/Request/RickshawRequests.cs
+@@
+     [StringLength(100)] public string? DriverName { get; set; }
++    [RegularExpression(@"^1[3-9]\d{9}$")] public string? DriverPhone { get; set; }
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Model/Response/RickshawResponses.cs
+@@
+     public string? DriverName { get; set; }
++    public string? DriverPhone { get; set; }
++    public string? DriverUserId { get; set; }
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/RickshawService.cs
+@@
+             DriverName = request.DriverName?.Trim(),
++            DriverPhone = NormalizeDriverPhone(request.DriverPhone),
++            DriverUserId = await ResolveDriverAsync(request.DriverPhone),
+@@
+         vehicle.DriverName = request.DriverName?.Trim();
++        vehicle.DriverPhone = NormalizeDriverPhone(request.DriverPhone);
++        vehicle.DriverUserId = await ResolveDriverAsync(request.DriverPhone);
+@@
+-    private static RickshawResponse Map(RickshawVehicle vehicle) => new()
++    private static string? NormalizeDriverPhone(string? value)
++    {
++        if (string.IsNullOrWhiteSpace(value)) return null;
++        var phone = value.Trim();
++        if (!Regex.IsMatch(phone, @"^1[3-9]\d{9}$"))
++            throw new ValidationException(ErrorCodes.InvalidParameter, "请输入有效的车夫手机号");
++        return phone;
++    }
++
++    private async Task<long?> ResolveDriverAsync(string? value)
++    {
++        var phone = NormalizeDriverPhone(value);
++        if (phone == null) return null;
++        var users = await _users.GetListAsync(user => user.Phone == phone && user.Status == 1 && user.RegisterChannel != 5);
++        if (users.Count != 1)
++            throw new ValidationException(ErrorCodes.InvalidParameter, "请先让车夫登录并关联手机号，再保存车辆授权");
++        return users[0].Id;
++    }
++
++    private static RickshawResponse Map(RickshawVehicle vehicle) => new()
+@@
+         DriverName = vehicle.DriverName,
+         Remark = vehicle.Remark,
++        DriverPhone = vehicle.DriverPhone,
++        DriverUserId = vehicle.DriverUserId?.ToString(),
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/ServiceRegistration.cs
+@@
+         services.AddScoped<DuplexTranslationSession>();
++        services.AddSingleton<TranslationRoomService>();
++        services.AddHostedService(provider => provider.GetRequiredService<TranslationRoomService>());
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.WebApi/Filters/PermissionFilter.cs
+@@
+-            && context.HttpContext.Request.Path.Equals("/api/ExhibitChat/translate-realtime"))
++            && (context.HttpContext.Request.Path.Equals("/api/ExhibitChat/translate-realtime")
++                || System.Text.RegularExpressions.Regex.IsMatch(context.HttpContext.Request.Path.Value ?? "",
++                    @"^/api/TranslationRooms/\d+/(input|events)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase)))
+*** Add File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Model/DataBase/TranslationRoom.cs
++using System.ComponentModel.DataAnnotations.Schema;
++
++namespace CulturalTourismSystem.Model.DataBase;
++
++[Table("translation_room")]
++public class TranslationRoom : BaseEntity
++{
++    [Column("rickshaw_id")] public long RickshawId { get; set; }
++    [Column("host_user_id")] public long HostUserId { get; set; }
++    [Column("join_code")] public string JoinCode { get; set; } = "";
++    [Column("source_language")] public string SourceLanguage { get; set; } = "";
++    [Column("status")] public string Status { get; set; } = "waiting";
++    [Column("expires_at")] public DateTimeOffset ExpiresAt { get; set; }
++    [Column("closed_reason")] public string? ClosedReason { get; set; }
++}
++
++[Table("translation_room_segment")]
++public class TranslationRoomSegment : BaseEntity
++{
++    [Column("room_id")] public long RoomId { get; set; }
++    [Column("epoch_id")] public long EpochId { get; set; }
++    [Column("sequence")] public int Sequence { get; set; }
++    [Column("language")] public string Language { get; set; } = "";
++    [Column("text", TypeName = "text")] public string Text { get; set; } = "";
++}
+*** Add File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Model/Request/TranslationRoomRequests.cs
++using System.ComponentModel.DataAnnotations;
++
++namespace CulturalTourismSystem.Model.Request;
++
++public sealed class CreateTranslationRoomRequest
++{
++    [Required] public string RickshawId { get; set; } = "";
++    [Required] public TranslationTargetLanguage? SourceLanguage { get; set; }
++}
++
++public sealed class JoinTranslationRoomRequest
++{
++    [Required, RegularExpression(@"^\d{8}$")] public string Code { get; set; } = "";
++    [Required] public TranslationTargetLanguage? TargetLanguage { get; set; }
++}
++
++public sealed class TranslationRoomSubscriptionRequest
++{
++    [Required] public TranslationTargetLanguage? TargetLanguage { get; set; }
++}
+*** Add File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/Chat/TranslationRoomState.cs
++using System.Net.WebSockets;
++using System.Text.Json;
++using System.Threading.Channels;
++using CulturalTourismSystem.Model.DataBase;
++using CulturalTourismSystem.Model.Request;
++
++namespace CulturalTourismSystem.Service.Chat;
++
++public sealed class TranslationRoomConnection
++{
++    public string Generation { get; } = Guid.NewGuid().ToString("N");
++    public Channel<byte[]> Events { get; } = Channel.CreateBounded<byte[]>(128);
++    public CancellationTokenSource Lifetime { get; } = new();
++    public DateTimeOffset LastSeen { get; set; } = DateTimeOffset.UtcNow;
++    public bool Send(object value)
++    {
++        if (Events.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(value, TranslationRoomState.Json))) return true;
++        Lifetime.Cancel();
++        return false;
++    }
++}
++
++public sealed class TranslationRoomMember
++{
++    public required long UserId { get; init; }
++    public TranslationTargetLanguage Language { get; set; }
++    public int Version { get; set; }
++    public int StartSequence { get; set; }
++    public DateTimeOffset JoinedAt { get; set; } = DateTimeOffset.UtcNow;
++    public TranslationRoomConnection? Connection { get; set; }
++}
++
++public sealed record TranslationRoomCommit(long EpochId, int Sequence, TranslationCommit Source);
++
++public sealed class TranslationRoomLanguage
++{
++    public Channel<TranslationRoomCommit> Queue { get; } = Channel.CreateBounded<TranslationRoomCommit>(30);
++    public Task Worker { get; set; } = Task.CompletedTask;
++    public DateTimeOffset LastUsed { get; set; } = DateTimeOffset.UtcNow;
++}
++
++public sealed class TranslationRoomState
++{
++    public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
++    public required TranslationRoom Record { get; init; }
++    public object Gate { get; } = new();
++    public Dictionary<long, TranslationRoomMember> Members { get; } = [];
++    public Dictionary<TranslationTargetLanguage, TranslationRoomLanguage> Languages { get; } = [];
++    public CancellationTokenSource Lifetime { get; } = new();
++    public TranslationRoomConnection? Host { get; set; }
++    public CancellationTokenSource? Input { get; set; }
++    public Task InputTask { get; set; } = Task.CompletedTask;
++    public int Sequence { get; set; }
++    public long EpochId { get; set; }
++    public DateTimeOffset PausedAt { get; set; } = DateTimeOffset.UtcNow;
++
++    public object Snapshot(long userId) => new
++    {
++        roomId = Record.Id.ToString(), rickshawId = Record.RickshawId.ToString(),
++        isHost = Record.HostUserId == userId, code = Record.JoinCode,
++        sourceLanguage = Record.SourceLanguage, status = Record.Status, expiresAt = Record.ExpiresAt,
++        epochId = EpochId.ToString(), sequence = Sequence,
++        listenerCount = Members.Values.Count(member => member.Connection != null),
++        languages = Record.HostUserId == userId
++            ? Members.Values.Where(member => member.Connection != null).GroupBy(member => member.Language)
++                .Select(group => new { language = group.Key, count = group.Count() }).ToArray()
++            : null
++    };
++
++    public void Send(string type, object? payload = null, TranslationRoomCommit? commit = null,
++        TranslationTargetLanguage? language = null)
++    {
++        var eventId = Guid.NewGuid().ToString("N");
++        object Envelope(int version) => new
++        {
++            type, roomId = Record.Id.ToString(), epochId = (commit?.EpochId ?? EpochId).ToString(),
++            eventId, sequence = commit?.Sequence ?? Sequence, targetLanguage = language,
++            subscriptionVersion = version, payload
++        };
++        if (language == null) Host?.Send(Envelope(0));
++        foreach (var member in Members.Values)
++        {
++            if (member.Connection == null || (language != null && member.Language != language)
++                || (commit != null && commit.Sequence < member.StartSequence)) continue;
++            member.Connection.Send(Envelope(member.Version));
++        }
++    }
++
++    public void MembersChanged()
++    {
++        Host?.Send(new { type = "room.members.changed", payload = Snapshot(Record.HostUserId) });
++    }
++}
+*** Add File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/Chat/TranslationRoomService.cs
++using System.Collections.Concurrent;
++using System.Net.WebSockets;
++using System.Security.Cryptography;
++using System.Text;
++using System.Text.Json;
++using System.Threading.Channels;
++using CulturalTourismSystem.Common;
++using CulturalTourismSystem.Common.Exceptions;
++using CulturalTourismSystem.IRepository;
++using CulturalTourismSystem.IService;
++using CulturalTourismSystem.Model.DataBase;
++using CulturalTourismSystem.Model.Request;
++using Microsoft.Extensions.DependencyInjection;
++using Microsoft.Extensions.Hosting;
++using Microsoft.Extensions.Logging;
++using SqlSugar;
++
++namespace CulturalTourismSystem.Service.Chat;
++
++public sealed class TranslationRoomService(
++    IServiceScopeFactory scopes, SnowflakeIdGenerator ids, ILogger<TranslationRoomService> logger) : BackgroundService
++{
++    private readonly ConcurrentDictionary<long, TranslationRoomState> rooms = new();
++    private readonly SemaphoreSlim creation = new(1, 1);
++    private readonly SemaphoreSlim generation = new(12, 12);
++    private readonly SemaphoreSlim persistence = new(1, 1);
++
++    public async Task<object[]> HostVehiclesAsync(long userId)
++    {
++        using var scope = scopes.CreateScope();
++        var user = await UserAsync(scope.ServiceProvider, userId);
++        if (user.RegisterChannel == 5 || string.IsNullOrWhiteSpace(user.Phone)) return [];
++        var vehicles = await scope.ServiceProvider.GetRequiredService<IRickshawVehicleRepository>()
++            .GetListAsync(vehicle => vehicle.DriverUserId == userId && vehicle.DriverPhone == user.Phone
++                && vehicle.Status == RickshawStatuses.Enabled);
++        return vehicles.Select(vehicle => (object)new
++        {
++            rickshawId = vehicle.Id.ToString(), vehicle.VehicleNo, vehicle.DriverName
++        }).ToArray();
++    }
++
++    public async Task<object> CreateAsync(long userId, CreateTranslationRoomRequest request)
++    {
++        ValidateLanguage(request.SourceLanguage);
++        var vehicle = await HostAsync(userId, request.RickshawId.ToLongIdRequired());
++        await creation.WaitAsync();
++        try
++        {
++            var existing = rooms.Values.FirstOrDefault(room => room.Record.RickshawId == vehicle.Id && room.Record.Status != "closed");
++            if (existing != null)
++            {
++                if (existing.Record.HostUserId != userId) throw Forbidden("该车辆已有其他车夫的讲解房间");
++                lock (existing.Gate) return existing.Snapshot(userId);
++            }
++            if (rooms.Values.Count(room => room.Record.Status != "closed") >= 10) throw Invalid("讲解房间已达上限");
++            string code;
++            do { code = RandomNumberGenerator.GetInt32(10000000, 100000000).ToString(); }
++            while (rooms.Values.Any(room => room.Record.JoinCode == code));
++            var record = new TranslationRoom
++            {
++                Id = ids.NextId(), RickshawId = vehicle.Id, HostUserId = userId, JoinCode = code,
++                SourceLanguage = Language(request.SourceLanguage!.Value),
++                ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30)
++            };
++            using var scope = scopes.CreateScope();
++            await scope.ServiceProvider.GetRequiredService<ISqlSugarClient>().Insertable(record).ExecuteCommandAsync();
++            var state = new TranslationRoomState { Record = record };
++            rooms[record.Id] = state;
++            return state.Snapshot(userId);
++        }
++        finally { creation.Release(); }
++    }
++
++    public async Task<object> JoinAsync(long userId, JoinTranslationRoomRequest request)
++    {
++        ValidateLanguage(request.TargetLanguage);
++        using var scope = scopes.CreateScope();
++        await UserAsync(scope.ServiceProvider, userId);
++        var room = rooms.Values.FirstOrDefault(item => item.Record.JoinCode == request.Code)
++            ?? throw Invalid("房间码无效或房间已结束");
++        lock (room.Gate)
++        {
++            EnsureOpen(room);
++            if (room.Record.HostUserId == userId) return room.Snapshot(userId);
++            if (!room.Members.ContainsKey(userId) && room.Members.Count >= 30) throw Invalid("房间人数已满");
++            if (room.Members.TryGetValue(userId, out var previous)) previous.Connection?.Lifetime.Cancel();
++            room.Members[userId] = new TranslationRoomMember
++            {
++                UserId = userId, Language = request.TargetLanguage!.Value,
++                Version = (previous?.Version ?? 0) + 1
++            };
++            return room.Snapshot(userId);
++        }
++    }
++
++    public async Task<object> GetAsync(long userId, long roomId)
++    {
++        var room = RequireRoom(roomId);
++        using var scope = scopes.CreateScope();
++        await UserAsync(scope.ServiceProvider, userId);
++        if (room.Record.HostUserId == userId) await HostAsync(userId, room.Record.RickshawId);
++        lock (room.Gate)
++        {
++            if (room.Record.HostUserId != userId && !room.Members.ContainsKey(userId)) throw Forbidden("请先加入房间");
++            return room.Snapshot(userId);
++        }
++    }
++
++    public Task LeaveAsync(long userId, long roomId)
++    {
++        var room = RequireRoom(roomId);
++        lock (room.Gate)
++        {
++            if (room.Members.Remove(userId, out var member)) member.Connection?.Lifetime.Cancel();
++            room.MembersChanged();
++        }
++        return Task.CompletedTask;
++    }
++
++    public void Subscribe(long userId, long roomId, TranslationRoomSubscriptionRequest request)
++    {
++        ValidateLanguage(request.TargetLanguage);
++        var room = RequireRoom(roomId);
++        lock (room.Gate)
++        {
++            EnsureOpen(room);
++            if (!room.Members.TryGetValue(userId, out var member)) throw Forbidden("请先加入房间");
++            EnsureLanguageCapacity(room, request.TargetLanguage!.Value, userId);
++            member.Language = request.TargetLanguage.Value;
++            member.Version++;
++            member.StartSequence = room.Sequence + 1;
++            member.Connection?.Send(Ready(room, member, "subscription.changed"));
++            room.MembersChanged();
++        }
++    }
++
++    public async Task EndAsync(long userId, long roomId, bool immediate)
++    {
++        var room = RequireRoom(roomId);
++        await HostAsync(userId, room.Record.RickshawId);
++        if (room.Record.HostUserId != userId) throw Forbidden("仅房主可结束讲解");
++        await EndRoomAsync(room, immediate, immediate ? "host_closed" : "host_ended");
++    }
++
++    public async Task EventsAsync(WebSocket socket, long userId, long roomId, CancellationToken requestToken)
++    {
++        var room = RequireRoom(roomId);
++        await GetAsync(userId, roomId);
++        var connection = new TranslationRoomConnection();
++        var host = room.Record.HostUserId == userId;
++        lock (room.Gate)
++        {
++            EnsureOpen(room);
++            if (host)
++            {
++                room.Host?.Lifetime.Cancel();
++                room.Host = connection;
++                connection.Send(new { type = "room.snapshot", payload = room.Snapshot(userId) });
++            }
++            else
++            {
++                if (!room.Members.TryGetValue(userId, out var member)) throw Forbidden("请先加入房间");
++                EnsureLanguageCapacity(room, member.Language, userId);
++                member.Connection?.Lifetime.Cancel();
++                member.Connection = connection;
++                member.StartSequence = room.Sequence + 1;
++                member.Version++;
++                connection.Send(Ready(room, member, "subscription.ready"));
++                room.MembersChanged();
++            }
++        }
++        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(requestToken, connection.Lifetime.Token);
++        async Task SendAsync()
++        {
++            await foreach (var bytes in connection.Events.Reader.ReadAllAsync(lifetime.Token))
++                await socket.SendAsync(bytes.AsMemory(), WebSocketMessageType.Text, true, lifetime.Token);
++        }
++        async Task ReceiveAsync()
++        {
++            while (!lifetime.IsCancellationRequested)
++            {
++                var frame = await ReceiveFrameAsync(socket, lifetime.Token);
++                if (frame.Type == WebSocketMessageType.Close) break;
++                if (frame.Type != WebSocketMessageType.Text
++                    || JsonDocument.Parse(frame.Data).RootElement.GetProperty("type").GetString() != "ping")
++                    throw Invalid("收听连接仅接受心跳消息");
++                connection.LastSeen = DateTimeOffset.UtcNow;
++                connection.Send(new { type = "pong" });
++            }
++        }
++        var sending = SendAsync();
++        var receiving = ReceiveAsync();
++        try { await await Task.WhenAny(sending, receiving); }
++        catch (Exception exception) when (exception is OperationCanceledException or WebSocketException) { }
++        finally
++        {
++            lifetime.Cancel();
++            try { await Task.WhenAll(sending, receiving); } catch (Exception) { }
++            lock (room.Gate)
++            {
++                if (host && room.Host == connection) room.Host = null;
++                if (!host && room.Members.TryGetValue(userId, out var member) && member.Connection == connection)
++                {
++                    room.Members.Remove(userId);
++                    room.MembersChanged();
++                }
++            }
++            connection.Events.Writer.TryComplete();
++            connection.Lifetime.Dispose();
++            socket.Abort();
++        }
++    }
++
++    public async Task InputAsync(WebSocket socket, long userId, long roomId, CancellationToken requestToken)
++    {
++        var room = RequireRoom(roomId);
++        await HostAsync(userId, room.Record.RickshawId);
++        if (room.Record.HostUserId != userId) throw Forbidden("游客不能上传语音");
++        CancellationTokenSource input;
++        long epoch;
++        TaskCompletionSource finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
++        lock (room.Gate)
++        {
++            EnsureOpen(room);
++            if (room.Input != null || !room.InputTask.IsCompleted) throw Invalid("上一个输入轮次尚未完成，请稍后重试");
++            input = CancellationTokenSource.CreateLinkedTokenSource(room.Lifetime.Token, requestToken);
++            room.Input = input;
++            room.InputTask = finished.Task;
++            epoch = room.EpochId = ids.NextId();
++            room.Record.Status = "live";
++            room.Send("room.started", room.Snapshot(userId));
++        }
++        var transcripts = Channel.CreateBounded<TranslationTranscript>(30);
++        var audio = Channel.CreateBounded<SpeechAudioSegment>(30);
++        async Task CaptureAsync()
++        {
++            var segmenter = new PcmSpeechSegmenter();
++            void Enqueue(SpeechAudioSegment? segment)
++            {
++                if (segment != null && !audio.Writer.TryWrite(segment)) throw Invalid("识别积压已达上限，请暂停讲话");
++            }
++            try
++            {
++                while (!input.IsCancellationRequested)
++                {
++                    var frame = await ReceiveFrameAsync(socket, input.Token);
++                    if (frame.Type == WebSocketMessageType.Close) break;
++                    if (frame.Type == WebSocketMessageType.Text)
++                    {
++                        using var command = JsonDocument.Parse(frame.Data);
++                        var type = command.RootElement.GetProperty("type").GetString();
++                        if (type == "input.end") { lock (room.Gate) room.Record.Status = "draining"; break; }
++                        if (type == "input.flush") { Enqueue(segmenter.Flush()); continue; }
++                        if (type == "ping") continue;
++                        throw Invalid("无效的输入控制消息");
++                    }
++                    if (frame.Data.Length % 2 != 0) throw Invalid("请上传完整的 16 kHz 单声道 PCM 采样");
++                    foreach (var segment in segmenter.Append(frame.Data)) Enqueue(segment);
++                }
++            }
++            catch (Exception exception) when (exception is OperationCanceledException or WebSocketException) { }
++            finally
++            {
++                Enqueue(segmenter.Flush());
++                audio.Writer.TryComplete();
++                lock (room.Gate)
++                {
++                    if (room.Record.Status == "live")
++                    {
++                        room.Record.Status = "paused";
++                        room.PausedAt = DateTimeOffset.UtcNow;
++                        room.Send("room.paused");
++                    }
++                }
++            }
++        }
++        async Task RecognizeAsync()
++        {
++            using var scope = scopes.CreateScope();
++            var asr = scope.ServiceProvider.GetRequiredService<MiniMaxSpeechToTextClient>();
++            var sequence = 0L;
++            try
++            {
++                await foreach (var segment in audio.Reader.ReadAllAsync(room.Lifetime.Token))
++                {
++                    sequence++;
++                    try
++                    {
++                        using var wav = DuplexTranslationSession.CreateWav(segment.Pcm);
++                        var text = await asr.TranscribeAsync(wav, "segment.wav", "audio/wav", room.Lifetime.Token,
++                            room.Record.SourceLanguage.StartsWith("zh") ? "zh" : room.Record.SourceLanguage);
++                        await transcripts.Writer.WriteAsync(new(sequence, text, segment.DurationSeconds, segment.EndsWithPause), room.Lifetime.Token);
++                    }
++                    catch (OperationCanceledException) { throw; }
++                    catch (Exception exception)
++                    {
++                        logger.LogWarning(exception, "Room ASR failed: {RoomId}", roomId);
++                        lock (room.Gate) room.Send("segment.error", new { message = "本段识别失败，请车夫重复讲解" });
++                        await transcripts.Writer.WriteAsync(new(sequence, "", 0, true, true), room.Lifetime.Token);
++                    }
++                }
++            }
++            finally { transcripts.Writer.TryComplete(); }
++        }
++        async Task CommitAsync()
++        {
++            using var scope = scopes.CreateScope();
++            var committer = new TranslationCommitter(scope.ServiceProvider.GetRequiredService<ITranslationBoundaryDetector>());
++            await foreach (var source in committer.ReadAsync(transcripts.Reader, room.Lifetime.Token))
++            {
++                TranslationRoomCommit commit;
++                lock (room.Gate)
++                {
++                    commit = new(epoch, ++room.Sequence, source);
++                    room.Send("transcript.final", new { text = source.Text, sourceFrom = (int)source.SourceFrom, sourceTo = (int)source.SourceTo }, commit);
++                    foreach (var language in room.Members.Values.Where(member => member.Connection != null)
++                        .Select(member => member.Language).Distinct())
++                    {
++                        if (!room.Languages.TryGetValue(language, out var pipeline))
++                        {
++                            pipeline = new TranslationRoomLanguage();
++                            room.Languages[language] = pipeline;
++                            pipeline.Worker = TranslateAsync(room, language, pipeline);
++                        }
++                        pipeline.LastUsed = DateTimeOffset.UtcNow;
++                        if (!pipeline.Queue.Writer.TryWrite(commit))
++                            room.Send("language.error", new { message = "该语言积压已满，本段未能生成，请车夫暂停讲话", skippedSequence = commit.Sequence }, commit, language);
++                    }
++                }
++                await SaveTextAsync(room, commit, room.Record.SourceLanguage, source.Text);
++            }
++        }
++        async Task GuardAsync(Func<Task> action)
++        {
++            try { await action(); }
++            catch { input.Cancel(); audio.Writer.TryComplete(); transcripts.Writer.TryComplete(); throw; }
++        }
++        try
++        {
++            await PersistAsync(room);
++            await Task.WhenAll(GuardAsync(CaptureAsync), GuardAsync(RecognizeAsync), GuardAsync(CommitAsync));
++        }
++        catch (Exception exception)
++        {
++            logger.LogWarning(exception, "Room input stopped: {RoomId}", roomId);
++            lock (room.Gate) room.Send("segment.error", new { message = "讲解输入已中断，请重新连接麦克风" });
++        }
++        finally
++        {
++            lock (room.Gate)
++            {
++                room.Input = null;
++                if (room.Record.Status == "live")
++                {
++                    room.Record.Status = "paused";
++                    room.PausedAt = DateTimeOffset.UtcNow;
++                    room.Send("room.paused");
++                }
++            }
++            input.Dispose();
++            finished.TrySetResult();
++            socket.Abort();
++        }
++        if (room.Record.Status == "draining") await EndRoomAsync(room, false, "host_ended");
++        else await PersistAsync(room);
++    }
++
++    private async Task TranslateAsync(TranslationRoomState room, TranslationTargetLanguage language, TranslationRoomLanguage pipeline)
++    {
++        string? sessionId = null;
++        await foreach (var commit in pipeline.Queue.Reader.ReadAllAsync(room.Lifetime.Token))
++        {
++            var acquired = false;
++            try
++            {
++                await generation.WaitAsync(room.Lifetime.Token);
++                acquired = true;
++                using var scope = scopes.CreateScope();
++                await HostAsync(room.Record.HostUserId, room.Record.RickshawId);
++                var chat = scope.ServiceProvider.GetRequiredService<IExhibitChatService>();
++                if (sessionId == null)
++                {
++                    var vehicle = await scope.ServiceProvider.GetRequiredService<IRickshawVehicleRepository>().GetByIdAsync(room.Record.RickshawId);
++                    sessionId = (await chat.CreateSessionAsync(room.Record.HostUserId, new()
++                    {
++                        MuseumId = vehicle!.MuseumId.ToString(), Title = "车夫实时讲解 · " + Language(language)
++                    })).Id;
++                }
++                var text = new StringBuilder();
++                lock (room.Gate) room.Send("translation.committed", new { text = commit.Source.Text }, commit, language);
++                await foreach (var item in chat.TranslateWithAudioAsync(room.Record.HostUserId, new()
++                {
++                    SessionId = sessionId, ClientMessageId = Guid.NewGuid().ToString("N"),
++                    Message = commit.Source.Text, TargetLanguage = language, EnableAudio = true
++                }, null, cancellationToken: room.Lifetime.Token))
++                {
++                    if (item.Type == "text.delta")
++                    {
++                        var payload = JsonSerializer.SerializeToElement(item.Payload, TranslationRoomState.Json);
++                        if (payload.TryGetProperty("content", out var content)) text.Append(content.GetString());
++                    }
++                    if (item.Type is "text.delta" or "audio.started" or "audio.delta" or "audio.done" or "audio.error")
++                        lock (room.Gate) room.Send(item.Type, item.Payload, commit, language);
++                }
++                await SaveTextAsync(room, commit, Language(language), text.ToString());
++                lock (room.Gate) room.Send("translation.final", new { text = text.ToString() }, commit, language);
++            }
++            catch (OperationCanceledException) when (room.Lifetime.IsCancellationRequested) { break; }
++            catch (Exception exception)
++            {
++                logger.LogWarning(exception, "Room language failed: {RoomId} {Language}", room.Record.Id, language);
++                lock (room.Gate) room.Send("language.error", new { message = "本段翻译或语音失败，请等待下一段", skippedSequence = commit.Sequence }, commit, language);
++            }
++            finally { if (acquired) generation.Release(); }
++        }
++    }
++
++    private async Task EndRoomAsync(TranslationRoomState room, bool immediate, string reason)
++    {
++        Task inputTask;
++        lock (room.Gate)
++        {
++            if (room.Record.Status == "closed") return;
++            if (immediate)
++            {
++                room.Record.Status = "closed";
++                room.Record.ClosedReason = reason;
++                room.Send("room.closed", new { mode = "immediate", reason });
++                room.Lifetime.Cancel();
++            }
++            else
++            {
++                room.Record.Status = "draining";
++                room.Send("room.draining");
++                room.Input?.Cancel();
++            }
++            inputTask = room.InputTask;
++        }
++        await PersistAsync(room);
++        if (immediate) return;
++        await inputTask;
++        Task[] workers;
++        lock (room.Gate)
++        {
++            foreach (var language in room.Languages.Values) language.Queue.Writer.TryComplete();
++            workers = room.Languages.Values.Select(language => language.Worker).ToArray();
++        }
++        try { await Task.WhenAll(workers); } catch (OperationCanceledException) { }
++        lock (room.Gate)
++        {
++            if (room.Record.Status == "closed") return;
++            room.Record.Status = "closed";
++            room.Record.ClosedReason = reason;
++            room.Send("room.output.completed");
++            room.Send("room.closed", new { mode = "normal", reason });
++        }
++        await PersistAsync(room);
++    }
++
++    private async Task PersistAsync(TranslationRoomState room)
++    {
++        await persistence.WaitAsync();
++        try
++        {
++            string status;
++            string? reason;
++            lock (room.Gate) { status = room.Record.Status; reason = room.Record.ClosedReason; }
++            using var scope = scopes.CreateScope();
++            await scope.ServiceProvider.GetRequiredService<ISqlSugarClient>().Updateable<TranslationRoom>()
++                .SetColumns(record => new TranslationRoom { Status = status, ClosedReason = reason, UpdatedAt = DateTimeOffset.UtcNow })
++                .Where(record => record.Id == room.Record.Id).ExecuteCommandAsync();
++        }
++        finally { persistence.Release(); }
++    }
++
++    private async Task SaveTextAsync(TranslationRoomState room, TranslationRoomCommit commit, string language, string text)
++    {
++        using var scope = scopes.CreateScope();
++        await scope.ServiceProvider.GetRequiredService<ISqlSugarClient>().Insertable(new TranslationRoomSegment
++        {
++            Id = ids.NextId(), RoomId = room.Record.Id, EpochId = commit.EpochId,
++            Sequence = commit.Sequence, Language = language, Text = text
++        }).ExecuteCommandAsync();
++    }
++
++    public async Task ValidateHostAsync(long userId, long roomId)
++    {
++        var room = RequireRoom(roomId);
++        if (room.Record.HostUserId != userId) throw Forbidden("游客不能上传语音");
++        await HostAsync(userId, room.Record.RickshawId);
++        lock (room.Gate) EnsureOpen(room);
++    }
++
++    private async Task<RickshawVehicle> HostAsync(long userId, long vehicleId)
++    {
++        using var scope = scopes.CreateScope();
++        var user = await UserAsync(scope.ServiceProvider, userId);
++        var vehicle = await scope.ServiceProvider.GetRequiredService<IRickshawVehicleRepository>().GetByIdAsync(vehicleId);
++        if (vehicle == null || vehicle.Status != RickshawStatuses.Enabled || vehicle.DriverUserId != userId
++            || string.IsNullOrWhiteSpace(user.Phone) || user.RegisterChannel == 5 || vehicle.DriverPhone != user.Phone)
++            throw Forbidden("当前账号未获车夫授权，请联系管理员核对手机号及车辆状态");
++        return vehicle;
++    }
++
++    private static async Task<AppUser> UserAsync(IServiceProvider services, long userId)
++    {
++        var user = await services.GetRequiredService<IAppUserRepository>().GetByIdAsync(userId);
++        if (user == null || user.Status != 1) throw Forbidden("当前用户不可用");
++        return user;
++    }
++
++    private TranslationRoomState RequireRoom(long id) => rooms.TryGetValue(id, out var room) ? room : throw Invalid("房间已结束或服务已重启，请重新加入");
++
++    private static void EnsureOpen(TranslationRoomState room)
++    {
++        if (room.Record.Status is "closed" or "draining" || room.Record.ExpiresAt <= DateTimeOffset.UtcNow)
++            throw Invalid("房间已结束，不能继续加入或输入");
++    }
++
++    public static void EnsureLanguageCapacity(TranslationRoomState room, TranslationTargetLanguage language, long userId)
++    {
++        var languages = room.Members.Values.Where(member => member.UserId != userId && member.Connection != null)
++            .Select(member => member.Language).Append(language).Distinct().Count();
++        if (languages > 3) throw Invalid("每个房间最多同时收听三种语言");
++    }
++
++    private static object Ready(TranslationRoomState room, TranslationRoomMember member, string type) => new
++    {
++        type, roomId = room.Record.Id.ToString(), epochId = room.EpochId.ToString(),
++        subscriptionVersion = member.Version, targetLanguage = member.Language,
++        payload = new { startSequence = member.StartSequence, room = room.Snapshot(member.UserId) }
++    };
++
++    private static void ValidateLanguage(TranslationTargetLanguage? language)
++    {
++        if (!language.HasValue || !Enum.IsDefined(language.Value)) throw Invalid("请选择支持的语言");
++    }
++
++    public static string Language(TranslationTargetLanguage language) =>
++        JsonSerializer.Serialize(language, TranslationRoomState.Json).Trim('"');
++
++    private static ValidationException Invalid(string message) => new(ErrorCodes.InvalidParameter, message);
++    private static ForbiddenBusinessException Forbidden(string message) => new(ErrorCodes.Forbidden, message);
++
++    private static async Task<(WebSocketMessageType Type, byte[] Data)> ReceiveFrameAsync(WebSocket socket, CancellationToken token)
++    {
++        var buffer = new byte[8192];
++        using var message = new MemoryStream();
++        while (true)
++        {
++            var result = await socket.ReceiveAsync(buffer.AsMemory(), token);
++            if (result.MessageType == WebSocketMessageType.Close) return (result.MessageType, []);
++            if (message.Length + result.Count > 65536) throw Invalid("单条消息不能超过 64 KiB");
++            message.Write(buffer, 0, result.Count);
++            if (result.EndOfMessage) return (result.MessageType, message.ToArray());
++        }
++    }
++
++    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
++    {
++        using (var scope = scopes.CreateScope())
++        {
++            await scope.ServiceProvider.GetRequiredService<ISqlSugarClient>().Updateable<TranslationRoom>()
++                .SetColumns(room => new TranslationRoom { Status = "closed", ClosedReason = "server_restarted" })
++                .Where(room => room.Status != "closed").ExecuteCommandAsync();
++        }
++        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
++        while (await timer.WaitForNextTickAsync(stoppingToken))
++        {
++            foreach (var room in rooms.Values)
++            {
++                try
++                {
++                    var now = DateTimeOffset.UtcNow;
++                    lock (room.Gate)
++                    {
++                        foreach (var member in room.Members.Values.ToArray())
++                        {
++                            if (member.Connection == null && now - member.JoinedAt > TimeSpan.FromSeconds(45))
++                                room.Members.Remove(member.UserId);
++                            else if (member.Connection != null && now - member.Connection.LastSeen > TimeSpan.FromSeconds(45))
++                                member.Connection.Lifetime.Cancel();
++                        }
++                        if (room.Host != null && now - room.Host.LastSeen > TimeSpan.FromSeconds(45)) room.Host.Lifetime.Cancel();
++                        foreach (var language in room.Languages.ToArray())
++                        {
++                            if (now - language.Value.LastUsed <= TimeSpan.FromSeconds(15)
++                                || room.Members.Values.Any(member => member.Connection != null && member.Language == language.Key)) continue;
++                            language.Value.Queue.Writer.TryComplete();
++                            if (language.Value.Worker.IsCompleted) room.Languages.Remove(language.Key);
++                        }
++                    }
++                    if (room.Record.Status == "closed")
++                    {
++                        if (now > room.Record.ExpiresAt.AddMinutes(1))
++                        {
++                            lock (room.Gate)
++                            {
++                                room.Host?.Lifetime.Cancel();
++                                foreach (var member in room.Members.Values) member.Connection?.Lifetime.Cancel();
++                            }
++                            room.Lifetime.Cancel();
++                            rooms.TryRemove(room.Record.Id, out _);
++                        }
++                        continue;
++                    }
++                    await HostAsync(room.Record.HostUserId, room.Record.RickshawId);
++                    if (now >= room.Record.ExpiresAt || (room.Record.Status == "paused" && now - room.PausedAt > TimeSpan.FromSeconds(60)))
++                        _ = ObserveEndAsync(room, "timeout");
++                }
++                catch (ForbiddenBusinessException) { await EndRoomAsync(room, true, "host_permission_revoked"); }
++                catch (Exception exception) { logger.LogError(exception, "Room maintenance failed: {RoomId}", room.Record.Id); }
++            }
++        }
++    }
++
++    private async Task ObserveEndAsync(TranslationRoomState room, string reason)
++    {
++        try { await EndRoomAsync(room, false, reason); }
++        catch (Exception exception)
++        {
++            logger.LogError(exception, "Room drain failed: {RoomId}", room.Record.Id);
++            await EndRoomAsync(room, true, "output_failed");
++        }
++    }
++
++    public override async Task StopAsync(CancellationToken cancellationToken)
++    {
++        foreach (var room in rooms.Values) await EndRoomAsync(room, true, "server_stopping");
++        await base.StopAsync(cancellationToken);
++    }
++}
+*** Add File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.WebApi/Controllers/TranslationRoomsController.cs
++using System.Net.WebSockets;
++using CulturalTourismSystem.Common;
++using CulturalTourismSystem.Common.Exceptions;
++using CulturalTourismSystem.Common.Security;
++using CulturalTourismSystem.Model.Request;
++using CulturalTourismSystem.Service.Chat;
++using Microsoft.AspNetCore.Mvc;
++using Microsoft.AspNetCore.RateLimiting;
++
++namespace CulturalTourismSystem.WebApi.Controllers;
++
++public sealed class TranslationRoomsController(ICurrentUser currentUser, TranslationRoomService rooms)
++    : ApiControllerBase(currentUser)
++{
++    private long UserId => CurrentRole is "user" or "guest" ? CurrentUserId
++        : throw new ForbiddenBusinessException(ErrorCodes.Forbidden, "请使用游客端账号登录");
++
++    [HttpGet("/api/TranslationRooms/host-vehicles")]
++    public async Task<ApiResponse<object[]>> HostVehicles() => ApiResponse.Success(await rooms.HostVehiclesAsync(UserId));
++
++    [HttpPost("/api/TranslationRooms")]
++    [EnableRateLimiting("exhibit-chat")]
++    public async Task<ApiResponse<object>> Create(CreateTranslationRoomRequest request)
++        => ApiResponse.Success(await rooms.CreateAsync(UserId, request));
++
++    [HttpPost("/api/TranslationRooms/join")]
++    [EnableRateLimiting("exhibit-chat")]
++    public async Task<ApiResponse<object>> Join(JoinTranslationRoomRequest request)
++        => ApiResponse.Success(await rooms.JoinAsync(UserId, request));
++
++    [HttpGet("/api/TranslationRooms/{roomId:long}")]
++    public async Task<ApiResponse<object>> Get(long roomId) => ApiResponse.Success(await rooms.GetAsync(UserId, roomId));
++
++    [HttpPost("/api/TranslationRooms/{roomId:long}/leave")]
++    public async Task<ApiResponse> Leave(long roomId)
++    {
++        await rooms.LeaveAsync(UserId, roomId);
++        return ApiResponse.Success();
++    }
++
++    [HttpPost("/api/TranslationRooms/{roomId:long}/subscription")]
++    public ApiResponse Subscription(long roomId, TranslationRoomSubscriptionRequest request)
++    {
++        rooms.Subscribe(UserId, roomId, request);
++        return ApiResponse.Success();
++    }
++
++    [HttpPost("/api/TranslationRooms/{roomId:long}/end")]
++    public async Task<ApiResponse> End(long roomId)
++    {
++        await rooms.EndAsync(UserId, roomId, false);
++        return ApiResponse.Success();
++    }
++
++    [HttpPost("/api/TranslationRooms/{roomId:long}/close")]
++    public async Task<ApiResponse> Close(long roomId)
++    {
++        await rooms.EndAsync(UserId, roomId, true);
++        return ApiResponse.Success();
++    }
++
++    [HttpGet("/api/TranslationRooms/{roomId:long}/events")]
++    public async Task Events(long roomId, CancellationToken cancellationToken)
++    {
++        await rooms.GetAsync(UserId, roomId);
++        await WithSocketAsync(socket => rooms.EventsAsync(socket, UserId, roomId, cancellationToken));
++    }
++
++    [HttpGet("/api/TranslationRooms/{roomId:long}/input")]
++    public async Task Input(long roomId, CancellationToken cancellationToken)
++    {
++        await rooms.ValidateHostAsync(UserId, roomId);
++        await WithSocketAsync(socket => rooms.InputAsync(socket, UserId, roomId, cancellationToken));
++    }
++
++    private async Task WithSocketAsync(Func<WebSocket, Task> action)
++    {
++        if (!HttpContext.WebSockets.IsWebSocketRequest)
++            throw new ValidationException(ErrorCodes.InvalidParameter, "请使用 WebSocket 连接");
++        using var socket = await HttpContext.WebSockets.AcceptWebSocketAsync(
++            HttpContext.WebSockets.WebSocketRequestedProtocols.Contains("translation") ? "translation" : null);
++        try { await action(socket); }
++        catch (Exception) when (socket.State != WebSocketState.Open) { }
++        catch (Exception)
++        {
++            await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, "room unavailable", CancellationToken.None);
++        }
++    }
++}
+*** Add File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/doc/97-translation-room-ddl.sql
++BEGIN;
++
++ALTER TABLE rickshaw_vehicle ADD COLUMN IF NOT EXISTS driver_phone varchar(20);
++ALTER TABLE rickshaw_vehicle ADD COLUMN IF NOT EXISTS driver_user_id bigint REFERENCES app_user(id);
++CREATE INDEX IF NOT EXISTS ix_rickshaw_driver_user ON rickshaw_vehicle(driver_user_id)
++    WHERE is_deleted = 0 AND driver_user_id IS NOT NULL;
++
++CREATE TABLE IF NOT EXISTS translation_room (
++    id bigint PRIMARY KEY,
++    rickshaw_id bigint NOT NULL REFERENCES rickshaw_vehicle(id),
++    host_user_id bigint NOT NULL REFERENCES app_user(id),
++    join_code varchar(8) NOT NULL,
++    source_language varchar(10) NOT NULL,
++    status varchar(16) NOT NULL DEFAULT 'waiting'
++        CHECK (status IN ('waiting', 'live', 'paused', 'draining', 'closed')),
++    expires_at timestamptz NOT NULL,
++    closed_reason varchar(64),
++    is_deleted smallint NOT NULL DEFAULT 0,
++    created_at timestamptz NOT NULL DEFAULT now(),
++    updated_at timestamptz NOT NULL DEFAULT now()
++);
++CREATE UNIQUE INDEX IF NOT EXISTS ux_translation_room_active_vehicle ON translation_room(rickshaw_id)
++    WHERE status <> 'closed' AND is_deleted = 0;
++CREATE UNIQUE INDEX IF NOT EXISTS ux_translation_room_active_code ON translation_room(join_code)
++    WHERE status <> 'closed' AND is_deleted = 0;
++CREATE INDEX IF NOT EXISTS ix_translation_room_host ON translation_room(host_user_id, created_at DESC);
++
++CREATE TABLE IF NOT EXISTS translation_room_segment (
++    id bigint PRIMARY KEY,
++    room_id bigint NOT NULL REFERENCES translation_room(id),
++    epoch_id bigint NOT NULL,
++    sequence integer NOT NULL CHECK (sequence > 0),
++    language varchar(10) NOT NULL,
++    text text NOT NULL,
++    is_deleted smallint NOT NULL DEFAULT 0,
++    created_at timestamptz NOT NULL DEFAULT now(),
++    updated_at timestamptz NOT NULL DEFAULT now()
++);
++CREATE INDEX IF NOT EXISTS ix_translation_room_segment_order
++    ON translation_room_segment(room_id, epoch_id, sequence, language);
++
++COMMENT ON COLUMN rickshaw_vehicle.driver_phone IS '后台确认的车夫手机号，必须匹配授权账号';
++COMMENT ON COLUMN rickshaw_vehicle.driver_user_id IS '保存手机号时绑定当前已有账号，后续注册不能自动继承房主权限';
++COMMENT ON TABLE translation_room IS '单实例实时讲解房间；进程重启后显式关闭未完成房间';
++COMMENT ON TABLE translation_room_segment IS '已提交原文及各语言完整译文，不保存游客凭证或音频';
++
++COMMIT;
+*** End Patch

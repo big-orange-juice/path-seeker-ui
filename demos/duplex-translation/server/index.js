@@ -39,9 +39,12 @@ export function createDemoServer(config) {
       }
       const pathname = url.pathname.slice(basePath.length);
       if (pathname.startsWith("/api/")) {
+        const roomPath = /^\/api\/TranslationRooms(?:\/(?:host-vehicles|join|\d+(?:\/(?:leave|subscription|end|close))?))?$/.test(pathname);
         const allowedMethod = pathname.endsWith("/history") ? request.method === "GET"
-          : pathname.endsWith("/sessions") ? ["GET", "POST"].includes(request.method) : request.method === "POST";
-        if (!allowedPaths.has(pathname) || !allowedMethod) {
+          : pathname.endsWith("/sessions") ? ["GET", "POST"].includes(request.method)
+          : roomPath && (/\/host-vehicles$/.test(pathname) || /\/\d+$/.test(pathname)) ? request.method === "GET"
+          : request.method === "POST";
+        if ((!allowedPaths.has(pathname) && !roomPath) || !allowedMethod) {
           response.writeHead(404);
           return response.end();
         }
@@ -87,11 +90,13 @@ export function createDemoServer(config) {
   });
   server.on("upgrade", (request, socket, head) => {
     const pathname = new URL(request.url, "http://localhost").pathname;
-    if (pathname !== `${basePath}/api/ExhibitChat/translate-realtime`) {
+    const apiPath = pathname.slice(basePath.length);
+    if (!pathname.startsWith(`${basePath}/api/`) || (apiPath !== '/api/ExhibitChat/translate-realtime'
+        && !/^\/api\/TranslationRooms\/\d+\/(input|events)$/.test(apiPath))) {
       socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
       return;
     }
-    const target = new URL(resolveUpstreamUrl(upstreamBase.href, "/api/ExhibitChat/translate-realtime"));
+    const target = new URL(resolveUpstreamUrl(upstreamBase.href, apiPath));
     const headers = { host: target.host, connection: "Upgrade", upgrade: "websocket" };
     for (const name of ["sec-websocket-key", "sec-websocket-version", "sec-websocket-protocol", "authorization", "origin"]) {
       if (request.headers[name]) headers[name] = request.headers[name];

@@ -1,0 +1,6 @@
+*** Begin Patch
+*** Update File: D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/Chat/TranslationRoomService.cs
+@@
+-            room.Send("room.started", room.Snapshot(userId));
++            room.Send("room.started", new { sourceLanguage = room.Record.SourceLanguage, status = "live" });
+*** End Patch

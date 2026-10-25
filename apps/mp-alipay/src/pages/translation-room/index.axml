@@ -1,0 +1,27 @@
+<scroll-view scroll-y="true" class="room-page">
+  <view class="room-notice">{{notice}}</view><view a:if="{{error}}" class="room-error">{{error}}</view>
+  <view a:if="{{!room || disconnected}}" class="room-card"><view class="room-title">收听车夫讲解</view>
+    <input class="room-field" value="{{code}}" onInput="inputCode" type="number" maxlength="8" placeholder="输入八位房间码"/>
+    <button onTap="scan" disabled="{{busy}}">扫码填写房间码</button>
+    <picker range="{{languages}}" range-key="label" value="{{languageIndex}}" onChange="chooseLanguage"><view class="room-field">收听语言 · {{languages[languageIndex].label}} ▾</view></picker>
+    <button class="room-button" onTap="join" disabled="{{busy}}">开始 / 重新收听</button><view class="room-notice">从下一段完整讲解开始收听，建议佩戴耳机。</view>
+  </view>
+  <view a:if="{{vehicles.length && (!room || disconnected)}}" class="room-card"><view class="room-title">车夫讲解台</view>
+    <picker range="{{vehicles}}" range-key="vehicleNo" value="{{vehicleIndex}}" onChange="chooseVehicle"><view class="room-field">车辆 · {{vehicles[vehicleIndex].vehicleNo}} ▾</view></picker>
+    <picker range="{{languages}}" range-key="label" value="{{sourceIndex}}" onChange="chooseSource"><view class="room-field">讲话语言 · {{languages[sourceIndex].label}} ▾</view></picker>
+    <button class="room-button" onTap="create" disabled="{{busy}}">创建或返回讲解房间</button>
+  </view>
+  <view a:if="{{room}}" class="room-card"><view class="room-title">房间 {{room.code}}</view>
+    <block a:if="{{room.isHost}}"><image a:if="{{room.qrImageDataUri}}" src="{{room.qrImageDataUri}}" class="room-qr"/>
+      <view class="room-notice">请游客扫码或输入房间码 · {{room.listenerCount}} 人在线</view>
+      <view a:for="{{room.languages}}" a:key="language">{{item.language}} · {{item.count}} 人</view>
+      <button class="room-button" onTap="startSpeaking" disabled="{{busy || speaking || disconnected || room.status === 'closed'}}">{{speaking ? '正在讲解' : '开始讲解'}}</button>
+      <button onTap="end" disabled="{{busy || room.status === 'closed'}}">结束讲解并播完剩余语音</button>
+      <button onTap="closeRoom" disabled="{{busy || room.status === 'closed'}}">立即关闭房间</button>
+    </block>
+    <view class="room-subtitle">{{source || '等待下一段讲解…'}}</view><view class="room-translation">{{translated}}</view>
+    <button a:if="{{!room.isHost && !disconnected}}" onTap="changeLanguage">更换语言（停止当前语音）</button>
+    <button a:if="{{!room.isHost && !disconnected}}" onTap="togglePause">{{paused ? '恢复收听' : '暂停收听'}}</button>
+    <button onTap="leave">{{room.isHost ? '离开讲解台' : '停止收听并退出'}}</button>
+  </view>
+</scroll-view>

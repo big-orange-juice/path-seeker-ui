@@ -31,7 +31,8 @@ function sanitizeMap(map) {
   return Object.assign({}, map, center, { markers, polyline, routeLines, boundaryLines, includePoints: markers.map(finiteCoordinate) });
 }
 Page({
-  data: { mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: true, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: '开启定位后可在到达景点时自动讲解', candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
+  translationRoom() { my.navigateTo({ url: '/pages/translation-room/index' }); },
+  data: { mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: false, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: '开启定位后可查看附近景点，点击播放收听讲解', candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
   onLoad(query = {}) { this._rev = 0; this._visible = true; this._asking = false; this._dismissedCandidates = new Set(); this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, sequence: [], lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
   onShow() {
     this._visible = true;
@@ -86,7 +87,7 @@ Page({
       const locale = storedLocale; storage.write('locale', locale);
       const prefs = storage.read(storage.scoped(this._user, 'preferences'), {});
       storage.write('tour-locale', locale);
-      this.setData({ locale, messages: tourMessages(locale), localeIndex: Math.max(0, locales.findIndex(l => l.value === locale)), autoplay: prefs.autoplay !== false, skipExtra: !!prefs.skipExtra, lockContent: !!prefs.lockContent, tourStage: 'overview' });
+      this.setData({ locale, messages: tourMessages(locale), localeIndex: Math.max(0, locales.findIndex(l => l.value === locale)), autoplay: false, skipExtra: !!prefs.skipExtra, lockContent: !!prefs.lockContent, tourStage: 'overview' });
       if (!await this.loadCatalog(launch.destinationId || '') || token !== this._initToken || this._user !== ui.userId()) return;
       const selected = getApp().globalData.selectedRoute || launch.routeId || storage.read(storage.scoped(this._user, 'route'), '');
       getApp().globalData.selectedRoute = '';
@@ -240,21 +241,21 @@ Page({
       const previousVisitId = this.data.visit && this.data.visit.visitId;
       this.setData({ visit }); this._heldVisit = { visit, route: this.data.route };
       if (previousVisitId !== visit.visitId) this.restoreSequence();
-      await this.enter(this.data.stopIndex);
+      await this.enter(this.data.stopIndex, false);
       if (rev === this._rev && user === ui.userId()) { this.setData({ tourStage: 'navigation', contentOpen: false, queueOpen: false }); this.focusNavigationMap(); }
     } catch (e) { if (rev === this._rev && user === ui.userId()) ui.error(this, e); }
     finally { if (rev === this._rev && user === ui.userId()) { this.setData({ busy: false }); this.flushFinished(); } }
   },
-  async enter(index) {
+  async enter(index, play = true) {
     const stop = this.data.stops[index], visit = this.data.visit, rev = this._rev, user = this._user;
     if (!stop || !visit || visit.status !== 1) return;
-    if ((visit.completedStageIds || []).includes(stop.id)) { this._manualBrowse = true; this.showStop(index, true); this.setData({ tourStage: 'navigation', contentOpen: true }); this.play(); return; }
+    if ((visit.completedStageIds || []).includes(stop.id)) { this._manualBrowse = true; this.showStop(index, true); this.setData({ tourStage: 'navigation', contentOpen: true }); if (play) this.play(); return; }
     const result = await visits.update(visit, stop.id, 'start', this.data.route);
     if (rev !== this._rev || user !== ui.userId()) return;
     this.setData({ sequence: this.data.sequence.map(item => item.status === 'playing' && item.id !== stop.id ? Object.assign({}, item, { status: 'queued' }) : item) });
     this.setData({ visit: result }); this._heldVisit = { visit: result, route: this.data.route };
     this.sequenceStatus(stop.id, 'playing', index);
-    this._manualBrowse = false; this.showStop(index, false); this.setData({ tourStage: 'navigation', contentOpen: true }); if (this._visible || config.background) this.play(true);
+    this._manualBrowse = false; this.showStop(index, false); this.setData({ tourStage: 'navigation', contentOpen: play }); if (play && (this._visible || config.background)) this.play(true);
   },
   async chooseLanguage(event) {
     const index = Number(ui.dataset(event).index);

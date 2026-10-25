@@ -4,6 +4,9 @@ export interface RickshawRecord {
   museumName?: string | null;
   vehicleNo: string;
   driverName?: string | null;
+  driverPhone?: string | null;
+  driverUserNo?: string | null;
+  driverUserId?: string | null;
   remark?: string | null;
   status: number;
   qrToken?: string | null;
@@ -14,6 +17,8 @@ export interface RickshawDraft {
   museumId: string;
   vehicleNo: string;
   driverName: string;
+  driverPhone?: string;
+  driverUserNo?: string;
   remark: string;
 }
 
