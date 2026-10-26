@@ -1,0 +1,657 @@
+diff --git a/CulturalTourismSystem.ApiTests/AppUserDriverTests.cs b/CulturalTourismSystem.ApiTests/AppUserDriverTests.cs
+new file mode 100644
+index 0000000..3a0d1a3
+--- /dev/null
++++ b/CulturalTourismSystem.ApiTests/AppUserDriverTests.cs
+@@ -0,0 +1,73 @@
++using System.Reflection;
++using CulturalTourismSystem.Common.Exceptions;
++using CulturalTourismSystem.IRepository;
++using CulturalTourismSystem.Model.DataBase;
++using CulturalTourismSystem.Model.Request;
++using CulturalTourismSystem.Service;
++using Microsoft.Extensions.Logging.Abstractions;
++using Xunit;
++
++namespace CulturalTourismSystem.ApiTests;
++
++public sealed class AppUserDriverTests
++{
++    [Fact]
++    public async Task Admin_grants_phone_bound_permission_and_can_revoke_after_account_is_disabled()
++    {
++        var (service, repository) = Fixture();
++        await service.ChangeDriverAsync(new() { UserId = repository.User.Id.ToString(), IsDriver = true, Phone = " 13800138000 " });
++        Assert.True(repository.User.IsDriver);
++        Assert.Equal("13800138000", repository.User.Phone);
++        Assert.Equal(repository.User.Phone, repository.User.DriverPhone);
++        repository.User.Status = 2;
++        await service.ChangeDriverAsync(new() { UserId = repository.User.Id.ToString(), IsDriver = false });
++        Assert.False(repository.User.IsDriver);
++        Assert.Null(repository.User.DriverPhone);
++        Assert.Equal("13800138000", repository.User.Phone);
++        Assert.Equal(2, repository.Updates);
++    }
++
++    [Theory]
++    [InlineData(null, "13800138000", true, 1, 6)]
++    [InlineData("13900139000", "13800138000", false, 1, 6)]
++    [InlineData(null, "invalid", false, 1, 6)]
++    [InlineData(null, "13800138000", false, 2, 6)]
++    [InlineData(null, "13800138000", false, 1, 5)]
++    public async Task Invalid_or_conflicting_phone_and_ineligible_accounts_cannot_be_granted(
++        string? existingPhone, string requestedPhone, bool conflict, short status, short channel)
++    {
++        var (service, repository) = Fixture();
++        repository.User.Phone = existingPhone;
++        repository.User.Status = status;
++        repository.User.RegisterChannel = channel;
++        repository.PhoneConflict = conflict;
++        await Assert.ThrowsAsync<ValidationException>(() => service.ChangeDriverAsync(new()
++        {
++            UserId = repository.User.Id.ToString(), IsDriver = true, Phone = requestedPhone
++        }));
++        Assert.False(repository.User.IsDriver);
++        Assert.Equal(0, repository.Updates);
++    }
++
++    private static (AppUserService Service, UserRepositoryProxy Repository) Fixture()
++    {
++        var users = DispatchProxy.Create<IAppUserRepository, UserRepositoryProxy>();
++        var service = new AppUserService(users, null!, null!, null!, null!, null!, null!,
++            NullLogger<AppUserService>.Instance, null!, null!);
++        return (service, (UserRepositoryProxy)(object)users);
++    }
++
++    public class UserRepositoryProxy : DispatchProxy
++    {
++        public AppUser User { get; } = new() { Id = 9223372036854775806, RegisterChannel = 6, Status = 1 };
++        public bool PhoneConflict { get; set; }
++        public int Updates { get; private set; }
++        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
++        {
++            if (method!.Name == "GetByIdAsync") return Task.FromResult<AppUser?>(User);
++            if (method.Name == "ExistsAsync") return Task.FromResult(PhoneConflict);
++            if (method.Name == "UpdateAsync") { Updates++; return Task.FromResult(User.Id); }
++            throw new NotSupportedException(method.Name);
++        }
++    }
++}
+diff --git a/CulturalTourismSystem.ApiTests/TranslationRoomTests.cs b/CulturalTourismSystem.ApiTests/TranslationRoomTests.cs
+index 77471d2..8764d95 100644
+--- a/CulturalTourismSystem.ApiTests/TranslationRoomTests.cs
++++ b/CulturalTourismSystem.ApiTests/TranslationRoomTests.cs
+@@ -75,28 +75,56 @@ public sealed class TranslationRoomTests
+         TranslationRoomService.EnsureLanguageCapacity(room, TranslationTargetLanguage.English, 5);
+     }
+ 
+-    [Fact]
+-    public async Task Matching_phone_does_not_authorize_a_different_or_unbound_account()
++    [Theory]
++    [InlineData(false, "13800138000", "13800138000", 1, 6, 0, false)]
++    [InlineData(true, "13800138000", "13900139000", 1, 6, 0, false)]
++    [InlineData(true, null, null, 1, 6, 0, false)]
++    [InlineData(true, "13800138000", "13800138000", 2, 6, 0, false)]
++    [InlineData(true, "13800138000", "13800138000", 1, 5, 0, false)]
++    [InlineData(true, "13800138000", "13800138000", 1, 6, 1, false)]
++    [InlineData(true, "13800138000", "13800138000", 1, 6, 0, true)]
++    public async Task Driver_permission_requires_authorized_phone_and_active_registered_account(
++        bool isDriver, string? phone, string? driverPhone, short status, short channel, short deleted, bool allowed)
+     {
+         var services = new ServiceCollection();
+         var user = DispatchProxy.Create<IAppUserRepository, RepositoryProxy>();
+-        ((RepositoryProxy)(object)user).Entity = new AppUser { Id = 42, Phone = "13800138000", Status = 1, RegisterChannel = 6 };
+-        var vehicles = DispatchProxy.Create<IRickshawVehicleRepository, RepositoryProxy>();
+-        var vehicle = new RickshawVehicle { Id = 8, DriverPhone = "13800138000", Status = RickshawStatuses.Enabled, DriverUserId = 99 };
+-        ((RepositoryProxy)(object)vehicles).Entity = vehicle;
++        ((RepositoryProxy)(object)user).Entity = new AppUser
++        {
++            Id = 42, IsDriver = isDriver, Phone = phone, DriverPhone = driverPhone,
++            Status = status, RegisterChannel = channel, IsDeleted = deleted
++        };
+         services.AddSingleton(user);
+-        services.AddSingleton(vehicles);
+         using var provider = services.BuildServiceProvider();
+         var service = new TranslationRoomService(provider.GetRequiredService<IServiceScopeFactory>(),
+             new SnowflakeIdGenerator(1, 1), NullLogger<TranslationRoomService>.Instance, new ConfigurationBuilder().Build());
+-
+-        var request = new CreateTranslationRoomRequest { RickshawId = "8", SourceLanguage = TranslationTargetLanguage.SimplifiedChinese };
+-        await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.CreateAsync(42, request));
+-        vehicle.DriverUserId = null;
+-        await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.CreateAsync(42, request));
+-        vehicle.DriverUserId = 42;
+-        vehicle.Status = RickshawStatuses.Disabled;
++        if (status != 1 || deleted != 0)
++        {
++            await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.HostPermissionAsync(42));
++        }
++        else
++        {
++            var permission = JsonSerializer.SerializeToElement(await service.HostPermissionAsync(42));
++            Assert.Equal(allowed, permission.GetProperty("canHost").GetBoolean());
++        }
++        var request = new CreateTranslationRoomRequest { SourceLanguage = TranslationTargetLanguage.SimplifiedChinese };
++        if (!allowed)
++        {
++            await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.CreateAsync(42, request));
++            return;
++        }
++        var state = State();
++        state.Record.HostUserId = 42;
++        state.Record.SourceLanguage = "zh-CN";
++        state.Record.ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30);
++        var activeRooms = (System.Collections.Concurrent.ConcurrentDictionary<long, TranslationRoomState>)
++            typeof(TranslationRoomService).GetField("rooms", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(service)!;
++        activeRooms[state.Record.Id] = state;
++        var snapshot = JsonSerializer.SerializeToElement(await service.CreateAsync(42, request));
++        Assert.Equal(state.Record.Id.ToString(), snapshot.GetProperty("roomId").GetString());
++        Assert.False(snapshot.TryGetProperty("rickshawId", out _));
++        ((AppUser)((RepositoryProxy)(object)user).Entity!).IsDriver = false;
+         await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.CreateAsync(42, request));
++        await Assert.ThrowsAsync<ForbiddenBusinessException>(() => service.ValidateHostAsync(42, state.Record.Id));
+     }
+ 
+     private static TranslationRoomState State() => new()
+@@ -104,11 +132,31 @@ public sealed class TranslationRoomTests
+         Record = new TranslationRoom { Id = 9223372036854775000, HostUserId = 1 }
+     };
+ 
++    [Fact]
++    public async Task Room_translation_session_does_not_require_a_vehicle_or_museum()
++    {
++        var sessions = DispatchProxy.Create<IChatSessionRepository, RepositoryProxy>();
++        var service = (ExhibitChatService)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(ExhibitChatService));
++        typeof(ExhibitChatService).GetField("_sessions", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(service, sessions);
++        typeof(ExhibitChatService).GetField("_ids", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(service, new SnowflakeIdGenerator(1, 1));
++        var response = await service.CreateRoomTranslationSessionAsync(42, "实时讲解");
++        var stored = Assert.IsType<ChatSession>(((RepositoryProxy)(object)sessions).Entity);
++        Assert.Equal(ChatSessionScenes.RoomTranslation, stored.Scene);
++        Assert.Null(stored.MuseumId);
++        Assert.Null(stored.ContextRouteId);
++        Assert.Equal(stored.Id.ToString(), response.Id);
++    }
++
+     public class RepositoryProxy : DispatchProxy
+     {
+         public object? Entity { get; set; }
+         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+         {
++            if (method!.Name == "InsertAsync")
++            {
++                Entity = arguments![0];
++                return Task.FromResult(((BaseEntity)Entity!).Id);
++            }
+             if (method!.Name == "GetByIdAsync")
+                 return typeof(Task).GetMethod(nameof(Task.FromResult))!.MakeGenericMethod(method.ReturnType.GenericTypeArguments[0])
+                     .Invoke(null, [Entity]);
+diff --git a/CulturalTourismSystem.IService/IAppUserService.cs b/CulturalTourismSystem.IService/IAppUserService.cs
+index 41fa0d6..9f113dd 100644
+--- a/CulturalTourismSystem.IService/IAppUserService.cs
++++ b/CulturalTourismSystem.IService/IAppUserService.cs
+@@ -7,6 +7,7 @@ namespace CulturalTourismSystem.IService;
+ /// <summary>C端游客用户服务接口</summary>
+ public interface IAppUserService : IBaseService
+ {
++    Task ChangeDriverAsync(ChangeDriverPermissionRequest request);
+     /// <summary>用户注册</summary>
+     Task<LoginResponse> RegisterAsync(RegisterRequest request, string? clientIp);
+     /// <summary>用户登录</summary>
+diff --git a/CulturalTourismSystem.IService/IExhibitChatService.cs b/CulturalTourismSystem.IService/IExhibitChatService.cs
+index 7a5e8cb..9b506ad 100644
+--- a/CulturalTourismSystem.IService/IExhibitChatService.cs
++++ b/CulturalTourismSystem.IService/IExhibitChatService.cs
+@@ -5,6 +5,7 @@ namespace CulturalTourismSystem.IService;
+ 
+ public interface IExhibitChatService : IBaseService
+ {
++    Task<ExhibitChatSessionResponse> CreateRoomTranslationSessionAsync(long userId, string title);
+     IAsyncEnumerable<ExhibitChatEventResponse> TranslateWithAudioAsync(
+         long userId,
+         ExhibitChatTranslationRequest request,
+diff --git a/CulturalTourismSystem.Model/DataBase/AppUser.cs b/CulturalTourismSystem.Model/DataBase/AppUser.cs
+index 8a9c20c..0dd44ac 100644
+--- a/CulturalTourismSystem.Model/DataBase/AppUser.cs
++++ b/CulturalTourismSystem.Model/DataBase/AppUser.cs
+@@ -23,6 +23,12 @@ public class AppUser : BaseEntity
+     [Column("phone")]
+     public string? Phone { get; set; }
+ 
++    [Column("is_driver")]
++    public bool IsDriver { get; set; }
++
++    [Column("driver_phone")]
++    public string? DriverPhone { get; set; }
++
+     [Column("email")]
+     public string? Email { get; set; }
+ 
+diff --git a/CulturalTourismSystem.Model/DataBase/Chat.cs b/CulturalTourismSystem.Model/DataBase/Chat.cs
+index e9e9e7d..56cdbdb 100644
+--- a/CulturalTourismSystem.Model/DataBase/Chat.cs
++++ b/CulturalTourismSystem.Model/DataBase/Chat.cs
+@@ -12,6 +12,7 @@ public static class ChatSessionScenes
+ {
+     public const string Authoring = "authoring";
+     public const string ExhibitQa = "exhibit_qa";
++    public const string RoomTranslation = "room_translation";
+     /// <summary>全局平台助手场景：不绑定 routeId/stageId，页面上下文由后端核验后裁剪。</summary>
+     public const string Platform = "platform";
+ }
+diff --git a/CulturalTourismSystem.Model/DataBase/TranslationRoom.cs b/CulturalTourismSystem.Model/DataBase/TranslationRoom.cs
+index 6df0c5e..a52158a 100644
+--- a/CulturalTourismSystem.Model/DataBase/TranslationRoom.cs
++++ b/CulturalTourismSystem.Model/DataBase/TranslationRoom.cs
+@@ -5,7 +5,6 @@ namespace CulturalTourismSystem.Model.DataBase;
+ [Table("translation_room")]
+ public class TranslationRoom : BaseEntity
+ {
+-    [Column("rickshaw_id")] public long RickshawId { get; set; }
+     [Column("host_user_id")] public long HostUserId { get; set; }
+     [Column("join_code")] public string JoinCode { get; set; } = "";
+     [Column("source_language")] public string SourceLanguage { get; set; } = "";
+diff --git a/CulturalTourismSystem.Model/Request/AppUserRequests.cs b/CulturalTourismSystem.Model/Request/AppUserRequests.cs
+index b649419..cabee8b 100644
+--- a/CulturalTourismSystem.Model/Request/AppUserRequests.cs
++++ b/CulturalTourismSystem.Model/Request/AppUserRequests.cs
+@@ -81,6 +81,7 @@ public class UpdateProfileRequest
+ /// <summary>后台游客分页查询</summary>
+ public class AppUserPageRequest : BasePageRequest
+ {
++    public bool? IsDriver { get; set; }
+     /// <summary>关键字：昵称/用户编号/手机/邮箱</summary>
+     public string? Keyword { get; set; }
+     /// <summary>注册渠道：1=手机号 2=邮箱 3=微信 4=Apple 5=游客 99=其他</summary>
+@@ -89,6 +90,14 @@ public class AppUserPageRequest : BasePageRequest
+     public short? Status { get; set; }
+ }
+ 
++public class ChangeDriverPermissionRequest
++{
++    [Required]
++    public string UserId { get; set; } = string.Empty;
++    public bool IsDriver { get; set; }
++    public string? Phone { get; set; }
++}
++
+ /// <summary>变更用户状态请求</summary>
+ public class ChangeUserStatusRequest
+ {
+diff --git a/CulturalTourismSystem.Model/Request/TranslationRoomRequests.cs b/CulturalTourismSystem.Model/Request/TranslationRoomRequests.cs
+index 9e0680a..d63fd8a 100644
+--- a/CulturalTourismSystem.Model/Request/TranslationRoomRequests.cs
++++ b/CulturalTourismSystem.Model/Request/TranslationRoomRequests.cs
+@@ -4,7 +4,6 @@ namespace CulturalTourismSystem.Model.Request;
+ 
+ public sealed class CreateTranslationRoomRequest
+ {
+-    [Required] public string RickshawId { get; set; } = "";
+     [Required] public TranslationTargetLanguage? SourceLanguage { get; set; }
+ }
+ 
+diff --git a/CulturalTourismSystem.Model/Response/AppUserResponses.cs b/CulturalTourismSystem.Model/Response/AppUserResponses.cs
+index 9a79e3f..c93728b 100644
+--- a/CulturalTourismSystem.Model/Response/AppUserResponses.cs
++++ b/CulturalTourismSystem.Model/Response/AppUserResponses.cs
+@@ -63,6 +63,8 @@ public class UserProfileResponse
+ /// <summary>后台游客列表项</summary>
+ public class AppUserListItemResponse
+ {
++    public bool IsDriver { get; set; }
++    public string? DriverPhone { get; set; }
+     /// <summary>用户 ID</summary>
+     public string Id { get; set; } = string.Empty;
+     /// <summary>用户编号</summary>
+diff --git a/CulturalTourismSystem.Service/AppUserService.cs b/CulturalTourismSystem.Service/AppUserService.cs
+index 5adbdb8..318338f 100644
+--- a/CulturalTourismSystem.Service/AppUserService.cs
++++ b/CulturalTourismSystem.Service/AppUserService.cs
+@@ -222,6 +222,7 @@ public partial class AppUserService : IAppUserService
+ 
+         var (items, total) = await _userRepository.GetPageListAsync(u =>
+             (request.Status == null || u.Status == request.Status)
++            && (request.IsDriver == null || u.IsDriver == request.IsDriver)
+             && (request.RegisterChannel == null || u.RegisterChannel == request.RegisterChannel)
+             && (string.IsNullOrEmpty(keyword)
+                 || (u.Nickname != null && u.Nickname.Contains(keyword))
+@@ -235,6 +236,8 @@ public partial class AppUserService : IAppUserService
+             List = items.Select(u => new AppUserListItemResponse
+             {
+                 Id = u.Id.ToString(),
++                IsDriver = u.IsDriver,
++                DriverPhone = u.DriverPhone,
+                 UserNo = u.UserNo,
+                 Nickname = u.Nickname,
+                 Phone = u.Phone,
+@@ -251,6 +254,35 @@ public partial class AppUserService : IAppUserService
+         };
+     }
+ 
++    public async Task ChangeDriverAsync(ChangeDriverPermissionRequest request)
++    {
++        var user = await _userRepository.GetByIdAsync(request.UserId.ToLongIdRequired())
++            ?? throw new NotFoundBusinessException(ErrorCodes.UserNotFound, "用户不存在");
++        if (user.IsDeleted != 0)
++            throw new NotFoundBusinessException(ErrorCodes.UserNotFound, "用户不存在");
++        if (request.IsDriver)
++        {
++            var phone = request.Phone?.Trim();
++            if (user.Status != 1 || user.RegisterChannel == 5)
++                throw new ValidationException(ErrorCodes.InvalidParameter, "仅可向正常的非游客账号授予车夫权限");
++            if (string.IsNullOrWhiteSpace(phone) || !System.Text.RegularExpressions.Regex.IsMatch(phone, @"^1[3-9][0-9]{9}$"))
++                throw new ValidationException(ErrorCodes.InvalidParameter, "请输入有效的车夫手机号");
++            if (!string.IsNullOrWhiteSpace(user.Phone) && user.Phone != phone)
++                throw new ValidationException(ErrorCodes.InvalidParameter, "车夫账号已关联其他手机号，请先核实账号");
++            if (await _userRepository.ExistsAsync(other => other.Phone == phone && other.Id != user.Id))
++                throw new ValidationException(ErrorCodes.InvalidParameter, "手机号已关联其他账号，请先核实身份");
++            user.Phone = phone;
++            user.DriverPhone = phone;
++        }
++        else
++        {
++            user.DriverPhone = null;
++        }
++        user.IsDriver = request.IsDriver;
++        await _userRepository.UpdateAsync(user);
++        _logger.LogInformation("[AppUser] 车夫权限变更 UserId={UserId} IsDriver={IsDriver}", user.Id, user.IsDriver);
++    }
++
+     /// <summary>管理端变更用户状态（启用/禁用）</summary>
+     /// <param name="request">状态变更请求</param>
+     /// <exception cref="NotFoundBusinessException">用户不存在</exception>
+diff --git a/CulturalTourismSystem.Service/Chat/ExhibitChatService.cs b/CulturalTourismSystem.Service/Chat/ExhibitChatService.cs
+index 54ad149..f51ca8e 100644
+--- a/CulturalTourismSystem.Service/Chat/ExhibitChatService.cs
++++ b/CulturalTourismSystem.Service/Chat/ExhibitChatService.cs
+@@ -170,6 +170,17 @@ public class ExhibitChatService : IExhibitChatService
+         return MapSession(session);
+     }
+ 
++    public async Task<ExhibitChatSessionResponse> CreateRoomTranslationSessionAsync(long userId, string title)
++    {
++        var session = new ChatSession
++        {
++            Id = _ids.NextId(), UserId = userId, Scene = ChatSessionScenes.RoomTranslation,
++            Title = title, LastActiveAt = DateTimeOffset.UtcNow, Status = ChatSessionStatuses.Active
++        };
++        await _sessions.InsertAsync(session);
++        return MapSession(session);
++    }
++
+     public async Task<List<ExhibitChatSessionResponse>> GetSessionsAsync(long userId)
+         => (await _sessions.GetListAsync(session =>
+                 session.UserId == userId
+@@ -243,6 +254,8 @@ public class ExhibitChatService : IExhibitChatService
+         var session = await GetOwnedSessionAsync(userId, sessionId);
+         if (session.Status != ChatSessionStatuses.Active)
+             throw new ConflictBusinessException(ErrorCodes.Conflict, "会话已归档");
++        if (targetLanguage == null && session.Scene == ChatSessionScenes.RoomTranslation)
++            throw new ValidationException(ErrorCodes.InvalidParameter, "讲解翻译会话仅支持翻译");
+ 
+         if (long.TryParse(lastEventId, out var afterEventId))
+         {
+@@ -263,7 +276,9 @@ public class ExhibitChatService : IExhibitChatService
+             yield break;
+         }
+ 
+-        var resolvedContext = await ResolveInputContextAsync(parsedInput, session.MuseumId!.Value, cancellationToken);
++        var resolvedContext = targetLanguage == null
++            ? await ResolveInputContextAsync(parsedInput, session.MuseumId!.Value, cancellationToken)
++            : ExhibitChatResolvedContext.Empty;
+ 
+         var lockKey = $"exhibit-chat:session-lock:{sessionId}";
+         var lockValue = Guid.NewGuid().ToString("N");
+@@ -518,7 +533,7 @@ public class ExhibitChatService : IExhibitChatService
+                 output,
+                 speechSegments.Reader,
+                 voiceId,
+-                session.MuseumId!.Value,
++                session.MuseumId,
+                 cancellationToken);
+ 
+             await Task.WhenAll(chatTask, audioTask);
+@@ -595,7 +610,7 @@ public class ExhibitChatService : IExhibitChatService
+         ChannelWriter<ExhibitChatEventResponse> output,
+         ChannelReader<RealtimeSpeechSegment> speechSegments,
+         string voiceId,
+-        long museumId,
++        long? museumId,
+         CancellationToken cancellationToken)
+     {
+         var started = false;
+@@ -1550,8 +1565,8 @@ public class ExhibitChatService : IExhibitChatService
+         var session = (await _sessions.GetListAsync(item =>
+                 item.Id == sessionId
+                 && item.UserId == userId
+-                && item.Scene == ChatSessionScenes.ExhibitQa
+-                && item.MuseumId != null
++                && ((item.Scene == ChatSessionScenes.ExhibitQa && item.MuseumId != null)
++                    || item.Scene == ChatSessionScenes.RoomTranslation)
+                 && item.IsDeleted == 0))
+             .SingleOrDefault();
+         return session ?? throw new NotFoundBusinessException(ErrorCodes.NotFound, "会话不存在");
+diff --git a/CulturalTourismSystem.Service/Chat/TranslationRoomService.cs b/CulturalTourismSystem.Service/Chat/TranslationRoomService.cs
+index 84cf2a7..ea43eab 100644
+--- a/CulturalTourismSystem.Service/Chat/TranslationRoomService.cs
++++ b/CulturalTourismSystem.Service/Chat/TranslationRoomService.cs
+@@ -28,31 +28,23 @@ public sealed class TranslationRoomService(
+     private readonly SemaphoreSlim generation = new(12, 12);
+     private readonly SemaphoreSlim persistence = new(1, 1);
+ 
+-    public async Task<object[]> HostVehiclesAsync(long userId)
++    public async Task<object> HostPermissionAsync(long userId)
+     {
+         using var scope = scopes.CreateScope();
+         var user = await UserAsync(scope.ServiceProvider, userId);
+-        if (user.RegisterChannel == 5 || string.IsNullOrWhiteSpace(user.Phone)) return [];
+-        var vehicles = await scope.ServiceProvider.GetRequiredService<IRickshawVehicleRepository>()
+-            .GetListAsync(vehicle => vehicle.DriverUserId == userId && vehicle.DriverPhone == user.Phone
+-                && vehicle.Status == RickshawStatuses.Enabled);
+-        return vehicles.Select(vehicle => (object)new
+-        {
+-            rickshawId = vehicle.Id.ToString(), vehicle.VehicleNo, vehicle.DriverName
+-        }).ToArray();
++        return new { canHost = CanHost(user) };
+     }
+ 
+     public async Task<object> CreateAsync(long userId, CreateTranslationRoomRequest request)
+     {
+         ValidateLanguage(request.SourceLanguage);
+-        var vehicle = await HostAsync(userId, request.RickshawId.ToLongIdRequired());
++        await HostAsync(userId);
+         await creation.WaitAsync();
+         try
+         {
+-            var existing = rooms.Values.FirstOrDefault(room => room.Record.RickshawId == vehicle.Id && room.Record.Status != "closed");
++            var existing = rooms.Values.FirstOrDefault(room => room.Record.HostUserId == userId && room.Record.Status != "closed");
+             if (existing != null)
+             {
+-                if (existing.Record.HostUserId != userId) throw Forbidden("该车辆已有其他车夫的讲解房间");
+                 if (existing.Record.SourceLanguage != Language(request.SourceLanguage!.Value))
+                     throw Invalid("现有房间的讲话语言不可更改，请先结束当前房间");
+                 lock (existing.Gate) return existing.Snapshot(userId);
+@@ -63,7 +55,7 @@ public sealed class TranslationRoomService(
+             while (rooms.Values.Any(room => room.Record.JoinCode == code));
+             var record = new TranslationRoom
+             {
+-                Id = ids.NextId(), RickshawId = vehicle.Id, HostUserId = userId, JoinCode = code,
++                Id = ids.NextId(), HostUserId = userId, JoinCode = code,
+                 SourceLanguage = Language(request.SourceLanguage!.Value),
+                 ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(30)
+             };
+@@ -111,7 +103,7 @@ public sealed class TranslationRoomService(
+         var room = RequireRoom(roomId);
+         using var scope = scopes.CreateScope();
+         await UserAsync(scope.ServiceProvider, userId);
+-        if (room.Record.HostUserId == userId) await HostAsync(userId, room.Record.RickshawId);
++        if (room.Record.HostUserId == userId) await HostAsync(userId);
+         lock (room.Gate)
+         {
+             if (room.Record.HostUserId != userId && !room.Members.ContainsKey(userId)) throw Forbidden("请先加入房间");
+@@ -150,7 +142,7 @@ public sealed class TranslationRoomService(
+     public async Task EndAsync(long userId, long roomId, bool immediate)
+     {
+         var room = RequireRoom(roomId);
+-        await HostAsync(userId, room.Record.RickshawId);
++        await HostAsync(userId);
+         if (room.Record.HostUserId != userId) throw Forbidden("仅房主可结束讲解");
+         await EndRoomAsync(room, immediate, immediate ? "host_closed" : "host_ended");
+     }
+@@ -234,7 +226,7 @@ public sealed class TranslationRoomService(
+     public async Task InputAsync(WebSocket socket, long userId, long roomId, CancellationToken requestToken)
+     {
+         var room = RequireRoom(roomId);
+-        await HostAsync(userId, room.Record.RickshawId);
++        await HostAsync(userId);
+         if (room.Record.HostUserId != userId) throw Forbidden("游客不能上传语音");
+         CancellationTokenSource input;
+         long epoch;
+@@ -399,15 +391,12 @@ public sealed class TranslationRoomService(
+                 await generation.WaitAsync(room.Lifetime.Token);
+                 acquired = true;
+                 using var scope = scopes.CreateScope();
+-                await HostAsync(room.Record.HostUserId, room.Record.RickshawId);
++                await HostAsync(room.Record.HostUserId);
+                 var chat = scope.ServiceProvider.GetRequiredService<IExhibitChatService>();
+                 if (sessionId == null)
+                 {
+-                    var vehicle = await scope.ServiceProvider.GetRequiredService<IRickshawVehicleRepository>().GetByIdAsync(room.Record.RickshawId);
+-                    sessionId = (await chat.CreateSessionAsync(room.Record.HostUserId, new()
+-                    {
+-                        MuseumId = vehicle!.MuseumId.ToString(), Title = "车夫实时讲解 · " + Language(language)
+-                    })).Id;
++                    sessionId = (await chat.CreateRoomTranslationSessionAsync(
++                        room.Record.HostUserId, "车夫实时讲解 · " + Language(language))).Id;
+                 }
+                 var text = new StringBuilder();
+                 lock (room.Gate) room.Send("translation.committed", new { text = commit.Source.Text }, commit, language);
+@@ -510,25 +499,25 @@ public sealed class TranslationRoomService(
+     {
+         var room = RequireRoom(roomId);
+         if (room.Record.HostUserId != userId) throw Forbidden("游客不能上传语音");
+-        await HostAsync(userId, room.Record.RickshawId);
++        await HostAsync(userId);
+         lock (room.Gate) EnsureOpen(room);
+     }
+ 
+-    private async Task<RickshawVehicle> HostAsync(long userId, long vehicleId)
++    private static bool CanHost(AppUser user) => user.IsDeleted == 0 && user.Status == 1 && user.IsDriver
++        && user.RegisterChannel != 5 && !string.IsNullOrWhiteSpace(user.Phone) && user.DriverPhone == user.Phone;
++
++    private async Task HostAsync(long userId)
+     {
+         using var scope = scopes.CreateScope();
+         var user = await UserAsync(scope.ServiceProvider, userId);
+-        var vehicle = await scope.ServiceProvider.GetRequiredService<IRickshawVehicleRepository>().GetByIdAsync(vehicleId);
+-        if (vehicle == null || vehicle.Status != RickshawStatuses.Enabled || vehicle.DriverUserId != userId
+-            || string.IsNullOrWhiteSpace(user.Phone) || user.RegisterChannel == 5 || vehicle.DriverPhone != user.Phone)
+-            throw Forbidden("当前账号未获车夫授权，请联系管理员核对手机号及车辆状态");
+-        return vehicle;
++        if (!CanHost(user))
++            throw Forbidden("当前账号未获车夫授权，请联系管理员核对手机号及车夫权限");
+     }
+ 
+     private static async Task<AppUser> UserAsync(IServiceProvider services, long userId)
+     {
+         var user = await services.GetRequiredService<IAppUserRepository>().GetByIdAsync(userId);
+-        if (user == null || user.Status != 1) throw Forbidden("当前用户不可用");
++        if (user == null || user.Status != 1 || user.IsDeleted != 0) throw Forbidden("当前用户不可用");
+         return user;
+     }
+ 
+@@ -620,7 +609,7 @@ public sealed class TranslationRoomService(
+                         }
+                         continue;
+                     }
+-                    await HostAsync(room.Record.HostUserId, room.Record.RickshawId);
++                    await HostAsync(room.Record.HostUserId);
+                     if (now >= room.Record.ExpiresAt || (room.Record.Status == "paused" && now - room.PausedAt > TimeSpan.FromSeconds(60)))
+                         _ = ObserveEndAsync(room, "timeout");
+                 }
+diff --git a/CulturalTourismSystem.Service/Chat/TranslationRoomState.cs b/CulturalTourismSystem.Service/Chat/TranslationRoomState.cs
+index a7996af..c204ca9 100644
+--- a/CulturalTourismSystem.Service/Chat/TranslationRoomState.cs
++++ b/CulturalTourismSystem.Service/Chat/TranslationRoomState.cs
+@@ -57,7 +57,7 @@ public sealed class TranslationRoomState
+ 
+     public object Snapshot(long userId) => new
+     {
+-        roomId = Record.Id.ToString(), rickshawId = Record.RickshawId.ToString(),
++        roomId = Record.Id.ToString(),
+         isHost = Record.HostUserId == userId, code = Record.JoinCode,
+         sourceLanguage = Record.SourceLanguage, status = Record.Status, expiresAt = Record.ExpiresAt,
+         epochId = EpochId.ToString(), sequence = Sequence,
+diff --git a/CulturalTourismSystem.WebApi/Controllers/AppUserController.cs b/CulturalTourismSystem.WebApi/Controllers/AppUserController.cs
+index 3dda7b0..47f443a 100644
+--- a/CulturalTourismSystem.WebApi/Controllers/AppUserController.cs
++++ b/CulturalTourismSystem.WebApi/Controllers/AppUserController.cs
+@@ -15,6 +15,14 @@ public class AppUserController : ApiControllerBase
+ {
+     private readonly IAppUserService _userService;
+ 
++    [HttpPost]
++    [AdminOnly]
++    public async Task<ApiResponse> ChangeDriver([FromBody] ChangeDriverPermissionRequest request)
++    {
++        await _userService.ChangeDriverAsync(request);
++        return ApiResponse.Success("车夫权限已更新");
++    }
++
+     [HttpPost]
+     [SkipPermission]
+     [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("mini-program-login")]
+diff --git a/CulturalTourismSystem.WebApi/Controllers/TranslationRoomsController.cs b/CulturalTourismSystem.WebApi/Controllers/TranslationRoomsController.cs
+index c976b20..2ddd64d 100644
+--- a/CulturalTourismSystem.WebApi/Controllers/TranslationRoomsController.cs
++++ b/CulturalTourismSystem.WebApi/Controllers/TranslationRoomsController.cs
+@@ -15,8 +15,8 @@ public sealed class TranslationRoomsController(ICurrentUser currentUser, Transla
+     private long UserId => CurrentRole is "user" or "guest" ? CurrentUserId
+         : throw new ForbiddenBusinessException(ErrorCodes.Forbidden, "请使用游客端账号登录");
+ 
+-    [HttpGet("/api/TranslationRooms/host-vehicles")]
+-    public async Task<ApiResponse<object[]>> HostVehicles() => ApiResponse.Success(await rooms.HostVehiclesAsync(UserId));
++    [HttpGet("/api/TranslationRooms/host-permission")]
++    public async Task<ApiResponse<object>> HostPermission() => ApiResponse.Success(await rooms.HostPermissionAsync(UserId));
+ 
+     [HttpPost("/api/TranslationRooms")]
+     [EnableRateLimiting("exhibit-chat")]
+diff --git a/doc/98-app-user-driver-permission.sql b/doc/98-app-user-driver-permission.sql
+new file mode 100644
+index 0000000..9a7452b
+--- /dev/null
++++ b/doc/98-app-user-driver-permission.sql
+@@ -0,0 +1,35 @@
++BEGIN;
++
++ALTER TABLE app_user ADD COLUMN IF NOT EXISTS driver_phone varchar(20);
++DO $migration$
++BEGIN
++    IF NOT EXISTS (
++        SELECT 1 FROM information_schema.columns
++        WHERE table_schema = current_schema() AND table_name = 'app_user' AND column_name = 'is_driver'
++    ) THEN
++        ALTER TABLE app_user ADD COLUMN is_driver boolean NOT NULL DEFAULT false;
++        UPDATE app_user AS u
++        SET is_driver = true, driver_phone = u.phone
++        WHERE u.is_deleted = 0 AND u.status = 1 AND u.register_channel <> 5
++            AND u.phone ~ '^1[3-9][0-9]{9}$'
++            AND EXISTS (
++                SELECT 1 FROM rickshaw_vehicle AS v
++                WHERE v.driver_user_id = u.id AND v.driver_phone = u.phone
++                    AND v.status = 1 AND v.is_deleted = 0
++            );
++    END IF;
++END
++$migration$;
++
++ALTER TABLE translation_room ALTER COLUMN rickshaw_id DROP NOT NULL;
++DROP INDEX IF EXISTS ux_translation_room_active_vehicle;
++CREATE UNIQUE INDEX IF NOT EXISTS ux_translation_room_active_host
++    ON translation_room(host_user_id)
++    WHERE status <> 'closed' AND is_deleted = 0 AND rickshaw_id IS NULL;
++
++ALTER TABLE chat_session DROP CONSTRAINT IF EXISTS ck_chat_session_scene;
++ALTER TABLE chat_session ADD CONSTRAINT ck_chat_session_scene
++    CHECK (scene IN ('authoring', 'exhibit_qa', 'platform', 'room_translation')) NOT VALID;
++ALTER TABLE chat_session VALIDATE CONSTRAINT ck_chat_session_scene;
++
++COMMIT;

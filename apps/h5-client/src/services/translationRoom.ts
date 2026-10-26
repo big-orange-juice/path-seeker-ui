@@ -3,7 +3,6 @@ import { getAccessToken } from '@/services/authSession'
 
 export interface TranslationRoom {
   roomId: string
-  rickshawId: string
   isHost: boolean
   code: string
   sourceLanguage: string
@@ -12,7 +11,7 @@ export interface TranslationRoom {
   languages?: { language: string; count: number }[]
   qrImageDataUri?: string
 }
-export interface HostVehicle { rickshawId: string; vehicleNo: string; driverName?: string }
+export interface HostPermission { canHost: boolean }
 export const roomRequest = <Result>(path: string, data?: object) => request<Result>(`/TranslationRooms${path}`, {
   method: data ? 'POST' : 'GET', data,
 })

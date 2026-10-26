@@ -3,11 +3,11 @@ import { RoomEventCursor, type RoomEvent } from '../../../../packages/ts-shared/
 import { startTranslationMic } from '../../../../demos/duplex-translation/public/mic.js'
 import { createPcmEncoder } from '../../../../demos/duplex-translation/public/pcm.js'
 import { createTranslationPlayer } from '../../../../demos/duplex-translation/public/player.js'
-import { roomRequest, roomSocket, type HostVehicle, type TranslationRoom } from '@/services/translationRoom'
+import { roomRequest, roomSocket, type HostPermission, type TranslationRoom } from '@/services/translationRoom'
 
 export function useTranslationRoom() {
   const room = shallowRef<TranslationRoom | null>(null)
-  const vehicles = shallowRef<HostVehicle[]>([])
+  const canHost = ref(false)
   const source = ref('')
   const translated = ref('')
   const notice = ref('选择语言，点击开始收听')
@@ -35,8 +35,9 @@ export function useTranslationRoom() {
     finally { busy.value = false }
   }
 
-  async function loadVehicles() {
-    try { vehicles.value = await roomRequest<HostVehicle[]>('/host-vehicles') }
+  async function loadPermission() {
+    canHost.value = false
+    try { canHost.value = (await roomRequest<HostPermission>('/host-permission')).canHost }
     catch (failure) { error.value = failure instanceof Error ? failure.message : '车夫权限读取失败' }
   }
 
@@ -115,9 +116,9 @@ export function useTranslationRoom() {
     player.configure({ maxQueueSeconds: 120 })
   }
 
-  function create(rickshawId: string, sourceLanguage: string) {
+  function create(sourceLanguage: string) {
     return perform(async () => {
-      const result = await roomRequest<TranslationRoom>('', { rickshawId, sourceLanguage })
+      const result = await roomRequest<TranslationRoom>('', { sourceLanguage })
       if (!alive) return
       room.value = result
       notice.value = '房间已创建，点击开始讲解开启麦克风'
@@ -216,5 +217,5 @@ export function useTranslationRoom() {
   }
 
   onBeforeUnmount(() => { alive = false; void leave().finally(() => context?.close()) })
-  return { room, vehicles, source, translated, notice, error, busy, listening, speaking, muted, loadVehicles, create, join, startSpeaking, end, leave, toggleMute, changeLanguage }
+  return { room, canHost, source, translated, notice, error, busy, listening, speaking, muted, loadPermission, create, join, startSpeaking, end, leave, toggleMute, changeLanguage }
 }

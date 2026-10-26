@@ -4,6 +4,36 @@ const { wavPcm, base64 } = require('../dist/core/room-pcm');
 const { RoomEventCursor } = require('../dist/shared/translation-room');
 const { harness, tick } = require('./harness.cjs');
 
+test('driver permission shows the host controls and room creation has no vehicle binding', async () => {
+  const fixture = harness();
+  const page = fixture.page('translation-room');
+  page.onLoad();
+  await tick();
+  assert.match(fixture.requests[0].options.url, /TranslationRooms\/host-permission$/);
+  fixture.requests[0].ok({ canHost: true });
+  await tick();
+  assert.equal(page.data.canHost, true);
+  let attached;
+  page.attach = room => { attached = room; };
+  page.create();
+  await tick();
+  const creation = fixture.requests[1];
+  assert.deepEqual(JSON.parse(JSON.stringify(creation.options.data)), { sourceLanguage: 'zh-CN' });
+  creation.ok({ roomId: '9223372036854775806', isHost: true });
+  await tick();
+  assert.equal(attached.roomId, '9223372036854775806');
+});
+
+test('ordinary users cannot create a host room from the page', async () => {
+  const fixture = harness();
+  const page = fixture.page('translation-room');
+  page._visible = true;
+  page.create();
+  await tick();
+  assert.equal(fixture.requests.length, 0);
+  assert.match(page.data.error, /未获车夫授权/);
+});
+
 function wav(sampleRate = 16000) {
   const bytes = new ArrayBuffer(52), view = new DataView(bytes);
   const text = (offset, value) => { [...value].forEach((character, index) => view.setUint8(offset + index, character.charCodeAt(0))); };

@@ -6,9 +6,9 @@ import { useTranslationRoom } from '@/composables/useTranslationRoom'
 
 const route = useRoute()
 const feature = useTranslationRoom()
-const { room, vehicles, source, translated, notice, error, busy, listening, speaking, muted } = feature
+const { room, canHost, source, translated, notice, error, busy, listening, speaking, muted } = feature
 const initialCode = typeof route.query.roomCode === 'string' ? route.query.roomCode : ''
-onMounted(feature.loadVehicles)
+onMounted(feature.loadPermission)
 </script>
 
 <template>
@@ -16,7 +16,7 @@ onMounted(feature.loadVehicles)
     <header class="room-header"><RouterLink to="/ride">‹ 返回导航</RouterLink><h1>实时讲解</h1></header>
     <p role="status">{{ notice }}</p>
     <p v-if="error" role="alert" class="room-error">{{ error }}</p>
-    <TranslationRoomControls v-if="!room || (!room.isHost && !listening)" :vehicles="vehicles" :busy="busy" :initial-code="room?.code || initialCode" @create="feature.create" @join="feature.join" />
+    <TranslationRoomControls v-if="!room || (!room.isHost && !listening)" :can-host="canHost" :busy="busy" :initial-code="room?.code || initialCode" @create="feature.create" @join="feature.join" />
     <section v-if="room" class="room-session">
       <h2>房间 {{ room.code }}</h2>
       <template v-if="room.isHost">

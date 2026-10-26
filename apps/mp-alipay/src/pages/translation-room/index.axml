@@ -6,8 +6,7 @@
     <picker range="{{languages}}" range-key="label" value="{{languageIndex}}" onChange="chooseLanguage"><view class="room-field">收听语言 · {{languages[languageIndex].label}} ▾</view></picker>
     <button class="room-button" onTap="join" disabled="{{busy}}">开始 / 重新收听</button><view class="room-notice">从下一段完整讲解开始收听，建议佩戴耳机。</view>
   </view>
-  <view a:if="{{vehicles.length && (!room || disconnected)}}" class="room-card"><view class="room-title">车夫讲解台</view>
-    <picker range="{{vehicles}}" range-key="vehicleNo" value="{{vehicleIndex}}" onChange="chooseVehicle"><view class="room-field">车辆 · {{vehicles[vehicleIndex].vehicleNo}} ▾</view></picker>
+  <view a:if="{{canHost && (!room || disconnected)}}" class="room-card"><view class="room-title">车夫讲解台</view>
     <picker range="{{languages}}" range-key="label" value="{{sourceIndex}}" onChange="chooseSource"><view class="room-field">讲话语言 · {{languages[sourceIndex].label}} ▾</view></picker>
     <button class="room-button" onTap="create" disabled="{{busy}}">创建或返回讲解房间</button>
   </view>

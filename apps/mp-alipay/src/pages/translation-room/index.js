@@ -2,11 +2,11 @@ const auth = require('../../services/auth');
 const rooms = require('../../services/translation-room');
 const { ROOM_LANGUAGES } = require('../../shared/translation-room');
 Page({
-  data: { room: null, vehicles: [], code: '', languages: ROOM_LANGUAGES, vehicleIndex: 0, languageIndex: 2, sourceIndex: 0, source: '', translated: '', speaking: false, paused: false, busy: false, disconnected: false, notice: '选择语言，点击开始收听', error: '' },
+  data: { room: null, canHost: false, code: '', languages: ROOM_LANGUAGES, languageIndex: 2, sourceIndex: 0, source: '', translated: '', speaking: false, paused: false, busy: false, disconnected: false, notice: '选择语言，点击开始收听', error: '' },
   onLoad(query = {}) {
     this._visible = true;
     this.setData({ code: typeof query.roomCode === 'string' ? query.roomCode : '' });
-    this.run(async () => { await auth.ensure(); this._user = auth.current().userId; const vehicles = await rooms.api('/host-vehicles'); if (this._visible) this.setData({ vehicles }); });
+    this.run(async () => { await auth.ensure(); this._user = auth.current().userId; const permission = await rooms.api('/host-permission'); if (this._visible) this.setData({ canHost: permission.canHost }); });
   },
   onShow() { this._visible = true; this.setData({ busy: false }); },
   scan() { my.scan({ type: 'qr', success: result => { const match = /(?:[?&]roomCode=)(\d{8})(?:&|$)/.exec(result.code || ''); const code = match ? match[1] : /^\d{8}$/.test(result.code || '') ? result.code : ''; this.setData(code ? { code, error: '' } : { error: '请扫描讲解房间二维码' }); } }); },
@@ -21,9 +21,8 @@ Page({
   inputCode(event) { this.setData({ code: event.detail.value }); },
   chooseLanguage(event) { this.setData({ languageIndex: Number(event.detail.value) }); },
   chooseSource(event) { this.setData({ sourceIndex: Number(event.detail.value) }); },
-  chooseVehicle(event) { this.setData({ vehicleIndex: Number(event.detail.value) }); },
   join() { this.run(async () => { if (!/^\d{8}$/.test(this.data.code)) throw Error('请输入八位房间码'); this.disconnect(); const room = await rooms.api('/join', { code: this.data.code, targetLanguage: ROOM_LANGUAGES[this.data.languageIndex].value }); this.attach(room); }); },
-  create() { this.run(async () => { this.disconnect(); const vehicle = this.data.vehicles[this.data.vehicleIndex]; if (!vehicle) throw Error('请先选择车辆'); const room = await rooms.api('', { rickshawId: vehicle.rickshawId, sourceLanguage: ROOM_LANGUAGES[this.data.sourceIndex].value }); this.attach(room); }); },
+  create() { this.run(async () => { if (!this.data.canHost) throw Error('当前账号未获车夫授权'); this.disconnect(); const room = await rooms.api('', { sourceLanguage: ROOM_LANGUAGES[this.data.sourceIndex].value }); this.attach(room); }); },
   attach(room) {
     if (!this._visible) return;
     this._user = auth.current().userId;
