@@ -55,9 +55,10 @@ test('navigation room entry and account labels follow every supported tour langu
   const baseline = tourMessages('zh')
   for (const language of ['en', 'ru', 'es', 'fr', 'ja'] as const) {
     const dictionary = tourMessages(language)
-    for (const key of ['liveCommentary', 'commentaryRoom', 'login', 'account', 'manageAccount', 'accountLogin'] as const) {
+    for (const key of ['liveCommentary', 'commentaryRoom', 'login', 'account', 'manageAccount', 'accountLogin', 'tourTitle', 'cityTour', 'allDestinations', 'map2dHint', 'switchJourney', 'switchJourneyConfirm', 'endJourneyConfirm', 'locationHint', 'locationAccuracy', 'confirm', 'cancel'] as const) {
       assert.ok(dictionary[key].trim())
       assert.notEqual(dictionary[key], baseline[key], `${language}.${key}`)
+      assert.deepEqual(dictionary[key].match(/\{\w+\}/g), baseline[key].match(/\{\w+\}/g), `${language}.${key}`)
     }
   }
   assert.equal(tourMessages('en').liveCommentary, 'Live commentary')

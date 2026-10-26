@@ -7,7 +7,7 @@
   </view>
   <block a:if="{{tourStage != 'language'}}">
     <view class="tour-header {{tourStage === 'navigation' ? 'journey-header' : ''}}">
-      <block a:if="{{tourStage == 'overview'}}"><picker class="grow" range="{{destinations}}" range-key="name" value="{{destinationIndex}}" onChange="chooseDestination"><view class="area-name">{{destinationName || '城市漫游'}}<text class="area-caption">PATH SEEKER</text></view></picker><button size="mini" class="header-button" onTap="showLanguage">{{locales[localeIndex].label}} ▾</button></block>
+      <block a:if="{{tourStage == 'overview'}}"><picker class="grow" range="{{destinations}}" range-key="name" value="{{destinationIndex}}" onChange="chooseDestination"><view class="area-name">{{destinationName || messages.cityTour}}<text class="area-caption">PATH SEEKER</text></view></picker><button size="mini" class="header-button" onTap="showLanguage">{{locales[localeIndex].label}} ▾</button></block>
       <block a:else><button size="mini" class="header-button" onTap="backToOverview" disabled="{{busy || loading}}">‹ {{messages.back}}</button><text class="header-route grow">{{route.title}}</text><button size="mini" class="header-button" onTap="endVisit" disabled="{{busy || loading || !visit}}">{{messages.end}}</button></block>
     </view>
     <view a:if="{{error || audioError || loading}}" class="tour-notices"><view a:if="{{error}}" class="error">{{error}}<button size="mini" onTap="retry">{{messages.retry}}</button></view><view a:if="{{audioError}}" class="error">{{audioError}}<button size="mini" onTap="openContent">{{messages.content}}</button></view><view a:if="{{loading}}" class="notice">{{messages.loading}}</view></view>

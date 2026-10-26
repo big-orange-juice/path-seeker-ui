@@ -56,14 +56,16 @@ test('cancelled authorization keeps the guest session and never calls login API'
   assert.equal(h.requests.length, 0); assert.equal(h.auth.current().userId, userId);
 });
 
-test('guest creation started during authorization cannot overwrite completed platform login', async () => {
+test('startup during native authorization waits for formal login without creating a guest', async () => {
   const h = harness(null); let authorization;
   h.my.getAuthCode = options => { authorization = options; };
   const login = h.auth.loginAlipay(), guest = h.auth.ensure();
-  const rejected = assert.rejects(guest, /账号已切换/);
+  assert.equal(h.requests.length, 0);
   authorization.success({ authCode: 'code' }); await tick();
-  h.requests[1].ok({ ...session(), isGuest: false }); await login;
-  h.requests[0].ok(session('other-guest')); await rejected;
+  assert.equal(h.requests.length, 1);
+  assert.match(h.requests[0].options.url, /MiniProgramLogin$/);
+  h.requests[0].ok({ ...session(), isGuest: false }); await login;
+  assert.equal((await guest).isGuest, false);
   assert.equal(h.auth.current().userId, userId); assert.equal(h.auth.current().isGuest, false);
 });
 

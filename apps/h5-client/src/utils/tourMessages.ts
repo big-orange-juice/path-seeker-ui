@@ -58,7 +58,40 @@ const navigationMessages = {
   ja: { liveCommentary: 'リアルタイム解説', commentaryRoom: 'ルーム', login: 'ログイン', account: 'アカウント', manageAccount: 'アカウント管理', accountLogin: 'アカウントにログイン' },
 } satisfies Record<TourLocale, Record<'liveCommentary' | 'commentaryRoom' | 'login' | 'account' | 'manageAccount' | 'accountLogin', string>>
 
-export type TourMessages = Record<keyof typeof zh | keyof typeof arrivalMessages.zh | keyof typeof navigationMessages.zh, string>
+const tourInterfaceMessages = {
+  zh: {
+    tourTitle: '寻迹 · 漫游', cityTour: '城市漫游', allDestinations: '全部目的地', map2dHint: '当前地图引擎不支持立体建筑',
+    switchJourney: '切换行程', switchJourneyConfirm: '结束「{title}」并开始新行程？', endJourneyConfirm: '结束本次行程并保留已完成的站点记录？',
+    locationHint: '开启定位后可查看附近景点，点击播放收听讲解', locationAccuracy: '定位已开启 · 精度约 {accuracy} 米', confirm: '确定', cancel: '取消',
+  },
+  en: {
+    tourTitle: 'Path Seeker · Tour', cityTour: 'City tour', allDestinations: 'All destinations', map2dHint: 'This map does not support 3D buildings',
+    switchJourney: 'Switch journey', switchJourneyConfirm: 'End “{title}” and start a new journey?', endJourneyConfirm: 'End this journey and keep completed stops?',
+    locationHint: 'Enable location to find nearby stops. Tap play to hear the guide.', locationAccuracy: 'Location on · Accuracy about {accuracy} m', confirm: 'Confirm', cancel: 'Cancel',
+  },
+  ru: {
+    tourTitle: 'Path Seeker · Прогулка', cityTour: 'Прогулка по городу', allDestinations: 'Все направления', map2dHint: 'Эта карта не поддерживает трёхмерные здания',
+    switchJourney: 'Сменить маршрут', switchJourneyConfirm: 'Завершить «{title}» и начать новый маршрут?', endJourneyConfirm: 'Завершить прогулку и сохранить пройденные остановки?',
+    locationHint: 'Включите геолокацию, чтобы найти остановки рядом. Нажмите воспроизведение, чтобы слушать гида.', locationAccuracy: 'Геолокация включена · Точность около {accuracy} м', confirm: 'Подтвердить', cancel: 'Отмена',
+  },
+  es: {
+    tourTitle: 'Path Seeker · Recorrido', cityTour: 'Recorrido por la ciudad', allDestinations: 'Todos los destinos', map2dHint: 'Este mapa no admite edificios en 3D',
+    switchJourney: 'Cambiar recorrido', switchJourneyConfirm: '¿Finalizar «{title}» e iniciar un nuevo recorrido?', endJourneyConfirm: '¿Finalizar este recorrido y conservar las paradas completadas?',
+    locationHint: 'Activa la ubicación para ver paradas cercanas. Pulsa reproducir para escuchar al guía.', locationAccuracy: 'Ubicación activada · Precisión de unos {accuracy} m', confirm: 'Confirmar', cancel: 'Cancelar',
+  },
+  fr: {
+    tourTitle: 'Path Seeker · Parcours', cityTour: 'Balade en ville', allDestinations: 'Toutes les destinations', map2dHint: 'Cette carte ne prend pas en charge les bâtiments en 3D',
+    switchJourney: 'Changer de parcours', switchJourneyConfirm: 'Terminer « {title} » et commencer un nouveau parcours ?', endJourneyConfirm: 'Terminer ce parcours et conserver les étapes terminées ?',
+    locationHint: 'Activez la localisation pour voir les étapes à proximité. Appuyez sur lecture pour écouter le guide.', locationAccuracy: 'Localisation activée · Précision d’environ {accuracy} m', confirm: 'Confirmer', cancel: 'Annuler',
+  },
+  ja: {
+    tourTitle: 'Path Seeker · 散策', cityTour: '街歩き', allDestinations: 'すべての目的地', map2dHint: 'この地図は3D建物表示に対応していません',
+    switchJourney: 'コースを切り替え', switchJourneyConfirm: '「{title}」を終了して、新しいコースを開始しますか？', endJourneyConfirm: '完了したスポットの記録を残して、このコースを終了しますか？',
+    locationHint: '位置情報を有効にすると近くのスポットを確認できます。再生ボタンでガイドをお聞きください。', locationAccuracy: '位置情報は有効です · 精度は約{accuracy}メートル', confirm: '確認', cancel: 'キャンセル',
+  },
+} satisfies Record<TourLocale, Record<'tourTitle' | 'cityTour' | 'allDestinations' | 'map2dHint' | 'switchJourney' | 'switchJourneyConfirm' | 'endJourneyConfirm' | 'locationHint' | 'locationAccuracy' | 'confirm' | 'cancel', string>>
+
+export type TourMessages = Record<keyof typeof zh | keyof typeof arrivalMessages.zh | keyof typeof navigationMessages.zh | keyof typeof tourInterfaceMessages.zh, string>
 
 const messages: Record<TourLocale, Partial<Record<keyof typeof zh, string>>> = {
   zh,
@@ -93,5 +126,6 @@ export function tourMessages(locale: TourLocale): TourMessages {
     ...arrivalMessages[locale],
     ...voiceMessages[locale],
     ...navigationMessages[locale],
+    ...tourInterfaceMessages[locale],
   }
 }

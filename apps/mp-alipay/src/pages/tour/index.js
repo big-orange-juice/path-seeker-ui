@@ -11,6 +11,7 @@ const config = require('../../config');
 const translation = require('../../services/translation-session');
 const { locales } = config;
 const { tourMessages } = require('../../shared/tourMessages');
+const { formatRoomMessage } = require('../../shared/translation-room-messages');
 const { toGcj02 } = require('../../shared/map-coordinates');
 function finiteCoordinate(value) {
   if (!value || value.longitude === null || value.latitude === null || value.longitude === undefined || value.latitude === undefined || value.longitude === '' || value.latitude === '') return null;
@@ -38,7 +39,7 @@ Page({
   onShow() {
     this._visible = true;
     if (!this._roomSubscription) this._roomSubscription = translation.subscribe(value => { if (this._visible) this.setData({ hasTranslationRoom: Boolean(value.room) }); });
-    if (this._user && this._user !== ui.userId()) { this.reset(); this.initialize(); return; }
+    if (this._user && (this._user !== ui.userId() || this._authVersion !== undefined && this._authVersion !== auth.version())) { this.reset(); this.initialize(); return; }
     if (this._initializing) return;
     const rememberedLocale = storage.read('locale', '');
     if (rememberedLocale && rememberedLocale !== this.data.locale) { const selected = getApp().globalData.selectedRoute; getApp().globalData.selectedRoute = ''; this.chooseLocale({ detail: { value: Math.max(0, locales.findIndex(l => l.value === rememberedLocale)) } }, selected); return; }
@@ -77,7 +78,7 @@ Page({
     this.setData({ loading: true, error: '' });
     try {
       const hadSession = !!auth.current();
-      const user = await auth.ensure(); if (initial !== this._rev) return; this._user = ui.userId();
+      const user = await auth.ensure(); if (initial !== this._rev) return; this._user = ui.userId(); this._authVersion = auth.version();
       const authPromptKey = storage.scoped(this._user, 'alipay-auth-prompted');
       if (!hadSession && user && user.isGuest && !storage.read(authPromptKey, false)) {
         storage.write(authPromptKey, true);
@@ -85,12 +86,13 @@ Page({
         if (this._visible && token === this._initToken) my.navigateTo({ url: '/pages/auth/index' });
         return;
       }
-      const launch = this._launch || {}, storedLocale = launch.locale || storage.read('tour-locale', '');
+      const launch = this._launch || {}, storedLocale = launch.locale || storage.read('locale', storage.read('tour-locale', ''));
       if (!locales.some(l => l.value === storedLocale)) { this.setData({ tourStage: 'language', loading: false }); return; }
       const locale = storedLocale; storage.write('locale', locale);
       const prefs = storage.read(storage.scoped(this._user, 'preferences'), {});
       storage.write('tour-locale', locale);
-      this.setData({ locale, messages: tourMessages(locale), localeIndex: Math.max(0, locales.findIndex(l => l.value === locale)), autoplay: false, skipExtra: !!prefs.skipExtra, lockContent: !!prefs.lockContent, tourStage: 'overview' });
+      this.applyLocale(locale);
+      this.setData({ autoplay: false, skipExtra: !!prefs.skipExtra, lockContent: !!prefs.lockContent, tourStage: 'overview' });
       if (!await this.loadCatalog(launch.destinationId || '') || token !== this._initToken || this._user !== ui.userId()) return;
       const selected = getApp().globalData.selectedRoute || launch.routeId || storage.read(storage.scoped(this._user, 'route'), '');
       getApp().globalData.selectedRoute = '';
@@ -107,7 +109,7 @@ Page({
       const result = await http.post('/ClientCatalog/Catalog', { destinationId, locale: this.data.locale, scene: 'rickshaw' });
       if (rev !== this._rev || user !== ui.userId()) return;
       this._routes = (result.routes || []).filter(r => r.locale === this.data.locale); this._places = result.places || [];
-      const destinations = [{ id: '', name: '全部目的地' }].concat(result.destinations || []);
+      const destinations = [{ id: '', name: this.data.messages.allDestinations }].concat(result.destinations || []);
       this.setData({ destinations, destinationIndex: Math.max(0, destinations.findIndex(d => d.id === destinationId)) }); this.filterRoutes();
       return true;
     } catch (e) { if (rev === this._rev) ui.error(this, e); }
@@ -121,9 +123,15 @@ Page({
     const index = Number(ui.value(event)); if (!locales[index]) return; const locale = locales[index].value;
     this.saveCheckpoint(); audio.stop('tour'); this._resumeFromChat = false;
     const previous = this.data.route; this.clearSelection();
-    storage.write('locale', locale); storage.write('tour-locale', locale); this.setData({ locale, messages: tourMessages(locale), localeIndex: index, playing: false, tourStage: 'overview', contentOpen: false, search: '' });
+    storage.write('locale', locale); storage.write('tour-locale', locale); this.applyLocale(locale); this.setData({ playing: false, tourStage: 'overview', contentOpen: false, search: '' });
     if (await this.loadCatalog()) { const next = this._routes.find(r => r.id === selectedRouteId) || this._routes.find(r => previous && (r.id === previous.id || previous.familyCode && r.familyCode === previous.familyCode)) || this._routes[0]; if (next) await this.selectRoute(next.id); }
     if (this.data.locationEnabled) this.watchLocation();
+  },
+  applyLocale(locale) {
+    const messages = tourMessages(locale);
+    const locationNote = this.data.locationEnabled && this._fix ? this._fix.accuracy > 65 ? messages.locationUnknown : formatRoomMessage(messages.locationAccuracy, { accuracy: Math.round(this._fix.accuracy) }) : messages.locationHint;
+    this.setData({ locale, messages, localeIndex: Math.max(0, locales.findIndex(item => item.value === locale)), locationNote });
+    if (my.setNavigationBar) my.setNavigationBar({ title: messages.tourTitle });
   },
   chooseRoute(event) { if (!this.data.busy && !this.data.loading) this.selectRoute(ui.dataset(event).id); },
   async selectRoute(id, restoreJourney = false) {
@@ -187,7 +195,7 @@ Page({
         if (!this._visible) return;
         this._mapProperties = properties; console.info('[tour-map] engine', properties);
         if (this.data.tourStage === 'navigation' && !this._notified2d && (properties.is3d === false || properties.is3d === 0) && my.showToast) {
-          this._notified2d = true; my.showToast({ content: '当前地图引擎不支持立体建筑', type: 'none' });
+          this._notified2d = true; my.showToast({ content: this.data.messages.map2dHint, type: 'none' });
         }
       },
       fail: error => console.warn('[tour-map] engine query failed', error)
@@ -233,7 +241,7 @@ Page({
     try {
       const held = this._heldVisit;
       if (held && held.visit.status === 1 && held.route.id !== this.data.route.id) {
-        if (!await ui.confirm('切换行程', '结束「' + held.route.title + '」并开始新行程？')) return;
+        if (!await ui.confirm(this.data.messages.switchJourney, formatRoomMessage(this.data.messages.switchJourneyConfirm, { title: held.route.title }), this.data.messages)) return;
         if (rev !== this._rev || user !== ui.userId()) return;
         await visits.abandon(held.visit, held.route); this._heldVisit = null;
       }
@@ -289,7 +297,7 @@ Page({
       this.sequenceStatus(stageId, 'completed', this.data.stopIndex);
       this._heldVisit = result.status === 1 ? { visit: result, route: this.data.route } : null;
       storage.remove(storage.scoped(user, 'checkpoint'));
-      if (result.status !== 1) { my.showToast({ content: '行程已完成', type: 'success' }); return; }
+      if (result.status !== 1) { my.showToast({ content: this.data.messages.finished, type: 'success' }); return; }
       if (this.data.tourStage === 'navigation' && this.data.autoplay && (this._visible || config.background) && !this._asking && !this.data.lockContent && !this._userPaused) {
         const queued = this.nextSequenceIndex();
         const index = queued >= 0 ? queued : !this.data.locationEnabled ? this.data.stops.findIndex(s => !(result.completedStageIds || []).includes(s.id) && !this.data.sequence.some(item => item.id === s.id && item.status === 'skipped')) : -1;
@@ -301,7 +309,7 @@ Page({
   async endVisit() {
     if (this.data.busy || !this.data.visit) return;
     const rev = this._rev, user = this._user;
-    if (!await ui.confirm('结束行程', '结束本次行程并保留已完成的站点记录？')) return;
+    if (!await ui.confirm(this.data.messages.end, this.data.messages.endJourneyConfirm, this.data.messages)) return;
     if (rev !== this._rev || user !== ui.userId()) return;
     this.mutate(async () => { const result = await visits.abandon(this.data.visit, this.data.route); if (rev !== this._rev || user !== ui.userId()) return; audio.stop('tour'); this._heldVisit = null; this.setData({ visit: result, browsing: true, playing: false, tourStage: 'overview', contentOpen: false }); storage.remove(storage.scoped(this._user, 'checkpoint')); });
   },
@@ -386,7 +394,7 @@ Page({
   watchLocation() {
     if (this._watch || (!this._visible && !config.background)) return;
     const stopWatch = location.watch(fix => {
-      this._fix = fix; this.setData({ locationNote: fix.accuracy > 65 ? '定位精度不足，可手动选择站点' : '定位已开启 · 精度约 ' + Math.round(fix.accuracy) + ' 米' });
+      this._fix = fix; this.setData({ locationNote: fix.accuracy > 65 ? this.data.messages.locationUnknown : formatRoomMessage(this.data.messages.locationAccuracy, { accuracy: Math.round(fix.accuracy) }) });
       if (this.data.following) this.followLocation(fix);
       if (this.data.tourStage !== 'navigation' || !this.data.route || !this.data.visit || this.data.visit.status !== 1 || this.data.busy || this.data.loading || this.data.chatOpen || this.data.recording || this.data.transcribing || this._asking || (!this._visible && !config.background) || this._user !== ui.userId()) { this._dwell = null; return; }
       const candidates = tour.candidates(this.data.stops, this._places || [], fix, this.data.visit.completedStageIds || [], this._detail.coordinateSystem || 1, Date.now(), this.data.stops.findIndex(s => s.id === this.data.visit.currentStageId));
@@ -395,9 +403,9 @@ Page({
       if (!this._dwell || this._dwell.key !== key) { this._dwell = { key, at: Date.now() }; return; }
       if (Date.now() - this._dwell.at < 1500) return;
       const dismissedCandidates = this._dismissedCandidates || (this._dismissedCandidates = new Set());
-      const visible = candidates.filter(candidate => !dismissedCandidates.has(candidate.id)).map(candidate => Object.assign({}, candidate, { distanceLabel: Number.isFinite(candidate.distance) ? Math.round(candidate.distance) + ' ' + (this.data.messages.metresShort || '米') : '' }));
+      const visible = candidates.filter(candidate => !dismissedCandidates.has(candidate.id)).map(candidate => Object.assign({}, candidate, { distanceLabel: Number.isFinite(candidate.distance) ? Math.round(candidate.distance) + ' ' + this.data.messages.metresShort : '' }));
       this.setData({ candidates: visible }); this.enqueueCandidates(candidates);
-    }, e => { this._dwell = null; this.setData({ locationNote: e.message, candidates: [], locationEnabled: !e.denied }); if (e.denied) this._watch = null; });
+    }, e => { this._dwell = null; this.setData({ locationNote: e.denied ? this.data.messages.permissionDenied : this.data.messages.locationFailed, candidates: [], locationEnabled: !e.denied }); if (e.denied) this._watch = null; });
     if (this.data.locationEnabled) this._watch = stopWatch; else stopWatch();
   },
   enterCandidate(event) { const id = ui.dataset(event).id; if (!this.data.candidates.some(candidate => candidate.id === id)) return; this.dismissCandidates(); this.mutate(() => this.enter(this.data.stops.findIndex(s => s.id === id))); },
