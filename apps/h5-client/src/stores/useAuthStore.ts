@@ -72,6 +72,8 @@ export const useAuthStore = defineStore(
     const sessionExpiredMessage = ref("未登录或登录已过期，请重新登录")
 
     const isLoggedIn = computed(() => Boolean(accessToken.value))
+    const isGuest = computed(() => isLoggedIn.value && Number(profile.value?.registerChannel) === 5)
+    const isAccountLoggedIn = computed(() => isLoggedIn.value && Boolean(profile.value?.id) && !isGuest.value)
     const isTokenExpired = computed(() => Boolean(expiresAt.value && expiresAt.value <= Date.now()))
     const displayName = computed(() => profile.value?.nickname || profile.value?.username || profile.value?.userNo || "未登录")
 
@@ -272,6 +274,8 @@ export const useAuthStore = defineStore(
       sessionExpiredDialogOpen,
       sessionExpiredMessage,
       isLoggedIn,
+      isGuest,
+      isAccountLoggedIn,
       isTokenExpired,
       displayName,
       login,

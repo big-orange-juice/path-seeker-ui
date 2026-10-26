@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Focus, Languages, ListMusic, MapPin, Maximize2, MessageCircle, Mic, Minimize2, Minus, Navigation, Pause, Play, Plus, Route, SkipBack, SkipForward } from 'lucide-vue-next'
+import { Focus, Headphones, Languages, ListMusic, MapPin, Maximize2, MessageCircle, Mic, Minimize2, Minus, Navigation, Pause, Play, Plus, Route, SkipBack, SkipForward, UserRound } from 'lucide-vue-next'
 import { isTourLocale, TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
 import TourLanguageGate from '@/components/tour/TourLanguageGate.vue'
 import TourMap from '@/components/tour/TourMap.vue'
@@ -14,6 +14,8 @@ import { useFullscreen } from '@/composables/useFullscreen'
 import { useMinimaxVoiceRecognition } from '@/composables/useMinimaxVoiceRecognition'
 import VoiceWave from '@/components/shell/VoiceWave.vue'
 import { useAskStore } from '@/stores/useAskStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { useTranslationRoom } from '@/composables/useTranslationRoom'
 import { tourMessages } from '@/utils/tourMessages'
 import { resolveTourVoiceContext } from '@/utils/tourPlaybackContext'
 
@@ -23,6 +25,8 @@ const router = useRouter()
 const journey = useTourJourney()
 const fullscreen = useFullscreen()
 const askStore = useAskStore()
+const authStore = useAuthStore()
+const translation = useTranslationRoom()
 const voice = useMinimaxVoiceRecognition()
 const tourMap = useTemplateRef<InstanceType<typeof TourMap>>('tourMap')
 const drawerRef = useTemplateRef<HTMLElement>('drawerHost')
@@ -385,7 +389,6 @@ onBeforeUnmount(() => {
   <main class="tour-experience" :class="{ 'is-journey': viewingJourney }" :lang="journey.locale.value">
     <TourMap ref="tourMap" :catalog="journey.catalog.value" :detail="detail" :current-stop-id="viewingJourney ? journey.currentStop.value?.id || null : null" :journey="viewingJourney" :location="journey.location.value" :show-route="routeVisible" @select="selectStop" @error="mapFailed = true" />
     <header class="tour-header" :class="{ preview: !viewingJourney, journey: viewingJourney }">
-      <button type="button" @click="router.push('/translation-room')">实时讲解</button>
       <template v-if="viewingJourney">
         <button type="button" @click="back">{{ messages.back }}</button>
         <strong>{{ detail?.route?.title || messages.routes }}</strong>
@@ -397,6 +400,7 @@ onBeforeUnmount(() => {
         <button v-if="fullscreen.isSupported.value" type="button" class="tour-fullscreen" :aria-label="fullscreen.isFullscreen.value ? messages.exitFullscreen : messages.enterFullscreen" :title="fullscreen.isFullscreen.value ? messages.exitFullscreen : messages.enterFullscreen" @click="fullscreen.toggle"><Minimize2 v-if="fullscreen.isFullscreen.value" :size="16" aria-hidden="true" /><Maximize2 v-else :size="16" aria-hidden="true" /></button>
         <label class="tour-language"><Languages :size="17" aria-hidden="true" /><span>{{ currentLanguage.label }}</span><select :value="journey.locale.value" :disabled="journey.pending.value" :aria-label="messages.changeLanguage" @change="changeLanguage"><option v-for="language in TOUR_LANGUAGES" :key="language.value" :value="language.value">{{ language.label }}</option></select></label>
       </template>
+      <button type="button" class="tour-account" :aria-label="authStore.isAccountLoggedIn ? '管理当前账号' : '账号登录'" @click="router.push({ path: '/auth', query: { redirect: route.fullPath } })"><UserRound :size="16" aria-hidden="true" /><span>{{ authStore.isAccountLoggedIn ? '账号' : '登录' }}</span></button>
     </header>
     <div v-if="errorText || mapFailed || journey.locationError.value || speechError || voiceNotice || journey.speech.blocked.value || journey.speech.skippedExtraAudio.value || journey.approachUnknown.value || seekNotice || resumeNotice" class="tour-notices" role="status">
       <p v-if="errorText">{{ errorText }} <button type="button" :disabled="journey.pending.value" @click="load">{{ messages.retry }}</button></p>
@@ -499,6 +503,10 @@ onBeforeUnmount(() => {
         </p>
       </div>
     </template>
+    <button v-if="viewingJourney" type="button" class="tour-translation-entry" @click="translation.navigationPath.value = route.fullPath; router.push('/translation-room')">
+      <Headphones :size="24" aria-hidden="true" />
+      <span>{{ translation.room.value ? '房间' : '实时讲解' }}</span>
+    </button>
     <TourLanguageGate v-if="!journey.languageReady.value" :title="messages.chooseLanguage" @select="selectLanguage" />
   </main>
 </template>
@@ -510,6 +518,13 @@ onBeforeUnmount(() => {
 .tour-location-status{position:absolute;left:12px;top:82px;z-index:3;display:flex;align-items:center;gap:5px;max-width:min(360px,calc(100% - 24px));padding:6px 9px;border:1px solid var(--tour-line);border-radius:8px;background:var(--tour-paper-fade);color:var(--tour-muted);font-size:10px;line-height:1.4;text-align:left;backdrop-filter:blur(8px)}.tour-location-status:hover{border-color:var(--tour-lake);color:var(--tour-lake)}.tour-location-status:disabled{cursor:wait;opacity:.65}.tour-location-status.is-active{color:var(--tour-lake);background:var(--tour-selected)}
 .tour-experience.is-journey .tour-notices{top:116px}.tour-dock-button span{white-space:normal;overflow-wrap:anywhere;text-align:center}
 .tour-return{position:absolute;top:74px;right:12px;z-index:4;max-width:75%;padding:12px;border:1px solid #dbe5df;border-radius:8px;background:#f8faf9ed;color:var(--tour-lake);font-size:12px;box-shadow:0 3px 12px #183e4315}
+.tour-translation-entry{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:max(28px,calc(env(safe-area-inset-bottom) + 12px));z-index:5;display:flex;align-items:center;justify-content:center;gap:10px;min-width:152px;min-height:60px;padding:14px 20px;border:1px solid var(--tour-line);border-radius:18px;background:var(--tour-lake);color:#fff;box-shadow:0 8px 24px #183e4338;font-family:inherit;cursor:pointer;touch-action:manipulation}
+.tour-translation-entry span{white-space:nowrap;font-size:17px;font-weight:600;line-height:1.4}
+.tour-translation-entry:hover{box-shadow:0 10px 28px #183e4350}
+.tour-translation-entry:active{background:#2b5559}
+.tour-translation-entry:focus-visible{outline:2px solid var(--tour-lake);outline-offset:3px}
+.tour-header .tour-account{display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:5px;min-height:34px;padding:6px 8px;border:1px solid var(--tour-line);border-radius:9px;background:#fff;white-space:nowrap}
+.tour-header .tour-account:focus-visible{outline:2px solid var(--tour-lake);outline-offset:2px}
 /* 底部迷你控制条：两行（按钮行 + 信息行），是主播放控制条（方案 §4.1） */
 .tour-story-dock{position:absolute;left:12px;bottom:max(20px,env(safe-area-inset-bottom));z-index:8;display:grid;gap:8px;width:min(420px,calc(100% - 24px));padding:10px;border-radius:14px;background:#f8faf9f5;box-shadow:0 6px 22px #183e4320}
 .tour-dock-controls{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}

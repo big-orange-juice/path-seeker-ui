@@ -10,6 +10,7 @@ export interface TranslationRoom {
   listenerCount: number
   languages?: { language: string; count: number }[]
   qrImageDataUri?: string
+  members?: { userId: string; displayName: string; language: string }[]
 }
 export interface HostPermission { canHost: boolean }
 export const roomRequest = <Result>(path: string, data?: object) => request<Result>(`/TranslationRooms${path}`, {

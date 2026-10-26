@@ -15,7 +15,9 @@ const authStore = useAuthStore()
 const toastStore = useToastStore()
 const route = useRoute()
 const router = useRouter()
-const mode = shallowRef<AuthMode>("guest")
+const mode = shallowRef<AuthMode>("login")
+const switchingAccount = shallowRef(false)
+const showAccount = computed(() => authStore.isAccountLoggedIn && !switchingAccount.value)
 
 const loginForm = reactive({
   account: "",
@@ -38,12 +40,12 @@ const canSubmitRegister = computed(() => {
 
 const redirectPath = computed(() => {
   const redirect = route.query.redirect
-  return typeof redirect === "string" && redirect.startsWith("/") ? redirect : "/ride"
+  return typeof redirect === "string" && redirect.startsWith("/") && !redirect.startsWith("//") && !redirect.startsWith("/auth") ? redirect : "/ride"
 })
 
 const modeHint = computed(() => {
   if (mode.value === "guest") return "无需注册，以游客身份浏览户外路线与讲解。"
-  if (mode.value === "login") return "使用已有账号登录，进度将同步到本机。"
+  if (mode.value === "login") return "使用已有账号登录，恢复账号资料和讲解权限。"
   return "创建账号后可在多设备间同步进度。"
 })
 
@@ -85,7 +87,8 @@ async function submitLogin() {
 
   const result = await authStore.login(loginForm.account, loginForm.password)
   if (result) {
-    toastStore.success("登录成功", "进度已同步到本机。")
+    loginForm.password = ""
+    toastStore.success("登录成功", "已切换到你的账号。")
     await backHome()
   }
 }
@@ -119,6 +122,7 @@ async function submitGuestLogin() {
 }
 
 async function submitCurrentMode() {
+  if (authStore.pending) return
   if (mode.value === "guest") {
     await submitGuestLogin()
     return
@@ -139,6 +143,8 @@ const canSubmitCurrent = computed(() => {
 
 function logout() {
   authStore.logout()
+  switchingAccount.value = false
+  mode.value = "login"
   toastStore.info("已退出", "本机登录状态已清除。")
 }
 </script>
@@ -158,21 +164,22 @@ function logout() {
         </button>
         <p class="client-top-kicker">Path Seeker</p>
         <h1 class="client-page-title">
-          {{ authStore.isLoggedIn ? "账号" : "登录" }}
+          {{ showAccount ? "账号" : "登录" }}
         </h1>
       </header>
 
       <main class="auth-page">
         <!-- 已登录：简洁账号面 -->
-        <section v-if="authStore.isLoggedIn" class="auth-session">
+        <section v-if="showAccount" class="auth-session">
           <div class="auth-session-meta">
             <p class="auth-session-label">当前账号</p>
             <h2 class="auth-session-name font-display">{{ authStore.displayName }}</h2>
-            <p class="auth-session-note">进度已同步到本机</p>
+            <p class="auth-session-note">{{ authStore.profile?.userNo ? `账号编号：${authStore.profile.userNo}` : '已登录寻迹账号' }}</p>
           </div>
 
           <div class="auth-actions">
-            <ClientButton class="w-full" @click="backHome()">开始游览</ClientButton>
+            <ClientButton class="w-full" @click="backHome()">返回游览</ClientButton>
+            <ClientButton variant="outline" class="w-full" @click="switchingAccount = true; mode = 'login'">切换账号</ClientButton>
             <ClientButton variant="outline" class="w-full" @click="logout()">退出登录</ClientButton>
           </div>
         </section>
@@ -180,10 +187,10 @@ function logout() {
         <!-- 未登录：功能优先，无装饰印章 / 无装饰开场 -->
         <template v-else>
           <section class="auth-intro">
-            <p class="auth-lead">选择进入方式，浏览户外路线与讲解内容。</p>
+            <p class="auth-lead">{{ authStore.isGuest ? '当前为游客身份，登录账号后可使用已授权的讲解功能。' : '登录寻迹账号，继续游览与实时讲解。' }}</p>
           </section>
 
-          <section class="auth-panel" aria-label="进入方式">
+          <form class="auth-panel" aria-label="进入方式" @submit.prevent="submitCurrentMode()">
             <div class="auth-tabs" role="tablist" aria-label="登录方式">
               <button
                 type="button"
@@ -258,12 +265,12 @@ function logout() {
 
             <ClientButton
               class="w-full"
+              type="submit"
               :disabled="!canSubmitCurrent"
-              @click="submitCurrentMode()"
             >
               {{ primaryActionLabel }}
             </ClientButton>
-          </section>
+          </form>
         </template>
 
         <ClientEmptyState

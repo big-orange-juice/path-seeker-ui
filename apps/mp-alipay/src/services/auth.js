@@ -1,14 +1,16 @@
 const storage = require('./storage');
 const http = require('./http');
 let session = null, refreshing = null, guestPending = null, epoch = 0;
+const listeners = new Set();
+function subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); }
 function valid(value) { return value && typeof value.userId === 'string' && value.userId && typeof value.accessToken === 'string' && value.accessToken && typeof value.refreshToken === 'string' && value.refreshToken; }
 function restore() { const stored = storage.read('session'); session = valid(stored) ? stored : null; if (!session) storage.remove('session'); return session; }
 function current() { return session; }
 function save(value) {
   if (!valid(value)) throw Error('账号数据格式错误，请重新登录');
-  session = value; storage.write('session', value); return value;
+  session = value; storage.write('session', value); listeners.forEach(listener => listener(session)); return value;
 }
-function logout() { epoch++; session = null; storage.remove('session'); }
+function logout() { epoch++; session = null; storage.remove('session'); listeners.forEach(listener => listener(null)); }
 function device() {
   try { const info = my.getSystemInfoSync(); return 'Alipay/' + (info.platform || '') + '/' + (info.model || ''); } catch (_) { return 'Alipay'; }
 }
@@ -68,4 +70,4 @@ function ensure() {
   guestPending = pending; return pending.promise;
 }
 http.configureAuth({ token: () => session && session.accessToken, version: () => epoch, refresh });
-module.exports = { restore, current, ensure, login, loginAlipay, logout, refresh };
+module.exports = { restore, current, ensure, login, loginAlipay, logout, refresh, subscribe };

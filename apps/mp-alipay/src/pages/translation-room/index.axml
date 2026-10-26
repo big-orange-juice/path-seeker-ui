@@ -1,26 +1,40 @@
-<scroll-view scroll-y="true" class="room-page">
-  <view class="room-notice">{{notice}}</view><view a:if="{{error}}" class="room-error">{{error}}</view>
-  <view a:if="{{!room || disconnected}}" class="room-card"><view class="room-title">收听车夫讲解</view>
-    <input class="room-field" value="{{code}}" onInput="inputCode" type="number" maxlength="8" placeholder="输入八位房间码"/>
-    <button onTap="scan" disabled="{{busy}}">扫码填写房间码</button>
-    <picker range="{{languages}}" range-key="label" value="{{languageIndex}}" onChange="chooseLanguage"><view class="room-field">收听语言 · {{languages[languageIndex].label}} ▾</view></picker>
-    <button class="room-button" onTap="join" disabled="{{busy}}">开始 / 重新收听</button><view class="room-notice">从下一段完整讲解开始收听，建议佩戴耳机。</view>
-  </view>
-  <view a:if="{{canHost && (!room || disconnected)}}" class="room-card"><view class="room-title">车夫讲解台</view>
-    <picker range="{{languages}}" range-key="label" value="{{sourceIndex}}" onChange="chooseSource"><view class="room-field">讲话语言 · {{languages[sourceIndex].label}} ▾</view></picker>
-    <button class="room-button" onTap="create" disabled="{{busy}}">创建或返回讲解房间</button>
-  </view>
-  <view a:if="{{room}}" class="room-card"><view class="room-title">房间 {{room.code}}</view>
-    <block a:if="{{room.isHost}}"><image a:if="{{room.qrImageDataUri}}" src="{{room.qrImageDataUri}}" class="room-qr"/>
-      <view class="room-notice">请游客扫码或输入房间码 · {{room.listenerCount}} 人在线</view>
-      <view a:for="{{room.languages}}" a:key="language">{{item.language}} · {{item.count}} 人</view>
-      <button class="room-button" onTap="startSpeaking" disabled="{{busy || speaking || disconnected || room.status === 'closed'}}">{{speaking ? '正在讲解' : '开始讲解'}}</button>
-      <button onTap="end" disabled="{{busy || room.status === 'closed'}}">结束讲解并播完剩余语音</button>
-      <button onTap="closeRoom" disabled="{{busy || room.status === 'closed'}}">立即关闭房间</button>
-    </block>
-    <view class="room-subtitle">{{source || '等待下一段讲解…'}}</view><view class="room-translation">{{translated}}</view>
-    <button a:if="{{!room.isHost && !disconnected}}" onTap="changeLanguage">更换语言（停止当前语音）</button>
-    <button a:if="{{!room.isHost && !disconnected}}" onTap="togglePause">{{paused ? '恢复收听' : '暂停收听'}}</button>
-    <button onTap="leave">{{room.isHost ? '离开讲解台' : '停止收听并退出'}}</button>
-  </view>
+<scroll-view a:if="{{!room}}" scroll-y="true" class="room-page">
+  <view class="room-header"><button class="room-back" onTap="back">‹ {{messages.back}}</button><text>{{messages.liveTranslation}}</text></view>
+  <view class="room-intro"><view class="room-page-title">{{messages.title}}</view><view class="room-intro-copy">{{messages.intro}}</view></view>
+  <view class="room-notice"><view class="room-status-dot"/><text>{{notice}}</text></view><view a:if="{{error}}" class="room-error">{{error}}</view>
+  <include src="./entry.axml"/>
 </scroll-view>
+<view a:if="{{room}}" class="room-chat">
+  <view class="chat-header"><button class="chat-header-back" onTap="back" aria-label="{{messages.backConnected}}">‹</button><view class="chat-heading"><view class="chat-title">{{messages.chatTitle}}</view><view class="chat-subtitle">{{listenerLabel}} · {{room.isHost ? messages.host : messages.liveTranslation}}</view></view><button class="chat-more" onTap="openDetails" aria-label="{{messages.more}}">···</button></view>
+  <view class="chat-room-bar"><view class="chat-room-status"><view class="room-status-dot"/><text>{{room.status === 'closed' ? messages.ended : speaking || room.status === 'live' ? messages.live : messages.waiting}}</text></view><button onTap="openDetails">{{messages.roomCode}} {{room.code}} ›</button></view>
+  <view a:if="{{error}}" class="chat-error">{{error}}</view>
+  <view class="chat-timeline">
+    <scroll-view scroll-y="true" class="chat-conversation" scroll-into-view="{{scrollTarget}}" onScroll="onChatScroll" onScrollToLower="followLatest" lower-threshold="90">
+      <view class="chat-content"><view class="chat-system">{{messages.entered}}</view>
+        <view a:if="{{!chatGroups.length && !source}}" class="chat-empty"><view class="chat-empty-icon"><view class="room-headphones-icon"/></view><view class="chat-empty-title">{{room.isHost ? messages.hostEmpty : messages.guestEmpty}}</view><view>{{room.isHost ? messages.hostHint : messages.guestHint}}</view></view>
+        <view a:for="{{chatGroups}}" a:key="id" a:for-item="group" class="chat-segment">
+          <view class="chat-divider">{{group.segmentLabel}}</view>
+          <view a:if="{{group.source}}" class="chat-message {{room.isHost ? 'is-self' : ''}}"><view class="chat-avatar chat-avatar-guide">♪</view><view class="chat-message-body"><view class="chat-sender">{{room.isHost ? messages.me : messages.guide}} · {{sourceDescription}}</view><view class="chat-bubble chat-original">{{group.source}}</view></view></view>
+          <view a:for="{{group.translations}}" a:key="id" class="chat-message {{item.status === 'error' ? 'has-error' : ''}}"><view class="chat-avatar chat-avatar-translation">{{item.avatar}}</view><view class="chat-message-body"><view class="chat-sender">{{messages.assistant}} <text class="chat-language">{{item.languageLabel}}</text></view><view class="chat-bubble">{{item.displayText}}</view><view a:if="{{item.status !== 'complete'}}" class="chat-delivery">{{item.statusLabel}}</view></view></view>
+        </view>
+        <view a:if="{{pendingSource}}" class="chat-message {{room.isHost ? 'is-self' : ''}}"><view class="chat-avatar chat-avatar-guide">♪</view><view class="chat-message-body"><view class="chat-sender">{{room.isHost ? messages.me : messages.guide}} · {{sourceDescription}}</view><view class="chat-bubble chat-original">{{pendingSource}}</view><view class="chat-delivery">{{messages.preparing}}</view></view></view>
+        <view id="chat-end-a" class="chat-end"/><view id="chat-end-b" class="chat-end"/>
+      </view>
+    </scroll-view>
+    <button a:if="{{showLatest}}" class="chat-latest" onTap="followLatest">↓ {{messages.latest}}</button>
+  </view>
+  <view class="chat-toolbar"><view class="chat-toolbar-status">{{room.isHost ? notice : audioNotice}}</view><view class="chat-toolbar-actions"><view class="chat-mode-icon">{{room.isHost ? '♪' : '♫'}}</view>
+    <button a:if="{{disconnected && room.status !== 'closed'}}" class="chat-talk" onTap="openDetails" disabled="{{busy}}">{{room.isHost ? messages.reconnect : messages.listenAgain}}</button>
+    <button a:elif="{{room.isHost}}" class="chat-talk {{speaking ? 'is-speaking' : ''}}" onTap="startSpeaking" disabled="{{busy || speaking || room.status === 'closed' || room.status === 'draining'}}">{{room.status === 'closed' ? messages.ended : speaking ? messages.micOn : messages.start}}</button>
+    <button a:else class="chat-talk" onTap="togglePause" disabled="{{busy || disconnected}}">{{paused || audioError ? messages.resume : messages.pause}}</button>
+    <button class="chat-toolbar-more" onTap="openDetails" aria-label="{{messages.more}}">···</button>
+  </view></view>
+  <view a:if="{{detailsOpen}}" class="room-details-overlay"><view class="room-details-mask" onTap="closeDetails"/><view class="room-details-sheet"><view class="room-details-header"><text>{{messages.details}}</text><button onTap="closeDetails" aria-label="{{messages.closeDetails}}">×</button></view><scroll-view scroll-y="true" class="room-details-scroll"><view class="room-details-content">
+    <view class="room-invite"><view class="room-caption">{{room.isHost ? messages.invite : messages.currentCode}}</view><view class="room-session-code">{{room.code}}</view><image a:if="{{room.isHost && room.qrImageDataUri}}" src="{{room.qrImageDataUri}}" class="room-qr"/><view class="room-caption">{{listenerLabel}}</view></view>
+    <view a:if="{{room.isHost}}" class="room-detail-members"><view class="room-details-label">{{messages.members}}</view><view a:if="{{!languageGroups.length}}" class="room-caption">{{messages.noMembers}}</view><view a:for="{{languageGroups}}" a:key="language" class="room-detail-member"><view class="room-member-avatar">{{item.avatar}}</view><view><view>{{item.label}} · {{item.countLabel}}</view><view class="room-member-names">{{item.names || messages.guest}}</view></view></view></view>
+    <view a:if="{{disconnected && room.status !== 'closed'}}"><include src="./entry.axml"/></view>
+    <button a:if="{{!room.isHost && room.status !== 'closed'}}" class="room-action" onTap="changeLanguage" disabled="{{busy}}">{{messages.changeLanguage}}</button>
+    <block a:if="{{room.isHost && room.status !== 'closed'}}"><button class="room-action" onTap="end" disabled="{{busy}}">{{messages.end}}</button><button class="room-action room-action-danger" onTap="closeRoom" disabled="{{busy}}">{{messages.closeRoom}}</button></block>
+    <button class="room-action room-action-quiet" onTap="leave" disabled="{{busy}}">{{room.isHost ? messages.leaveHost : messages.leave}}</button>
+  </view></scroll-view></view></view>
+</view>

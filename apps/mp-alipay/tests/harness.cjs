@@ -29,7 +29,7 @@ function harness(initial = session()) {
     },
     getRecorderManager: () => recorder, env: { USER_DATA_PATH: '/data' },
     getFileSystemManager: () => ({ readFile(p) { p.success({ data: wavBuffer() }); }, writeFile(p) { writes.push(p); p.success({}); }, unlink(p) { removed.push(p.filePath); p.success({}); } }),
-    confirm(p) { confirms.push(p); }, showToast() {}, reLaunch() {}, navigateTo() {},
+    confirm(p) { confirms.push(p); }, showToast() {}, reLaunch() {}, navigateTo() {}, navigateBack() {},
     getLocation() {},
   };
   let definition, componentDefinition;

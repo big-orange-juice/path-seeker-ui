@@ -7,7 +7,6 @@
   </view>
   <block a:if="{{tourStage != 'language'}}">
     <view class="tour-header {{tourStage === 'navigation' ? 'journey-header' : ''}}">
-      <button size="mini" class="header-button" onTap="translationRoom">实时讲解</button>
       <block a:if="{{tourStage == 'overview'}}"><picker class="grow" range="{{destinations}}" range-key="name" value="{{destinationIndex}}" onChange="chooseDestination"><view class="area-name">{{destinationName || '城市漫游'}}<text class="area-caption">PATH SEEKER</text></view></picker><button size="mini" class="header-button" onTap="showLanguage">{{locales[localeIndex].label}} ▾</button></block>
       <block a:else><button size="mini" class="header-button" onTap="backToOverview" disabled="{{busy || loading}}">‹ {{messages.back}}</button><text class="header-route grow">{{route.title}}</text><button size="mini" class="header-button" onTap="endVisit" disabled="{{busy || loading || !visit}}">{{messages.end}}</button></block>
     </view>
@@ -25,6 +24,7 @@
       <view a:if="{{queueOpen}}" class="queue-sidebar"><view class="drawer-header"><text class="drawer-heading grow">{{messages.queueTitle}}</text><button size="mini" class="quiet" onTap="closeQueue">{{messages.close}} ×</button></view><scroll-view class="drawer-scroll" scroll-y="true"><view class="drawer-inner"><view class="settings-row"><text class="grow">{{messages.queueUnlockContent}}</text><switch checked="{{!lockContent}}" onChange="changeContentSwitch" color="#183e43"/></view><view class="settings-row"><text class="grow">{{messages.skipExtraAudio}}</text><switch checked="{{skipExtra}}" onChange="changeExtra" color="#183e43"/></view><view class="muted">{{locationNote}}</view><view class="subtitle">{{messages.queueHint}}</view><view a:if="{{!sequence.length}}" class="empty">{{messages.queueEmpty}}</view><view a:for="{{sequence}}" a:key="id" class="sequence-row"><view class="row between"><text class="grow">{{item.name}}</text><text class="muted">{{item.status === 'playing' ? messages.queuePlaying : item.status === 'completed' ? messages.queueCompleted : item.status === 'skipped' ? messages.queueSkipped : messages.queueQueued}}</text></view><view a:if="{{item.status === 'queued'}}" class="actions"><button size="mini" data-id="{{item.id}}" onTap="playQueued" disabled="{{busy || loading}}">{{messages.queuePlay}}</button><button size="mini" data-id="{{item.id}}" onTap="skipQueued" disabled="{{busy || loading}}">{{messages.queueSkip}}</button></view></view></view></scroll-view></view>
       <view class="voice-button" role="button" aria-label="{{messages.voiceHint}}" onTap="startRecording"><view class="voice-mic-icon"><view class="voice-mic-head" /><view class="voice-mic-stem" /></view></view>
     </block>
+    <button a:if="{{tourStage === 'navigation'}}" class="tour-translation-entry" onTap="translationRoom"><view class="translation-headphones-icon"/><text>{{hasTranslationRoom ? '房间' : '实时讲解'}}</text></button>
   </block>
   <chat-panel a:if="{{chatOpen}}" onClose="closeChat" onInterrupt="chatInterrupt" onSettled="chatSettled"/>
 </view>

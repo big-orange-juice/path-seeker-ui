@@ -8,6 +8,7 @@ const location = require('../../services/location');
 const tour = require('../../core/tour');
 const ui = require('../../core/ui');
 const config = require('../../config');
+const translation = require('../../services/translation-session');
 const { locales } = config;
 const { tourMessages } = require('../../shared/tourMessages');
 const { toGcj02 } = require('../../shared/map-coordinates');
@@ -36,6 +37,7 @@ Page({
   onLoad(query = {}) { this._rev = 0; this._visible = true; this._asking = false; this._dismissedCandidates = new Set(); this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: tourMessages('zh'), tourStage: 'language', contentOpen: false, sequence: [], lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
   onShow() {
     this._visible = true;
+    if (!this._roomSubscription) this._roomSubscription = translation.subscribe(value => { if (this._visible) this.setData({ hasTranslationRoom: Boolean(value.room) }); });
     if (this._user && this._user !== ui.userId()) { this.reset(); this.initialize(); return; }
     if (this._initializing) return;
     const rememberedLocale = storage.read('locale', '');
@@ -53,6 +55,7 @@ Page({
     }
   },
   onHide() {
+    if (this._roomSubscription) this._roomSubscription(); this._roomSubscription = null;
     this._backgroundResume = this.capturePlayback();
     this._visible = false; this.saveCheckpoint();
     if (getApp().globalData.voiceInput === this._voice && this._voice) { this._voice.cancel(); getApp().globalData.voiceInput = null; }

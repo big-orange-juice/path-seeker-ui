@@ -1,25 +1,33 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ROOM_LANGUAGES } from '../../../../../packages/ts-shared/src/translation-room'
+import { computed, shallowRef } from 'vue'
+import { roomMessages } from '../../../../../packages/ts-shared/src/translation-room-messages'
+import { ArrowRight, Headphones, Mic } from 'lucide-vue-next'
+import TranslationRoomLanguagePicker from './TranslationRoomLanguagePicker.vue'
 
 defineProps<{ canHost: boolean; busy: boolean; initialCode: string }>()
+const language = defineModel<string>('language', { default: 'zh-CN' })
+const messages = computed(() => roomMessages(language.value))
 const emit = defineEmits<{ create: [language: string]; join: [code: string, language: string] }>()
-const code = ref('')
-const language = ref('en')
-const sourceLanguage = ref('zh-CN')
+const code = shallowRef('')
 </script>
 
 <template>
-  <form class="room-form" @submit.prevent="emit('join', code || initialCode, language)">
-    <h2>收听车夫讲解</h2>
-    <label>房间码<input v-model="code" :placeholder="initialCode || '输入八位房间码'" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" :required="!initialCode" /></label>
-    <label>收听语言<select v-model="language"><option v-for="item in ROOM_LANGUAGES" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-    <button :disabled="busy">开始收听</button>
-    <p>从下一段完整讲解开始收听。建议佩戴耳机。</p>
+  <form v-if="!canHost" class="room-form" @submit.prevent="emit('join', code || initialCode, language)">
+    <div class="room-card-heading">
+      <span class="room-card-icon"><Headphones :size="22" aria-hidden="true" /></span>
+      <div><h2>{{ messages.joinTitle }}</h2><p>{{ messages.joinHint }}</p></div>
+    </div>
+    <label class="room-field-label">{{ messages.roomCode }}<input v-model="code" class="room-code-input" :placeholder="initialCode || messages.codePlaceholder" :aria-label="messages.codeAria" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autocomplete="off" :required="!initialCode" :disabled="busy" /></label>
+    <TranslationRoomLanguagePicker v-model="language" :label="messages.listenLanguage" :disabled="busy" />
+    <button class="room-action room-action-primary" type="submit" :disabled="busy"><span>{{ busy ? messages.connecting : messages.join }}</span><ArrowRight :size="18" aria-hidden="true" /></button>
+    <p class="room-help">{{ messages.listenHint }}</p>
   </form>
-  <form v-if="canHost" class="room-form" @submit.prevent="emit('create', sourceLanguage)">
-    <h2>车夫讲解台</h2>
-    <label>讲话语言<select v-model="sourceLanguage"><option v-for="item in ROOM_LANGUAGES" :key="item.value" :value="item.value">{{ item.label }}</option></select></label>
-    <button :disabled="busy">创建或返回讲解房间</button>
+  <form v-else class="room-form" @submit.prevent="emit('create', language)">
+    <div class="room-card-heading">
+      <span class="room-card-icon"><Mic :size="22" aria-hidden="true" /></span>
+      <div><h2>{{ messages.hostTitle }}</h2><p>{{ messages.hostIntro }}</p></div>
+    </div>
+    <TranslationRoomLanguagePicker v-model="language" :label="messages.speakLanguage" :disabled="busy" />
+    <button class="room-action room-action-primary" type="submit" :disabled="busy">{{ messages.create }}</button>
   </form>
 </template>

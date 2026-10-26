@@ -75,6 +75,41 @@ function socketHarness() {
   return { fixture, handlers, sent, service: fixture.load('services/translation-room') };
 }
 
+test('empty completed translation becomes unavailable and the next segment still completes', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  const page = fixture.page('translation-room');
+  page._visible = true;
+  page.bindSession();
+  try {
+    session.attach({ roomId: '42', isHost: true }); handlers.Open();
+    const emit = event => handlers.Message({ data: JSON.stringify(event) });
+    const base = { epochId: 'epoch', targetLanguage: 'en', sequence: 1 };
+    emit({ ...base, type: 'translation.committed', payload: { text: '让我们来看一看银锭桥。' } });
+    assert.equal(page.data.feed[0].status, 'translating');
+    emit({ ...base, type: 'translation.final', payload: { text: '' } });
+    assert.equal(page.data.feed[0].status, 'error');
+    assert.match(page.data.feed[0].text, /未生成译文/);
+    emit({ ...base, sequence: 2, type: 'translation.final', payload: { text: 'Let us look at Yinding Bridge.' } });
+    assert.equal(page.data.feed[0].status, 'complete');
+    assert.equal(page.data.feed[0].text, 'Let us look at Yinding Bridge.');
+    assert.equal(page.data.feed[1].status, 'error');
+    assert.deepEqual(Array.from(page.data.chatGroups, group => group.sequence), [1, 2]);
+    assert.equal(page.data.chatGroups[0].source, '让我们来看一看银锭桥。');
+    assert.equal(page.data.chatGroups[1].translations[0].avatar, 'EN');
+    page.openDetails();
+    assert.equal(page.data.detailsOpen, true);
+    page.closeDetails();
+    assert.equal(page.data.detailsOpen, false);
+    page._chatHeight = 500;
+    page.onChatScroll({ detail: { scrollHeight: 1500, scrollTop: 200 } });
+    assert.equal(page.data.showLatest, true);
+    page.followLatest();
+    assert.equal(page.data.showLatest, false);
+    assert.match(page.data.scrollTarget, /^chat-end-/);
+  } finally { page.onUnload(); await session.leave(); }
+});
+
 test('Alipay normal room end preserves queued playback and immediate close stops it', async () => {
   for (const mode of ['normal', 'immediate']) {
     const { fixture, handlers, service } = socketHarness(), errors = [];
@@ -121,4 +156,184 @@ test('Alipay host shares one socket, uploads PCM in order and releases mic after
     assert.equal(fixture.load('services/speech').reserveRecorder({}), true);
     assert.equal(errors.length, 0);
   } finally { connection.close(true); }
+});
+
+test('room creation returns to navigation and recording survives hiding and unloading the room page', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  const page = fixture.page('translation-room');
+  let returned = 0;
+  fixture.my.navigateBack = () => { returned++; };
+  try {
+    page.onLoad(); await tick();
+    fixture.requests[0].ok({ canHost: true }); await tick();
+    page.create(); await tick();
+    fixture.requests[1].ok({ roomId: '9223372036854775805', code: '12345678', isHost: true, status: 'open' }); await tick();
+    assert.equal(returned, 1);
+    handlers.Open();
+    await session.startSpeaking();
+    fixture.recorder.emit('Start');
+    const before = fixture.recorder.stops;
+    page.onHide(); page.onUnload();
+    assert.equal(fixture.recorder.stops, before);
+    assert.equal(session.snapshot().speaking, true);
+    const emit = event => handlers.Message({ data: JSON.stringify(event) });
+    emit({ type: 'room.members.changed', payload: { roomId: '9223372036854775805', code: '12345678', isHost: true, listenerCount: 2, languages: [{ language: 'en', count: 1 }, { language: 'ja', count: 1 }], members: [{ userId: '9223372036854775804', displayName: 'Alice', language: 'en' }, { userId: '9223372036854775803', displayName: '游客', language: 'ja' }] } });
+    for (const [targetLanguage, text] of [['en', 'Hello'], ['ja', 'こんにちは']]) emit({ type: 'translation.final', epochId: 'epoch', sequence: 1, targetLanguage, payload: { text } });
+    const reopened = fixture.page('translation-room');
+    reopened.onLoad(); await tick();
+    assert.equal(reopened.data.room.roomId, '9223372036854775805');
+    assert.equal(reopened.data.languageGroups[0].names, 'Alice');
+    assert.equal(reopened.data.feed.length, 2);
+    assert.equal(reopened.data.speaking, true);
+    assert.equal(fixture.requests.length, 2);
+    await session.leave();
+    assert.equal(fixture.recorder.stops, before + 1);
+    fixture.recorder.emit('Stop', { tempFilePath: '/tmp/last.wav' }); await tick();
+    assert.equal(session.snapshot().room, null);
+    assert.equal(session.snapshot().feed.length, 0);
+    reopened.onUnload();
+  } finally { await session.leave(); }
+});
+
+test('listener join returns to navigation, keeps subscribed language feed and resets on logout', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  const page = fixture.page('translation-room');
+  let returned = 0, closed = 0;
+  fixture.my.navigateBack = () => { returned++; };
+  fixture.my.closeSocket = () => { closed++; };
+  page.onLoad(); await tick();
+  fixture.requests[0].ok({ canHost: false }); await tick();
+  page.setData({ code: '12345678' }); page.join(); await tick();
+  const room = { roomId: '9223372036854775805', code: '12345678', isHost: false, status: 'open' };
+  fixture.requests[1].ok(room); await tick();
+  assert.equal(returned, 1);
+  handlers.Open();
+  const emit = event => handlers.Message({ data: JSON.stringify(event) });
+  emit({ type: 'subscription.ready', targetLanguage: 'en', subscriptionVersion: 1, payload: { room, startSequence: 1 } });
+  page.onUnload();
+  emit({ type: 'translation.final', targetLanguage: 'ja', subscriptionVersion: 1, sequence: 1, payload: { text: 'こんにちは' } });
+  emit({ type: 'translation.final', targetLanguage: 'en', subscriptionVersion: 1, sequence: 1, payload: { text: 'Hello' } });
+  assert.equal(session.snapshot().feed.length, 1);
+  assert.equal(session.snapshot().feed[0].text, 'Hello');
+  assert.equal(closed, 0);
+  fixture.auth.logout();
+  assert.equal(closed, 1);
+  assert.equal(session.snapshot().room, null);
+  assert.equal(session.snapshot().feed.length, 0);
+  assert.equal(handlers.Message, undefined);
+});
+
+test('room audio yields to other content and explicitly resumes without replaying interrupted segments', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  const audio = fixture.load('services/audio');
+  try {
+    session.attach({ roomId: '42', isHost: false }); handlers.Open();
+    const emit = event => handlers.Message({ data: JSON.stringify(event) });
+    emit({ type: 'subscription.ready', targetLanguage: 'en', payload: { startSequence: 1, room: { roomId: '42', isHost: false } } });
+    audio.playQueue('tour', [{ url: '/tour.mp3' }]);
+    emit({ type: 'audio.delta', targetLanguage: 'en', sequence: 1, payload: { audio: 'aabb', isFinal: true } }); await tick();
+    assert.equal(session.snapshot().paused, true);
+    assert.equal(audio.snapshot().owner, 'tour');
+    assert.equal(fixture.writes.length, 0);
+    session.togglePause();
+    assert.equal(session.snapshot().paused, false);
+    assert.equal(audio.snapshot().owner, 'translation-room');
+    emit({ type: 'audio.delta', targetLanguage: 'en', sequence: 2, payload: { audio: 'ccdd', isFinal: true } }); await tick();
+    assert.equal(fixture.writes.length, 1);
+    assert.equal(audio.snapshot().playing, true);
+    session.suspend();
+    assert.equal(session.snapshot().disconnected, true);
+    assert.equal(fixture.audioContexts.at(-1).stopped, true);
+    assert.equal(session.snapshot().room.roomId, '42');
+  } finally {
+    const leaving = session.leave(); await tick();
+    const request = fixture.requests.at(-1); if (request) request.ok({});
+    await leaving;
+  }
+});
+
+test('listener playback state distinguishes missing audio, active playback and native playback failure', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  const room = { roomId: '42', isHost: false };
+  try {
+    session.attach(room); handlers.Open();
+    const emit = (type, payload) => handlers.Message({ data: JSON.stringify({ type, sequence: 1, targetLanguage: 'en', payload }) });
+    emit('subscription.ready', { room });
+    emit('translation.final', { text: 'Hello' });
+    assert.match(session.snapshot().audioNotice, /Only text was received/);
+    emit('audio.started', { format: 'mp3' });
+    emit('audio.delta', { audio: 'aabb', isFinal: true }); await tick();
+    assert.equal(session.snapshot().audioReceived, true);
+    assert.match(session.snapshot().audioNotice, /Playing translated audio/);
+    fixture.audioContexts[0].emit('Error', { errorMessage: 'Permission denied' });
+    assert.match(session.snapshot().audioNotice, /Audio playback failed/);
+    assert.equal(session.snapshot().disconnected, false);
+    assert.ok(handlers.Message);
+    session.togglePause();
+    assert.equal(session.snapshot().audioError, '');
+    assert.equal(session.snapshot().audioPlaying, true);
+  } finally {
+    const leaving = session.leave(); await tick();
+    const request = fixture.requests.at(-1); if (request) request.ok({});
+    await leaving;
+  }
+});
+
+test('Alipay room selection localizes chat, playback, native title and errors across page reopening', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  const titles = [];
+  fixture.my.setNavigationBar = value => titles.push(value.title);
+  const page = fixture.page('translation-room');
+  page._visible = true;
+  page.bindSession();
+  let reopened;
+  try {
+    page.chooseLanguage({ currentTarget: { dataset: { index: 2 } } });
+    assert.equal(page.data.language, 'en');
+    assert.equal(page.data.messages.joinTitle, 'Join a commentary room');
+    assert.equal(page.data.languageIndex, 2);
+    assert.equal(titles.at(-1), 'Live commentary');
+    const room = { roomId: '42', isHost: false, code: '12345678', sourceLanguage: 'zh-CN', listenerCount: 2 };
+    page.attach(room); handlers.Open();
+    const emit = event => handlers.Message({ data: JSON.stringify(event) });
+    emit({ type: 'subscription.ready', targetLanguage: 'en', payload: { room } });
+    assert.equal(page.data.listenerLabel, '2 listening');
+    assert.match(page.data.notice, /^Joined/);
+    assert.equal(titles.at(-1), 'Commentary chat');
+    const base = { epochId: 'epoch', sequence: 1, targetLanguage: 'en' };
+    emit({ ...base, type: 'translation.committed', payload: { text: '这里是银锭桥。' } });
+    assert.equal(page.data.chatGroups[0].translations[0].displayText, 'Translating…');
+    emit({ ...base, type: 'translation.final', payload: { text: 'This is Yinding Bridge.' } });
+    assert.equal(page.data.chatGroups[0].translations[0].displayText, 'This is Yinding Bridge.');
+    assert.match(page.data.audioNotice, /Only text was received/);
+    emit({ type: 'room.snapshot', payload: room });
+    page.onHide();
+    reopened = fixture.page('translation-room'); reopened._visible = true; reopened.bindSession();
+    assert.equal(reopened.data.language, 'en');
+    assert.equal(reopened.data.languageIndex, 2);
+    assert.equal(reopened.data.chatGroups[0].source, '这里是银锭桥。');
+    emit({ type: 'subscription.changed', targetLanguage: 'ja', payload: { room } });
+    assert.equal(reopened.data.language, 'ja');
+    assert.equal(reopened.data.languageIndex, 3);
+    assert.equal(reopened.data.messages.pause, '聴取を一時停止');
+    assert.equal(reopened.data.chatGroups[0].translations[0].displayText, 'This is Yinding Bridge.');
+    emit({ ...base, sequence: 2, targetLanguage: 'ja', type: 'language.error', payload: { message: '本段翻译中断，请等待下一段讲解' } });
+    assert.equal(reopened.data.chatGroups[1].translations[0].displayText, reopened.data.messages.translationUnavailable);
+    assert.equal(reopened.data.error, reopened.data.messages.translationUnavailable);
+    emit({ type: 'segment.error', payload: { message: '本段识别失败，请车夫重复讲解' } });
+    assert.match(reopened.data.error, /音声認識/);
+    assert.equal(titles.at(-1), '解説チャット');
+    emit({ type: 'room.closed', payload: { mode: 'immediate' } });
+    assert.equal(reopened.data.notice, 'ルームが閉じられました');
+  } finally {
+    page.onUnload(); if (reopened) reopened.onUnload();
+    const leaving = session.leave(); await tick();
+    const request = fixture.requests.at(-1); if (request) request.ok({});
+    await leaving;
+  }
 });

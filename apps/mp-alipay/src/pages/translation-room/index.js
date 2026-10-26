@@ -1,58 +1,110 @@
 const auth = require('../../services/auth');
 const rooms = require('../../services/translation-room');
-const { ROOM_LANGUAGES } = require('../../shared/translation-room');
+const session = require('../../services/translation-session');
+const { ROOM_LANGUAGES, groupRoomMessages } = require('../../shared/translation-room');
+const { formatRoomMessage, localizeRoomNotice, roomMessages } = require('../../shared/translation-room-messages');
 Page({
-  data: { room: null, canHost: false, code: '', languages: ROOM_LANGUAGES, languageIndex: 2, sourceIndex: 0, source: '', translated: '', speaking: false, paused: false, busy: false, disconnected: false, notice: '选择语言，点击开始收听', error: '' },
+  data: { room: null, canHost: false, permissionPending: true, code: '', languages: ROOM_LANGUAGES, language: 'zh-CN', messages: roomMessages('zh-CN'), languageIndex: 0, sourceIndex: 0, source: '', translated: '', feed: [], chatGroups: [], languageGroups: [], sourceLabel: '', pendingSource: '', detailsOpen: false, showLatest: false, scrollTarget: '', speaking: false, paused: false, busy: false, disconnected: false, notice: '正在确认账号权限…', error: '' },
   onLoad(query = {}) {
     this._visible = true;
     this.setData({ code: typeof query.roomCode === 'string' ? query.roomCode : '' });
-    this.run(async () => { await auth.ensure(); this._user = auth.current().userId; const permission = await rooms.api('/host-permission'); if (this._visible) this.setData({ canHost: permission.canHost }); });
+    this.bindSession();
+    this.run(async () => {
+      await auth.ensure();
+      this._user = auth.current().userId;
+      const active = session.snapshot();
+      const permission = active.room ? { canHost: active.room.isHost } : await rooms.api('/host-permission');
+      this._notice = permission.canHost ? '选择讲话语言，创建或返回讲解房间' : '输入房间码并选择语言，开始收听';
+      if (this._visible) this.setData({ canHost: permission.canHost, notice: localizeRoomNotice(active.room ? active.notice : this._notice, this.data.language) });
+    }).finally(() => { if (this._visible) this.setData({ permissionPending: false }); });
   },
-  onShow() { this._visible = true; this.setData({ busy: false }); },
-  scan() { my.scan({ type: 'qr', success: result => { const match = /(?:[?&]roomCode=)(\d{8})(?:&|$)/.exec(result.code || ''); const code = match ? match[1] : /^\d{8}$/.test(result.code || '') ? result.code : ''; this.setData(code ? { code, error: '' } : { error: '请扫描讲解房间二维码' }); } }); },
-  onHide() { this._visible = false; this.disconnect(); },
-  onUnload() { this._visible = false; this.disconnect(); },
+  onShow() { this._visible = true; this.bindSession(); },
+  onReady() { this.measureChat(); },
+  measureChat() {
+    if (!my.createSelectorQuery) return;
+    my.createSelectorQuery().select('.chat-conversation').boundingClientRect().exec(result => {
+      if (result && result[0]) this._chatHeight = result[0].height;
+    });
+  },
+  openDetails() { this.setData({ detailsOpen: true }); },
+  closeDetails() { this.setData({ detailsOpen: false }); },
+  onChatScroll(event) {
+    if (!this._chatHeight) return;
+    const detail = event.detail;
+    this._following = detail.scrollHeight - detail.scrollTop - this._chatHeight < 90;
+    if (this.data.showLatest === this._following) this.setData({ showLatest: !this._following });
+  },
+  followLatest() {
+    this._following = true;
+    this.setData({ showLatest: false, scrollTarget: this.data.scrollTarget === 'chat-end-a' ? 'chat-end-b' : 'chat-end-a' });
+  },
+  bindSession() {
+    if (this._unsubscribe) return;
+    this._unsubscribe = session.subscribe(value => {
+      if (!this._visible) return;
+      const room = value.room;
+      const messages = value.messages;
+      const languageGroups = (room && room.languages || []).map(group => Object.assign({}, group, {
+        label: (ROOM_LANGUAGES.find(item => item.value === group.language) || { label: group.language }).label,
+        avatar: group.language.split('-')[0].toUpperCase(),
+        names: (room.members || []).filter(member => member.language === group.language).map(member => member.displayName).join(', '),
+        countLabel: formatRoomMessage(messages.people, { count: group.count })
+      }));
+      const chatGroups = groupRoomMessages(value.feed).map(group => Object.assign({}, group, {
+        segmentLabel: formatRoomMessage(messages.segment, { number: group.sequence }),
+        translations: group.translations.map(item => Object.assign({}, item, {
+          avatar: item.language.split('-')[0].toUpperCase(),
+          displayText: item.status === 'error' ? localizeRoomNotice(item.text, value.language, 'translationUnavailable') || messages.translationUnavailable : item.text || (item.status === 'translating' ? messages.translating : messages.noTranslation),
+          statusLabel: item.status === 'translating' ? messages.translating : messages.segmentUnavailable
+        }))
+      }));
+      const lastGroup = chatGroups[chatGroups.length - 1];
+      const sourceLabel = room ? (ROOM_LANGUAGES.find(item => item.value === room.sourceLanguage) || { label: room.sourceLanguage }).label : '';
+      const pendingSource = value.source && (!lastGroup || lastGroup.source !== value.source) ? value.source : '';
+      const scrollTarget = this._following === false ? this.data.scrollTarget : this.data.scrollTarget === 'chat-end-a' ? 'chat-end-b' : 'chat-end-a';
+      const hadRoom = !!this.data.room;
+      const selectedIndex = Math.max(0, ROOM_LANGUAGES.findIndex(item => item.value === value.language));
+      const title = room ? messages.chatTitle : messages.title;
+      if (this._title !== title && my.setNavigationBar) my.setNavigationBar({ title });
+      this._title = title;
+      this.setData(Object.assign({}, value, {
+        feed: value.feed.slice().reverse(), chatGroups, sourceLabel, pendingSource, languageGroups, scrollTarget,
+        languageIndex: selectedIndex, sourceIndex: selectedIndex,
+        sourceDescription: formatRoomMessage(messages.original, { language: sourceLabel || '' }),
+        listenerLabel: formatRoomMessage(messages.listeners, { count: room ? room.listenerCount || 0 : 0 }),
+        notice: localizeRoomNotice(value.notice || this._notice || '正在确认账号权限…', value.language), error: value.displayError,
+        code: room ? room.code : this.data.code
+      }));
+      if (!hadRoom && room) this.measureChat();
+    });
+  },
+  back() { my.navigateBack({ fail: () => my.reLaunch({ url: '/pages/tour/index' }) }); },
+  scan() { my.scan({ type: 'qr', success: result => { const match = /(?:[?&]roomCode=)(\d{8})(?:&|$)/.exec(result.code || ''); const code = match ? match[1] : /^\d{8}$/.test(result.code || '') ? result.code : ''; this.setData(code ? { code, error: '' } : { error: this.data.messages.invalidQr }); } }); },
+  onHide() { this._visible = false; if (this._unsubscribe) this._unsubscribe(); this._unsubscribe = null; },
+  onUnload() { this.onHide(); },
   async run(action) {
     if (this.data.busy) return;
     this.setData({ busy: true, error: '' });
-    try { await action(); } catch (error) { if (this._visible) this.setData({ error: error.message || '操作失败，请重试' }); }
+    try { await action(); } catch (error) { if (this._visible) this.setData({ error: localizeRoomNotice(error.message || '操作失败，请重试', this.data.language) }); }
     finally { if (this._visible) this.setData({ busy: false }); }
   },
   inputCode(event) { this.setData({ code: event.detail.value }); },
-  chooseLanguage(event) { this.setData({ languageIndex: Number(event.detail.value) }); },
-  chooseSource(event) { this.setData({ sourceIndex: Number(event.detail.value) }); },
-  join() { this.run(async () => { if (!/^\d{8}$/.test(this.data.code)) throw Error('请输入八位房间码'); this.disconnect(); const room = await rooms.api('/join', { code: this.data.code, targetLanguage: ROOM_LANGUAGES[this.data.languageIndex].value }); this.attach(room); }); },
-  create() { this.run(async () => { if (!this.data.canHost) throw Error('当前账号未获车夫授权'); this.disconnect(); const room = await rooms.api('', { sourceLanguage: ROOM_LANGUAGES[this.data.sourceIndex].value }); this.attach(room); }); },
+  chooseLanguage(event) { const languageIndex = Number(event.currentTarget.dataset.index); if (ROOM_LANGUAGES[languageIndex]) { this.setData({ languageIndex }); session.setLanguage(ROOM_LANGUAGES[languageIndex].value); } },
+  chooseSource(event) { const sourceIndex = Number(event.currentTarget.dataset.index); if (ROOM_LANGUAGES[sourceIndex]) { this.setData({ sourceIndex }); session.setLanguage(ROOM_LANGUAGES[sourceIndex].value); } },
+  join() { this.run(async () => { if (!/^\d{8}$/.test(this.data.code)) throw Error('请输入八位房间码'); const userId = auth.current().userId; const room = await rooms.api('/join', { code: this.data.code, targetLanguage: ROOM_LANGUAGES[this.data.languageIndex].value }); if (!auth.current() || auth.current().userId !== userId) throw Error('账号已切换'); if (this._visible) { this.attach(room); this.back(); } }); },
+  create() { this.run(async () => { if (!this.data.canHost) throw Error('当前账号未获车夫授权'); const userId = auth.current().userId; const room = await rooms.api('', { sourceLanguage: ROOM_LANGUAGES[this.data.sourceIndex].value }); if (!auth.current() || auth.current().userId !== userId) throw Error('账号已切换'); if (this._visible) { this.attach(room); this.back(); } }); },
   attach(room) {
     if (!this._visible) return;
-    this._user = auth.current().userId;
-    this.setData({ room, code: room.code, source: '', translated: '', speaking: false, paused: false, disconnected: false, notice: room.isHost ? '房间已创建，点击开始讲解开启麦克风' : '正在连接…' });
-    this._connection = rooms.connect(room, {
-      event: event => { if (this._visible && auth.current() && auth.current().userId === this._user) this.event(event); },
-      error: error => { if (this._visible) this.setData({ error: error.message }); },
-      disconnected: () => { if (this._visible) this.setData({ disconnected: true, speaking: false, notice: '连接已断开，请点击重新收听或返回讲解房间' }); }
-    });
+    session.attach(room, ROOM_LANGUAGES[room.isHost ? this.data.sourceIndex : this.data.languageIndex].value);
   },
   event(event) {
-    const payload = event.payload || {}, updates = {};
-    if (event.type === 'subscription.ready' || event.type === 'subscription.changed') { updates.room = payload.room; updates.notice = '已加入，等待下一段讲解'; }
-    if (event.type === 'room.snapshot' || event.type === 'room.members.changed') updates.room = payload;
-    if (event.type === 'transcript.final') updates.source = payload.text || '';
-    if (event.type === 'translation.committed') updates.translated = '';
-    if (event.type === 'text.delta') updates.translated = this.data.translated + (payload.content || '');
-    if (event.type === 'translation.final') updates.translated = payload.text || '';
-    if (event.type === 'language.error' || event.type === 'audio.error' || event.type === 'segment.error') updates.error = payload.message || '本段语音不可用，请阅读字幕';
-    if (event.type === 'room.paused') updates.notice = '车夫暂时离线，讲解暂停';
-    if (event.type === 'room.started') updates.notice = '讲解中';
-    if (event.type === 'room.draining') updates.notice = '讲解即将结束，正在接收剩余语音';
-    if (event.type === 'room.closed') { updates.room = Object.assign({}, this.data.room, { status: 'closed' }); updates.speaking = false; updates.notice = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'; }
-    this.setData(updates);
+    session.event(event);
   },
-  startSpeaking() { this.run(async () => { if (!this._connection) throw Error('请先重新连接房间'); await this._connection.startRecording(); this.setData({ speaking: true }); }); },
-  changeLanguage() { this.disconnect(); this.setData({ notice: '当前语音已停止，请选择语言并重新收听' }); },
-  togglePause() { if (this._connection) { this.setData({ paused: !this.data.paused }); this._connection.pause(this.data.paused); } },
-  end() { this.run(async () => { if (!this._connection) throw Error('请先返回讲解房间'); await this._connection.end(false); this.setData({ speaking: false }); }); },
-  closeRoom() { this.run(async () => { if (this._connection) await this._connection.end(true); else await rooms.api('/' + this.data.room.roomId + '/close', {}); this.setData({ speaking: false, 'room.status': 'closed', notice: '房间已关闭' }); }); },
-  disconnect() { if (this._connection) this._connection.close(true); this._connection = null; if (this.data.room) this.setData({ disconnected: true, speaking: false }); },
-  leave() { const room = this.data.room; this.disconnect(); this.setData({ room: null, disconnected: false, source: '', translated: '' }); if (room && !room.isHost) rooms.api('/' + room.roomId + '/leave', {}).catch(() => {}); }
+  startSpeaking() { this.run(() => session.startSpeaking()); },
+  changeLanguage() { this.run(() => session.changeLanguage()); },
+  togglePause() { session.togglePause(); },
+  end() { this.run(() => session.end(false)); },
+  closeRoom() { this.run(() => session.end(true)); },
+  disconnect() { session.disconnect(); },
+  leave() { this.closeDetails(); this.run(() => session.leave()); }
 });

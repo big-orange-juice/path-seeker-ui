@@ -1,0 +1,12 @@
+<view a:if="{{!permissionPending && !canHost}}" class="room-card">
+  <view class="room-card-heading"><view class="room-card-icon"><view class="room-headphones-icon"/></view><view class="room-heading-copy"><view class="room-title">{{messages.joinTitle}}</view><view class="room-description">{{messages.joinHint}}</view></view></view>
+  <view class="room-field-group"><view class="room-label">{{messages.roomCode}}</view><input class="room-code-input" value="{{code}}" onInput="inputCode" type="number" maxlength="8" placeholder="{{messages.codePlaceholder}}" placeholder-class="room-code-placeholder" disabled="{{busy}}" aria-label="{{messages.codeAria}}"/></view>
+  <button class="room-action room-scan" onTap="scan" disabled="{{busy}}">{{messages.scan}}</button>
+  <view class="room-field-group"><view class="room-label">{{messages.listenLanguage}}</view><view class="room-language-options"><button a:for="{{languages}}" a:key="value" class="room-language-option {{languageIndex === index ? 'is-selected' : ''}}" data-index="{{index}}" onTap="chooseLanguage" disabled="{{busy}}" aria-label="{{item.label}}" aria-pressed="{{languageIndex === index}}"><text>{{item.label}}</text><text a:if="{{languageIndex === index}}">✓</text></button></view></view>
+  <button class="room-action room-action-primary" onTap="join" disabled="{{busy}}"><text>{{busy ? messages.connecting : messages.join}}</text><text>→</text></button><view class="room-help">{{messages.listenHint}}</view>
+</view>
+<view a:if="{{!permissionPending && canHost}}" class="room-card">
+  <view class="room-card-heading"><view class="room-card-icon"><view class="room-headphones-icon"/></view><view class="room-heading-copy"><view class="room-title">{{messages.hostTitle}}</view><view class="room-description">{{messages.hostIntro}}</view></view></view>
+  <view class="room-field-group"><view class="room-label">{{messages.speakLanguage}}</view><view class="room-language-options"><button a:for="{{languages}}" a:key="value" class="room-language-option {{sourceIndex === index ? 'is-selected' : ''}}" data-index="{{index}}" onTap="chooseSource" disabled="{{busy}}" aria-label="{{item.label}}" aria-pressed="{{sourceIndex === index}}"><text>{{item.label}}</text><text a:if="{{sourceIndex === index}}">✓</text></button></view></view>
+  <button class="room-action room-action-primary" onTap="create" disabled="{{busy}}">{{messages.create}}</button>
+</view>
