@@ -26,7 +26,7 @@ Page({
   tour() { my.reLaunch({ url: '/pages/tour/index' }); },
   edit() { this.setData({ editing: !this.data.editing }); },
   input(event) { const field = ui.dataset(event).field; if (['nickname', 'country', 'voiceId'].includes(field)) this.setData({ [field]: ui.value(event) }); },
-  locale(event) { const index = Number(ui.value(event)); storage.write('locale', locales[index].value); this.setData({ localeIndex: index }); },
+  locale(event) { const index = Number(ui.value(event)); if (!locales[index]) return; storage.write('locale', locales[index].value); storage.write('tour-locale', locales[index].value); this.setData({ localeIndex: index }); },
   saveVoice() { if (!this.data.user.userId || this.data.user.userId !== ui.userId()) return; storage.write(storage.scoped(this.data.user.userId, 'voice'), this.data.voiceId.trim()); my.showToast({ content: '音色设置已保存', type: 'success' }); },
   async save() {
     if (this.data.busy || this.data.loading || !this.data.profile.id) return;

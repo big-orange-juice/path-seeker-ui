@@ -337,3 +337,34 @@ test('Alipay room selection localizes chat, playback, native title and errors ac
     await leaving;
   }
 });
+
+test('Alipay navigation passes its selected language into a new room and preserves active subscriptions', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  const { tourMessages } = fixture.load('shared/tourMessages');
+  const tourPage = fixture.page('tour');
+  let destination;
+  fixture.my.navigateTo = options => { destination = options.url; };
+  tourPage.setData({ locale: 'en', messages: tourMessages('en') });
+  tourPage.translationRoom();
+  assert.equal(tourPage.data.messages.liveCommentary, 'Live commentary');
+  assert.equal(tourPage.data.messages.commentaryRoom, 'Room');
+  assert.equal(destination, '/pages/translation-room/index');
+  assert.equal(session.snapshot().language, 'en');
+  const roomPage = fixture.page('translation-room');
+  roomPage._visible = true; roomPage.bindSession();
+  try {
+    assert.equal(roomPage.data.languageIndex, 2);
+    assert.equal(roomPage.data.messages.joinTitle, 'Join a commentary room');
+    session.attach({ roomId: '42', isHost: false }, 'ja'); handlers.Open();
+    tourPage.setData({ locale: 'fr' });
+    tourPage.translationRoom();
+    assert.equal(session.snapshot().language, 'ja');
+    assert.equal(roomPage.data.messages.joinTitle, '解説ルームに参加');
+  } finally {
+    roomPage.onUnload();
+    const leaving = session.leave(); await tick();
+    const request = fixture.requests.at(-1); if (request) request.ok({});
+    await leaving;
+  }
+});

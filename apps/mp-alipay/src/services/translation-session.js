@@ -5,7 +5,7 @@ const { localizeRoomNotice, roomLocale, roomMessages } = require('../shared/tran
 const listeners = new Set();
 const feed = new RoomTextFeed();
 const empty = (language = 'zh-CN') => ({ language, room: null, source: '', translated: '', feed: [], speaking: false, paused: false, audioPlaying: false, audioReceived: false, audioError: '', disconnected: false, notice: '', error: '' });
-let state = empty(), connection = null, userId = '', version = 0;
+let state = empty(), connection = null, userId = '', userVersion = 0, version = 0;
 function snapshot() {
   const messages = roomMessages(state.language);
   const audioNotice = state.audioError ? localizeRoomNotice(state.audioError, state.language, 'unavailableAudio') : state.paused ? messages.muted : state.audioPlaying ? messages.playing : state.audioReceived ? messages.received : messages.waitingAudio;
@@ -17,6 +17,7 @@ function update(values) {
 }
 function subscribe(listener) { listeners.add(listener); listener(snapshot()); return () => listeners.delete(listener); }
 function setLanguage(language) { update({ language: roomLocale(language) }); }
+function prepareEntry(language) { if (!state.room) setLanguage(language); }
 function disconnect() {
   version++;
   const previous = connection; connection = null;
@@ -24,7 +25,7 @@ function disconnect() {
   if (state.room) update({ disconnected: true, speaking: false });
 }
 function reset(preserveLanguage = false) { disconnect(); feed.clear(); userId = ''; state = empty(preserveLanguage ? state.language : 'zh-CN'); update({}); }
-auth.subscribe(session => { if (userId && (!session || session.userId !== userId)) reset(); });
+auth.subscribe(session => { if (userId && (!session || session.userId !== userId || userVersion !== auth.version())) reset(true); });
 function event(message) {
   const payload = message.payload || {}, values = { feed: feed.accept(message) };
   if (message.type === 'subscription.ready' || message.type === 'subscription.changed') {
@@ -56,6 +57,7 @@ function attach(room, language) {
   const selectedLanguage = roomLocale(language || (room.isHost ? room.sourceLanguage : '') || state.language);
   if (!state.room || state.room.roomId !== room.roomId) { feed.clear(); state = empty(selectedLanguage); }
   userId = session.userId;
+  userVersion = auth.version();
   const current = version;
   update({ room, language: selectedLanguage, speaking: false, paused: false, disconnected: false, error: '', notice: room.isHost ? '房间已创建，可返回导航；开始讲解后保持麦克风开启' : '正在连接…' });
   try {
@@ -100,4 +102,4 @@ async function leave() {
   if (previous && !previous.isHost) await rooms.api('/' + previous.roomId + '/leave', {}).catch(() => {});
 }
 function suspend() { if (state.room) { disconnect(); update({ notice: '讲解已暂停，请返回房间重新连接' }); } }
-module.exports = { snapshot, subscribe, attach, event, setLanguage, disconnect, startSpeaking, togglePause, end, changeLanguage, leave, suspend };
+module.exports = { snapshot, subscribe, attach, event, prepareEntry, setLanguage, disconnect, startSpeaking, togglePause, end, changeLanguage, leave, suspend };

@@ -1,4 +1,5 @@
 const auth = require('../../services/auth');
+const storage = require('../../services/storage');
 const rooms = require('../../services/translation-room');
 const session = require('../../services/translation-session');
 const { ROOM_LANGUAGES, groupRoomMessages } = require('../../shared/translation-room');
@@ -7,18 +8,30 @@ Page({
   data: { room: null, canHost: false, permissionPending: true, code: '', languages: ROOM_LANGUAGES, language: 'zh-CN', messages: roomMessages('zh-CN'), languageIndex: 0, sourceIndex: 0, source: '', translated: '', feed: [], chatGroups: [], languageGroups: [], sourceLabel: '', pendingSource: '', detailsOpen: false, showLatest: false, scrollTarget: '', speaking: false, paused: false, busy: false, disconnected: false, notice: '正在确认账号权限…', error: '' },
   onLoad(query = {}) {
     this._visible = true;
+    session.prepareEntry(query.lang || storage.read('locale', storage.read('tour-locale', 'zh')));
     this.setData({ code: typeof query.roomCode === 'string' ? query.roomCode : '' });
     this.bindSession();
-    this.run(async () => {
-      await auth.ensure();
-      this._user = auth.current().userId;
-      const active = session.snapshot();
-      const permission = active.room ? { canHost: active.room.isHost } : await rooms.api('/host-permission');
-      this._notice = permission.canHost ? '选择讲话语言，创建或返回讲解房间' : '输入房间码并选择语言，开始收听';
-      if (this._visible) this.setData({ canHost: permission.canHost, notice: localizeRoomNotice(active.room ? active.notice : this._notice, this.data.language) });
-    }).finally(() => { if (this._visible) this.setData({ permissionPending: false }); });
+    this.loadPermission();
   },
-  onShow() { this._visible = true; this.bindSession(); },
+  async loadPermission() {
+    const task = this._permissionTask = {};
+    this._permissionVersion = auth.version();
+    this.setData({ permissionPending: true, canHost: false, error: '' });
+    const active = () => this._visible && this._permissionTask === task && this._permissionVersion === auth.version();
+    try {
+      await auth.ensure();
+      if (!this._visible || this._permissionTask !== task) return;
+      this._permissionVersion = auth.version();
+      this._user = auth.current().userId;
+      const roomState = session.snapshot();
+      const permission = roomState.room ? { canHost: roomState.room.isHost } : await rooms.api('/host-permission');
+      if (!active()) return;
+      this._notice = permission.canHost ? '选择讲话语言，创建或返回讲解房间' : '输入房间码并选择语言，开始收听';
+      this.setData({ canHost: permission.canHost, notice: localizeRoomNotice(roomState.room ? roomState.notice : this._notice, this.data.language) });
+    } catch (error) { if (active()) this.setData({ error: localizeRoomNotice(error.message, this.data.language) }); }
+    finally { if (active()) { this._permissionTask = null; this.setData({ permissionPending: false }); } }
+  },
+  onShow() { this._visible = true; this.bindSession(); if (this._permissionVersion !== auth.version() || this.data.permissionPending && !this._permissionTask) this.loadPermission(); },
   onReady() { this.measureChat(); },
   measureChat() {
     if (!my.createSelectorQuery) return;
@@ -80,7 +93,7 @@ Page({
   },
   back() { my.navigateBack({ fail: () => my.reLaunch({ url: '/pages/tour/index' }) }); },
   scan() { my.scan({ type: 'qr', success: result => { const match = /(?:[?&]roomCode=)(\d{8})(?:&|$)/.exec(result.code || ''); const code = match ? match[1] : /^\d{8}$/.test(result.code || '') ? result.code : ''; this.setData(code ? { code, error: '' } : { error: this.data.messages.invalidQr }); } }); },
-  onHide() { this._visible = false; if (this._unsubscribe) this._unsubscribe(); this._unsubscribe = null; },
+  onHide() { this._visible = false; this._permissionTask = null; if (this._unsubscribe) this._unsubscribe(); this._unsubscribe = null; },
   onUnload() { this.onHide(); },
   async run(action) {
     if (this.data.busy) return;

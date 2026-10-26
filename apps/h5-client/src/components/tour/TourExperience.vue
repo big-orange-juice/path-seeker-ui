@@ -193,6 +193,11 @@ function changeLanguage(event: Event) {
   if (isTourLocale(value)) void selectLanguage(value)
 }
 
+function openTranslationRoom() {
+  translation.prepareEntry(journey.locale.value, route.fullPath)
+  void router.push('/translation-room')
+}
+
 async function selectRoute(id: string) {
   await journey.selectRoute(id)
   await router.replace({ query: { ...route.query, routeId: id } })
@@ -400,7 +405,7 @@ onBeforeUnmount(() => {
         <button v-if="fullscreen.isSupported.value" type="button" class="tour-fullscreen" :aria-label="fullscreen.isFullscreen.value ? messages.exitFullscreen : messages.enterFullscreen" :title="fullscreen.isFullscreen.value ? messages.exitFullscreen : messages.enterFullscreen" @click="fullscreen.toggle"><Minimize2 v-if="fullscreen.isFullscreen.value" :size="16" aria-hidden="true" /><Maximize2 v-else :size="16" aria-hidden="true" /></button>
         <label class="tour-language"><Languages :size="17" aria-hidden="true" /><span>{{ currentLanguage.label }}</span><select :value="journey.locale.value" :disabled="journey.pending.value" :aria-label="messages.changeLanguage" @change="changeLanguage"><option v-for="language in TOUR_LANGUAGES" :key="language.value" :value="language.value">{{ language.label }}</option></select></label>
       </template>
-      <button type="button" class="tour-account" :aria-label="authStore.isAccountLoggedIn ? '管理当前账号' : '账号登录'" @click="router.push({ path: '/auth', query: { redirect: route.fullPath } })"><UserRound :size="16" aria-hidden="true" /><span>{{ authStore.isAccountLoggedIn ? '账号' : '登录' }}</span></button>
+      <button type="button" class="tour-account" :aria-label="authStore.isAccountLoggedIn ? messages.manageAccount : messages.accountLogin" @click="router.push({ path: '/auth', query: { redirect: route.fullPath } })"><UserRound :size="16" aria-hidden="true" /><span>{{ authStore.isAccountLoggedIn ? messages.account : messages.login }}</span></button>
     </header>
     <div v-if="errorText || mapFailed || journey.locationError.value || speechError || voiceNotice || journey.speech.blocked.value || journey.speech.skippedExtraAudio.value || journey.approachUnknown.value || seekNotice || resumeNotice" class="tour-notices" role="status">
       <p v-if="errorText">{{ errorText }} <button type="button" :disabled="journey.pending.value" @click="load">{{ messages.retry }}</button></p>
@@ -503,9 +508,9 @@ onBeforeUnmount(() => {
         </p>
       </div>
     </template>
-    <button v-if="viewingJourney" type="button" class="tour-translation-entry" @click="translation.navigationPath.value = route.fullPath; router.push('/translation-room')">
+    <button v-if="viewingJourney" type="button" class="tour-translation-entry" @click="openTranslationRoom">
       <Headphones :size="24" aria-hidden="true" />
-      <span>{{ translation.room.value ? '房间' : '实时讲解' }}</span>
+      <span>{{ translation.room.value ? messages.commentaryRoom : messages.liveCommentary }}</span>
     </button>
     <TourLanguageGate v-if="!journey.languageReady.value" :title="messages.chooseLanguage" @select="selectLanguage" />
   </main>

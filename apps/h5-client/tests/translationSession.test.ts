@@ -245,3 +245,16 @@ test('host interface follows source language rather than per-listener translated
   assert.equal(store.language, 'fr')
   assert.equal(store.messages.start, 'Commencer le commentaire')
 })
+
+test('navigation language initializes room entry while an active room keeps its listening language', async context => {
+  const store = setup(context)
+  store.prepareEntry('en', '/tour?lang=en')
+  assert.equal(store.language, 'en')
+  assert.equal(store.messages.joinTitle, 'Join a commentary room')
+  assert.equal(store.navigationPath, '/tour?lang=en')
+  await store.join('12345678', 'ja')
+  store.prepareEntry('fr', '/tour?lang=fr')
+  assert.equal(store.language, 'ja')
+  assert.equal(store.messages.joinTitle, '解説ルームに参加')
+  assert.equal(store.navigationPath, '/tour?lang=fr')
+})

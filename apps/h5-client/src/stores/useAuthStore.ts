@@ -53,12 +53,6 @@ function syncAccessTokenSession(token: string) {
   clearAccessToken()
 }
 
-/**
- * 静默游客登录的并发闸门。
- * 路由守卫与启动引导会同时要求会话，共用一个在途请求，避免重复签发游客账号。
- */
-let guestSessionPromise: Promise<boolean> | null = null
-
 export const useAuthStore = defineStore(
   "auth",
   () => {
@@ -70,6 +64,10 @@ export const useAuthStore = defineStore(
     const error = ref("")
     const sessionExpiredDialogOpen = ref(false)
     const sessionExpiredMessage = ref("未登录或登录已过期，请重新登录")
+    let sessionVersion = 0
+    let activityVersion = 0
+    let guestSessionPromise: Promise<boolean> | null = null
+    let accountLoginPromise: Promise<LoginResponse | null> | null = null
 
     const isLoggedIn = computed(() => Boolean(accessToken.value))
     const isGuest = computed(() => isLoggedIn.value && Number(profile.value?.registerChannel) === 5)
@@ -93,62 +91,58 @@ export const useAuthStore = defineStore(
       syncAccessTokenSession(accessToken.value)
     }
 
-    async function login(account: string, password: string) {
+    function beginActivity() {
       pending.value = true
       error.value = ""
-
-      try {
-        const response = await loginAppUser({
-          account: normalizeText(account),
-          password,
-        })
-        applyLoginResponse(response)
-        return response
-      } catch (loginError) {
-        error.value = resolveRequestErrorMessage(loginError, "登录失败")
-        return null
-      } finally {
-        pending.value = false
-      }
+      return ++activityVersion
     }
 
-    async function register(payload: Omit<RegisterRequest, "platform" | "device">) {
-      pending.value = true
-      error.value = ""
-
-      try {
-        const response = await registerAppUser({
-          username: normalizeText(payload.username) || null,
-          phone: normalizeText(payload.phone) || null,
-          email: normalizeText(payload.email) || null,
-          password: payload.password,
-          nickname: normalizeText(payload.nickname) || null,
-          preferredLang: normalizeText(payload.preferredLang) || "zh-CN",
-        })
-        applyLoginResponse(response)
-        return response
-      } catch (registerError) {
-        error.value = resolveRequestErrorMessage(registerError, "注册失败")
-        return null
-      } finally {
-        pending.value = false
-      }
+    function finishActivity(version: number) {
+      if (version === activityVersion) pending.value = false
     }
 
-    async function loginAsGuest() {
-      pending.value = true
-      error.value = ""
+    function authenticate(action: () => Promise<LoginResponse>, fallback: string, accountLogin: boolean) {
+      const current = ++sessionVersion
+      const activity = beginActivity()
+      guestSessionPromise = null
+      accountLoginPromise = null
+      const operation = (async () => {
+        try {
+          const response = await action()
+          if (current !== sessionVersion) return null
+          applyLoginResponse(response)
+          sessionExpiredDialogOpen.value = false
+          return response
+        } catch (failure) {
+          if (current === sessionVersion) error.value = resolveRequestErrorMessage(failure, fallback)
+          return null
+        } finally {
+          finishActivity(activity)
+        }
+      })()
+      if (accountLogin) accountLoginPromise = operation
+      return operation.finally(() => {
+        if (accountLoginPromise === operation) accountLoginPromise = null
+      })
+    }
 
-      try {
-        const response = await guestLoginAppUser()
-        applyLoginResponse(response)
-        return response
-      } catch (guestError) {
-        error.value = resolveRequestErrorMessage(guestError, "游客登录失败")
-        return null
-      } finally {
-        pending.value = false
-      }
+    function login(account: string, password: string) {
+      return authenticate(() => loginAppUser({ account: normalizeText(account), password }), "登录失败", true)
+    }
+
+    function register(payload: Omit<RegisterRequest, "platform" | "device">) {
+      return authenticate(() => registerAppUser({
+        username: normalizeText(payload.username) || null,
+        phone: normalizeText(payload.phone) || null,
+        email: normalizeText(payload.email) || null,
+        password: payload.password,
+        nickname: normalizeText(payload.nickname) || null,
+        preferredLang: normalizeText(payload.preferredLang) || "zh-CN",
+      }), "注册失败", true)
+    }
+
+    function loginAsGuest() {
+      return authenticate(guestLoginAppUser, "游客登录失败", false)
     }
 
     /**
@@ -156,6 +150,10 @@ export const useAuthStore = defineStore(
      * 都没有时静默签发游客身份。返回是否拿到可用会话。
      */
     async function ensureGuestSession() {
+      if (accountLoginPromise) {
+        await accountLoginPromise
+        return isLoggedIn.value && !isTokenExpired.value
+      }
       if (isLoggedIn.value && !isTokenExpired.value) {
         return true
       }
@@ -164,22 +162,26 @@ export const useAuthStore = defineStore(
         return guestSessionPromise
       }
 
-      guestSessionPromise = (async () => {
-        try {
-          if (isLoggedIn.value && refreshToken.value) {
-            const refreshed = await refreshTokenIfNeeded(true)
-            if (refreshed) {
-              return true
-            }
+      const current = sessionVersion
+      const operation = (async () => {
+        if (isLoggedIn.value && refreshToken.value) {
+          const refreshed = await refreshTokenIfNeeded(true)
+          if (current !== sessionVersion) {
+            if (accountLoginPromise) await accountLoginPromise
+            return isLoggedIn.value && !isTokenExpired.value
           }
-
-          return Boolean(await loginAsGuest())
-        } finally {
-          guestSessionPromise = null
+          if (refreshed) {
+            return true
+          }
         }
-      })()
 
-      return guestSessionPromise
+        const response = await loginAsGuest()
+        if (accountLoginPromise) await accountLoginPromise
+        return Boolean(response) || (isLoggedIn.value && !isTokenExpired.value)
+      })()
+      guestSessionPromise = operation
+      try { return await operation }
+      finally { if (guestSessionPromise === operation) guestSessionPromise = null }
     }
 
     async function refreshTokenIfNeeded(force = false) {
@@ -191,19 +193,23 @@ export const useAuthStore = defineStore(
         return null
       }
 
-      pending.value = true
-      error.value = ""
+      const current = sessionVersion
+      const token = refreshToken.value
+      const activity = beginActivity()
 
       try {
-        const response = await refreshAppUserToken(refreshToken.value)
+        const response = await refreshAppUserToken(token)
+        if (current !== sessionVersion || token !== refreshToken.value) return null
         applyLoginResponse(response)
         return response
       } catch (refreshError) {
-        error.value = resolveRequestErrorMessage(refreshError, "登录状态已过期")
-        logout()
+        if (current === sessionVersion && token === refreshToken.value) {
+          clearIdentity()
+          error.value = resolveRequestErrorMessage(refreshError, "登录状态已过期")
+        }
         return null
       } finally {
-        pending.value = false
+        finishActivity(activity)
       }
     }
 
@@ -212,36 +218,51 @@ export const useAuthStore = defineStore(
         return null
       }
 
-      pending.value = true
-      error.value = ""
+      const current = sessionVersion
+      const token = accessToken.value
+      const activity = beginActivity()
 
       try {
-        profile.value = await fetchAppUserProfile()
+        const result = await fetchAppUserProfile()
+        if (current !== sessionVersion || token !== accessToken.value) return null
+        profile.value = result
         return profile.value
       } catch (profileError) {
-        error.value = resolveRequestErrorMessage(profileError, "用户资料加载失败")
+        if (current === sessionVersion && token === accessToken.value) error.value = resolveRequestErrorMessage(profileError, "用户资料加载失败")
         return null
       } finally {
-        pending.value = false
+        finishActivity(activity)
       }
     }
 
     async function updateProfile(payload: UpdateProfileRequest) {
-      pending.value = true
-      error.value = ""
+      const current = sessionVersion
+      const token = accessToken.value
+      const activity = beginActivity()
 
       try {
-        profile.value = await updateAppUserProfile(payload)
+        const result = await updateAppUserProfile(payload)
+        if (current !== sessionVersion || token !== accessToken.value) return null
+        profile.value = result
         return profile.value
       } catch (profileError) {
-        error.value = resolveRequestErrorMessage(profileError, "用户资料更新失败")
+        if (current === sessionVersion && token === accessToken.value) error.value = resolveRequestErrorMessage(profileError, "用户资料更新失败")
         return null
       } finally {
-        pending.value = false
+        finishActivity(activity)
       }
     }
 
     function logout() {
+      sessionVersion++
+      activityVersion++
+      guestSessionPromise = null
+      accountLoginPromise = null
+      pending.value = false
+      clearIdentity()
+    }
+
+    function clearIdentity() {
       accessToken.value = ""
       refreshToken.value = ""
       expiresAt.value = null

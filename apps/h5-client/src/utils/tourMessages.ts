@@ -49,7 +49,16 @@ const experienceMessages: Record<TourLocale, Partial<Record<keyof typeof zh, str
   ja: { queueAutoPlay: '次のスポットを自動再生', showRoute: 'ルートを表示', hideRoute: 'ルートを隠す', locationReady: '近くのガイドがオン', locationOff: '近くのガイドがオフ', locationWeak: 'より正確な位置情報を待っています' },
 }
 
-export type TourMessages = Record<keyof typeof zh | keyof typeof arrivalMessages.zh, string>
+const navigationMessages = {
+  zh: { liveCommentary: '实时讲解', commentaryRoom: '房间', login: '登录', account: '账号', manageAccount: '管理当前账号', accountLogin: '账号登录' },
+  en: { liveCommentary: 'Live commentary', commentaryRoom: 'Room', login: 'Sign in', account: 'Account', manageAccount: 'Manage account', accountLogin: 'Sign in to your account' },
+  ru: { liveCommentary: 'Живой комментарий', commentaryRoom: 'Комната', login: 'Войти', account: 'Аккаунт', manageAccount: 'Управление аккаунтом', accountLogin: 'Войти в аккаунт' },
+  es: { liveCommentary: 'Comentarios en directo', commentaryRoom: 'Sala', login: 'Acceder', account: 'Cuenta', manageAccount: 'Gestionar cuenta', accountLogin: 'Acceder a tu cuenta' },
+  fr: { liveCommentary: 'Commentaire en direct', commentaryRoom: 'Salon', login: 'Connexion', account: 'Compte', manageAccount: 'Gérer le compte', accountLogin: 'Se connecter à son compte' },
+  ja: { liveCommentary: 'リアルタイム解説', commentaryRoom: 'ルーム', login: 'ログイン', account: 'アカウント', manageAccount: 'アカウント管理', accountLogin: 'アカウントにログイン' },
+} satisfies Record<TourLocale, Record<'liveCommentary' | 'commentaryRoom' | 'login' | 'account' | 'manageAccount' | 'accountLogin', string>>
+
+export type TourMessages = Record<keyof typeof zh | keyof typeof arrivalMessages.zh | keyof typeof navigationMessages.zh, string>
 
 const messages: Record<TourLocale, Partial<Record<keyof typeof zh, string>>> = {
   zh,
@@ -83,5 +92,6 @@ export function tourMessages(locale: TourLocale): TourMessages {
     ...experienceMessages[locale],
     ...arrivalMessages[locale],
     ...voiceMessages[locale],
+    ...navigationMessages[locale],
   }
 }

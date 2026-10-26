@@ -210,7 +210,7 @@ export async function request<T>(path: string, options: RequestOptions = {}) {
     if (error instanceof ApiRequestError) {
       // 登录相关接口不弹全局过期框
       const isAuthPath = /^\/?AppUser\/(Login|Register|GuestLogin|RefreshToken)/i.test(path)
-      if (!isAuthPath) {
+      if (!isAuthPath && accessToken === getAccessToken()) {
         notifySessionExpiredIfNeeded(error)
       }
     }

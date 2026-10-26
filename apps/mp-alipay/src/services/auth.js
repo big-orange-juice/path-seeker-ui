@@ -1,16 +1,23 @@
 const storage = require('./storage');
 const http = require('./http');
-let session = null, refreshing = null, guestPending = null, epoch = 0;
+let session = null, refreshing = null, guestPending = null, loginPending = null, epoch = 0;
 const listeners = new Set();
 function subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); }
 function valid(value) { return value && typeof value.userId === 'string' && value.userId && typeof value.accessToken === 'string' && value.accessToken && typeof value.refreshToken === 'string' && value.refreshToken; }
 function restore() { const stored = storage.read('session'); session = valid(stored) ? stored : null; if (!session) storage.remove('session'); return session; }
 function current() { return session; }
+function version() { return epoch; }
 function save(value) {
   if (!valid(value)) throw Error('账号数据格式错误，请重新登录');
   session = value; storage.write('session', value); listeners.forEach(listener => listener(session)); return value;
 }
-function logout() { epoch++; session = null; storage.remove('session'); listeners.forEach(listener => listener(null)); }
+function logout() { epoch++; loginPending = null; session = null; storage.remove('session'); listeners.forEach(listener => listener(null)); }
+function authenticate(action) {
+  const pending = { epoch: ++epoch };
+  pending.promise = action(pending.epoch).finally(() => { if (loginPending === pending) loginPending = null; });
+  loginPending = pending;
+  return pending.promise;
+}
 function device() {
   try { const info = my.getSystemInfoSync(); return 'Alipay/' + (info.platform || '') + '/' + (info.model || ''); } catch (_) { return 'Alipay'; }
 }
@@ -25,15 +32,16 @@ async function refresh() {
   }).catch(error => { if (captured === epoch) logout(); throw error; }).finally(() => { if (refreshing === pending) refreshing = null; });
   refreshing = pending; return pending.promise;
 }
-async function login(data, register = false) {
-  const captured = ++epoch;
+function login(data, register = false) {
+  return authenticate(async captured => {
   const result = await http.post(register ? '/AppUser/Register' : '/AppUser/Login', Object.assign({ platform: 4, device: device(), langCode: storage.read('locale', 'zh') }, data), { public: true });
   if (captured !== epoch) throw Error('账号已切换');
   epoch++;
   return save(result);
+  });
 }
-async function loginAlipay() {
-  const captured = ++epoch;
+function loginAlipay() {
+  return authenticate(async captured => {
   const guestAccessToken = session && session.isGuest ? session.accessToken : null;
   const authorization = await new Promise((resolve, reject) => my.getAuthCode({
     scopes: ['auth_user'],
@@ -59,8 +67,16 @@ async function loginAlipay() {
   if (!result || result.isGuest !== false) throw Error('支付宝登录未完成，请重试');
   epoch++;
   return save(result);
+  });
 }
 function ensure() {
+  if (loginPending && loginPending.epoch === epoch) {
+    const pending = loginPending;
+    return pending.promise.then(result => {
+      if (epoch !== pending.epoch + 1 || session !== result) throw Error('账号已切换');
+      return result;
+    }, error => { if (epoch === pending.epoch && session) return session; throw error; });
+  }
   if (session) return Promise.resolve(session);
   if (guestPending && guestPending.epoch === epoch) return guestPending.promise;
   const captured = epoch;
@@ -70,4 +86,4 @@ function ensure() {
   guestPending = pending; return pending.promise;
 }
 http.configureAuth({ token: () => session && session.accessToken, version: () => epoch, refresh });
-module.exports = { restore, current, ensure, login, loginAlipay, logout, refresh, subscribe };
+module.exports = { restore, current, version, ensure, login, loginAlipay, logout, refresh, subscribe };

@@ -310,11 +310,15 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
   watch(() => auth.profile?.id, () => { setLanguage('zh-CN'); canHost.value = false; permissionPending.value = true; void leave(false) }, { flush: 'sync' })
   onScopeDispose(() => { alive = false; void leave().finally(() => context?.close()) })
   function setLanguage(value: string) { language.value = roomLocale(value) }
+  function prepareEntry(value: string, returnPath: string) {
+    navigationPath.value = returnPath
+    if (!room.value) setLanguage(value)
+  }
 
-  return { room, canHost, permissionPending, source, translated, notice, error, language, messages, displayNotice, displayError, busy, listening, speaking, muted, audioBlocked, audioNotice, audioReceived, audioError, connected, navigationPath, feed, setLanguage, loadPermission, create, join, startSpeaking, end, leave, toggleMute, changeLanguage }
+  return { room, canHost, permissionPending, source, translated, notice, error, language, messages, displayNotice, displayError, busy, listening, speaking, muted, audioBlocked, audioNotice, audioReceived, audioError, connected, navigationPath, feed, prepareEntry, setLanguage, loadPermission, create, join, startSpeaking, end, leave, toggleMute, changeLanguage }
 })
 
 export function useTranslationRoom() {
   const store = useTranslationRoomStore()
-  return { ...storeToRefs(store), setLanguage: store.setLanguage, loadPermission: store.loadPermission, create: store.create, join: store.join, startSpeaking: store.startSpeaking, end: store.end, leave: store.leave, toggleMute: store.toggleMute, changeLanguage: store.changeLanguage }
+  return { ...storeToRefs(store), prepareEntry: store.prepareEntry, setLanguage: store.setLanguage, loadPermission: store.loadPermission, create: store.create, join: store.join, startSpeaking: store.startSpeaking, end: store.end, leave: store.leave, toggleMute: store.toggleMute, changeLanguage: store.changeLanguage }
 }

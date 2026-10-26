@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { ROOM_LANGUAGES, RoomTextFeed } from '../../../packages/ts-shared/src/translation-room.ts'
 import { formatRoomMessage, localizeRoomNotice, roomLocale, roomMessages } from '../../../packages/ts-shared/src/translation-room-messages.ts'
+import { tourMessages } from '../src/utils/tourMessages.ts'
 
 test('every supported room language has complete messages and matching interpolation parameters', () => {
   const baseline = roomMessages('zh-CN')
@@ -48,4 +49,18 @@ test('display localization leaves actual speech, translations and stored error d
   assert.equal(displayed[0], 'This is Yinding Bridge.')
   assert.equal(displayed[1], roomMessages('ja').noTranslation)
   assert.deepEqual(feed.items, original)
+})
+
+test('navigation room entry and account labels follow every supported tour language', () => {
+  const baseline = tourMessages('zh')
+  for (const language of ['en', 'ru', 'es', 'fr', 'ja'] as const) {
+    const dictionary = tourMessages(language)
+    for (const key of ['liveCommentary', 'commentaryRoom', 'login', 'account', 'manageAccount', 'accountLogin'] as const) {
+      assert.ok(dictionary[key].trim())
+      assert.notEqual(dictionary[key], baseline[key], `${language}.${key}`)
+    }
+  }
+  assert.equal(tourMessages('en').liveCommentary, 'Live commentary')
+  assert.equal(tourMessages('en').commentaryRoom, 'Room')
+  assert.equal(tourMessages('en').login, 'Sign in')
 })
