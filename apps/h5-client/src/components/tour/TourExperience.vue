@@ -163,7 +163,7 @@ async function load() {
 
 async function selectLanguage(locale: TourLocale) {
   journey.rememberLanguage(locale)
-  await router.replace({ query: { ...route.query, lang: locale } })
+  await router.replace({ query: { ...route.query, routeId: undefined, lang: locale } })
   await load()
 }
 

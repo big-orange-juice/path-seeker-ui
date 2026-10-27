@@ -9,7 +9,7 @@ const emit = defineEmits<{ select: [id: string]; start: [] }>()
 const search = shallowRef('')
 const cards = useTemplateRef<HTMLDivElement>('cards')
 const filtered = computed(() => props.routes.filter(route => `${route.title || ''} ${route.subtitle || ''} ${route.guideName || ''} ${route.guideStyle || ''}`.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase())))
-const selected = computed(() => filtered.value.find(route => route.id === props.selectedId) ?? props.routes.find(route => route.id === props.selectedId))
+const selected = computed(() => filtered.value.find(route => route.id === props.selectedId))
 let settle: ReturnType<typeof setTimeout> | undefined
 let programmaticUntil = 0
 
@@ -77,7 +77,7 @@ onUnmounted(() => clearTimeout(settle))
     </div>
 
     <section class="route-deck" :aria-label="messages.routes">
-      <p v-if="!filtered.length" class="tour-empty" role="status">{{ pending ? messages.loading : messages.noRoutes }}</p>
+      <p v-if="!filtered.length" class="tour-empty" role="status">{{ pending ? messages.loading : search.trim() ? messages.noMatchingRoutes : messages.noRoutes }}</p>
       <div v-else ref="cards" class="route-cards" @scroll="onScroll">
         <button v-for="route in filtered" :key="route.id" :data-route-id="route.id" type="button" class="route-card" :class="{ selected: selectedId === route.id }" :aria-pressed="selectedId === route.id" @click="emit('select', route.id)">
           <span class="route-guide"><Headphones :size="14" aria-hidden="true" />{{ route.guideName || messages.guide }}<Check v-if="selectedId === route.id" class="guide-check" :size="16" aria-hidden="true" /></span>
