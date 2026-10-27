@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, shallowRef } from 'vue'
+import { computed, onMounted, shallowRef, watch } from 'vue'
+import { useScrollLock, useWindowSize } from '@vueuse/core'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { ArrowLeft, Headphones, Mic, MoreHorizontal, Volume2 } from 'lucide-vue-next'
 import TranslationRoomControls from './TranslationRoomControls.vue'
@@ -15,6 +16,10 @@ const authStore = useAuthStore()
 const feature = useTranslationRoom()
 const { room, canHost, permissionPending, source, displayNotice: notice, displayError: error, language, messages, busy, listening, speaking, muted, audioBlocked, audioNotice, audioError, connected, navigationPath, feed } = feature
 const showDetails = shallowRef(false)
+const { height: viewportHeight } = useWindowSize({ type: 'visual', initialHeight: window.innerHeight })
+const pageLocked = useScrollLock(document.body)
+watch(room, value => { pageLocked.value = Boolean(value) }, { immediate: true })
+const viewportStyle = computed(() => ({ '--room-viewport-height': `${viewportHeight.value}px` }))
 const needsConnection = computed(() => !!room.value && room.value.status !== 'closed' && (!connected.value || (!room.value.isHost && !listening.value)))
 const initialCode = typeof route.query.roomCode === 'string' ? route.query.roomCode : ''
 onMounted(feature.loadPermission)
@@ -29,7 +34,8 @@ async function joinRoom(code: string, language: string) {
 </script>
 
 <template>
-  <main class="translation-room" :class="{ 'is-chat': room }" :lang="language">
+  <Teleport to="body" :disabled="!room">
+  <main class="translation-room" :class="{ 'is-chat': room }" :lang="language" :style="viewportStyle">
     <template v-if="!room">
       <header class="room-header"><RouterLink :to="navigationPath"><ArrowLeft :size="16" aria-hidden="true" />{{ messages.back }}</RouterLink><RouterLink :to="{ path: '/auth', query: { redirect: route.fullPath } }">{{ authStore.isAccountLoggedIn ? messages.manageAccount : messages.login }}</RouterLink></header>
       <div class="room-intro"><h1>{{ messages.title }}</h1><p>{{ messages.intro }}</p></div>
@@ -54,6 +60,7 @@ async function joinRoom(code: string, language: string) {
       <TranslationRoomDetails v-if="showDetails" :room="room" :busy="busy" :language="language" @close="showDetails = false" @end="feature.end" @change-language="feature.changeLanguage" @leave="showDetails = false; feature.leave()"><template #connection><TranslationRoomControls v-if="needsConnection" v-model:language="language" :can-host="room.isHost" :busy="busy" :initial-code="room.code" @create="createRoom" @join="joinRoom" /></template></TranslationRoomDetails>
     </template>
   </main>
+  </Teleport>
 </template>
 
 <style>
@@ -94,7 +101,7 @@ async function joinRoom(code: string, language: string) {
 .translation-room .room-translation{margin:6px 0 0;color:#183e43;font-size:20px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere}
 .translation-room .room-qr{width:180px;height:180px;justify-self:center;padding:8px;border:1px solid #d4e0d9;border-radius:12px;background:#fff}
 @media(max-width:360px){.translation-room{padding-right:16px;padding-left:16px}.translation-room .room-form,.translation-room .room-session{padding:18px}}
-.translation-room.is-chat{display:flex;flex-direction:column;width:100%;max-width:600px;height:100dvh;min-height:0;margin:0 auto;padding:0;overflow:hidden;background:#edf1ee}
+.translation-room.is-chat{position:fixed;z-index:40;inset:0 0 auto;display:flex;flex-direction:column;box-sizing:border-box;width:100%;max-width:600px;height:100svh;height:var(--room-viewport-height,100svh);min-height:0;margin:0 auto;padding:env(safe-area-inset-top) 0 0;overflow:hidden;overscroll-behavior:none;background:#edf1ee}
 .chat-header{display:flex;align-items:center;gap:10px;flex-shrink:0;min-height:76px;padding:10px 12px;background:#f8faf9;border-bottom:1px solid #e0e7e2}
 .chat-header-back,.chat-more,.chat-toolbar-more{display:flex;align-items:center;justify-content:center;flex:0 0 44px;width:44px;height:44px;border:0;border-radius:12px;background:transparent;color:#183e43;cursor:pointer}
 .chat-heading{flex:1;min-width:0;text-align:center}.chat-heading h1{margin:0 0 4px;font-size:17px;font-weight:600;letter-spacing:.5px}.chat-heading>span{color:#7b8a80;font-size:11px}

@@ -30,7 +30,7 @@ const fixtures: Record<string, string> = {
   'pcm.js': 'export const createPcmEncoder = () => ({ feed() {}, flush() {} });',
 }
 await build({
-  stdin: { contents: "export { useTranslationRoom, useTranslationRoomStore } from './src/composables/useTranslationRoom'; export { useAuthStore } from '@/stores/useAuthStore'; export { fixture } from '@/services/translationRoom';", resolveDir: project },
+  stdin: { contents: "export { useTranslationRoom, useTranslationRoomStore } from './src/composables/useTranslationRoom'; export { playbackFocus } from './src/utils/playbackFocus'; export { useAuthStore } from '@/stores/useAuthStore'; export { fixture } from '@/services/translationRoom';", resolveDir: project },
   bundle: true, platform: 'node', format: 'esm', outfile: resolve(temporary, 'session.mjs'),
   external: ['vue', 'pinia'], alias: { '@': resolve(project, 'src') },
   plugins: [{ name: 'room-fixture', setup(builder: any) {
@@ -41,7 +41,7 @@ await build({
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, (args: { path: string }) => ({ contents: fixtures[args.path] }))
   } }],
 })
-const { useTranslationRoom, useTranslationRoomStore, useAuthStore, fixture } = await import(pathToFileURL(resolve(temporary, 'session.mjs')).href)
+const { useTranslationRoom, useTranslationRoomStore, useAuthStore, fixture, playbackFocus } = await import(pathToFileURL(resolve(temporary, 'session.mjs')).href)
 const tick = () => new Promise(resolveTick => setImmediate(resolveTick))
 
 function setup(context: TestContext) {
@@ -257,4 +257,97 @@ test('navigation language initializes room entry while an active room keeps its 
   assert.equal(store.language, 'ja')
   assert.equal(store.messages.joinTitle, '解説ルームに参加')
   assert.equal(store.navigationPath, '/tour?lang=fr')
+})
+
+test('paused room discards live audio and resumes only at the next complete segment boundary', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  const socket = fixture.sockets[0]
+  const emit = (type: string, payload: object = {}) => socket.onmessage({ data: JSON.stringify({ type, targetLanguage: 'en', payload }) })
+  emit('subscription.ready', { room: store.room })
+  emit('translation.committed', { text: '你好' })
+  emit('audio.started', { format: 'mp3' })
+  emit('audio.delta', { audio: 'aabb', isFinal: true })
+  await tick()
+  const previous = fixture.played.at(-1)
+  await store.toggleMute()
+  assert.equal(previous.stopped, true)
+  assert.equal(store.muted, true)
+  const played = fixture.played.length
+  emit('translation.committed', { text: '暂停期间' })
+  emit('audio.started', { format: 'mp3' })
+  emit('audio.delta', { audio: 'ccdd', isFinal: true })
+  await tick()
+  assert.equal(fixture.played.length, played)
+  assert.equal(store.audioReceived, true)
+  await store.toggleMute()
+  const resumed = fixture.played.length
+  emit('audio.delta', { audio: 'eeff', isFinal: true })
+  emit('audio.done')
+  await tick()
+  assert.equal(fixture.played.length, resumed)
+  emit('translation.committed', { text: '下一段' })
+  emit('audio.started', { format: 'mp3' })
+  emit('audio.delta', { audio: 'aabb', isFinal: true })
+  await tick()
+  assert.equal(fixture.played.length, resumed + 1)
+  assert.equal(store.audioError, '')
+})
+
+test('private ask pauses room audio while retaining subtitles and manual resume interrupts the ask', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  const socket = fixture.sockets[0]
+  socket.onmessage({ data: JSON.stringify({ type: 'subscription.ready', targetLanguage: 'en', payload: { room: store.room } }) })
+  let stopped = 0
+  const ask = playbackFocus.channel('ask', () => { stopped++ })
+  ask.claim()
+  assert.equal(store.muted, true)
+  assert.equal(store.listening, true)
+  assert.equal(socket.closed, false)
+  socket.onmessage({ data: JSON.stringify({ type: 'translation.final', targetLanguage: 'en', payload: { text: 'Still receiving text' } }) })
+  assert.equal(store.feed[0].text, 'Still receiving text')
+  assert.equal(store.audioError, '')
+  await store.toggleMute()
+  assert.equal(stopped, 1)
+  assert.equal(playbackFocus.current(), 'room')
+})
+
+test('a guest cannot open an input socket and switching audio focus releases the host microphone', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  await store.startSpeaking()
+  assert.equal(fixture.sockets.some((socket: any) => socket.channel === 'input'), false)
+  await store.leave(false)
+  await store.create('zh-CN')
+  const starting = store.startSpeaking()
+  await tick()
+  fixture.sockets.at(-1).onopen()
+  await starting
+  assert.equal(store.speaking, true)
+  const tour = playbackFocus.channel('tour', () => {})
+  tour.claim()
+  await tick()
+  assert.equal(store.speaking, false)
+  assert.equal(fixture.stops, 1)
+  assert.equal(fixture.sockets.at(-1).closed, true)
+  tour.release()
+})
+
+test('a new successful segment clears the previous speech failure', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  const socket = fixture.sockets[0]
+  const emit = (type: string, payload: object) => socket.onmessage({ data: JSON.stringify({ type, targetLanguage: 'en', payload }) })
+  emit('subscription.ready', { room: store.room })
+  emit('audio.error', { message: '语音合成暂时不可用' })
+  assert.notEqual(store.audioError, '')
+  emit('translation.committed', { text: '下一段' })
+  emit('audio.started', { format: 'mp3' })
+  emit('audio.delta', { audio: 'aabb', isFinal: true })
+  emit('translation.final', { text: 'Next segment' })
+  await tick()
+  assert.equal(store.audioError, '')
+  assert.equal(store.error, '')
+  assert.equal(store.muted, false)
 })

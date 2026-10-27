@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Commentary room review</title>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module">
+    import { createApp } from 'vue'
+    import { createPinia } from 'pinia'
+    import { createRouter, createMemoryHistory } from 'vue-router'
+    import TranslationRoomExperience from '/path-seeker/client/src/components/translation/TranslationRoomExperience.vue'
+    import { useTranslationRoomStore } from '/path-seeker/client/src/composables/useTranslationRoom.ts'
+    import '/path-seeker/client/src/assets/styles/index.css'
+
+    const app = createApp(TranslationRoomExperience)
+    const pinia = createPinia()
+    app.use(pinia)
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: TranslationRoomExperience }] })
+    app.use(router)
+    const room = useTranslationRoomStore(pinia)
+    room.room = { roomId: '9223372036854775805', code: '70045887', isHost: false, sourceLanguage: 'zh-CN', status: 'live', listenerCount: 2 }
+    room.language = 'en'
+    room.listening = true
+    room.connected = true
+    window.review = {
+      empty() { room.feed = []; room.source = '' },
+      feed(host = false) {
+        room.room = { ...room.room, isHost: host }
+        room.feed = [
+          { id: 'epoch:1:en', sequence: 1, language: 'en', languageLabel: 'English', source: '我们现在来到银锭桥，桥下连接着前海与后海。', text: 'We have arrived at Yinding Bridge, which connects Qianhai and Houhai.', status: 'complete' },
+          ...(host ? [{ id: 'epoch:1:ja', sequence: 1, language: 'ja', languageLabel: '日本語', source: '我们现在来到银锭桥，桥下连接着前海与后海。', text: '銀錠橋に着きました。橋の下で前海と後海がつながっています。', status: 'complete' }] : []),
+          { id: 'epoch:2:en', sequence: 2, language: 'en', languageLabel: 'English', source: '晴天时，从这里可以眺望西山。', text: 'On a clear day, you can see the Western Hills from here.', status: 'complete' },
+        ]
+        room.source = '晴天时，从这里可以眺望西山。'
+      },
+    }
+    await router.isReady()
+    app.mount('#app')
+    window.reviewReady = true
+  </script>
+</body>
+</html>

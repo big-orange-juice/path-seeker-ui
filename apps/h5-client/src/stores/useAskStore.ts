@@ -1,4 +1,4 @@
-import { computed, shallowRef, watch } from "vue"
+import { computed, onScopeDispose, shallowRef, watch } from "vue"
 import { acceptHMRUpdate, defineStore } from "pinia"
 import { v4 as uuidv4 } from "uuid"
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/services/exhibitChat"
 import { resolveRequestErrorMessage } from "@/services/http"
 import { getDefaultAskVoiceId } from "@/utils/askVoice"
+import { playbackFocus } from "@/utils/playbackFocus"
 import type {
   AskUiMessage,
   ExhibitChatAudioDeltaPayload,
@@ -253,6 +254,19 @@ export const useAskStore = defineStore("ask", () => {
   let audioRunActive = false
   let audioRunFinishRequested = false
   let audioRunHadError = false
+  const audioFocus = playbackFocus.channel("ask", () => {
+    cancelVoiceInput()
+    bargeIn.suspendCapture()
+    interruptRun()
+    stopSseAudio()
+  })
+  onScopeDispose(() => {
+    cancelVoiceInput()
+    bargeIn.suspendCapture()
+    interruptRun()
+    stopSseAudio()
+    unsubscribeAudio?.()
+  })
 
   const bargeIn = usePlaybackBargeIn({ onBargeIn: () => interruptRun() })
   const voiceRecognition = useMinimaxVoiceRecognition()
@@ -262,7 +276,7 @@ export const useAskStore = defineStore("ask", () => {
   let voiceInputGeneration = 0
 
   watch(voiceRecognition.error, (message) => {
-    if (message) voiceInputActive.value = false
+    if (message) { voiceInputActive.value = false; audioFocus.release() }
   })
 
   watch(voiceRecognition.listening, (listening, wasListening) => {
@@ -275,10 +289,12 @@ export const useAskStore = defineStore("ask", () => {
   function settleAudioRun(reason: AskAudioSettleReason) {
     if (!audioRunActive) return
     audioRunActive = false
+    audioFocus.release()
     askAudioSettle.value = { runId: askAudioRunId.value, reason }
   }
 
   function beginAudioRun() {
+    audioFocus.claim()
     askAudioRunId.value += 1
     askAudioSettle.value = null
     audioRunActive = true
@@ -397,6 +413,7 @@ export const useAskStore = defineStore("ask", () => {
   }
 
   function stopSseAudio() {
+    audioFocus.release()
     settleAudioRun("stopped")
     speechPlayer.stop()
     audioAssembler = createSseAudioAssembler()
@@ -413,6 +430,7 @@ export const useAskStore = defineStore("ask", () => {
     bargeIn.suspendCapture()
     interruptRun()
     stopSseAudio()
+    audioFocus.claim()
   }
 
   function startVoiceInput() {
@@ -423,12 +441,16 @@ export const useAskStore = defineStore("ask", () => {
     clearDraftText()
     errorMessage.value = ""
     if (!voiceRecognition.supported.value) {
+      audioFocus.release()
       errorMessage.value = "当前浏览器不支持语音输入，请使用文字提问。"
       setInteractionMode("text")
       return false
     }
     voiceInputActive.value = voiceRecognition.start()
-    if (!voiceInputActive.value) errorMessage.value = voiceRecognition.error.value || "无法开启收音，请重试。"
+    if (!voiceInputActive.value) {
+      audioFocus.release()
+      errorMessage.value = voiceRecognition.error.value || "无法开启收音，请重试。"
+    }
     return voiceInputActive.value
   }
 
@@ -445,6 +467,7 @@ export const useAskStore = defineStore("ask", () => {
     voiceInputFinishing.value = false
     voiceRecognition.abort()
     clearDraftText()
+    audioFocus.release()
   }
 
   function toggleVoiceInput() {
@@ -469,6 +492,7 @@ export const useAskStore = defineStore("ask", () => {
       if (generation !== voiceInputGeneration) return
       voiceInputFinishing.value = false
       if (!text || voiceRecognition.error.value) {
+        audioFocus.release()
         errorMessage.value = voiceRecognition.error.value || "没有识别到内容，请点击麦克风重新说话。"
         return
       }

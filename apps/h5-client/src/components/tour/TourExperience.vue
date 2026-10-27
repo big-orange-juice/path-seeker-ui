@@ -112,6 +112,7 @@ const showArrivalPrompt = computed(() => {
   return count === 1 && !journey.drawerOpen.value
 })
 const queuedCount = computed(() => journey.playbackSequence.value.filter(item => item.status === 'queued').length)
+const roomAudioActive = computed(() => translation.speaking.value || (translation.listening.value && !translation.muted.value))
 
 // 识别结果写回输入框由 AskPanel 统一负责（它始终挂载且是草稿的视图），这里只管提示
 watch(() => voice.error.value, (message) => {
@@ -120,7 +121,7 @@ watch(() => voice.error.value, (message) => {
 
 /** 接近行为抑制：问一问浮层打开、语音识别中、页面后台时不自动打开/自动开播（方案 §7.5） */
 watch(
-  () => askStore.open || askStore.voiceInputActive || voice.listening.value || pageHidden.value,
+  () => askStore.open || askStore.voiceInputActive || voice.listening.value || pageHidden.value || roomAudioActive.value,
   (suppressed) => journey.setApproachSuppressed(suppressed),
   { immediate: true },
 )
@@ -132,14 +133,14 @@ watch(() => journey.journeyRestored.value, (restored) => {
 
 /** 问答音频四类收尾：问答前在播就尽量自动恢复路线讲解（方案 §5.2） */
 watch(() => askStore.askAudioSettle, (settle) => {
-  if (!settle || !viewingJourney.value || askStore.voiceInputActive) return
+  if (!settle || !viewingJourney.value || askStore.voiceInputActive || roomAudioActive.value) return
   const result = journey.endAskInterrupt()
   if (result === 'blocked-paused') showResumeNotice()
 })
 
 // 纯文字问答没有问答音频可等：浮层关闭时同样尝试恢复路线讲解
 watch(() => askStore.open, (open) => {
-  if (open || !viewingJourney.value) return
+  if (open || !viewingJourney.value || roomAudioActive.value) return
   const result = journey.endAskInterrupt()
   if (result === 'blocked-paused') showResumeNotice()
 })
@@ -156,7 +157,7 @@ function handleVisibility() {
     journey.handleVisibilityHidden()
     return
   }
-  if (!viewingJourney.value) return
+  if (!viewingJourney.value || roomAudioActive.value || askStore.voiceInputActive || askStore.isSseAudioBusy) return
   const result = journey.handleVisibilityVisible()
   if (result === 'blocked-paused') showResumeNotice()
 }

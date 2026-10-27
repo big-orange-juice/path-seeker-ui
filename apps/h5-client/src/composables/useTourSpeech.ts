@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, shallowRef } from 'vue'
 import { TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
 import type { ClientStopExtraAudio, ClientTourStop, TourNarrationChapter } from '@/types/clientCatalog'
 import { resolveFileSeekTarget, resolveSentenceSeek, splitSentences } from '@/utils/tourSeek'
+import { playbackFocus } from '@/utils/playbackFocus'
 
 /**
  * 站点播放队列（设计文档 §3.3）：
@@ -207,6 +208,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   let narrationTotal = 0
   let narrationPlayed = 0
   let narrationCompleted = false
+  const audioFocus = playbackFocus.channel('tour', pause)
 
   function invalidateQueue() {
     queueVersion.value += 1
@@ -268,6 +270,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
 
   /** 中止整个队列：队列版本自增后，旧队列的 ended / onend 回调全部失效 */
   function stop() {
+    audioFocus.release()
     invalidateQueue()
     releaseMedia()
     resetQueueState()
@@ -276,6 +279,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
 
   /** 主讲解失败：沿用既有讲解错误与回退策略（不因额外音频结束就判定讲解完成） */
   function failNarration(reason: 'unavailable' | 'voiceMissing' | 'playback') {
+    audioFocus.release()
     invalidateQueue()
     releaseMedia()
     status.value = 'idle'
@@ -286,7 +290,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   }
 
   function advance(version: number) {
-    if (version !== queueVersion.value) return
+    if (version !== queueVersion.value || status.value !== 'playing' || !audioFocus.isCurrent()) return
     const item = items[index]
     if (item?.type === 'chapter') {
       narrationPlayed += 1
@@ -299,6 +303,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
 
   function finish(version: number) {
     if (version !== queueVersion.value) return
+    audioFocus.release()
     releaseMedia()
     status.value = 'idle'
     currentIndex.value = -1
@@ -317,7 +322,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
 
   /** 条目播放失败：额外音频提示并跳过；讲解章节先按既有策略回退系统语音 */
   function failItem(item: TourQueueItem, version: number) {
-    if (version !== queueVersion.value) return
+    if (version !== queueVersion.value || status.value !== 'playing' || !audioFocus.isCurrent()) return
     releaseMedia()
     if (item.type === 'chapter') {
       if (fallenBack.has(item.id)) { failNarration('playback'); return }
@@ -430,7 +435,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   }
 
   function playItem(version: number, startSentence = 0) {
-    if (version !== queueVersion.value) return
+    if (version !== queueVersion.value || status.value !== 'playing' || !audioFocus.isCurrent()) return
     const item = items[index]
     if (!item) { finish(version); return }
     currentIndex.value = index
@@ -472,6 +477,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     queueOptions: TourQueueOptions,
     resume?: TourResumeTarget | null,
   ) {
+    audioFocus.release()
     invalidateQueue()
     releaseMedia()
     error.value = null
@@ -518,6 +524,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     if (startSeconds > 0) restorePrecision.value = 'exact'
     else if (startSentence > 0) restorePrecision.value = 'approximate'
     index = startIndex
+    audioFocus.claim()
     status.value = 'playing'
     playItem(queueVersion.value, startSentence)
   }
@@ -544,6 +551,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   /** 暂停：保留当前条目；文件音频记住播放时间，系统语音记住当前句 */
   function pause() {
     if (status.value !== 'playing') return
+    audioFocus.release()
     status.value = 'paused'
     clearWait()
     if (audio) {
@@ -568,6 +576,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     const version = queueVersion.value
     const item = items[index]
     if (!item) { status.value = 'idle'; return }
+    audioFocus.claim()
     status.value = 'playing'
     blocked.value = false
     if (audio) {

@@ -55,7 +55,7 @@ const fixtures: Record<string, string> = {
   `,
 }
 await build({
-  stdin: { contents: "export { useAskStore } from './src/stores/useAskStore'; export { voice } from '@/composables/useMinimaxVoiceRecognition';", resolveDir: project },
+  stdin: { contents: "export { useAskStore } from './src/stores/useAskStore'; export { voice } from '@/composables/useMinimaxVoiceRecognition'; export { playbackFocus } from './src/utils/playbackFocus';", resolveDir: project },
   bundle: true, platform: 'node', format: 'esm', outfile: resolve(temporary, 'useAskStore.mjs'),
   external: ['vue', 'pinia', 'uuid'], alias: { '@': resolve(project, 'src') },
   define: { 'import.meta.env.VITE_API_BASE_URL': '"https://fixture.test/api"', 'import.meta.env.BASE_URL': '"/client/"' },
@@ -64,7 +64,7 @@ await build({
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, (args: { path: string }) => ({ contents: fixtures[args.path] }))
   } }],
 })
-const { useAskStore, voice } = await import(pathToFileURL(resolve(temporary, 'useAskStore.mjs')).href)
+const { useAskStore, voice, playbackFocus } = await import(pathToFileURL(resolve(temporary, 'useAskStore.mjs')).href)
 
 function setup(testContext: any) {
   voice.abort()
@@ -94,6 +94,22 @@ function setup(testContext: any) {
   })
   return { store, completion, resolveText, requests, fakeDocument }
 }
+
+test('房间恢复取得播放权时取消私人问答收音，迟到识别不会发送', async context => {
+  const { store, resolveText, requests } = setup(context)
+  store.startVoiceInput()
+  const finishing = store.stopVoiceInput()
+  assert.equal(store.voiceInputFinishing, true)
+  const room = playbackFocus.channel('room', () => {})
+  room.claim()
+  assert.equal(store.voiceInputFinishing, false)
+  assert.equal(store.voiceInputActive, false)
+  resolveText('迟到的私人问题')
+  await finishing
+  assert.equal(requests.length, 0)
+  assert.equal(playbackFocus.current(), 'room')
+  room.release()
+})
 
 test('点击开启后持续收音，内容页再次点击只停止并发送一次', async testContext => {
   const { store, resolveText, requests } = setup(testContext)
