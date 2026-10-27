@@ -409,3 +409,39 @@ test('Alipay navigation passes its selected language into a new room and preserv
     await leaving;
   }
 });
+
+test('audio chunks and progress callbacks do not repeatedly publish an unchanged room view', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  let updates = 0;
+  const unsubscribe = session.subscribe(() => updates++);
+  try {
+    session.attach({ roomId: '42', isHost: false }); handlers.Open();
+    session.event({ type: 'audio.delta', payload: { audio: 'aabb' } });
+    const before = updates;
+    for (let index = 0; index < 50; index++) session.event({ type: 'audio.delta', payload: { audio: 'aabb' } });
+    assert.equal(updates, before);
+    const audio = fixture.load('services/audio');
+    audio.appendStream(audio.snapshot().generation, { url: '/tmp/current.mp3' });
+    const playing = updates;
+    for (let index = 0; index < 50; index++) fixture.audioContexts[0].emit('TimeUpdate');
+    assert.equal(updates, playing);
+  } finally { unsubscribe(); session.disconnect(); }
+});
+
+test('long room listening cleans each completed file and continues beyond 240 sentences', async () => {
+  const { fixture, handlers, service } = socketHarness(), errors = [];
+  const connection = service.connect({ roomId: '42', isHost: false }, { event() {}, error: error => errors.push(error), disconnected() {} });
+  try {
+    handlers.Open();
+    handlers.Message({ data: JSON.stringify({ type: 'subscription.ready', targetLanguage: 'en', subscriptionVersion: 1, payload: { startSequence: 1 } }) });
+    for (let index = 0; index < 245; index++) {
+      handlers.Message({ data: JSON.stringify({ type: 'audio.delta', targetLanguage: 'en', sequence: index + 1, payload: { audio: 'aabb', isFinal: true } }) });
+      await tick();
+      fixture.audioContexts.at(-1).emit('Ended');
+    }
+    assert.equal(fixture.writes.length, 245);
+    assert.equal(fixture.removed.length, 245);
+    assert.deepEqual(errors, []);
+  } finally { connection.close(true); }
+});

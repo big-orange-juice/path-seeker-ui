@@ -1,7 +1,26 @@
 // 按 owner 排他使用；每段重建上下文，迟到的旧段事件不可推进新队列。
 let context = null, owner = '', queue = [], index = 0, hooks = {}, generation = 0, failed = false, playing = false;
-let accepting = false, finished = false;
+let accepting = false, finished = false, paused = false, prepared = null;
 const listeners = {};
+function discardPrepared() {
+  if (!prepared) return;
+  const old = prepared; prepared = null;
+  old.context.offError(old.error);
+  old.context.stop(); old.context.destroy();
+}
+function prepareNext(token) {
+  const item = queue[index + 1];
+  if (token !== generation || !context || !item || !item.url || prepared) return;
+  let warm;
+  try {
+    warm = my.createInnerAudioContext();
+    const error = () => { if (prepared && prepared.context === warm) discardPrepared(); };
+    prepared = { context: warm, item, error };
+    warm.autoplay = false; warm.obeyMuteSwitch = false;
+    warm.onError(error);
+    warm.src = item.url;
+  } catch (_) { if (prepared && prepared.context === warm) discardPrepared(); }
+}
 function dispose() {
   const old = context; context = null;
   if (!old) return;
@@ -10,7 +29,10 @@ function dispose() {
 }
 function create(token) {
   if (!my.createInnerAudioContext) throw Error('当前支付宝版本不支持音频，请更新客户端');
-  context = my.createInnerAudioContext();
+  const warm = prepared && prepared.item === queue[index] ? prepared : null;
+  if (warm) { prepared = null; warm.context.offError(warm.error); }
+  else discardPrepared();
+  context = warm ? warm.context : my.createInnerAudioContext();
   const active = context;
   const valid = () => token === generation && active === context;
   context.autoplay = false;
@@ -69,8 +91,10 @@ function next(token) {
     notify();
     return;
   }
-  create(token); context.src = item.url;
-  context.play();
+  create(token);
+  if (context.src !== item.url) context.src = item.url;
+  if (!paused) context.play();
+  prepareNext(token);
   notify();
 }
 function playQueue(nextOwner, items, nextHooks = {}, checkpoint = {}) {
@@ -81,15 +105,18 @@ function playQueue(nextOwner, items, nextHooks = {}, checkpoint = {}) {
   pendingSeek = checkpoint.time > 0 ? checkpoint.time : null;
   next(generation);
 }
-function pause() { if (context) context.pause(); playing = false; notify(); }
+function pause() { paused = true; if (context) context.pause(); playing = false; notify(); }
 function resume(expectedOwner) {
-  if (owner !== expectedOwner || !queue[index]) return;
+  if (owner !== expectedOwner) return;
+  paused = false;
+  if (!queue[index]) return;
   if (failed || !context) { failed = false; next(generation); } else context.play();
 }
 function stop(expectedOwner) {
   if (expectedOwner && owner !== expectedOwner) return;
   generation++;
-  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false;
+  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false; paused = false;
+  discardPrepared();
   dispose();
   queue = []; index = 0; owner = ''; failed = false;
 }
@@ -107,6 +134,7 @@ function appendStream(token, item) {
   if (token !== generation || !accepting || failed) return;
   queue.push(item);
   if (!context && index === queue.length - 1) next(token);
+  else prepareNext(token);
 }
 function finishStream(token) {
   if (token !== generation) return;

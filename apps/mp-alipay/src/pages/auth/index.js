@@ -3,7 +3,7 @@ const storage = require('../../services/storage');
 const ui = require('../../core/ui');
 const { authOptions = {} } = require('../../config');
 Page({
-  data: { guestLoginEnabled: authOptions.guestLogin === true, passwordLoginEnabled: authOptions.passwordLogin === true, register: false, account: '', password: '', username: '', phone: '', email: '', nickname: '', busy: false, error: '', agreed: false },
+  data: { guestLoginEnabled: authOptions.guestLogin === true, passwordLoginEnabled: authOptions.passwordLogin === true, requirePhoneNumber: authOptions.requirePhoneNumber !== false, register: false, account: '', password: '', username: '', phone: '', email: '', nickname: '', busy: false, error: '', agreed: false },
   onShow() { this._visible = true; },
   onHide() { this._visible = false; },
   onUnload() { this._visible = false; },
@@ -11,6 +11,7 @@ Page({
   mode() { if (authOptions.passwordLogin === true && !this.data.busy) this.setData({ register: !this.data.register, error: '' }); },
   agree(event) { this.setData({ agreed: ui.value(event).includes('agree') }); },
   privacy() { my.navigateTo({ url: '/pages/privacy/index' }); },
+  alipayError() { if (!this.data.busy) this.setData({ error: '未完成手机号授权，请允许后重试' }); },
   async alipay() {
     if (this.data.busy) return;
     if (!this.data.agreed) { this.setData({ error: '请先阅读并同意隐私说明' }); return; }

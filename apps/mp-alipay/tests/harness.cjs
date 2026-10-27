@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const dist = path.resolve(__dirname, '../dist');
 const userId = '9223372036854775806';
 const session = (id = userId, token = 'access') => ({ userId: id, accessToken: token, refreshToken: 'refresh', isGuest: true });
-function harness(initial = session()) {
+function harness(initial = session(), authOptions = {}) {
   const storage = new Map(), requests = [], audioContexts = [], removed = [], writes = [], confirms = [];
   if (initial) storage.set('path-seeker:alipay:v1:session', initial);
   function emitter() {
@@ -22,6 +22,7 @@ function harness(initial = session()) {
   const my = {
     getStorageSync: ({ key }) => ({ data: storage.get(key) }), setStorageSync: ({ key, data }) => storage.set(key, data), removeStorageSync: ({ key }) => storage.delete(key),
     getSystemInfoSync: () => ({ platform: 'Android', model: 'test' }),
+    getPhoneNumber: options => options.success({ response: 'signed-phone-response' }),
     request(options) { let chunk; const task = { options, aborted: false, abort() { this.aborted = true; }, ok(data, status = 200) { options.success({ data: { code: 0, data }, status }); }, text(data) { options.success({ data, status: 200 }); }, head(status = 200) { options.success({ status }); }, reject(error) { options.fail(error); }, chunk(data) { if (chunk) chunk({ data }); } }; if (my.chunked) task.onChunkReceived = callback => { chunk = callback; }; requests.push(task); return task; },
     createInnerAudioContext() {
       const audio = Object.assign(emitter(), { currentTime: 0, duration: 60, stopped: false, destroyed: false, play() { this.emit('Play'); }, pause() { this.emit('Pause'); }, stop() { this.stopped = true; this.emit('Stop'); }, destroy() { this.destroyed = true; }, seek(time) { this.currentTime = time; } });
@@ -53,6 +54,7 @@ function harness(initial = session()) {
     return p;
   }
   function component(name) { load('components/' + name + '/index'); return instance(componentDefinition); }
+  Object.assign(load('config').authOptions, authOptions);
   const auth = load('services/auth'); auth.restore();
   return { load, page, component, auth, my, storage, requests, audioContexts, recorder, removed, writes, confirms, wav, wavBuffer, app };
 }

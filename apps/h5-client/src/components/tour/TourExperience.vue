@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Focus, Headphones, Languages, ListMusic, MapPin, Maximize2, MessageCircle, Mic, Minimize2, Minus, Navigation, Pause, Play, Plus, Route, SkipBack, SkipForward, UserRound } from 'lucide-vue-next'
+import { Focus, Headphones, Languages, ListMusic, Maximize2, MessageCircle, Mic, Minimize2, Minus, Navigation, Pause, Play, Plus, Route, SkipBack, SkipForward, UserRound } from 'lucide-vue-next'
 import { isTourLocale, TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
 import TourLanguageGate from '@/components/tour/TourLanguageGate.vue'
 import TourMap from '@/components/tour/TourMap.vue'
 import TourRoutePicker from '@/components/tour/TourRoutePicker.vue'
 import TourStoryDrawer from '@/components/tour/TourStoryDrawer.vue'
-import TourArrivalPrompt from '@/components/tour/TourArrivalPrompt.vue'
 import TourPlaybackQueue from '@/components/tour/TourPlaybackQueue.vue'
 import { useTourJourney } from '@/composables/useTourJourney'
 import { useFullscreen } from '@/composables/useFullscreen'
@@ -79,19 +78,6 @@ const progressLabel = computed(() => {
   if (duration <= 0) return ''
   return `${formatSeconds(journey.speech.playedSeconds.value)} / ${formatSeconds(duration)}`
 })
-const autoAdvanceHint = computed(() => {
-  if (!viewingJourney.value) return ''
-  if (!journey.autoPlayEnabled.value) return messages.value.queueOff
-  return journey.autoAdvanceMode.value === 'sequential' ? messages.value.sequentialAutoHint : messages.value.nearbyAutoPlayHint
-})
-const locationStatus = computed(() => {
-  // 权限被拒与"暂时没拿到定位"分开提示：前者要去改设置，后者只需等待，仍可手动选择站点
-  if (journey.locationPermissionDenied.value) return messages.value.permissionDenied
-  if (journey.locationError.value) return messages.value.locationFailed
-  if (!journey.tracking.value) return messages.value.locationOff
-  if (journey.approachUnknown.value) return messages.value.locationWeak
-  return messages.value.locationReady
-})
 /** 当前节点是否有可播内容：没有则播放键置灰（方案 §4.1） */
 const canPlayCurrent = computed(() => {
   const stop = journey.currentStop.value
@@ -104,13 +90,6 @@ const canPlayCurrent = computed(() => {
 })
 /** 当前正在播放的条目名：抽屉关闭时在底部信息行显示（方案 §4.1） */
 const playingItemLabel = computed(() => journey.speech.currentItem.value?.title || '')
-const visibleArrivalCandidates = computed(() => journey.arrivalCandidates.value.filter(candidate => !journey.playbackSequence.value.some(item => item.stopId === candidate.stop.id)))
-/** 已经进入全局序列的景点不再显示旧的“进入该站”提示，避免用户重复操作。 */
-const showArrivalPrompt = computed(() => {
-  const count = visibleArrivalCandidates.value.length
-  if (count > 1) return true
-  return count === 1 && !journey.drawerOpen.value
-})
 const queuedCount = computed(() => journey.playbackSequence.value.filter(item => item.status === 'queued').length)
 const roomAudioActive = computed(() => translation.speaking.value || (translation.listening.value && !translation.muted.value))
 
@@ -119,10 +98,9 @@ watch(() => voice.error.value, (message) => {
   if (message) voiceNotice.value = message
 })
 
-/** 接近行为抑制：问一问浮层打开、语音识别中、页面后台时不自动打开/自动开播（方案 §7.5） */
 watch(
   () => askStore.open || askStore.voiceInputActive || voice.listening.value || pageHidden.value || roomAudioActive.value,
-  (suppressed) => journey.setApproachSuppressed(suppressed),
+  (suppressed) => journey.setPlaybackSuppressed(suppressed),
   { immediate: true },
 )
 
@@ -340,21 +318,19 @@ function openAskWithContext() {
   askStore.openAsk()
 }
 
-/** 当前讲解导游音色 → 路线第一个节点讲解导游音色 → null（交给 askStore / 服务端兜底） */
-
-/** 近站讲解开关：关掉定位时同步退出跟随，避免镜头停在最后一次定位上 */
-function toggleTracking() {
-  if (journey.tracking.value) {
-    journey.stopTracking()
-    if (following.value) following.value = tourMap.value?.setFollowing(false) ?? false
-    return
-  }
-  journey.startTracking()
-}
-
 function toggleFollow() {
-  following.value = tourMap.value?.setFollowing(!following.value) ?? false
+  const next = !following.value
+  if (next) {
+    journey.startTracking()
+    if (!journey.tracking.value) return
+  }
+  else journey.stopTracking()
+  following.value = tourMap.value?.setFollowing(next) ?? false
 }
+
+watch(() => journey.tracking.value, (tracking) => {
+  if (!tracking && following.value) following.value = tourMap.value?.setFollowing(false) ?? false
+})
 
 function toggleRoute() {
   routeVisible.value = !routeVisible.value
@@ -408,13 +384,12 @@ onBeforeUnmount(() => {
       </template>
       <button type="button" class="tour-account" :aria-label="authStore.isAccountLoggedIn ? messages.manageAccount : messages.accountLogin" @click="router.push({ path: '/auth', query: { redirect: route.fullPath } })"><UserRound :size="16" aria-hidden="true" /><span>{{ authStore.isAccountLoggedIn ? messages.account : messages.login }}</span></button>
     </header>
-    <div v-if="errorText || mapFailed || journey.locationError.value || speechError || voiceNotice || journey.speech.blocked.value || journey.speech.skippedExtraAudio.value || journey.approachUnknown.value || seekNotice || resumeNotice" class="tour-notices" role="status">
+    <div v-if="errorText || mapFailed || journey.locationError.value || speechError || voiceNotice || journey.speech.blocked.value || journey.speech.skippedExtraAudio.value || seekNotice || resumeNotice" class="tour-notices" role="status">
       <p v-if="errorText">{{ errorText }} <button type="button" :disabled="journey.pending.value" @click="load">{{ messages.retry }}</button></p>
       <p v-if="mapFailed">{{ messages.noMap }}</p>
       <p v-if="journey.locationPermissionDenied.value">{{ messages.permissionDenied }}</p>
       <p v-else-if="journey.locationError.value">{{ messages.locationFailed }}</p>
       <p v-if="speechError">{{ speechError }} <button type="button" :disabled="journey.pending.value" @click="journey.replayCurrentStop">{{ messages.retry }}</button><button type="button" @click="journey.openContentDrawer(journey.currentIndex.value, 'manual')">{{ messages.content }}</button></p>
-      <p v-if="journey.approachUnknown.value">{{ messages.locationUnknown }}</p>
       <p v-if="seekNotice">{{ seekNotice }}</p>
       <p v-if="resumeNotice">{{ resumeNotice }} <button type="button" :disabled="journey.pending.value" @click="journey.resumePlayback">{{ messages.continuePlayback }}</button></p>
       <p v-if="journey.speech.blocked.value">{{ messages.autoplayBlocked }} <button type="button" :disabled="journey.pending.value" @click="journey.resumePlayback">{{ messages.continuePlayback }}</button></p>
@@ -424,8 +399,6 @@ onBeforeUnmount(() => {
     <TourRoutePicker v-if="!viewingJourney" :routes="routes" :selected-id="journey.preview.value?.route?.id || null" :pending="journey.pending.value" :can-start="Boolean(journey.preview.value?.stops?.length)" :messages="messages" @select="selectRoute" @start="start" />
     <button v-if="!viewingJourney && journey.active.value" class="tour-return" type="button" @click="viewingJourney = true">{{ journey.active.value.route?.title }} · {{ messages.resume }}</button>
     <template v-if="viewingJourney && journey.currentStop.value">
-      <TourArrivalPrompt v-if="showArrivalPrompt" :candidates="visibleArrivalCandidates" :pending="journey.pending.value" :messages="messages" :playing-stop-name="journey.currentStop.value?.name || null" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
-      <button type="button" class="tour-location-status" :class="{ 'is-active': journey.tracking.value && !journey.approachUnknown.value }" :aria-pressed="journey.tracking.value" :disabled="journey.pending.value" :title="journey.tracking.value ? messages.stopLocate : messages.locate" @click="toggleTracking"><MapPin :size="12" aria-hidden="true" /><span>{{ locationStatus }}</span></button>
       <nav class="tour-tools" :aria-label="messages.routeTools">
         <button type="button" :aria-label="messages.content" :title="messages.content" @click="openDrawerFromDock"><ListMusic :size="17" /></button>
         <button type="button" :aria-label="messages.queueTitle" :title="messages.queueTitle" @click="toggleQueue"><span>{{ queuedCount }}</span></button>
@@ -439,7 +412,7 @@ onBeforeUnmount(() => {
         <button type="button" class="toolbar-ask" :aria-label="messages.ask" :title="messages.ask" @click="ask"><MessageCircle :size="18" /></button>
       </nav>
       <Transition name="story-drawer">
-        <div v-if="journey.drawerOpen.value && journey.drawerStop.value" ref="drawerHost" class="tour-drawer-host" @pointerdown="journey.markDrawerInteraction()" @scroll.passive="journey.markDrawerInteraction()">
+        <div v-if="journey.drawerOpen.value && journey.drawerStop.value" ref="drawerHost" class="tour-drawer-host">
           <TourStoryDrawer
             :key="journey.drawerStop.value.id"
             :stop="journey.drawerStop.value"
@@ -521,7 +494,6 @@ onBeforeUnmount(() => {
 .tour-experience{--tour-lake:#183e43;--tour-ink:#2b4039;--tour-muted:#7b8a80;--tour-paper:#f8faf9;--tour-paper-strong:#f8faf9f5;--tour-paper-fade:#f8faf9db;--tour-selected:#edf5ef;--tour-line:#d4e0d9;--tour-display:"Noto Serif SC","Songti SC","STSong","SimSun",serif;position:fixed;inset:0;z-index:30;overflow:hidden;background:var(--tour-paper);color:var(--tour-ink)}
 .tour-header{position:absolute;left:0;right:0;top:0;z-index:8;display:flex;align-items:center;gap:16px;min-height:58px;padding:0 28px;border-bottom:1px solid #dbe5df;background:var(--tour-paper);color:var(--tour-lake)}.tour-header.journey{left:12px;right:12px;top:max(12px,env(safe-area-inset-top));min-height:44px;padding:12px;border:0;border-radius:10px;background:#f8faf9f2;box-shadow:0 3px 14px #183e4315}.tour-header strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.tour-header button{border:0;background:transparent;color:var(--tour-lake);font-size:12px}.tour-header .tour-fullscreen{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;padding:0;border:1px solid var(--tour-line);border-radius:9px;background:#fff}.tour-area-name{display:flex;align-items:baseline;gap:10px}.tour-area-name strong{font:600 17px var(--tour-display);letter-spacing:3px}.tour-area-name small{color:#78917e;font:9px/1 sans-serif;letter-spacing:2px}.tour-language{display:flex;align-items:center;gap:7px;color:var(--tour-lake);font-size:12px}.tour-language select{border:0;background:transparent;color:var(--tour-lake);font-size:12px;outline:none}.tour-notices{position:absolute;top:76px;left:12px;right:12px;z-index:4;pointer-events:none}.tour-notices p{width:fit-content;margin:4px 0;padding:8px 12px;border-radius:8px;background:#f8faf9ed;box-shadow:0 3px 14px #183e4310;font-size:12px;pointer-events:auto}.tour-notices button{margin-left:10px;text-decoration:underline}
 .tour-tools{position:absolute;left:12px;top:50%;z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;width:52px;padding:4px;border:1px solid #dbe5df;border-radius:15px;background:#fffffff2;box-shadow:0 7px 25px #183e4330;backdrop-filter:blur(12px);transform:translateY(-50%)}.tour-tools button{display:flex;align-items:center;justify-content:center;width:42px;height:38px;padding:0;border:0;border-radius:10px;background:transparent;color:#263f55}.tour-tools button:hover,.tour-tools button.active{background:#e4f0ea}.tour-tools button:focus-visible{outline:2px solid #263f55;outline-offset:-2px}.toolbar-divider{width:28px;height:1px;margin:2px 0;background:#dbe5df}.toolbar-ask{height:43px!important}
-.tour-location-status{position:absolute;left:12px;top:82px;z-index:3;display:flex;align-items:center;gap:5px;max-width:min(360px,calc(100% - 24px));padding:6px 9px;border:1px solid var(--tour-line);border-radius:8px;background:var(--tour-paper-fade);color:var(--tour-muted);font-size:10px;line-height:1.4;text-align:left;backdrop-filter:blur(8px)}.tour-location-status:hover{border-color:var(--tour-lake);color:var(--tour-lake)}.tour-location-status:disabled{cursor:wait;opacity:.65}.tour-location-status.is-active{color:var(--tour-lake);background:var(--tour-selected)}
 .tour-experience.is-journey .tour-notices{top:116px}.tour-dock-button span{white-space:normal;overflow-wrap:anywhere;text-align:center}
 .tour-return{position:absolute;top:74px;right:12px;z-index:4;max-width:75%;padding:12px;border:1px solid #dbe5df;border-radius:8px;background:#f8faf9ed;color:var(--tour-lake);font-size:12px;box-shadow:0 3px 12px #183e4315}
 .tour-translation-entry{position:absolute;left:max(18px,env(safe-area-inset-left));bottom:max(28px,calc(env(safe-area-inset-bottom) + 12px));z-index:5;display:flex;align-items:center;justify-content:center;gap:10px;min-width:152px;min-height:60px;padding:14px 20px;border:1px solid var(--tour-line);border-radius:18px;background:var(--tour-lake);color:#fff;box-shadow:0 8px 24px #183e4338;font-family:inherit;cursor:pointer;touch-action:manipulation}
@@ -550,7 +522,7 @@ onBeforeUnmount(() => {
 .story-drawer-enter-to,.story-drawer-leave-from{opacity:1;transform:translateX(0)}
 .queue-panel-enter-active,.queue-panel-leave-active{transition:opacity .18s ease,transform .18s ease}.queue-panel-enter-from,.queue-panel-leave-to{opacity:0;transform:translateY(8px)}
 @media(prefers-reduced-motion:reduce){.story-drawer-enter-active,.story-drawer-leave-active,.queue-panel-enter-active,.queue-panel-leave-active{transition:none}}
-@media(max-width:760px){.tour-header{min-height:56px;padding:0 16px;gap:10px}.tour-header.journey{left:8px;right:8px}.tour-area-name strong{font-size:16px}.tour-language{font-size:11px}.tour-language select{max-width:76px;font-size:11px}.tour-tools{left:10px}.tour-notices{top:70px}.tour-dock-button span{display:none}.tour-dock-button{min-height:46px}.tour-location-status{left:10px;top:76px}.tour-voice{left:auto;right:18px;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 166px);transform:none}.tour-voice-button{width:50px;height:50px}.tour-voice-hint{display:none}.tour-story-dock{left:10px;width:calc(100% - 20px);padding:8px;gap:6px}}
+@media(max-width:760px){.tour-header{min-height:56px;padding:0 16px;gap:10px}.tour-header.journey{left:8px;right:8px}.tour-area-name strong{font-size:16px}.tour-language{font-size:11px}.tour-language select{max-width:76px;font-size:11px}.tour-tools{left:10px}.tour-notices{top:70px}.tour-dock-button span{display:none}.tour-dock-button{min-height:46px}.tour-voice{left:auto;right:18px;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 166px);transform:none}.tour-voice-button{width:50px;height:50px}.tour-voice-hint{display:none}.tour-story-dock{left:10px;width:calc(100% - 20px);padding:8px;gap:6px}}
 .tour-voice-button{touch-action:none;user-select:none}
 .tour-voice-button:disabled{opacity:.5}
 .tour-voice{position:absolute;left:50%;bottom:calc(max(20px,env(safe-area-inset-bottom)) + 126px);z-index:9;display:flex;flex-direction:column;align-items:center;gap:6px;transform:translateX(-50%)}

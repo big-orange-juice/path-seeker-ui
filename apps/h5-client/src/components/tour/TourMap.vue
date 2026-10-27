@@ -137,7 +137,12 @@ function focusStop() {
 }
 
 function renderLocation() {
-  if (!map.value || !sdk || !props.location) return
+  if (!map.value || !sdk) return
+  if (!props.location) {
+    if (userMarker) map.value.remove(userMarker)
+    userMarker = null
+    return
+  }
   const position = coordinate(props.location.longitude, props.location.latitude)
   if (!userMarker) {
     const content = document.createElement('div')
@@ -170,8 +175,6 @@ function applyFollow() {
 }
 
 function setFollowing(next: boolean) {
-  // 没有定位就不进跟随，交给「开启近站讲解」先拿到位置
-  if (next && !props.location) return false
   following.value = next
   if (next) applyFollow()
   else fitRoute(false)

@@ -227,7 +227,7 @@ function buildVerdict(quick, upgrade, legacy, wide) {
   if (quickOk) {
     return {
       kind: 'pass',
-      text: `结论：定位可用。${parts}。${legacyNote}导览页应能正常进入近站讲解；若仍提示精度不足，请把完整结果发回继续排查。`,
+      text: `结论：定位可用。${parts}。${legacyNote}导览页应能正常使用地图定位与跟随；若仍提示精度不足，请把完整结果发回继续排查。`,
     }
   }
   return {

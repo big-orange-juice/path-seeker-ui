@@ -12,6 +12,8 @@ function snapshot() {
   return Object.assign({}, state, { messages, audioNotice, displayNotice: localizeRoomNotice(state.notice, state.language), displayError: localizeRoomNotice(state.error, state.language) });
 }
 function update(values) {
+  const keys = Object.keys(values);
+  if (keys.length && keys.every(key => state[key] === values[key])) return;
   state = Object.assign({}, state, values);
   listeners.forEach(listener => listener(snapshot()));
 }
@@ -64,7 +66,7 @@ function attach(room, language) {
     connection = rooms.connect(room, {
       event: message => { if (current === version) event(message); },
       error: error => { if (current === version) update({ error: error.message }); },
-      playback: value => { if (current === version) update({ audioPlaying: value.playing }); },
+      playback: value => { if (current === version && state.audioPlaying !== value.playing) update({ audioPlaying: value.playing }); },
       playbackError: error => { if (current === version) update({ audioPlaying: false, audioError: '译音播放失败：' + error.message }); },
       interrupted: () => { if (current === version) update({ paused: true, notice: '其他内容正在播放，回到房间可恢复收听' }); },
       disconnected: () => { if (current === version) { connection = null; update({ disconnected: true, speaking: false, notice: '连接已断开，请重新收听或返回讲解房间' }); } },

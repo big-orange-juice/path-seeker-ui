@@ -69,3 +69,59 @@ test('an ended callback after a narration error cannot falsely advance the queue
   h.audioContexts[0].emit('Error', { errorMessage: 'failed' }); h.audioContexts[0].emit('Ended');
   assert.equal(finished, 0); assert.equal(audio.snapshot().index, 0);
 });
+
+test('stream preloads the next file without playing it and switches to the prepared context', () => {
+  const h = harness(), audio = h.load('services/audio');
+  const token = audio.beginStream('translation-room', {});
+  audio.appendStream(token, { url: 'first' });
+  audio.appendStream(token, { url: 'second' });
+  const [first, second] = h.audioContexts;
+  assert.equal(second.src, 'second');
+  assert.equal(audio.snapshot().item.url, 'first');
+  assert.equal(audio.snapshot().playing, true);
+  first.emit('Ended');
+  assert.equal(h.audioContexts.length, 2);
+  assert.equal(audio.snapshot().item.url, 'second');
+  assert.equal(second.destroyed, false);
+  audio.stop();
+  assert.equal(second.destroyed, true);
+});
+
+test('stopping a queue disposes prepared audio and stale callbacks cannot resume it', () => {
+  const h = harness(), audio = h.load('services/audio');
+  audio.playQueue('tour', [{ url: 'first' }, { url: 'second' }]);
+  const [first, prepared] = h.audioContexts, stale = first.callbacks('Ended')[0];
+  audio.stop(); stale();
+  assert.equal(prepared.destroyed, true);
+  assert.equal(audio.snapshot().owner, '');
+});
+
+test('paused streams stay silent when audio arrives and can resume after an empty queue', () => {
+  const h = harness(), audio = h.load('services/audio');
+  const token = audio.beginStream('translation-room', {});
+  audio.pause(); audio.appendStream(token, { url: 'first' });
+  assert.equal(audio.snapshot().playing, false);
+  audio.resume('translation-room'); assert.equal(audio.snapshot().playing, true);
+  h.audioContexts[0].emit('Ended');
+  audio.pause(); audio.resume('translation-room');
+  audio.appendStream(token, { url: 'second' });
+  assert.equal(audio.snapshot().playing, true);
+});
+
+test('preload errors and a single-context platform fall back without interrupting current playback', () => {
+  for (const limited of [false, true]) {
+    const h = harness(), audio = h.load('services/audio'); let errors = 0;
+    const create = h.my.createInnerAudioContext;
+    if (limited) h.my.createInnerAudioContext = () => {
+      if (h.audioContexts.some(item => !item.destroyed)) throw Error('resource limit');
+      return create();
+    };
+    audio.playQueue('tour', [{ url: 'first' }, { url: 'second' }], { error: () => errors++ });
+    if (!limited) h.audioContexts[1].emit('Error', { errorMessage: 'preload failed' });
+    assert.equal(audio.snapshot().playing, true);
+    h.audioContexts[0].emit('Ended');
+    assert.equal(audio.snapshot().item.url, 'second');
+    assert.equal(audio.snapshot().playing, true);
+    assert.equal(errors, 0);
+  }
+});

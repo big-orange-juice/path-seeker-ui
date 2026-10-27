@@ -1,6 +1,53 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { harness, tick, plain, session, userId } = require('./harness.cjs');
+const { harness: createHarness, tick, plain, session, userId } = require('./harness.cjs');
+function harness(initial) { return createHarness(initial, { requirePhoneNumber: true }); }
+
+test('temporary phone-free login skips phone APIs and supports the room guest entry', async () => {
+  const h = createHarness(), page = h.page('auth');
+  assert.equal(page.data.requirePhoneNumber, false);
+  h.my.getPhoneNumber = () => { throw Error('phone API must not be called'); };
+  h.my.getAuthCode = options => options.success({ authCode: 'phone-free-code' });
+  page.onShow();
+  await page.alipay(); assert.equal(h.requests.length, 0);
+  page.setData({ agreed: true });
+  const login = page.alipay(); await tick();
+  const request = h.requests[0];
+  assert.equal(request.options.data.code, 'phone-free-code');
+  assert.equal(Object.hasOwn(request.options.data, 'phoneResponse'), false);
+  request.ok({ ...session(), isGuest: false }); await login;
+  const room = h.page('translation-room'); room.onLoad(); await tick();
+  h.requests[1].ok({ canHost: false }); await tick();
+  assert.equal(room.data.canHost, false); assert.equal(room.data.permissionPending, false);
+  let attached;
+  room.attach = value => { attached = value; };
+  room.setData({ code: '12345678' }); room.join(); await tick();
+  const join = h.requests[2];
+  assert.match(join.options.url, /TranslationRooms\/join$/);
+  join.ok({ roomId: userId, isHost: false }); await tick();
+  assert.equal(attached.roomId, userId); assert.equal(attached.isHost, false);
+  room.onUnload();
+});
+
+test('phone-free login cancellation and late responses keep account isolation', async () => {
+  const cancelled = createHarness(); delete cancelled.my.getPhoneNumber;
+  cancelled.my.getAuthCode = options => options.fail({});
+  await assert.rejects(cancelled.auth.loginAlipay(), /未完成支付宝授权/);
+  assert.equal(cancelled.requests.length, 0); assert.equal(cancelled.auth.current().isGuest, true);
+  const h = createHarness(); h.my.getAuthCode = options => options.success({ authCode: 'code' });
+  const login = h.auth.loginAlipay(), rejected = assert.rejects(login, /账号已切换/); await tick();
+  h.auth.logout(); h.requests[0].ok({ ...session(), isGuest: false }); await rejected;
+  assert.equal(h.auth.current(), null);
+});
+
+test('omitting the phone switch restores required phone authorization', async () => {
+  const h = createHarness(); delete h.load('config').authOptions.requirePhoneNumber;
+  assert.equal(h.page('auth').data.requirePhoneNumber, true);
+  h.my.getPhoneNumber = options => options.fail({});
+  h.my.getAuthCode = () => { throw Error('auth code must not be requested'); };
+  await assert.rejects(h.auth.loginAlipay(), /手机号授权/);
+  assert.equal(h.requests.length, 0);
+});
 
 test('optional login entries default off and their handlers do not authenticate', async () => {
   const h = harness(), page = h.page('auth'); let attempts = 0;
@@ -42,7 +89,7 @@ test('authorization is requested only by an explicit agreed tap and duplicate ta
   assert.match(request.url, /AppUser\/MiniProgramLogin$/);
   assert.equal(request.headers.Authorization, undefined);
   assert.deepEqual(plain(request.data), {
-    provider: 'alipay', code: 'one-use-code', guestAccessToken: 'access',
+    provider: 'alipay', code: 'one-use-code', phoneResponse: 'signed-phone-response', guestAccessToken: 'access',
     device: 'Alipay/Android/test', langCode: 'zh'
   });
   h.requests[0].ok({ ...session(), isGuest: false }); await login;
@@ -61,6 +108,7 @@ test('startup during native authorization waits for formal login without creatin
   h.my.getAuthCode = options => { authorization = options; };
   const login = h.auth.loginAlipay(), guest = h.auth.ensure();
   assert.equal(h.requests.length, 0);
+  await tick();
   authorization.success({ authCode: 'code' }); await tick();
   assert.equal(h.requests.length, 1);
   assert.match(h.requests[0].options.url, /MiniProgramLogin$/);
@@ -80,12 +128,34 @@ test('late native authorization and login response cannot undo logout', async ()
     const h = harness(); let authorization;
     h.my.getAuthCode = options => { authorization = options; };
     const login = h.auth.loginAlipay(), rejected = assert.rejects(login, /账号已切换/);
+    await tick();
     if (duringNative) h.auth.logout();
     authorization.success({ authCode: 'code' }); await tick();
     if (!duringNative) { h.auth.logout(); h.requests[0].ok({ ...session(), isGuest: false }); }
     await rejected; assert.equal(h.auth.current(), null);
     assert.equal(h.requests.length, duringNative ? 0 : 1);
   }
+});
+
+test('phone permission denial and missing signed phone data never consume an auth code', async () => {
+  for (const result of ['denied', 'empty', 'unsupported']) {
+    const h = harness(); let codes = 0;
+    h.my.getAuthCode = () => { codes++; };
+    if (result === 'unsupported') delete h.my.getPhoneNumber;
+    else h.my.getPhoneNumber = options => result === 'denied' ? options.fail({}) : options.success({});
+    await assert.rejects(h.auth.loginAlipay(), /手机号/);
+    assert.equal(codes, 0); assert.equal(h.requests.length, 0);
+    assert.equal(h.auth.current().isGuest, true);
+  }
+});
+
+test('late phone authorization cannot restore a logged out account', async () => {
+  const h = harness(); let phone;
+  h.my.getPhoneNumber = options => { phone = options; };
+  const login = h.auth.loginAlipay(), rejected = assert.rejects(login, /账号已切换/);
+  h.auth.logout(); phone.success({ response: 'signed-phone-response' });
+  await rejected;
+  assert.equal(h.requests.length, 0); assert.equal(h.auth.current(), null);
 });
 
 test('failed platform login never replaces the guest or replays one-use code', async () => {

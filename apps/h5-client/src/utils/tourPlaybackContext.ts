@@ -13,7 +13,3 @@ export function resolveTourVoiceContext(
     voiceId: resolved?.providerVoiceId?.trim() || null,
   }
 }
-
-export function hasStableApproach(startedAt: number, now: number, dwellMs: number): boolean {
-  return now >= startedAt && now - startedAt >= dwellMs
-}

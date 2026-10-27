@@ -20,6 +20,10 @@ function connect(room, hooks) {
   const playbackHooks = {
     error: error => { if (hooks.playbackError) hooks.playbackError(error); else hooks.error(error); },
     change: value => { if (hooks.playback) hooks.playback(value); },
+    itemEnded: item => {
+      const index = paths.indexOf(item.url);
+      if (index >= 0) { paths.splice(index, 1); speech.cleanup([item.url]); }
+    },
     finished: () => speech.cleanup(paths.splice(0))
   };
   let token = room.isHost ? null : audio.beginStream('translation-room', playbackHooks);
@@ -49,7 +53,7 @@ function connect(room, hooks) {
       const event = JSON.parse(message.data);
       if (!cursor.accept(event)) return;
       const payload = event.payload || {};
-      if (event.type === 'audio.started') format = payload.format || 'mp3';
+      if (event.type === 'audio.started') { hex = ''; format = payload.format || 'mp3'; }
       if (event.type === 'audio.delta' && !room.isHost) {
         if (payload.encoding && payload.encoding !== 'hex' || payload.audio && !/^(?:[0-9a-fA-F]{2})*$/.test(payload.audio)) throw Error('语音格式无效');
         hex += payload.audio || ''; format = payload.format || format;

@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "vDe9R9Xdl74=",
+  "success": true,
+  "projectFilePath": "D:\\workspace\\amh\\code\\CulturalTourism\\web\\path-seeker-ui\\outputs\\rms-webrtc\\benchmark\\Benchmark.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\zhmou\\.nuget\\packages\\webrtcvad.net\\1.0.0\\webrtcvad.net.1.0.0.nupkg.sha512",
+    "C:\\Users\\zhmou\\.nuget\\packages\\webrtcvadsharp\\1.3.2\\webrtcvadsharp.1.3.2.nupkg.sha512"
+  ],
+  "logs": []
+}

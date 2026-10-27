@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="WebRtcVad.NET" Version="1.0.0" />
+    <PackageReference Include="WebRtcVadSharp" Version="1.3.2" />
+    <Compile Include="D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/Chat/TranslationRoomVoiceActivity.cs" Link="TranslationRoomVoiceActivity.cs" />
+    <Compile Include="D:/workspace/amh/code/CulturalTourism/git_src/CulturalTourism_System/CulturalTourismSystem.Service/Chat/PcmSpeechSegmenterOptions.cs" Link="PcmSpeechSegmenterOptions.cs" />
+  </ItemGroup>
+</Project>
