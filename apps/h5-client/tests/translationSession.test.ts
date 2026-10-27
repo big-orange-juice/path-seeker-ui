@@ -23,11 +23,16 @@ const fixtures: Record<string, string> = {
       return { roomId: '9223372036854775805', code: '12345678', isHost: path !== '/join', status: 'open' };
     }
     export function roomSocket(id, channel) {
-      const socket = { id, channel, readyState: 1, bufferedAmount: 0, closed: false, send() {}, close() { this.closed = true; this.readyState = 3; } };
+      const socket = { id, channel, readyState: 1, bufferedAmount: 0, closed: false, sent: [], send(value) { this.sent.push(value); }, close() { this.closed = true; this.readyState = 3; } };
       fixture.sockets.push(socket); return socket;
     }`,
-  'mic.js': `import { fixture } from '@/services/translationRoom'; export async function startTranslationMic() { if (fixture.microphone) return fixture.microphone; return { async stop() { fixture.stops++; } }; }`,
-  'pcm.js': 'export const createPcmEncoder = () => ({ feed() {}, flush() {} });',
+  'mic.js': `import { fixture } from '@/services/translationRoom'; export async function startTranslationMic(context, onFrame) { fixture.onFrame = onFrame; if (fixture.microphone) return fixture.microphone; return { async stop(options) { fixture.stops++; await fixture.stopHook?.(options); } }; }`,
+  'pcm.js': `import { fixture } from '@/services/translationRoom'; export const createPcmEncoder = (rate, send) => ({ feed(frame) { fixture.frames.push(frame.length); send(new ArrayBuffer(frame.length * 2)); }, flush() { fixture.flushes++; send(new ArrayBuffer(4)); } });`,
+  '@/utils/roomEchoGuard': `import { fixture } from '@/services/translationRoom'; export function createRoomEchoGuard(onChange) {
+    let captures = 0;
+    fixture.setEcho = active => { fixture.echo = active; onChange(active); };
+    return { capture() { captures++; fixture.setEcho(true); let released = false; return () => { if (!released) { released = true; fixture.setEcho(--captures > 0); } }; }, isCapturing: () => Boolean(fixture.echo), dispose() {} };
+  }`,
 }
 await build({
   stdin: { contents: "export { useTranslationRoom, useTranslationRoomStore } from './src/composables/useTranslationRoom'; export { playbackFocus } from './src/utils/playbackFocus'; export { useAuthStore } from '@/stores/useAuthStore'; export { fixture } from '@/services/translationRoom';", resolveDir: project },
@@ -67,6 +72,8 @@ function setup(context: TestContext) {
   context.mock.property(globalThis, 'WebSocket', { OPEN: 1 })
   fixture.sockets = []; fixture.requests = []; fixture.pending = null; fixture.microphone = null; fixture.stops = 0
   fixture.played = []; fixture.resumeFailure = false; fixture.decodeFailure = false
+  fixture.frames = []; fixture.flushes = 0; fixture.stopHook = null; fixture.onFrame = null
+  fixture.echo = false
   setActivePinia(createPinia())
   const store = useTranslationRoomStore()
   context.after(async () => { await store.leave(false); store.$dispose() })
@@ -151,6 +158,107 @@ test('microphone permission resolving after logout immediately releases the late
   assert.equal(fixture.sockets[1].closed, true)
 })
 
+test('ending the host input sends the last captured frame and PCM flush before input.end', async context => {
+  const store = setup(context)
+  await store.create('zh-CN')
+  const starting = store.startSpeaking()
+  await tick()
+  const socket = fixture.sockets.at(-1)
+  socket.onopen()
+  await starting
+  fixture.stopHook = async (options: { flush: boolean }) => {
+    assert.equal(options.flush, true)
+    fixture.onFrame(new Float32Array(128))
+  }
+  await store.end(false)
+  assert.deepEqual(fixture.frames, [128])
+  assert.equal(fixture.flushes, 1)
+  assert.deepEqual(socket.sent.map((value: ArrayBuffer | string) => typeof value === 'string' ? JSON.parse(value).type : value.byteLength), [256, 4, 'input.end'])
+  assert.equal(socket.closed, false)
+})
+
+test('leaving the room discards delayed frames without flushing or sending input.end', async context => {
+  const store = setup(context)
+  await store.create('zh-CN')
+  const starting = store.startSpeaking()
+  await tick()
+  const socket = fixture.sockets.at(-1)
+  socket.onopen()
+  await starting
+  fixture.stopHook = async (options: { flush: boolean }) => {
+    assert.equal(options.flush, false)
+    fixture.onFrame(new Float32Array(128))
+  }
+  await store.leave(false)
+  assert.deepEqual(fixture.frames, [])
+  assert.equal(fixture.flushes, 0)
+  assert.deepEqual(socket.sent, [])
+  assert.equal(socket.closed, true)
+})
+
+test('account switch while draining the microphone cancels the previous input tail', async context => {
+  const store = setup(context)
+  await store.create('zh-CN')
+  const starting = store.startSpeaking()
+  await tick()
+  const socket = fixture.sockets.at(-1)
+  socket.onopen()
+  await starting
+  let finish!: () => void
+  fixture.stopHook = () => new Promise<void>(resolveStop => { finish = resolveStop })
+  const ending = store.end(false)
+  await tick()
+  useAuthStore().profile = null
+  fixture.onFrame(new Float32Array(128))
+  finish()
+  await ending
+  assert.deepEqual(fixture.frames, [])
+  assert.equal(fixture.flushes, 0)
+  assert.deepEqual(socket.sent, [])
+  assert.equal(socket.closed, true)
+})
+
+test('a delayed previous capture stop cannot release the new host input audio focus', async context => {
+  const store = setup(context)
+  await store.create('zh-CN')
+  let starting = store.startSpeaking()
+  await tick()
+  fixture.sockets.at(-1).onopen()
+  await starting
+  let finish!: () => void
+  fixture.stopHook = () => new Promise<void>(resolveStop => { finish = resolveStop })
+  const leaving = store.leave(false)
+  await store.create('zh-CN')
+  starting = store.startSpeaking()
+  await tick()
+  const socket = fixture.sockets.at(-1)
+  socket.onopen()
+  await starting
+  fixture.stopHook = null
+  finish()
+  await leaving
+  assert.equal(playbackFocus.current(), 'room')
+  assert.equal(store.speaking, true)
+  assert.equal(socket.closed, false)
+})
+
+test('ASR capacity pause stops host capture without disconnecting room events or flushing a rejected tail', async context => {
+  const store = setup(context)
+  await store.create('zh-CN')
+  const starting = store.startSpeaking()
+  await tick()
+  const socket = fixture.sockets.at(-1)
+  socket.onopen()
+  await starting
+  fixture.sockets[0].onmessage({ data: JSON.stringify({ type: 'segment.error', payload: { code: 'asr_capacity_exceeded', message: '识别积压已达上限' } }) })
+  await tick()
+  assert.equal(store.speaking, false)
+  assert.equal(socket.closed, true)
+  assert.equal(fixture.sockets[0].closed, false)
+  assert.equal(fixture.flushes, 0)
+  assert.match(store.error, /积压/)
+})
+
 test('listener receives and plays real audio queue while browser suspension can be resumed with one tap', async context => {
   const store = setup(context)
   await store.join('12345678', 'en')
@@ -184,6 +292,43 @@ test('translation without audio reports missing speech and keeps the text connec
   socket.onmessage({ data: JSON.stringify({ type: 'translation.final', targetLanguage: 'en', sequence: 1, payload: { text: 'Hello' } }) })
   assert.match(store.audioNotice, /Only text was received/)
   assert.equal(store.feed[0].text, 'Hello')
+  assert.equal(store.listening, true)
+  assert.equal(socket.closed, false)
+})
+
+test('local host microphone stops queued visitor audio and resumes at a fresh segment without replaying echo', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  const socket = fixture.sockets[0]
+  const emit = (type: string, payload: object = {}, sequence = 1) => socket.onmessage({ data: JSON.stringify({ type, targetLanguage: 'en', sequence, payload }) })
+  emit('subscription.ready', { room: store.room })
+  emit('translation.committed', { text: '你好' })
+  emit('audio.delta', { audio: 'aabb', isFinal: true })
+  await tick()
+  const playing = fixture.played.at(-1)
+  assert.equal(playing.stopped, false)
+  fixture.setEcho(true)
+  assert.equal(playing.stopped, true)
+  assert.equal(store.echoSuppressed, true)
+  assert.match(store.audioNotice, /prevent echo/)
+  const count = fixture.played.length
+  emit('audio.started', { format: 'mp3' })
+  emit('audio.delta', { audio: 'aabb', isFinal: true })
+  emit('translation.final', { text: 'Hello' })
+  await tick()
+  assert.equal(store.feed[0].text, 'Hello')
+  assert.equal(fixture.played.length, count)
+  fixture.setEcho(false)
+  emit('audio.delta', { audio: 'aabb', isFinal: true })
+  emit('audio.done')
+  await tick()
+  assert.equal(fixture.played.length, count)
+  emit('translation.committed', { text: '下一段' }, 2)
+  emit('audio.started', { format: 'mp3' }, 2)
+  emit('audio.delta', { audio: 'aabb', isFinal: true }, 2)
+  await tick()
+  assert.equal(fixture.played.length, count + 1)
+  assert.equal(store.echoSuppressed, false)
   assert.equal(store.listening, true)
   assert.equal(socket.closed, false)
 })

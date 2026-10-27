@@ -61,6 +61,43 @@ test('translation feed retains the latest sixty entries and clears when leaving'
   assert.deepEqual(feed.items, [])
 })
 
+test('final source survives missing and empty translation start events across languages', () => {
+  const feed = new RoomTextFeed()
+  const base = { epochId: 'first', sequence: 1 }
+  feed.accept({ ...base, type: 'transcript.final', payload: { text: '请看这座桥。' } })
+  feed.accept({ ...base, type: 'translation.final', targetLanguage: 'en', payload: { text: 'Look at this bridge.' } })
+  feed.accept({ ...base, type: 'translation.committed', targetLanguage: 'en', payload: { text: '' } })
+  feed.accept({ ...base, type: 'text.delta', targetLanguage: 'ja', payload: { content: 'この橋を見てください。' } })
+  feed.accept({ ...base, type: 'transcript.final', payload: { text: '   ' } })
+  assert.deepEqual(feed.items.map(item => item.source), ['请看这座桥。', '请看这座桥。'])
+})
+
+test('late source repairs existing translations without crossing recording epochs', () => {
+  const feed = new RoomTextFeed()
+  for (const epochId of ['first', 'second']) {
+    for (const targetLanguage of ['en', 'ja']) feed.accept({ epochId, sequence: 1, targetLanguage, type: 'text.delta', payload: { content: 'translation' } })
+  }
+  feed.accept({ epochId: 'first', sequence: 1, type: 'transcript.final', payload: { text: '你好' } })
+  assert.deepEqual(feed.items.map(item => item.source), ['你好', '你好', '', ''])
+  feed.accept({ epochId: 'first', sequence: 1, targetLanguage: 'en', type: 'translation.committed', payload: { text: 'different' } })
+  assert.equal(feed.items[0].source, '你好')
+  feed.clear()
+  feed.accept({ epochId: 'first', sequence: 1, targetLanguage: 'en', type: 'translation.final', payload: { text: 'Hello' } })
+  assert.equal(feed.items[0].source, '')
+})
+
+test('empty translation start cannot erase a previously committed source and source cache is bounded', () => {
+  const feed = new RoomTextFeed()
+  feed.accept({ sequence: 1, targetLanguage: 'en', type: 'translation.committed', payload: { text: '你好' } })
+  feed.accept({ sequence: 1, targetLanguage: 'en', type: 'translation.committed', payload: {} })
+  assert.equal(feed.items[0].source, '你好')
+  for (let sequence = 1; sequence <= 121; sequence++) feed.accept({ type: 'transcript.final', sequence, payload: { text: String(sequence) } })
+  feed.accept({ sequence: 1, targetLanguage: 'ja', type: 'text.delta', payload: { content: 'first' } })
+  feed.accept({ sequence: 121, targetLanguage: 'ja', type: 'text.delta', payload: { content: 'last' } })
+  assert.equal(feed.items.at(-2)!.source, '')
+  assert.equal(feed.items.at(-1)!.source, '121')
+})
+
 test('chat groups keep chronological segments, share one source across languages and separate recording epochs', () => {
   const feed = new RoomTextFeed()
   const base = { epochId: 'first', sequence: 1 }

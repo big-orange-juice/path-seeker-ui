@@ -1,0 +1,10 @@
+{
+  "browser": "Microsoft Edge headless",
+  "playingAudioStoppedAcrossTabs": true,
+  "newTabDetectsCapture": true,
+  "independentBrowserContextUnaffected": true,
+  "releaseDoesNotReplay": true,
+  "freshPlaybackResumes": true,
+  "navigationReleasesCapture": true,
+  "pageErrors": []
+}

@@ -1,4 +1,5 @@
 const zhCN = {
+  echoHint: '请游客戴耳机收听，避免外放译音再次被录入。', echoPaused: '本机正在使用麦克风，译音已暂停以避免回声；字幕继续更新。',
   back: '返回导航', backConnected: '返回导航，保持房间连接', manageAccount: '切换 / 管理账号', login: '登录车夫账号',
   title: '实时讲解', intro: '听车夫讲述，用熟悉的语言游览', chatTitle: '讲解群聊', listeners: '{count} 人收听', host: '我是房主', liveTranslation: '实时翻译',
   ended: '讲解已结束', live: '正在讲解', waiting: '等待讲解', roomCode: '房间码', more: '查看房间码、成员和房间操作',
@@ -29,6 +30,7 @@ export type RoomLocale = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 
 const messages: Record<RoomLocale, RoomMessages> = {
   'zh-CN': zhCN,
   'zh-TW': {
+    echoHint: '請遊客戴耳機收聽，避免外放譯音再次被錄入。', echoPaused: '本機正在使用麥克風，譯音已暫停以避免回聲；字幕繼續更新。',
     back: '返回導覽', backConnected: '返回導覽，保持房間連線', manageAccount: '切換 / 管理帳號', login: '登入車夫帳號',
     title: '即時講解', intro: '聽車夫講述，用熟悉的語言遊覽', chatTitle: '講解群聊', listeners: '{count} 人收聽', host: '我是房主', liveTranslation: '即時翻譯',
     ended: '講解已結束', live: '正在講解', waiting: '等待講解', roomCode: '房間碼', more: '查看房間碼、成員和房間操作',
@@ -53,6 +55,7 @@ const messages: Record<RoomLocale, RoomMessages> = {
     invalidRoom: '房間碼無效或房間已結束，請重新加入', roomFull: '房間人數已滿，請稍後重試', languageLimit: '每個房間最多同時收聽三種語言', recognitionFailed: '本段辨識失敗，請車夫重複講解', microphoneInterrupted: '講解輸入已中斷，請重新連線麥克風', sourceLocked: '現有房間的講話語言不可更改，請先結束目前房間',
   },
   en: {
+    echoHint: 'Ask visitors to use headphones so translated audio is not picked up by the microphone.', echoPaused: 'A microphone is active in this browser. Translated audio is paused to prevent echo; subtitles continue.',
     back: 'Back to navigation', backConnected: 'Back to navigation, stay connected', manageAccount: 'Switch / manage account', login: 'Guide sign in',
     title: 'Live commentary', intro: 'Explore with your guide in your own language', chatTitle: 'Commentary chat', listeners: '{count} listening', host: 'Host', liveTranslation: 'Live translation',
     ended: 'Commentary ended', live: 'Commentary live', waiting: 'Waiting for commentary', roomCode: 'Room code', more: 'Room code, members and actions',
@@ -77,6 +80,7 @@ const messages: Record<RoomLocale, RoomMessages> = {
     invalidRoom: 'Invalid room code or room ended. Please join again.', roomFull: 'The room is full. Please try again later.', languageLimit: 'A room supports up to three listening languages at a time.', recognitionFailed: 'Speech recognition failed for this segment. Please ask the guide to repeat it.', microphoneInterrupted: 'Commentary input interrupted. Please reconnect the microphone.', sourceLocked: 'End the current room before changing its speaking language.',
   },
   ja: {
+    echoHint: '翻訳音声がマイクに入らないよう、参加者はイヤホンでお聴きください。', echoPaused: 'このブラウザでマイクを使用中です。エコー防止のため翻訳音声を停止しています。字幕は更新されます。',
     back: 'ナビに戻る', backConnected: '接続を維持してナビに戻る', manageAccount: 'アカウント切替・管理', login: 'ガイドログイン',
     title: 'リアルタイム解説', intro: 'ガイドの解説を使い慣れた言語で楽しむ', chatTitle: '解説チャット', listeners: '{count} 人が聴取中', host: 'ホスト', liveTranslation: 'リアルタイム翻訳',
     ended: '解説終了', live: '解説中', waiting: '解説待ち', roomCode: 'ルームコード', more: 'ルームコード・参加者・操作',
@@ -101,6 +105,7 @@ const messages: Record<RoomLocale, RoomMessages> = {
     invalidRoom: 'コードが無効か解説が終了しました。もう一度参加してください。', roomFull: 'ルームは満員です。後でもう一度お試しください。', languageLimit: '同時に聴取できるのは1ルームにつき3言語までです。', recognitionFailed: 'この区間の音声認識に失敗しました。ガイドにもう一度話してもらってください。', microphoneInterrupted: '音声入力が中断されました。マイクを再接続してください。', sourceLocked: '話す言語を変更するには、現在のルームを終了してください。',
   },
   ko: {
+    echoHint: '번역 음성이 마이크에 다시 들어가지 않도록 방문객은 이어폰을 사용해 주세요.', echoPaused: '이 브라우저에서 마이크를 사용 중입니다. 에코 방지를 위해 번역 음성이 일시 정지되며 자막은 계속 표시됩니다.',
     back: '안내로 돌아가기', backConnected: '연결을 유지하고 안내로 돌아가기', manageAccount: '계정 전환 / 관리', login: '가이드 로그인',
     title: '실시간 해설', intro: '익숙한 언어로 가이드의 이야기를 들어보세요', chatTitle: '해설 채팅', listeners: '{count}명 청취 중', host: '방장', liveTranslation: '실시간 번역',
     ended: '해설 종료', live: '해설 중', waiting: '해설 대기 중', roomCode: '방 코드', more: '방 코드, 참여자 및 방 관리',
@@ -125,6 +130,7 @@ const messages: Record<RoomLocale, RoomMessages> = {
     invalidRoom: '유효하지 않은 코드이거나 종료된 방입니다. 다시 참여해 주세요.', roomFull: '방이 가득 찼습니다. 나중에 다시 시도해 주세요.', languageLimit: '한 방에서 동시에 최대 3개 언어로 청취할 수 있습니다.', recognitionFailed: '이 구간의 음성 인식에 실패했습니다. 가이드에게 다시 말해 달라고 요청하세요.', microphoneInterrupted: '해설 입력이 중단되었습니다. 마이크를 다시 연결하세요.', sourceLocked: '해설 언어를 변경하려면 현재 방을 먼저 종료하세요.',
   },
   fr: {
+    echoHint: 'Demandez aux visiteurs de porter des écouteurs pour éviter que le micro capte la traduction audio.', echoPaused: 'Un micro est actif dans ce navigateur. La traduction audio est en pause pour éviter l’écho ; les sous-titres continuent.',
     back: 'Retour à la navigation', backConnected: 'Retour à la navigation en restant connecté', manageAccount: 'Changer / gérer le compte', login: 'Connexion du guide',
     title: 'Commentaire en direct', intro: 'Découvrez les récits du guide dans votre langue', chatTitle: 'Discussion de la visite', listeners: '{count} à l’écoute', host: 'Hôte', liveTranslation: 'Traduction en direct',
     ended: 'Commentaire terminé', live: 'Commentaire en cours', waiting: 'En attente du commentaire', roomCode: 'Code du salon', more: 'Code, participants et options du salon',
@@ -149,6 +155,7 @@ const messages: Record<RoomLocale, RoomMessages> = {
     invalidRoom: 'Code invalide ou salon terminé. Veuillez rejoindre à nouveau.', roomFull: 'Le salon est complet. Veuillez réessayer plus tard.', languageLimit: 'Un salon permet jusqu’à trois langues d’écoute simultanées.', recognitionFailed: 'Reconnaissance vocale impossible. Demandez au guide de répéter cet extrait.', microphoneInterrupted: 'Entrée audio interrompue. Reconnectez le micro.', sourceLocked: 'Terminez le salon actuel avant de changer la langue parlée.',
   },
   de: {
+    echoHint: 'Besucher sollten Kopfhörer verwenden, damit das Mikrofon die Übersetzung nicht erneut aufnimmt.', echoPaused: 'In diesem Browser ist ein Mikrofon aktiv. Audio pausiert zur Echovermeidung; Untertitel werden weiter aktualisiert.',
     back: 'Zurück zur Navigation', backConnected: 'Zur Navigation, verbunden bleiben', manageAccount: 'Konto wechseln / verwalten', login: 'Guide anmelden',
     title: 'Live-Kommentar', intro: 'Erleben Sie die Führung in Ihrer Sprache', chatTitle: 'Führungschat', listeners: '{count} hören zu', host: 'Gastgeber', liveTranslation: 'Live-Übersetzung',
     ended: 'Kommentar beendet', live: 'Kommentar läuft', waiting: 'Warten auf den Kommentar', roomCode: 'Raumcode', more: 'Raumcode, Teilnehmer und Aktionen',
@@ -173,6 +180,7 @@ const messages: Record<RoomLocale, RoomMessages> = {
     invalidRoom: 'Ungültiger Raumcode oder Raum beendet. Bitte erneut beitreten.', roomFull: 'Der Raum ist voll. Bitte später erneut versuchen.', languageLimit: 'Ein Raum unterstützt bis zu drei Hörsprachen gleichzeitig.', recognitionFailed: 'Spracherkennung fehlgeschlagen. Bitten Sie den Guide, den Abschnitt zu wiederholen.', microphoneInterrupted: 'Spracheingabe unterbrochen. Bitte das Mikrofon erneut verbinden.', sourceLocked: 'Beenden Sie den aktuellen Raum, bevor Sie die gesprochene Sprache ändern.',
   },
   es: {
+    echoHint: 'Pide a los visitantes que usen auriculares para evitar que el micrófono vuelva a captar la traducción.', echoPaused: 'Hay un micrófono activo en este navegador. El audio se pausa para evitar el eco; los subtítulos continúan.',
     back: 'Volver a la navegación', backConnected: 'Volver a la navegación sin desconectarse', manageAccount: 'Cambiar / gestionar cuenta', login: 'Acceso del guía',
     title: 'Comentarios en directo', intro: 'Disfruta de las historias del guía en tu idioma', chatTitle: 'Chat de la visita', listeners: '{count} escuchando', host: 'Anfitrión', liveTranslation: 'Traducción en directo',
     ended: 'Comentarios finalizados', live: 'Comentarios en curso', waiting: 'Esperando comentarios', roomCode: 'Código de sala', more: 'Código, miembros y opciones de la sala',

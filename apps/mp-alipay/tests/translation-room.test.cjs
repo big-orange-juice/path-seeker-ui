@@ -75,6 +75,24 @@ function socketHarness() {
   return { fixture, handlers, sent, service: fixture.load('services/translation-room') };
 }
 
+test('Alipay preserves final Chinese source when translation start is missing or arrives empty', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  try {
+    session.attach({ roomId: '42', isHost: true }); handlers.Open();
+    const emit = event => handlers.Message({ data: JSON.stringify(event) });
+    const base = { epochId: 'epoch', sequence: 1 };
+    emit({ ...base, type: 'transcript.final', payload: { text: '这里是银锭桥。' } });
+    emit({ ...base, type: 'translation.final', targetLanguage: 'en', payload: { text: 'This is Yinding Bridge.' } });
+    emit({ ...base, type: 'translation.committed', targetLanguage: 'en', payload: { text: '' } });
+    assert.equal(session.snapshot().feed[0].source, '这里是银锭桥。');
+    assert.equal(session.snapshot().feed[0].text, 'This is Yinding Bridge.');
+    emit({ ...base, sequence: 2, type: 'text.delta', targetLanguage: 'ja', payload: { content: '次の橋です。' } });
+    emit({ ...base, sequence: 2, type: 'transcript.final', payload: { text: '这是下一座桥。' } });
+    assert.equal(session.snapshot().feed[1].source, '这是下一座桥。');
+  } finally { await session.leave(); }
+});
+
 test('empty completed translation becomes unavailable and the next segment still completes', async () => {
   const { fixture, handlers } = socketHarness();
   const session = fixture.load('services/translation-session');
@@ -155,6 +173,29 @@ test('Alipay host shares one socket, uploads PCM in order and releases mic after
     await tick();
     assert.equal(fixture.load('services/speech').reserveRecorder({}), true);
     assert.equal(errors.length, 0);
+  } finally { connection.close(true); }
+});
+
+test('ASR capacity pause stops only the host connection and discards its late recording tail', async () => {
+  const { fixture, handlers, sent, service } = socketHarness();
+  let disconnected = 0;
+  const errors = [];
+  const connection = service.connect({ roomId: '9223372036854775805', isHost: true }, {
+    event() {}, error: error => errors.push(error), disconnected() { disconnected++; }
+  });
+  try {
+    handlers.Open();
+    await connection.startRecording();
+    fixture.recorder.emit('Start');
+    const count = sent.length;
+    handlers.Message({ data: JSON.stringify({ type: 'segment.error', payload: { code: 'asr_capacity_exceeded', message: '识别积压已达上限' } }) });
+    assert.equal(disconnected, 1);
+    assert.ok(fixture.recorder.stops > 0);
+    fixture.recorder.emit('Stop', { tempFilePath: '/tmp/rejected-tail.wav' });
+    await tick();
+    assert.equal(sent.length, count);
+    assert.equal(fixture.load('services/speech').reserveRecorder({}), true);
+    assert.deepEqual(errors, []);
   } finally { connection.close(true); }
 });
 

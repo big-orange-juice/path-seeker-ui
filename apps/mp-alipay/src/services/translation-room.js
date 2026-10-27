@@ -59,6 +59,10 @@ function connect(room, hooks) {
       if (event.type === 'audio.done') flushAudio();
       if (event.type === 'audio.error' || event.type === 'language.error') hex = '';
       hooks.event(event);
+      if (event.type === 'segment.error' && payload.code === 'asr_capacity_exceeded' && room.isHost) {
+        close(false);
+        hooks.disconnected();
+      }
       if (event.type === 'room.closed') {
         if (payload.mode === 'immediate') close(true);
         else writes.then(() => { if (token !== null) audio.finishStream(token); close(false); });

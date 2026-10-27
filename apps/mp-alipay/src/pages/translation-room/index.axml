@@ -23,7 +23,7 @@
     </scroll-view>
     <button a:if="{{showLatest}}" class="chat-latest" onTap="followLatest">↓ {{messages.latest}}</button>
   </view>
-  <view class="chat-toolbar"><view class="chat-toolbar-status">{{room.isHost ? notice : audioNotice}}</view><view class="chat-toolbar-actions"><view class="chat-mode-icon">{{room.isHost ? '♪' : '♫'}}</view>
+  <view class="chat-toolbar"><view class="chat-toolbar-status">{{room.isHost ? (speaking ? messages.echoHint : notice) : audioNotice}}</view><view class="chat-toolbar-actions"><view class="chat-mode-icon">{{room.isHost ? '♪' : '♫'}}</view>
     <button a:if="{{disconnected && room.status !== 'closed'}}" class="chat-talk" onTap="openDetails" disabled="{{busy}}">{{room.isHost ? messages.reconnect : messages.listenAgain}}</button>
     <button a:elif="{{room.isHost}}" class="chat-talk {{speaking ? 'is-speaking' : ''}}" onTap="startSpeaking" disabled="{{busy || speaking || room.status === 'closed' || room.status === 'draining'}}">{{room.status === 'closed' ? messages.ended : speaking ? messages.micOn : messages.start}}</button>
     <button a:else class="chat-talk" onTap="togglePause" disabled="{{busy || disconnected}}">{{paused || audioError ? messages.resume : messages.pause}}</button>

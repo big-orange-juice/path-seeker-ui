@@ -51,8 +51,19 @@ export interface RoomTextItem {
 
 export class RoomTextFeed {
   items: RoomTextItem[] = []
+  private sources = new Map<string, string>()
 
   accept(event: RoomEvent) {
+    const sourceId = `${event.epochId || ''}:${event.sequence ?? 0}`
+    if (event.type === 'transcript.final') {
+      const source = String(event.payload?.text || '')
+      if (source.trim()) {
+        this.sources.set(sourceId, source)
+        if (this.sources.size > 120) this.sources.delete(this.sources.keys().next().value!)
+        this.items = this.items.map(item => item.id.slice(0, item.id.lastIndexOf(':')) === sourceId ? { ...item, source } : item)
+      }
+      return this.items
+    }
     if (!event.targetLanguage || !['translation.committed', 'text.delta', 'translation.final', 'language.error'].includes(event.type)) return this.items
     const payload = event.payload || {}
     const id = `${event.epochId || ''}:${event.sequence ?? 0}:${event.targetLanguage}`
@@ -60,9 +71,9 @@ export class RoomTextFeed {
     const item: RoomTextItem = previous ? { ...previous } : {
       id, language: event.targetLanguage,
       languageLabel: ROOM_LANGUAGES.find(language => language.value === event.targetLanguage)?.label || event.targetLanguage,
-      source: '', text: '', status: 'translating', sequence: event.sequence ?? 0,
+      source: this.sources.get(sourceId) || '', text: '', status: 'translating', sequence: event.sequence ?? 0,
     }
-    if (event.type === 'translation.committed') item.source = String(payload.text || '')
+    if (event.type === 'translation.committed' && !this.sources.has(sourceId) && String(payload.text || '').trim()) item.source = String(payload.text)
     if (event.type === 'text.delta') item.text += String(payload.content || '')
     if (event.type === 'translation.final') {
       const finalText = String(payload.text || '')
@@ -78,7 +89,7 @@ export class RoomTextFeed {
     return this.items
   }
 
-  clear() { this.items = [] }
+  clear() { this.items = []; this.sources.clear() }
 }
 
 export function groupRoomMessages(items: RoomTextItem[]) {

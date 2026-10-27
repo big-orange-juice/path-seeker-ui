@@ -176,7 +176,7 @@ function eventReceived(run, event) {
 async function stopCapture(run) {
   if (run.stopping) return run.stopping;
   run.stopping = (async () => {
-    await run.mic?.stop();
+    await run.mic?.stop({ flush: live === run && run.ending });
     run.mic = null;
     if (!live || live === run) {
       element("level").value = 0;
@@ -260,8 +260,8 @@ async function startLive() {
       element("level").value = Math.sqrt(energy / frame.length);
       try { run.encoder.feed(frame); }
       catch (error) { cancelAll(); notice(error.message, true); }
-    });
-    if (live !== run || run.ending) { await capture.stop(); return; }
+    }, { onError: (error) => { if (live === run) { cancelAll(); notice(error.message, true); } } });
+    if (live !== run || run.ending) { await capture.stop({ flush: false }); return; }
     run.mic = capture;
     metrics(run);
   } catch (error) {

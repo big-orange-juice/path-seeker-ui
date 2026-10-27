@@ -8,6 +8,7 @@ import { createPcmEncoder } from '../../../../demos/duplex-translation/public/pc
 import { createTranslationPlayer } from '../../../../demos/duplex-translation/public/player.js'
 import { roomRequest, roomSocket, type HostPermission, type TranslationRoom } from '@/services/translationRoom'
 import { playbackFocus } from '@/utils/playbackFocus'
+import { createRoomEchoGuard } from '@/utils/roomEchoGuard'
 
 export const useTranslationRoomStore = defineStore('translation-room', () => {
   const auth = useAuthStore()
@@ -30,7 +31,8 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
   const audioBusy = shallowRef(false)
   const audioReceived = shallowRef(false)
   const audioError = shallowRef('')
-  const audioNotice = computed(() => audioError.value ? localizeRoomNotice(audioError.value, language.value, 'unavailableAudio') : muted.value ? messages.value.muted : audioBlocked.value ? messages.value.blocked : audioBusy.value ? messages.value.playing : audioReceived.value ? messages.value.received : messages.value.waitingAudio)
+  const echoSuppressed = shallowRef(false)
+  const audioNotice = computed(() => echoSuppressed.value ? messages.value.echoPaused : audioError.value ? localizeRoomNotice(audioError.value, language.value, 'unavailableAudio') : muted.value ? messages.value.muted : audioBlocked.value ? messages.value.blocked : audioBusy.value ? messages.value.playing : audioReceived.value ? messages.value.received : messages.value.waitingAudio)
   const connected = shallowRef(false)
   const navigationPath = shallowRef('/ride')
   const feed = shallowRef<RoomTextItem[]>([])
@@ -41,12 +43,18 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
   let encoder: ReturnType<typeof createPcmEncoder> | null = null
   let events: WebSocket | null = null
   let input: WebSocket | null = null
+  let captureGate: { accepting: boolean; releaseEcho: () => void } | null = null
   let heartbeat: ReturnType<typeof setInterval> | null = null
   let revision = 0
   let alive = true
   let cursor = new RoomEventCursor()
   let sessionVersion = 0
   let awaitingAudioSegment = false
+  const echoGuard = createRoomEchoGuard(active => {
+    echoSuppressed.value = active
+    awaitingAudioSegment = true
+    player?.stop()
+  })
   const audioFocus = playbackFocus.channel('room', () => {
     muted.value = true
     awaitingAudioSegment = true
@@ -93,7 +101,7 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
       audioReceived.value = false
       audioError.value = ''
       error.value = ''
-      if (!muted.value && audioFocus.isCurrent()) awaitingAudioSegment = false
+      if (!muted.value && !echoGuard.isCapturing() && audioFocus.isCurrent()) awaitingAudioSegment = false
     }
     if (event.type === 'text.delta') translated.value += String(payload.content || '')
     if (event.type === 'translation.final') {
@@ -102,17 +110,20 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
     }
     if (event.type === 'audio.started') {
       audioError.value = ''
-      if (!muted.value && audioFocus.isCurrent()) awaitingAudioSegment = false
+      if (!muted.value && !echoGuard.isCapturing() && audioFocus.isCurrent()) awaitingAudioSegment = false
       player?.configure(payload)
     }
     if (event.type === 'audio.delta' && listening.value) {
       if (payload.audio) { audioReceived.value = true; audioError.value = '' }
-      if (muted.value || awaitingAudioSegment || !audioFocus.isCurrent()) return
+      if (echoGuard.isCapturing() || muted.value || awaitingAudioSegment || !audioFocus.isCurrent()) return
       audioBlocked.value = Boolean(context && context.state !== 'running' && !muted.value)
       player?.push(payload)
     }
-    if (event.type === 'audio.done' && !muted.value && !awaitingAudioSegment && audioFocus.isCurrent()) player?.flush()
-    if (event.type === 'segment.error') error.value = String(payload.message || '本段翻译暂不可用')
+    if (event.type === 'audio.done' && !echoGuard.isCapturing() && !muted.value && !awaitingAudioSegment && audioFocus.isCurrent()) player?.flush()
+    if (event.type === 'segment.error') {
+      error.value = String(payload.message || '本段翻译暂不可用')
+      if (payload.code === 'asr_capacity_exceeded') void stopMicrophone(false)
+    }
     if (event.type === 'audio.error' || event.type === 'language.error') {
       player?.discardPending()
       error.value = String(payload.message || '本段语音不可用，请阅读字幕')
@@ -245,14 +256,21 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
       }) } catch (failure) { await stopMicrophone(false); throw failure }
       if (!alive || current !== sessionVersion || input !== socket) { socket.close(); return }
       socket.onclose = () => { if (input === socket) { error.value = '麦克风连接中断，请重新开始讲解'; void stopMicrophone(false) } }
+      const gate = captureGate = { accepting: true, releaseEcho: echoGuard.capture() }
       const captureEncoder = encoder = createPcmEncoder(context!.sampleRate, packet => {
-        if (socket.readyState !== WebSocket.OPEN) return
+        if (!gate.accepting || current !== sessionVersion || socket.readyState !== WebSocket.OPEN) return
         if (socket.bufferedAmount > 256000) { socket.close(); throw Error('上传积压，请检查网络后重新开始讲解') }
         socket.send(packet)
       })
       try {
-        const capture = await startTranslationMic(context!, frame => { if (input === socket) captureEncoder.feed(frame) })
-        if (!alive || input !== socket || socket.readyState !== WebSocket.OPEN) { await capture.stop(); return }
+        const capture = await startTranslationMic(context!, frame => {
+          if (gate.accepting && current === sessionVersion && input === socket) captureEncoder.feed(frame)
+        }, { onError: failure => {
+          if (input !== socket) return
+          error.value = failure.message
+          void stopMicrophone(false)
+        } })
+        if (!alive || input !== socket || socket.readyState !== WebSocket.OPEN) { await capture.stop({ flush: false }); return }
         microphone = capture
         speaking.value = true
         notice.value = '正在讲解，游客按各自选择的语言收听'
@@ -264,15 +282,33 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
     const capture = microphone
     const captureEncoder = encoder
     const socket = input
+    const gate = captureGate
     microphone = null
     encoder = null
     speaking.value = false
-    input = null
-    if (!listening.value || muted.value) audioFocus.release()
-    try { await capture?.stop(); captureEncoder?.flush() }
+    if (!end) {
+      if (gate) gate.accepting = false
+      input = null
+      if (captureGate === gate) captureGate = null
+      socket?.close()
+      if (!listening.value || muted.value) audioFocus.release()
+    }
+    try {
+      await capture?.stop({ flush: end })
+      if (end && gate?.accepting && input === socket) {
+        captureEncoder?.flush()
+        if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'input.end' }))
+      }
+    }
+    catch (failure) { socket?.close(); if (end) throw failure }
     finally {
-      if (socket?.readyState === WebSocket.OPEN && end) socket.send(JSON.stringify({ type: 'input.end' }))
-      else socket?.close()
+      gate?.releaseEcho()
+      if (gate) gate.accepting = false
+      if (input === socket) {
+        input = null
+        if (captureGate === gate) captureGate = null
+        if (!listening.value || muted.value) audioFocus.release()
+      }
     }
   }
 
@@ -339,14 +375,14 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
   }
 
   watch(() => auth.profile?.id, () => { setLanguage('zh-CN'); canHost.value = false; permissionPending.value = true; void leave(false) }, { flush: 'sync' })
-  onScopeDispose(() => { alive = false; void leave().finally(() => context?.close()) })
+  onScopeDispose(() => { alive = false; void leave().finally(() => { echoGuard.dispose(); void context?.close() }) })
   function setLanguage(value: string) { language.value = roomLocale(value) }
   function prepareEntry(value: string, returnPath: string) {
     navigationPath.value = returnPath
     if (!room.value) setLanguage(value)
   }
 
-  return { room, canHost, permissionPending, source, translated, notice, error, language, messages, displayNotice, displayError, busy, listening, speaking, muted, audioBlocked, audioNotice, audioReceived, audioError, connected, navigationPath, feed, prepareEntry, setLanguage, loadPermission, create, join, startSpeaking, end, leave, toggleMute, changeLanguage }
+  return { room, canHost, permissionPending, source, translated, notice, error, language, messages, displayNotice, displayError, busy, listening, speaking, muted, audioBlocked, audioNotice, audioReceived, audioError, echoSuppressed, connected, navigationPath, feed, prepareEntry, setLanguage, loadPermission, create, join, startSpeaking, end, leave, toggleMute, changeLanguage }
 })
 
 export function useTranslationRoom() {

@@ -14,7 +14,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const feature = useTranslationRoom()
-const { room, canHost, permissionPending, source, displayNotice: notice, displayError: error, language, messages, busy, listening, speaking, muted, audioBlocked, audioNotice, audioError, connected, navigationPath, feed } = feature
+const { room, canHost, permissionPending, source, displayNotice: notice, displayError: error, language, messages, busy, listening, speaking, muted, audioBlocked, audioNotice, audioError, echoSuppressed, connected, navigationPath, feed } = feature
 const showDetails = shallowRef(false)
 const { height: viewportHeight } = useWindowSize({ type: 'visual', initialHeight: window.innerHeight })
 const pageLocked = useScrollLock(document.body)
@@ -49,11 +49,11 @@ async function joinRoom(code: string, language: string) {
       <p v-if="error" role="alert" class="chat-error">{{ error }}</p>
       <TranslationRoomFeed :room="room" :items="feed" :source="source" :language="language" />
       <footer class="chat-toolbar">
-        <p class="chat-toolbar-status" role="status"><Volume2 v-if="!room.isHost" :size="13" aria-hidden="true" />{{ room.isHost ? notice : audioNotice }}</p>
+        <p class="chat-toolbar-status" role="status"><Volume2 v-if="!room.isHost" :size="13" aria-hidden="true" />{{ room.isHost ? (speaking ? messages.echoHint : notice) : audioNotice }}</p>
         <div class="chat-toolbar-actions"><span class="chat-mode-icon"><Mic v-if="room.isHost" :size="22" aria-hidden="true" /><Headphones v-else :size="22" aria-hidden="true" /></span>
           <button v-if="needsConnection" type="button" class="chat-talk" :disabled="busy" @click="showDetails = true">{{ room.isHost ? messages.reconnect : messages.listenAgain }}</button>
           <button v-else-if="room.isHost" type="button" class="chat-talk" :class="{ 'is-speaking': speaking }" :disabled="busy || speaking || room.status === 'closed' || room.status === 'draining'" @click="feature.startSpeaking">{{ room.status === 'closed' ? messages.ended : speaking ? messages.micOn : messages.start }}</button>
-          <button v-else type="button" class="chat-talk" :disabled="busy || !listening" @click="feature.toggleMute">{{ muted || audioBlocked || audioError ? messages.resume : messages.pause }}</button>
+          <button v-else type="button" class="chat-talk" :disabled="busy || !listening || echoSuppressed" @click="feature.toggleMute">{{ muted || audioBlocked || audioError ? messages.resume : messages.pause }}</button>
           <button type="button" class="chat-toolbar-more" :aria-label="messages.more" @click="showDetails = true"><MoreHorizontal :size="23" aria-hidden="true" /></button>
         </div>
       </footer>
