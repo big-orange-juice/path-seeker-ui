@@ -1,0 +1,90 @@
+{
+  "mockedBackend": true,
+  "cases": [
+    {
+      "entry": "/shell/me",
+      "condition": "valid",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/me",
+      "condition": "reload",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/me",
+      "condition": "refresh",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/me",
+      "condition": "offline",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/me",
+      "condition": "rejected",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/me",
+      "condition": "missing-refresh",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/archive",
+      "condition": "valid",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/archive",
+      "condition": "reload",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/archive",
+      "condition": "refresh",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/archive",
+      "condition": "offline",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/archive",
+      "condition": "rejected",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    },
+    {
+      "entry": "/shell/archive",
+      "condition": "missing-refresh",
+      "noGuestReplacement": true,
+      "mapKeepsAccount": true,
+      "reloadKeepsAccount": true
+    }
+  ],
+  "pageErrors": []
+}

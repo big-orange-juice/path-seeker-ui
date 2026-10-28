@@ -1,4 +1,4 @@
-import { computed, ref, watch } from "vue"
+import { computed, ref, shallowRef, watch } from "vue"
 import { acceptHMRUpdate, defineStore } from "pinia"
 import {
   fetchAppUserProfile,
@@ -13,7 +13,7 @@ import {
   type UserProfileResponse,
 } from "@/services/auth"
 import { clearAccessToken, setAccessToken } from "@/services/authSession"
-import { resolveRequestErrorMessage } from "@/services/http"
+import { ApiRequestError, resolveRequestErrorMessage } from "@/services/http"
 
 export const AUTH_PERSIST_KEY = "path-seeker:h5-client:auth"
 
@@ -59,6 +59,7 @@ export const useAuthStore = defineStore(
     const accessToken = ref("")
     const refreshToken = ref("")
     const expiresAt = ref<number | null>(null)
+    const sessionCheckedAt = shallowRef(Date.now())
     const profile = ref<UserProfileResponse | null>(null)
     const pending = ref(false)
     const error = ref("")
@@ -72,7 +73,7 @@ export const useAuthStore = defineStore(
     const isLoggedIn = computed(() => Boolean(accessToken.value))
     const isGuest = computed(() => isLoggedIn.value && Number(profile.value?.registerChannel) === 5)
     const isAccountLoggedIn = computed(() => isLoggedIn.value && Boolean(profile.value?.id) && !isGuest.value)
-    const isTokenExpired = computed(() => Boolean(expiresAt.value && expiresAt.value <= Date.now()))
+    const isTokenExpired = computed(() => Boolean(expiresAt.value && expiresAt.value <= sessionCheckedAt.value))
     const displayName = computed(() => profile.value?.nickname || profile.value?.username || profile.value?.userNo || "未登录")
 
     watch(
@@ -84,6 +85,7 @@ export const useAuthStore = defineStore(
     )
 
     function applyLoginResponse(response: LoginResponse) {
+      sessionCheckedAt.value = Date.now()
       accessToken.value = normalizeText(response.accessToken)
       refreshToken.value = normalizeText(response.refreshToken)
       expiresAt.value = resolveExpiresAt(response.expiresIn)
@@ -145,6 +147,15 @@ export const useAuthStore = defineStore(
       return authenticate(guestLoginAppUser, "游客登录失败", false)
     }
 
+    function tokenExpired() {
+      sessionCheckedAt.value = Date.now()
+      return isTokenExpired.value
+    }
+
+    function hasUsableSession() {
+      return isLoggedIn.value && !tokenExpired()
+    }
+
     /**
      * 保证存在可用会话：已有未过期 token 直接放行，过期则先续期，
      * 都没有时静默签发游客身份。返回是否拿到可用会话。
@@ -152,9 +163,9 @@ export const useAuthStore = defineStore(
     async function ensureGuestSession() {
       if (accountLoginPromise) {
         await accountLoginPromise
-        return isLoggedIn.value && !isTokenExpired.value
+        return hasUsableSession()
       }
-      if (isLoggedIn.value && !isTokenExpired.value) {
+      if (hasUsableSession()) {
         return true
       }
 
@@ -163,21 +174,24 @@ export const useAuthStore = defineStore(
       }
 
       const current = sessionVersion
+      const preserveAccount = isLoggedIn.value && !isGuest.value
       const operation = (async () => {
         if (isLoggedIn.value && refreshToken.value) {
           const refreshed = await refreshTokenIfNeeded(true)
           if (current !== sessionVersion) {
             if (accountLoginPromise) await accountLoginPromise
-            return isLoggedIn.value && !isTokenExpired.value
+            return hasUsableSession()
           }
           if (refreshed) {
             return true
           }
         }
 
+        if (preserveAccount) return false
+
         const response = await loginAsGuest()
         if (accountLoginPromise) await accountLoginPromise
-        return Boolean(response) || (isLoggedIn.value && !isTokenExpired.value)
+        return Boolean(response) || hasUsableSession()
       })()
       guestSessionPromise = operation
       try { return await operation }
@@ -189,7 +203,7 @@ export const useAuthStore = defineStore(
         return null
       }
 
-      if (!force && !isTokenExpired.value) {
+      if (!force && !tokenExpired()) {
         return null
       }
 
@@ -204,7 +218,9 @@ export const useAuthStore = defineStore(
         return response
       } catch (refreshError) {
         if (current === sessionVersion && token === refreshToken.value) {
-          clearIdentity()
+          if (refreshError instanceof ApiRequestError && (refreshError.statusCode === 401 || refreshError.code === 10002)) {
+            clearIdentity()
+          }
           error.value = resolveRequestErrorMessage(refreshError, "登录状态已过期")
         }
         return null
@@ -263,6 +279,7 @@ export const useAuthStore = defineStore(
     }
 
     function clearIdentity() {
+      sessionCheckedAt.value = Date.now()
       accessToken.value = ""
       refreshToken.value = ""
       expiresAt.value = null

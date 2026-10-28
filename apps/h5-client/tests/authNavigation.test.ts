@@ -112,3 +112,10 @@ test('登录请求未完成时离开页面，迟到的成功响应不会把用�
   await submitting
   assert.deepEqual(page.calls, [])
 })
+
+test('正式账号令牌过期时展示登录表单，不能停留在账号管理界面', async context => {
+  const page = await mount('/ride?routeId=fixture-route')
+  context.after(() => page.app.unmount())
+  Object.assign(page.fixture.auth, { isAccountLoggedIn: true, isTokenExpired: true })
+  assert.equal(page.state.showAccount, false)
+})

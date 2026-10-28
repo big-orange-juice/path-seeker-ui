@@ -249,3 +249,90 @@ test('并发的启动和路由检查共享游客请求，后续复用正式账�
   assert.equal(store.isAccountLoggedIn, true)
   assert.equal(guestRequests, 1)
 })
+
+test('正式账号续期遇到网络失败时保留身份，不把列表页用户静默换成游客', async context => {
+  const store = setup(context)
+  let guestRequests = 0
+  let offline = true
+  context.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url.endsWith('/Login')) return response(hostLogin)
+    if (url.endsWith('/RefreshToken')) {
+      if (offline) throw new TypeError('Failed to fetch')
+      return response({ ...hostLogin, accessToken: 'refreshed-host-token' })
+    }
+    guestRequests++
+    return response(guestLogin)
+  })
+  await store.login('host-account', 'fixture-password')
+  store.expiresAt = 1
+  assert.equal(await store.ensureGuestSession(), false)
+  assert.equal(store.isAccountLoggedIn, true)
+  assert.equal(store.refreshToken, hostLogin.refreshToken)
+  assert.equal(getAccessToken(), hostLogin.accessToken)
+  assert.equal(guestRequests, 0)
+  offline = false
+  assert.equal(await store.ensureGuestSession(), true)
+  assert.equal(getAccessToken(), 'refreshed-host-token')
+})
+
+test('正式账号续期被拒绝时要求重新登录，不在进入导航时降级为游客', async context => {
+  const store = setup(context)
+  let guestRequests = 0
+  context.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url.endsWith('/Login')) return response(hostLogin)
+    if (url.endsWith('/RefreshToken')) return Response.json({ code: 10002, message: '续期已失效' }, { status: 401 })
+    guestRequests++
+    return response(guestLogin)
+  })
+  await store.login('host-account', 'fixture-password')
+  store.expiresAt = 1
+  assert.equal(await store.ensureGuestSession(), false)
+  assert.equal(store.isLoggedIn, false)
+  assert.equal(guestRequests, 0)
+})
+
+test('正式账号过期且没有续期令牌时不能静默创建游客', async context => {
+  const store = setup(context)
+  let requests = 0
+  context.mock.method(globalThis, 'fetch', async () => { requests++; return response(hostLogin) })
+  await store.login('host-account', 'fixture-password')
+  store.refreshToken = ''
+  store.expiresAt = 1
+  assert.equal(await store.ensureGuestSession(), false)
+  assert.equal(requests, 1)
+  assert.equal(store.isAccountLoggedIn, true)
+})
+
+test('列表停留到令牌过期后再次进入导航，按当前时间续期', async context => {
+  const store = setup(context)
+  let refreshes = 0
+  let currentTime = 1000000
+  context.mock.method(Date, 'now', () => currentTime)
+  context.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url.endsWith('/RefreshToken')) refreshes++
+    return response(hostLogin)
+  })
+  await store.login('host-account', 'fixture-password')
+  assert.equal(await store.ensureGuestSession(), true)
+  assert.equal(store.isTokenExpired, false)
+  currentTime += 3600001
+  assert.equal(await store.ensureGuestSession(), true)
+  assert.equal(refreshes, 1)
+  assert.equal(store.isAccountLoggedIn, true)
+})
+
+test('已缓存的未过期状态在导航检查失败后也会更新，重新登录页能展示登录表单', async context => {
+  const store = setup(context)
+  let currentTime = 1000000
+  context.mock.method(Date, 'now', () => currentTime)
+  context.mock.method(globalThis, 'fetch', async (url: string) => {
+    if (url.endsWith('/Login')) return response(hostLogin)
+    throw new TypeError('Failed to fetch')
+  })
+  await store.login('host-account', 'fixture-password')
+  assert.equal(store.isTokenExpired, false)
+  currentTime += 3600001
+  assert.equal(await store.ensureGuestSession(), false)
+  assert.equal(store.isTokenExpired, true)
+  assert.equal(store.isAccountLoggedIn, true)
+})

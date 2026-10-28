@@ -18,7 +18,7 @@ const router = useRouter()
 const mode = shallowRef<AuthMode>("login")
 const switchingAccount = shallowRef(false)
 const submitting = shallowRef(false)
-const showAccount = computed(() => authStore.isAccountLoggedIn && !switchingAccount.value && !submitting.value)
+const showAccount = computed(() => authStore.isAccountLoggedIn && !authStore.isTokenExpired && !switchingAccount.value && !submitting.value)
 let active = true
 onBeforeUnmount(() => { active = false })
 
