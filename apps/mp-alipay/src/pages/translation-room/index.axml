@@ -1,12 +1,12 @@
 <scroll-view a:if="{{!room}}" scroll-y="true" class="room-page">
   <view class="room-header"><button class="room-back" onTap="back">‹ {{messages.back}}</button><text>{{messages.liveTranslation}}</text></view>
-  <view class="room-intro"><view class="room-page-title">{{messages.title}}</view><view class="room-intro-copy">{{messages.intro}}</view></view>
+  <view class="room-intro"><view class="room-intro-icon"><view class="room-headphones-icon"/></view><view class="room-intro-copy-wrap"><view class="room-page-title">{{messages.title}}</view><view class="room-intro-copy">{{messages.intro}}</view></view></view>
   <view class="room-notice"><view class="room-status-dot"/><text>{{notice}}</text></view><view a:if="{{error}}" class="room-error">{{error}}</view>
   <include src="./entry.axml"/>
 </scroll-view>
 <view a:if="{{room}}" class="room-chat">
-  <view class="chat-header"><button class="chat-header-back" onTap="back" aria-label="{{messages.backConnected}}">‹</button><view class="chat-heading"><view class="chat-title">{{messages.chatTitle}}</view><view class="chat-subtitle">{{listenerLabel}} · {{room.isHost ? messages.host : messages.liveTranslation}}</view></view><button class="chat-more" onTap="openDetails" aria-label="{{messages.more}}">···</button></view>
-  <view class="chat-room-bar"><view class="chat-room-status"><view class="room-status-dot"/><text>{{room.status === 'closed' ? messages.ended : speaking || room.status === 'live' ? messages.live : messages.waiting}}</text></view><button onTap="openDetails">{{messages.roomCode}} {{room.code}} ›</button></view>
+  <view class="chat-header"><button class="chat-header-back" onTap="back" aria-label="{{messages.backConnected}}">‹</button><view class="chat-room-icon"><view class="room-headphones-icon"/></view><view class="chat-heading"><view class="chat-title">{{messages.chatTitle}}</view><view class="chat-subtitle">{{listenerLabel}} · {{room.isHost ? messages.host : messages.liveTranslation}}</view></view><button class="chat-more" onTap="openDetails" aria-label="{{messages.more}}">···</button></view>
+  <view class="chat-room-bar {{speaking || room.status === 'live' ? 'is-live' : ''}}"><view class="chat-room-status"><view class="room-status-dot"/><text>{{room.status === 'closed' ? messages.ended : speaking || room.status === 'live' ? messages.live : messages.waiting}}</text></view><button onTap="openDetails">{{messages.roomCode}} {{room.code}} ›</button></view>
   <view a:if="{{error}}" class="chat-error">{{error}}</view>
   <view class="chat-timeline">
     <scroll-view scroll-y="true" class="chat-conversation" scroll-into-view="{{scrollTarget}}" onScroll="onChatScroll" onScrollToLower="followLatest" lower-threshold="90">

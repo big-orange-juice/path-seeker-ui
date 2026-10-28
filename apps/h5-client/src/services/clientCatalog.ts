@@ -1,6 +1,7 @@
 import { request } from '@/services/http'
 import type { TourLocale } from '@path-seeker/ts-shared'
 import type { ClientCatalog, ClientTourDetail, RouteVisit } from '@/types/clientCatalog'
+import { fetchNodeExperiences } from '@/services/postcards'
 
 export function fetchClientCatalog(destinationId: string, locale: TourLocale) {
   return request<ClientCatalog>('/ClientCatalog/Catalog', {
@@ -8,8 +9,17 @@ export function fetchClientCatalog(destinationId: string, locale: TourLocale) {
   })
 }
 
-export function fetchClientTour(routeId: string, locale: TourLocale) {
-  return request<ClientTourDetail>('/ClientCatalog/Route', { query: { routeId, locale } })
+export async function fetchClientTour(routeId: string, locale: TourLocale) {
+  const detail = await request<ClientTourDetail>('/ClientCatalog/Route', { query: { routeId, locale } })
+  const experiences = await fetchNodeExperiences(detail.route?.id || routeId)
+  for (const stop of detail.stops ?? []) {
+    const experience = experiences.find(item => item.stageId === stop.id)
+    stop.experience = experience ?? null
+    for (const narration of stop.guideNarrations ?? []) {
+      for (const [index, chapter] of (narration.chapters ?? []).entries()) chapter.interludes = index < (narration.chapters?.length ?? 0) - 1 ? experience?.media.filter(item => item.afterSegmentNo === chapter.order) ?? [] : []
+    }
+  }
+  return detail
 }
 
 export function startRouteVisit(routeId: string, locale: TourLocale) {

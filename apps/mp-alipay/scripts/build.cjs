@@ -154,6 +154,12 @@ function marker() {
   const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(width); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 6;
   fs.mkdirSync(path.join(out, 'assets'), { recursive: true });
   fs.writeFileSync(path.join(out, 'assets/marker.png'), Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(data)), chunk('IEND', Buffer.alloc(0))]));
+  data.fill(0);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const distance = Math.hypot(x / scale - 13, y / scale - 17);
+    if (distance <= 12) pixel(x, y, distance <= 5 ? [40, 127, 145, 255] : distance <= 7 ? [255, 255, 255, 255] : [40, 127, 145, 45]);
+  }
+  fs.writeFileSync(path.join(out, 'assets/location-marker.png'), Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(data)), chunk('IEND', Buffer.alloc(0))]));
 }
 build();
 if (process.argv.includes('--watch')) {

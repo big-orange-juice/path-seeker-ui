@@ -69,22 +69,12 @@ onMounted(scrollToLatest)
 
 <style scoped>
 .chat-timeline{position:relative;flex:1;min-height:0;overflow:hidden}
-.chat-scroll{box-sizing:border-box;height:100%;overflow-y:auto;overscroll-behavior:contain;padding:18px 16px 26px;scrollbar-width:thin;scrollbar-color:#c4d1ca transparent}
-.chat-system,.chat-divider{margin:0 0 22px;text-align:center;color:#8a9790;font-size:11px;line-height:1.7}
-.chat-divider{margin:22px 0 16px}
-.chat-empty{display:flex;flex-direction:column;align-items:center;max-width:280px;margin:60px auto;color:#60776d;text-align:center}
-.chat-empty-icon{display:grid;place-items:center;width:68px;height:68px;margin-bottom:20px;border:1px solid #d4e0d9;border-radius:22px;background:#f8faf9;color:#577868}
-.chat-empty strong{font-size:15px;font-weight:500}.chat-empty p{margin:10px 0;font-size:13px;line-height:1.9}
-.chat-message{display:flex;align-items:flex-start;gap:10px;margin:0 0 20px}
-.chat-avatar{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border-radius:11px;font:600 11px/1 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
-.chat-avatar-guide{background:#183e43;color:#fff}
-.chat-message-body{min-width:0;max-width:calc(100% - 46px)}
-.chat-sender{display:flex;align-items:center;gap:8px;margin:0 0 6px;color:#7b8a80;font-size:11px;line-height:1.5}
-.chat-language{display:block;margin-bottom:4px;color:#587066;font-size:10px;line-height:1.5}
-.chat-bubble{position:relative;width:fit-content;max-width:100%;padding:11px 14px;border:1px solid #e0e7e2;border-radius:3px 13px 13px 13px;background:#fff;color:#27453e;font-size:15px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 1px 2px #183e4304}
-.chat-message-text{margin:0}.chat-delivery{display:block;margin-top:6px;color:#8a9790;font-size:10px;line-height:1.6}
-.chat-bilingual{white-space:normal}.chat-translation+.chat-translation,.chat-source{margin-top:10px;padding-top:10px;border-top:1px solid #d4e0d9}.chat-source:first-child{margin-top:0;padding-top:0;border-top:0}.chat-source{color:#667e7c;font-size:13px;line-height:1.7}.chat-message-text{white-space:pre-wrap;overflow-wrap:anywhere}
-.is-self{flex-direction:row-reverse}.is-self .chat-message-body{display:flex;flex-direction:column;align-items:flex-end}.is-self .chat-bubble{border-color:#cfdfd2;border-radius:13px 3px 13px 13px;background:#dce9df}.is-self .chat-sender{justify-content:flex-end}
-.has-error .chat-message-text,.has-error .chat-delivery{color:#a4483b}
-.chat-latest{position:absolute;right:16px;bottom:14px;display:flex;align-items:center;gap:6px;min-height:36px;padding:8px 12px;border:1px solid #d4e0d9;border-radius:20px;background:#fff;color:#183e43;font-size:12px;box-shadow:0 3px 12px #183e4310;cursor:pointer}.chat-latest:focus-visible{outline:2px solid #183e43;outline-offset:2px}
+.chat-scroll{box-sizing:border-box;height:100%;overflow-y:auto;overscroll-behavior:contain;padding:18px 22px 28px;scrollbar-width:thin;scrollbar-color:#c4d6c9 transparent}
+.chat-system{margin:0 0 22px;color:#8b9e90;font-size:10px;line-height:1.8;text-align:center}.chat-divider{display:flex;align-items:center;gap:10px;margin:22px 0 12px;color:#8b9e90;font-size:10px;line-height:1.6}.chat-divider::after{flex:1;height:1px;background:#dce7df;content:''}
+.chat-empty{display:flex;flex-direction:column;align-items:center;max-width:280px;margin:60px auto;color:#688171;text-align:center}.chat-empty-icon{display:grid;place-items:center;width:72px;height:72px;margin-bottom:20px;border:1px solid #d9e5dc;border-radius:24px;background:#fcfefd;color:#367a68;box-shadow:0 6px 20px #183e4305}.chat-empty strong{color:#436354;font:600 19px/1.6 "Noto Serif SC","Songti SC","STSong",serif}.chat-empty p{margin:10px 0;font-size:12px;line-height:1.9}
+.chat-message{display:flex;align-items:flex-start;gap:10px;margin:0 0 18px}.chat-avatar{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:11px;background:#183e43;color:#fff}.chat-avatar>svg{width:15px;height:15px}.chat-message-body{flex:1;min-width:0;max-width:calc(100% - 40px)}.chat-sender{display:block;margin:0 0 7px;color:#75897d;font-size:10px;line-height:1.5}
+.chat-bubble{box-sizing:border-box;width:100%;max-width:100%;padding:17px 18px;border:1px solid #d9e5dc;border-radius:4px 19px 19px 19px;background:#fcfefd;color:#294b3d;font-size:16px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 4px 14px #183e4304}.chat-language{display:block;width:fit-content;margin-bottom:7px;padding:2px 7px;border:1px solid #dce8df;border-radius:6px;background:#edf4ef;color:#688171;font-size:10px;line-height:1.5}.chat-message-text{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.chat-delivery{display:block;margin-top:7px;color:#8b9e90;font-size:10px;line-height:1.7}
+.chat-bilingual{white-space:normal}.chat-translation+.chat-translation,.chat-source{margin-top:16px;padding-top:14px;border-top:1px solid #e2ebe5}.chat-source:first-child{margin-top:0;padding-top:0;border:0}.chat-source{color:#75897d;font-size:12px;line-height:1.8}.chat-source .chat-language{padding:0;border:0;background:transparent;color:#8b9e90}.is-self .chat-avatar{background:#367a68}.is-self .chat-bubble{border-color:#cfe1d5;background:#f7fbf8}.has-error .chat-message-text,.has-error .chat-delivery{color:#a05c4c}
+.chat-latest{position:absolute;right:22px;bottom:14px;display:flex;align-items:center;gap:7px;min-height:44px;padding:10px 14px;border:1px solid #d9e5dc;border-radius:14px;background:#fcfefd;color:#183e43;font-size:12px;box-shadow:0 6px 24px #183e4312;cursor:pointer}.chat-latest:focus-visible{outline:2px solid #183e43;outline-offset:3px}
+@media(max-width:420px){.chat-scroll{padding-right:16px;padding-left:16px}.chat-bubble{padding:14px 15px;font-size:15px}.chat-avatar{flex-basis:26px;width:26px;height:28px;border-radius:9px}.chat-message{gap:8px}.chat-message-body{max-width:calc(100% - 34px)}}
 </style>

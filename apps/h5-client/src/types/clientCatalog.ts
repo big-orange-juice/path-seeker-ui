@@ -1,4 +1,5 @@
 import type { PlaceRange, TourLocale } from '@path-seeker/ts-shared'
+import type { NodeExperience, NodeMedia } from './postcard'
 
 export interface ClientDestination {
   id: string
@@ -54,6 +55,7 @@ export interface ClientTourRoute {
 }
 
 export interface TourNarrationChapter {
+  interludes?: NodeMedia[]
   id: string
   order: number
   title: string | null
@@ -87,6 +89,7 @@ export interface ClientStopExtraAudio {
 }
 
 export interface ClientTourStop {
+  experience?: NodeExperience | null
   triggerRadiusMeters?: number | null
   id: string
   placeId: string | null

@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, shallowRef } from 'vue'
-import { isTourLocale, type TourLocale } from '@path-seeker/ts-shared'
+import { isTourLocale, isUsableLocation, type TourLocale } from '@path-seeker/ts-shared'
 import {
   abandonRouteVisit,
   fetchActiveRouteVisit,
@@ -10,6 +10,7 @@ import {
 } from '@/services/clientCatalog'
 import { useTourSpeech } from '@/composables/useTourSpeech'
 import { watchLocation, type LocationFix, type LocationWatchHandle, type LocationWatchError } from '@/composables/watchLocation'
+import { evaluateTourStop, nearbyTourStops, TOUR_ARRIVAL_POLICY, type TourStopCandidate } from '@/utils/tourProgression'
 import {
   browserCheckpointStorage,
   clearTourCheckpoint,
@@ -19,7 +20,9 @@ import {
   type TourInterruptReason,
   type TourPlaybackCheckpoint,
 } from '@/utils/tourCheckpoint'
-import type { ClientCatalog, ClientTourDetail, ClientTourStop, RouteVisit } from '@/types/clientCatalog'
+import { decideQueueFinishedOutcome, isRangeVersionChanged, resolveAutoAdvanceMode, type AutoAdvanceMode } from '@/utils/tourAutoAdvance'
+import type { ClientCatalog, ClientPlace, ClientTourDetail, ClientTourStop, RouteVisit } from '@/types/clientCatalog'
+import { hasStableApproach } from '@/utils/tourPlaybackContext'
 
 /** C 端"跳过额外音频"开关的本地持久化键（只存本地，不回写 B 端配置） */
 const SKIP_EXTRA_AUDIO_KEY = 'path-seeker:skip-extra-audio'
@@ -29,10 +32,10 @@ const ACTIVE_ROUTE_KEY = 'path-seeker:tour-active-route'
 const PLAYBACK_SEQUENCE_KEY_PREFIX = 'path-seeker:tour-playback-sequence'
 
 /** 内容抽屉的打开来源（方案 §3.1） */
-export type ContentDrawerOpenReason = 'manual' | 'automatic' | 'map-selection' | 'deep-link' | 'voice-ask' | 'playback'
+export type ContentDrawerOpenReason = 'manual' | 'arrival' | 'map-selection' | 'deep-link' | 'voice-ask' | 'playback'
 
 /** 节点选择模式（方案 §4.4）：决定是否写进度、播完是否自动前进 */
-export type StopSelectionMode = 'manual' | 'previous' | 'next' | 'automatic' | 'resume'
+export type StopSelectionMode = 'manual' | 'previous' | 'next' | 'arrival' | 'resume'
 
 /** 全局景点播放序列中的状态；自动入队后同一游览内不再重复入队。 */
 export type PlaybackSequenceStatus = 'queued' | 'playing' | 'completed' | 'skipped'
@@ -41,8 +44,18 @@ export interface PlaybackSequenceItem {
   stopId: string
   index: number
   status: PlaybackSequenceStatus
-  source: 'manual'
+  source: 'nearby-auto' | 'arrival-confirmed'
   queuedAt: number
+}
+
+/** 一次进入周期内的自动打开/自动播放记录（方案 §7.4） */
+interface AutoOpenState {
+  stopId: string
+  placeId: string
+  openedAt: number
+  dismissedAt?: number
+  autoPlayedAt?: number
+  lastRangeVersion: number
 }
 
 interface StoredActiveRoute {
@@ -123,9 +136,23 @@ export function useTourJourney() {
   const skipExtraAudio = shallowRef(readSkipExtraAudio())
   const stops = computed(() => [...(active.value?.stops ?? [])].sort((left, right) => left.order - right.order))
   const currentStop = computed(() => stops.value[currentIndex.value] ?? null)
-  const playbackSuppressed = shallowRef(false)
+  /** 接近候选：多个范围重叠时按路线顺序 + 停靠点距离排序，由用户在卡片上选择 */
+  const arrivalCandidates = shallowRef<TourStopCandidate[]>([])
+  const arrivalStop = computed(() => arrivalCandidates.value[0]?.stop ?? null)
+  /** 最近一次定位是否通过共享的定位质量校验（精度、时效） */
+  const approachUsable = shallowRef(false)
+  /** 定位质量不足（精度过差 / 位置过期）时状态为未知：不弹接近卡片，但保留手动选择站点能力 */
+  const approachUnknown = computed(() => tracking.value && !approachUsable.value)
+  /** 定位置信度是否足以外部抑制接近行为（问一问浮层、抽屉交互、页面后台），由页面层设置 */
+  const approachSuppressed = shallowRef(false)
   const narrations = computed(() => currentStop.value?.guideNarrations?.filter(item => item.locale === locale.value) ?? [])
   const narration = computed(() => narrations.value.find(item => item.guideId === guideId.value) ?? narrations.value[0] ?? null)
+  const placesById = computed(() => {
+    const map = new Map<string, ClientPlace>()
+    for (const place of catalog.value?.places ?? []) map.set(place.id, place)
+    return map
+  })
+
   // ==================== 抽屉与选择模式 ====================
   const drawerOpen = shallowRef(false)
   const drawerReason = shallowRef<ContentDrawerOpenReason>('manual')
@@ -150,7 +177,14 @@ export function useTourJourney() {
   let journeyVersion = 0
   /** 当前定位监听句柄：由 watchLocation 管理"快速首帧 + 高精度改善"两条通道 */
   let locationWatch: LocationWatchHandle | null = null
+  let arrivalTimer: ReturnType<typeof setTimeout> | undefined
+  let locationTimer: ReturnType<typeof setTimeout> | undefined
+  let candidateKey = ''
+  let candidateStartedAt = 0
+  let furthest = -1
   let alive = true
+  /** 本次进入周期的自动打开/自动播放记录，按 stopId 去重 */
+  const autoOpenState = new Map<string, AutoOpenState>()
   /** 语音问答打断现场：问答结束据此决定恢复 */
   let askInterrupt: { token: number; routeId: string; stageId: string; wasPlaying: boolean } | null = null
   /** 切后台现场：回到前台据此决定恢复 */
@@ -184,9 +218,8 @@ export function useTourJourney() {
         if (typeof candidate.stopId !== 'string') return []
         const index = indexOfStop(restoredStops, candidate.stopId)
         if (index < 0) return []
-        if (candidate.status !== 'completed' && candidate.status !== 'skipped') return []
-        const status = candidate.status
-        const source = 'manual'
+        const status = candidate.status === 'completed' || candidate.status === 'skipped' ? candidate.status : 'queued'
+        const source = candidate.source === 'arrival-confirmed' ? candidate.source : 'nearby-auto'
         return [{
           stopId: candidate.stopId,
           index,
@@ -239,6 +272,13 @@ export function useTourJourney() {
     if (current?.status === 'playing') updateSequenceItem(current.stopId, 'skipped')
   }
 
+  /** 当前自动推进模式：定位可用=proximity，不可用=sequential（方案 §4.5） */
+  const autoAdvanceMode = computed<AutoAdvanceMode>(() => resolveAutoAdvanceMode({
+    tracking: tracking.value,
+    locationError: locationError.value,
+    fixUsable: approachUsable.value,
+  }))
+
   function rememberLanguage(value: TourLocale) {
     locale.value = value
     languageReady.value = true
@@ -250,6 +290,11 @@ export function useTourJourney() {
     try { remembered = localStorage.getItem('path-seeker:tour-locale') } catch {}
     if (isTourLocale(queryLanguage)) rememberLanguage(queryLanguage)
     else if (isTourLocale(remembered)) rememberLanguage(remembered)
+  }
+
+  /** 文化点：站点通过 placeId 引用，范围与锚点都取自这里 */
+  function placeOf(stop: ClientTourStop | null | undefined) {
+    return stop?.placeId ? placesById.value.get(stop.placeId) ?? null : null
   }
 
   // ==================== 断点（方案 §5） ====================
@@ -320,7 +365,7 @@ export function useTourJourney() {
       // 浏览模式：前置额外音频不去重（方案 §4.4）
       skipBeforeAudioDedupe: browsing,
     }, resume ?? null)
-    if (speech.status.value === 'playing' && (selectionMode.value !== 'automatic' || !contentAutoSwitchLocked.value)) openContentDrawer(currentIndex.value, 'playback')
+    if (speech.status.value === 'playing' && (selectionMode.value !== 'arrival' || !contentAutoSwitchLocked.value)) openContentDrawer(currentIndex.value, 'playback')
   }
 
   /** 断点恢复：位置来自 sessionStorage；"暂停中"的断点恢复出条目后保持暂停 */
@@ -367,12 +412,43 @@ export function useTourJourney() {
     backgroundResume = null
   }
 
+  function markStopAutoPlayed(stopId: string, placeId: string, rangeVersion: number | null | undefined) {
+    const existing = autoOpenState.get(stopId)
+    const next: AutoOpenState = existing
+      ? { ...existing, autoPlayedAt: Date.now(), placeId: existing.placeId || placeId, lastRangeVersion: rangeVersion ?? existing.lastRangeVersion }
+      : { stopId, placeId, openedAt: Date.now(), autoPlayedAt: Date.now(), lastRangeVersion: rangeVersion ?? 0 }
+    autoOpenState.set(stopId, next)
+  }
+
+  function markStopAutoOpened(stopId: string, placeId: string, rangeVersion: number | null | undefined) {
+    const existing = autoOpenState.get(stopId)
+    const next: AutoOpenState = existing
+      ? { ...existing, openedAt: Date.now(), placeId: existing.placeId || placeId, lastRangeVersion: rangeVersion ?? existing.lastRangeVersion }
+      : { stopId, placeId, openedAt: Date.now(), lastRangeVersion: rangeVersion ?? 0 }
+    autoOpenState.set(stopId, next)
+  }
+
+  function hasAutoOpened(stopId: string) {
+    return Boolean(autoOpenState.get(stopId)?.openedAt)
+  }
+
+  function hasAutoPlayed(stopId: string) {
+    return Boolean(autoOpenState.get(stopId)?.autoPlayedAt)
+  }
+
+  function resetAutoOpenState() {
+    autoOpenState.clear()
+    arrivalCandidates.value = []
+    candidateKey = ''
+    candidateStartedAt = 0
+  }
+
   // ==================== 抽屉 ====================
 
   function openContentDrawer(index: number, reason: ContentDrawerOpenReason) {
     const stop = stops.value[index]
     if (!stop) return
-    if (reason === 'automatic' && contentAutoSwitchLocked.value) return
+    if (reason === 'arrival' && contentAutoSwitchLocked.value) return
     drawerStopId.value = stop.id
     drawerReason.value = reason
     drawerOpen.value = true
@@ -420,6 +496,11 @@ export function useTourJourney() {
       guideId.value = checkpoint?.locale === locale.value && restoredStop?.guideNarrations?.some(item => item.locale === locale.value && item.guideId === checkpoint.guideId)
         ? checkpoint.guideId : null
       writeStoredActiveRoute({ routeId, stageId: restoredStop?.id ?? null, locale: locale.value, updatedAt: Date.now() })
+      // furthest 用已完成站点重建，避免往回走近站时判定错位
+      const completed = (activeVisit.completedStageIds ?? [])
+        .map(id => indexOfStop(restoredStops, id))
+        .filter(index => index >= 0)
+      furthest = Math.max(currentIndex.value, ...(completed.length ? completed : [currentIndex.value]))
       journeyRestored.value = true
       return true
     } catch {
@@ -483,6 +564,8 @@ export function useTourJourney() {
       active.value = selected
       visit.value = response
       currentIndex.value = Math.max(0, stops.value.findIndex(stop => stop.id === response.currentStageId))
+      furthest = currentIndex.value
+      resetAutoOpenState()
       journeyRestored.value = false
       writeStoredActiveRoute({ routeId: selected.route.id, stageId: currentStop.value?.id ?? null, locale: locale.value, updatedAt: Date.now() })
       await enterStop(currentIndex.value, 'resume')
@@ -493,8 +576,8 @@ export function useTourJourney() {
 
   // ==================== 切站 ====================
 
-  /** 正式切站（manual / automatic 自动开始）：写 currentStageId，构建并播放新队列，但不标记完成 */
-  async function enterStop(index: number, reason: 'manual' | 'automatic' | 'resume' = 'manual', sequenceStopId: string | null = null) {
+  /** 正式切站（manual / arrival 自动开始）：写 currentStageId，构建并播放新队列，但不标记完成 */
+  async function enterStop(index: number, reason: 'manual' | 'arrival' | 'resume' = 'manual', sequenceStopId: string | null = null) {
     const stop = stops.value[index]
     const currentVisit = visit.value
     if (!stop || !currentVisit) return
@@ -506,8 +589,9 @@ export function useTourJourney() {
     error.value = ''
     currentIndex.value = index
     guideId.value = null
-    selectionMode.value = reason === 'automatic' ? 'automatic' : 'manual'
-    if (reason !== 'automatic' || !contentAutoSwitchLocked.value) drawerStopId.value = stop.id
+    selectionMode.value = reason === 'arrival' ? 'arrival' : 'manual'
+    furthest = Math.max(furthest, index)
+    if (reason !== 'arrival' || !contentAutoSwitchLocked.value) drawerStopId.value = stop.id
     try {
       if (currentVisit.status === 1) {
         const response = await updateRouteVisitStop(currentVisit, stop.id, 'start')
@@ -516,10 +600,11 @@ export function useTourJourney() {
       }
       writeStoredActiveRoute({ routeId: active.value?.route?.id ?? '', stageId: stop.id, locale: locale.value, updatedAt: Date.now() })
       if (alive && version === journeyVersion) {
-        if (reason !== 'resume') {
-          playCurrentStop()
-          enqueuePlaybackStop(index, 'manual')
-          updateSequenceItem(stop.id, 'playing')
+        if (reason !== 'resume') playCurrentStop()
+        if (sequenceStopId && sequenceStopId === stop.id) updateSequenceItem(stop.id, 'playing')
+        if (reason === 'arrival') {
+          // 自动开始播放：去重记账，若被浏览器拦下则走既有的 blocked 提示
+          markStopAutoPlayed(stop.id, stop.placeId ?? '', placeOf(stop)?.range?.rangeVersion ?? null)
         }
       }
     } catch (caught) { if (version === journeyVersion) error.value = caught instanceof Error ? caught.message : 'saveFailed' }
@@ -588,13 +673,25 @@ export function useTourJourney() {
         writeStoredActiveRoute(null)
         return
       }
-      if (sequenceItem) updateSequenceItem(stop.id, 'completed')
+      if (sequenceItem) {
+        updateSequenceItem(stop.id, 'completed')
+        continueSequence = true
+        return
+      }
       if (playbackSequence.value.some(item => item.status === 'queued')) {
         continueSequence = true
         return
       }
       const next = currentIndex.value + 1
-      if (next < stops.value.length && autoPlayEnabled.value && !playbackSuppressed.value) await enterStop(next, 'automatic')
+      const outcome = decideQueueFinishedOutcome({
+        browsing: false,
+        visitInProgress: response.status === 1,
+        mode: autoAdvanceMode.value,
+        hasNextStop: next < stops.value.length,
+      })
+      if (outcome === 'advance' && autoPlayEnabled.value && !approachSuppressed.value) await enterStop(next, 'arrival')
+      else if (outcome === 'finish') { speech.stop(); stopTracking() }
+      // proximity：只标记完成，停在本节点 idle，等接近触发自动开始
     } catch (caught) {
       if (version === journeyVersion) error.value = caught instanceof Error ? caught.message : 'saveFailed'
     } finally {
@@ -615,7 +712,8 @@ export function useTourJourney() {
       const response = await updateRouteVisitStop(currentVisit, stop.id, 'complete', 1)
       if (!alive || version !== journeyVersion) return
       visit.value = response
-      const next = currentIndex.value + 1
+      const nearby = arrivalCandidates.value[0]?.index ?? -1
+      const next = nearby > currentIndex.value ? nearby : currentIndex.value + 1
       if (response.status === 1 && next < stops.value.length) await enterStop(next, 'manual')
       else {
         speech.stop()
@@ -638,7 +736,7 @@ export function useTourJourney() {
       speech.resume()
       return
     }
-    // 空闲时：当前节点已听完则接着播下一站
+    // 空闲时：当前节点已听完（proximity 模式只标记完成、不切站）则接着播下一站
     const stop = currentStop.value
     const completed = visit.value?.completedStageIds ?? []
     if (browsing.value) { playCurrentStop(true); return }
@@ -768,12 +866,91 @@ export function useTourJourney() {
     return resumeRouteNarration()
   }
 
+  // ==================== 接近与自动推进（方案 §7 / §4.5） ====================
+
+  /** 离开退出阈值（默认 80m）后清掉该景点的自动记录，允许再次进入时重新触发（方案 §7.4） */
+  function pruneAutoOpenState(now: number) {
+    if (!autoOpenState.size) return
+    for (const [stopId, state] of [...autoOpenState.entries()]) {
+      const stop = stops.value.find(item => item.id === stopId)
+      if (!stop) { autoOpenState.delete(stopId); continue }
+      const place = placeOf(stop)
+      const evaluated = evaluateTourStop(stop, place, location.value, now, TOUR_ARRIVAL_POLICY)
+      // 判定不了（定位质量不足）时保留记录，避免抖动误清
+      // 景点范围版本变化（B 端改了范围）时清掉记录，允许重新评估（方案 §7.4）
+      if (isRangeVersionChanged(state.lastRangeVersion, place?.range?.rangeVersion)) {
+        autoOpenState.delete(stopId)
+        continue
+      }
+      if (evaluated && evaluated.releasing) autoOpenState.delete(stopId)
+    }
+  }
+
+  function stopTracking() {
+    locationWatch?.stop()
+    locationWatch = null
+    tracking.value = false
+    location.value = null
+    locationPermissionDenied.value = false
+    clearTimeout(arrivalTimer)
+    clearTimeout(locationTimer)
+    approachUsable.value = false
+    candidateKey = ''
+    candidateStartedAt = 0
+    arrivalCandidates.value = []
+  }
+
+  /** 候选筛选：与确认、解除共用同一范围与同一策略 */
+  function collectCandidates(now: number) {
+    return nearbyTourStops(
+      stops.value,
+      catalog.value?.places ?? [],
+      location.value,
+      Math.max(-1, indexOfStop(stops.value, visit.value?.currentStageId)),
+      now,
+      TOUR_ARRIVAL_POLICY,
+      visit.value?.completedStageIds ?? [],
+    ).filter(candidate => !sequenceItemOf(candidate.stop.id))
+  }
+
+  function candidateSignature(candidates: TourStopCandidate[]) {
+    return candidates.map(candidate => candidate.index).join(',')
+  }
+
+  function dismissArrival() {
+    if (!arrivalCandidates.value.length) return
+    for (const candidate of arrivalCandidates.value) {
+      const state = autoOpenState.get(candidate.stop.id)
+      if (state) state.dismissedAt = Date.now()
+      else autoOpenState.set(candidate.stop.id, {
+        stopId: candidate.stop.id,
+        placeId: candidate.stop.placeId ?? '',
+        openedAt: 0,
+        dismissedAt: Date.now(),
+        lastRangeVersion: 0,
+      })
+    }
+    arrivalCandidates.value = []
+  }
+
+  /** 用户确认"进入该站"：按同一算法复算，已解除接近或定位失效时不再切站 */
+  async function acceptArrival(index: number) {
+    if (busy.value || visit.value?.status !== 1) return
+    const candidate = arrivalCandidates.value.find(item => item.index === index)
+    if (!candidate) return
+    const evaluated = evaluateTourStop(candidate.stop, candidate.place, location.value, Date.now(), TOUR_ARRIVAL_POLICY)
+    if (!evaluated || !evaluated.approaching) { dismissArrival(); return }
+    dismissArrival()
+    const item = enqueuePlaybackStop(index, 'arrival-confirmed')
+    if (item && speech.status.value === 'idle') await startNextPlaybackSequence(true)
+  }
+
   /** 播放全局序列中下一个尚未开始的景点；当前景点播放期间只追加，不打断。 */
   async function startNextPlaybackSequence(force = false) {
-    if (busy.value || visit.value?.status !== 1 || speech.status.value !== 'idle' || (!force && (!autoPlayEnabled.value || playbackSuppressed.value || browsing.value))) return
+    if (busy.value || visit.value?.status !== 1 || speech.status.value !== 'idle' || (!force && (!autoPlayEnabled.value || approachSuppressed.value || browsing.value))) return
     const next = playbackSequence.value.find(item => item.status === 'queued')
     if (!next) return
-    await enterStop(next.index, 'automatic', next.stopId)
+    await enterStop(next.index, 'arrival', next.stopId)
   }
 
   async function playQueuedStop(stopId: string) {
@@ -791,14 +968,46 @@ export function useTourJourney() {
     if (speech.status.value === 'idle') void startNextPlaybackSequence()
   }
 
-  function stopTracking() {
-    locationWatch?.stop()
-    locationWatch = null
-    tracking.value = false
-    location.value = null
-    locationPermissionDenied.value = false
+  function sortApproachCandidates(candidates: TourStopCandidate[]) {
+    return [...candidates].sort((left, right) =>
+      ((left.distanceMeters ?? Number.POSITIVE_INFINITY) - (right.distanceMeters ?? Number.POSITIVE_INFINITY))
+      || (left.stop.order - right.stop.order)
+      || (left.index - right.index))
   }
 
+  /**
+   * 接近触发（方案 §7.1 + §4.5）：
+   * - 每个游览序列内一个景点只入队一次；
+   * - 多个候选按距离由近到远追加到全局序列；
+   * - 当前景点播放期间只追加，不打断当前播放。
+   */
+  function handleApproach(candidates: TourStopCandidate[]) {
+    if (!candidates.length) return
+    const ending = visit.value?.status !== 1
+    const suppressed = approachSuppressed.value || drawerRecentlyInteracted()
+    if (ending || suppressed || busy.value) return
+    const ordered = sortApproachCandidates(candidates)
+    for (const candidate of ordered) {
+      if (currentIndex.value === candidate.index && speech.status.value !== 'idle') continue
+      if (autoOpenState.get(candidate.stop.id)?.dismissedAt) continue
+      const item = enqueuePlaybackStop(candidate.index, 'nearby-auto')
+      if (!item) continue
+      const rangeVersion = candidate.place?.range?.rangeVersion ?? null
+      if (autoPlayEnabled.value && !contentAutoSwitchLocked.value && speech.status.value === 'idle' && !hasAutoOpened(candidate.stop.id)) {
+        openContentDrawer(candidate.index, 'arrival')
+        markStopAutoOpened(candidate.stop.id, candidate.stop.placeId ?? '', rangeVersion)
+      }
+    }
+    if (speech.status.value === 'idle') void startNextPlaybackSequence()
+  }
+
+  /**
+   * 开始近站定位。
+   *
+   * 取数策略交给 watchLocation：首帧不强制高精度，避免 Android Chromium 在室内
+   * 让 `enableHighAccuracy: true` 静默挂起（实测 12 秒 0 回调），拿到可用定位后再
+   * 机会性接受高精度改善。这里只负责把每次定位换算成接近判定需要的时间戳与质量。
+   */
   function startTracking() {
     if (tracking.value) return
     if (!navigator.geolocation) { locationError.value = true; return }
@@ -806,22 +1015,90 @@ export function useTourJourney() {
     locationError.value = false
     locationPermissionDenied.value = false
     locationWatch = watchLocation({
-      onFix: (fix: LocationFix) => {
-        location.value = fix
-        locationError.value = false
-        locationPermissionDenied.value = false
-      },
-      onError: (error: LocationWatchError) => {
-        if (error.code === 'denied') stopTracking()
-        locationPermissionDenied.value = error.code === 'denied'
-        locationError.value = true
-      },
+      onFix: fix => handleLocationFix(fix),
+      onError: handleLocationError,
     })
   }
 
-  function setPlaybackSuppressed(value: boolean) {
-    playbackSuppressed.value = value
+  function handleLocationFix(fix: LocationFix) {
+    location.value = fix
+    locationError.value = false
+    locationPermissionDenied.value = false
+    const now = Date.now()
+    // 定位质量校验复用共享实现；位置过期由下面的定时器把状态改回"未知"
+    approachUsable.value = isUsableLocation(location.value, TOUR_ARRIVAL_POLICY, now)
+    clearTimeout(locationTimer)
+    locationTimer = setTimeout(() => {
+      if (!alive) return
+      approachUsable.value = false
+      candidateKey = ''
+      candidateStartedAt = 0
+      clearTimeout(arrivalTimer)
+    }, TOUR_ARRIVAL_POLICY.maxAgeMs)
+    // 离开退出阈值的景点清掉自动记录：再次进入时允许重新自动打开/自动播放
+    pruneAutoOpenState(now)
+    // 离开提示取消：与候选筛选、确认走同一范围与阈值
+    if (arrivalCandidates.value.length) {
+      const stillNear = arrivalCandidates.value.filter(candidate => {
+        const evaluated = evaluateTourStop(candidate.stop, candidate.place, location.value, now, TOUR_ARRIVAL_POLICY)
+        // 判定不了（定位质量不足）时保留卡片，用户仍可手动选择
+        return evaluated ? !evaluated.releasing : true
+      })
+      if (stillNear.length) arrivalCandidates.value = stillNear
+      else arrivalCandidates.value = []
+    }
+    const candidates = collectCandidates(now)
+    const key = candidateSignature(candidates)
+    if (key === candidateKey) {
+      // 候选没变时也要评估自动开始：音频播完后停在范围内，等下一次定位事件即自动开始
+      if (candidates.length && hasStableApproach(candidateStartedAt, now, TOUR_ARRIVAL_POLICY.dwellMs)) handleApproach(candidates)
+      return
+    }
+    clearTimeout(arrivalTimer)
+    candidateKey = key
+    candidateStartedAt = candidates.length ? now : 0
+    if (!candidates.length) return
+    // 稳定停留一小段时间再触发，减少定位漂移造成的反复提示
+    arrivalTimer = setTimeout(() => {
+      if (!alive || visit.value?.status !== 1) return
+      const fresh = collectCandidates(Date.now())
+      if (candidateSignature(fresh) !== key) return
+      arrivalCandidates.value = fresh
+      handleApproach(fresh)
+    }, TOUR_ARRIVAL_POLICY.dwellMs)
+  }
+
+  /**
+   * 权限被拒时无法靠重试恢复，停止定位让用户去改设置；
+   * 其余情况（暂时拿不到定位、单次请求超时）保持 tracking，界面显示"正在等待更准确的定位"。
+   */
+  function handleLocationError(error: LocationWatchError) {
+    if (error.code === 'denied') {
+      // 先停掉监听再置状态，避免停止动作本身把权限提示清掉
+      stopTracking()
+      locationPermissionDenied.value = true
+      locationError.value = true
+      return
+    }
+    approachUsable.value = false
+  }
+
+  /** 页面层设置抑制（问一问浮层打开、语音识别中、页面后台） */
+  function setApproachSuppressed(value: boolean) {
+    approachSuppressed.value = value
     if (!value) void startNextPlaybackSequence()
+    if (!value && candidateKey && hasStableApproach(candidateStartedAt, Date.now(), TOUR_ARRIVAL_POLICY.dwellMs)) {
+      handleApproach(collectCandidates(Date.now()))
+    }
+  }
+
+  /** 抽屉内交互（滚动、点选）：短时间内不再自动切换抽屉内容（方案 §7.5） */
+  const drawerInteractionAt = shallowRef(0)
+  function markDrawerInteraction() {
+    drawerInteractionAt.value = Date.now()
+  }
+  function drawerRecentlyInteracted() {
+    return drawerOpen.value && Date.now() - drawerInteractionAt.value < 6000
   }
 
   async function end() {
@@ -837,6 +1114,7 @@ export function useTourJourney() {
       clearStoredPlaybackSequence()
       resetPlaybackSequence()
       stopTracking()
+      resetAutoOpenState()
       clearCheckpoint()
       writeStoredActiveRoute(null)
       active.value = null
@@ -873,6 +1151,9 @@ export function useTourJourney() {
     contentAutoSwitchLocked,
     stops,
     currentStop,
+    arrivalStop,
+    arrivalCandidates,
+    approachUnknown,
     narrations,
     narration,
     pending: busy,
@@ -909,6 +1190,8 @@ export function useTourJourney() {
     selectGuide,
     startTracking,
     stopTracking,
+    acceptArrival,
+    dismissArrival,
     playQueuedStop,
     skipQueuedStop,
     end,
@@ -924,7 +1207,9 @@ export function useTourJourney() {
     closeContentDrawer,
     toggleContentDrawer,
     journeyRestored,
-    setPlaybackSuppressed,
+    autoAdvanceMode,
+    setApproachSuppressed,
+    markDrawerInteraction,
     beginAskInterrupt,
     endAskInterrupt,
     handleVisibilityHidden,

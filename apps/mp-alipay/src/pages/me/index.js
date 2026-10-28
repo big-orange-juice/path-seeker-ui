@@ -22,6 +22,7 @@ Page({
   },
   login() { my.navigateTo({ url: '/pages/auth/index' }); },
   records() { my.navigateTo({ url: '/pages/records/index' }); },
+  postcards() { my.navigateTo({ url: '/pages/postcards/index' }); },
   privacy() { my.navigateTo({ url: '/pages/privacy/index' }); },
   tour() { my.reLaunch({ url: '/pages/tour/index' }); },
   edit() { this.setData({ editing: !this.data.editing }); },

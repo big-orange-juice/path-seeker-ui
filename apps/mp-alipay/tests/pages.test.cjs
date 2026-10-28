@@ -104,10 +104,28 @@ test('language selection picks the published sibling route and resumes foregroun
   h.requests[2].ok(null); await change;
   assert.equal(p.data.routes.length, 1); assert.equal(p.data.route.id, 'en-route'); assert.equal(p.data.messages.play, 'Play narration'); assert.equal(watchers, 1);
 });
-test('sequential playback preserves long stage IDs while map location is enabled', async () => {
+test('nearby stops queue by distance without interrupting playback and deduplicate repeated fixes', () => {
+  const h = harness(), p = tourPage(h, visit()); p.setData({ stops: [stop(), stop('near', 2), stop('far', 3)], autoplay: true }); p.play();
+  const candidates = [{ id: 'far', name: '远处', index: 2, order: 3, distance: 20 }, { id: 'near', name: '附近', index: 1, order: 2, distance: 5 }];
+  p.enqueueCandidates(candidates); p.enqueueCandidates(candidates);
+  assert.deepEqual(plain(p.data.sequence.map(i => i.id)), ['near', 'far']); assert.equal(p.data.queuedCount, 2); assert.equal(h.requests.length, 0); assert.equal(h.audioContexts.length, 1);
+});
+
+test('nearby autoplay yields to room listening and host recording', () => {
+  for (const state of [{ room: { isHost: false, status: 'live' }, paused: false, disconnected: false }, { speaking: true }]) {
+    const h = harness(), p = tourPage(h, visit());
+    h.load('services/translation-session').snapshot = () => state;
+    p.setData({ stops: [stop(), stop('next', 2)], autoplay: true, browsing: true });
+    p.enqueueCandidates([{ id: 'next', index: 1, order: 2, distance: 4 }]);
+    assert.equal(p.data.queuedCount, 1);
+    assert.equal(h.requests.length, 0);
+    assert.equal(p.roomAudioActive(), true);
+  }
+});
+test('queued nearby stop starts after current narration completes and preserves long stage ID', async () => {
   const h = harness(), p = tourPage(h, visit()), nextId = '9223372036854775802';
   p.setData({ stops: [stop(), stop(nextId, 2)], autoplay: true, locationEnabled: true });
-  p.play(); h.audioContexts[0].emit('Ended');
+  p.enqueueCandidates([{ id: nextId, index: 1, order: 2, distance: 5 }]); p.play(); h.audioContexts[0].emit('Ended');
   h.requests[0].ok(visit({ completedStageIds: [stageId] })); await tick();
   assert.equal(h.requests[1].options.data.action, 'start'); assert.equal(h.requests[1].options.data.stageId, nextId);
   h.requests[1].ok(visit({ currentStageId: nextId, completedStageIds: [stageId] })); await tick();
@@ -116,7 +134,7 @@ test('sequential playback preserves long stage IDs while map location is enabled
 test('manual browsing and content lock block automatic queued playback while explicit play is available', async () => {
   const h = harness(), p = tourPage(h, visit()); p.setData({ stops: [stop(), stop('next', 2)], autoplay: true });
   p._manualBrowse = true; p.showStop(0, true);
-  p.sequenceStatus('next', 'queued', 1); assert.equal(h.requests.length, 0);
+  p.enqueueCandidates([{ id: 'next', index: 1, order: 2, distance: 3 }]); assert.equal(h.requests.length, 0);
   p._manualBrowse = false; p.setData({ lockContent: true }); p.startNextSequence(); assert.equal(h.requests.length, 0);
   p.playQueued({ currentTarget: { dataset: { id: 'next' } } }); assert.equal(h.requests[0].options.data.stageId, 'next');
   h.requests[0].ok(visit({ currentStageId: 'next' })); await tick(); assert.equal(p.data.browsing, false);
@@ -157,32 +175,31 @@ test('chat ignores an old initialization response after hiding and reopening', a
   assert.equal(p.data.sessions[0].id, 'current'); assert.equal(p.data.loading, false); assert.equal(h.requests.length, 2);
 });
 
-test('map location updates never queue, switch stops or open nearby narration', () => {
-  const h = harness(), p = tourPage(h, visit()); let fix, stopped = 0;
-  h.load('services/location').watch = callback => { fix = callback; return () => { stopped++; }; };
-  p.setData({ stops: [stop(), stop('next', 2)], autoplay: true, contentOpen: false });
-  p.toggleFollow();
-  assert.equal(p.data.locationEnabled, true);
-  assert.equal(p.data.following, true);
-  const position = { longitude: 116.383, latitude: 39.937, accuracy: 10, gcj: { longitude: 116.39, latitude: 39.94 } };
-  fix(position); fix(position);
-  assert.equal(p.data.map.longitude, 116.39);
-  assert.equal(p.data.sequence.length, 0);
-  assert.equal(p.data.stop.id, stageId);
-  assert.equal(p.data.contentOpen, false);
-  assert.equal(h.requests.length, 0);
-  assert.equal(h.audioContexts.length, 0);
-  p.toggleFollow();
-  assert.equal(p.data.locationEnabled, false);
-  assert.equal(p.data.following, false);
-  assert.equal(stopped, 1);
+test('GPS stability adds nearby stops while manual browsing keeps current content', () => {
+  const h = harness(), p = tourPage(h, visit()); let fix;
+  h.load('services/location').watch = callback => { fix = callback; return () => {}; };
+  const candidate = { id: 'next', index: 1, order: 2, distance: 4 };
+  h.load('core/tour').candidates = () => [candidate];
+  p.setData({ stops: [stop(), stop('next', 2)], locationEnabled: true, autoplay: true });
+  p._manualBrowse = true; p.showStop(0, true); p.watchLocation();
+  fix({ accuracy: 10 }); assert.equal(p.data.sequence.length, 0);
+  p._dwell.at = Date.now() - 2000; fix({ accuracy: 10 });
+  assert.equal(p.data.sequence[0].id, 'next'); assert.equal(h.requests.length, 0); assert.equal(p.data.stop.id, stageId); assert.equal(p.data.candidates[0].id, 'next');
+  p.dismissCandidates(); fix({ accuracy: 10 }); assert.equal(p.data.candidates.length, 0);
 });
 
-test('restoring a visit discards pending stops from the former nearby queue', () => {
-  const h = harness(), p = tourPage(h, visit()), storage = h.load('services/storage');
-  p.setData({ stops: [stop(), stop('next', 2), stop('past', 3)] });
-  storage.write(storage.scoped(userId, 'sequence'), { routeId, visitId, items: [{ id: 'next', status: 'queued' }, { id: 'past', status: 'completed' }] });
-  p.restoreSequence();
-  assert.deepEqual(plain(p.data.sequence.map(item => [item.id, item.status])), [['past', 'completed'], [stageId, 'playing']]);
-  assert.equal(p.nextSequenceIndex(), -1);
+test('nearby prompt can explicitly enter a candidate and starts that stop', async () => {
+  const h = harness(), p = tourPage(h, visit());
+  p.setData({ stops: [stop(), stop('next', 2)], candidates: [{ id: 'next', index: 1, name: '下一站', distance: 5, distanceLabel: '5 米', approaching: true }] });
+  p.enterCandidate({ currentTarget: { dataset: { id: 'next' } } });
+  assert.equal(h.requests[0].options.data.stageId, 'next');
+  h.requests[0].ok(visit({ currentStageId: 'next' })); await tick();
+  assert.equal(p.data.browsing, false); assert.equal(p.data.stop.id, 'next');
+});
+
+test('skipped queued stop is not added again by repeated nearby fixes', () => {
+  const h = harness(), p = tourPage(h, visit()); p.setData({ stops: [stop(), stop('next', 2)] });
+  const candidate = { id: 'next', index: 1, order: 2, distance: 4 };
+  p.enqueueCandidates([candidate]); p.skipQueued({ currentTarget: { dataset: { id: 'next' } } }); p.enqueueCandidates([candidate]);
+  assert.equal(p.data.sequence.length, 1); assert.equal(p.data.sequence[0].status, 'skipped'); assert.equal(p.nextSequenceIndex(), -1);
 });

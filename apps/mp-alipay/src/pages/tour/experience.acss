@@ -1,6 +1,6 @@
 page { height: 100%; overflow: hidden; }
 .tour-page { position: relative; height: 100vh; min-height: 100vh; overflow: hidden; background: #f8faf9; color: #2b4039; }
-.stage-language { min-height: 100vh; background: #171710; }
+.stage-language { min-height: 100vh; background: #f5f8f1; }
 .tour-map { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 .tour-map.map-obscured { visibility: hidden; pointer-events: none; }
 .language-gate { position: absolute; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32rpx 42rpx; background: #171710; color: #fff8e8; }
@@ -10,7 +10,7 @@ page { height: 100%; overflow: hidden; }
 .language-title { font-size: 44rpx; line-height: 1.35; margin-bottom: 30rpx; }
 .language-options { width: 100%; max-width: 600rpx; }
 .language-option { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 20rpx; padding: 22rpx 32rpx; border: 1rpx solid #d6b77366; border-radius: 20rpx; background: #d6b7730d; font-size: 32rpx; color: #fff8e8; }
-.language-arrow, .language-status { color: #d6b773; }
+.language-arrow, .language-status { color: #246859; }
 .language-status { margin-top: 20rpx; }
 .tour-header { position: absolute; left: 0; right: 0; top: 0; z-index: 8; min-height: 100rpx; display: flex; align-items: center; gap: 16rpx; padding: 18rpx 28rpx; background: #f8faf9; border-bottom: 1rpx solid #d4e0d9; }
 .area-name { font: 600 32rpx 'Songti SC', 'STSong', serif; letter-spacing: 3rpx; }
@@ -27,10 +27,6 @@ page { height: 100%; overflow: hidden; }
 .start-icon { font-size: 42rpx; }
 .start-hint { margin-top: 14rpx; max-width: 90%; padding: 10rpx 22rpx; border-radius: 30rpx; background: #f8faf9f5; color: #183e43; font-size: 21rpx; text-align: center; }
 .route-deck { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; padding: 40rpx 0 30rpx; background: linear-gradient(#f8faf900, #f8faf9db 22%, #f8faf9); }
-.tour-translation-entry{position:absolute;left:34rpx;bottom:calc(52rpx + env(safe-area-inset-bottom));z-index:5;display:flex;align-items:center;justify-content:center;gap:20rpx;min-width:284rpx;min-height:112rpx;margin:0;padding:26rpx 38rpx;border:1px solid #d4e0d9;border-radius:34rpx;background:#183e43;color:#fff;box-shadow:0 14rpx 44rpx #183e4338;font-size:32rpx;font-weight:600}
-.translation-headphones-icon{position:relative;box-sizing:border-box;width:40rpx;height:38rpx;border:4rpx solid currentColor;border-bottom:0;border-radius:24rpx 24rpx 0 0}
-.translation-headphones-icon::before,.translation-headphones-icon::after{position:absolute;bottom:-2rpx;width:8rpx;height:20rpx;border-radius:4rpx;background:currentColor;content:''}
-.translation-headphones-icon::before{left:-4rpx}.translation-headphones-icon::after{right:-4rpx}
 .route-list { width: 100%; }
 .route-row { display: flex; gap: 20rpx; padding: 8rpx 56rpx 18rpx; }
 .route-card { flex: 0 0 540rpx; width: 540rpx; min-height: 310rpx; padding: 26rpx; border: 1rpx solid #ceddd3; background: #fffffff5; border-radius: 26rpx; text-align: left; white-space: normal; opacity: .78; }
@@ -59,8 +55,7 @@ page { height: 100%; overflow: hidden; }
 .nav-icon:before { content: ''; position: absolute; left: 7rpx; top: 2rpx; border-left: 11rpx solid transparent; border-right: 11rpx solid transparent; border-bottom: 30rpx solid currentColor; transform: rotate(32deg); }.nav-icon view { position: absolute; left: 15rpx; top: 13rpx; width: 5rpx; height: 5rpx; border-radius: 50%; background: #f8faf9; z-index: 1; }
 .chat-icon { border: 3rpx solid currentColor; border-radius: 50%; }.chat-icon:after { content: ''; position: absolute; right: -3rpx; bottom: -8rpx; width: 11rpx; height: 11rpx; border-left: 3rpx solid currentColor; transform: skew(-22deg); }
 .tool-ask { height: 64rpx !important; }
-.content-sidebar, .queue-sidebar { position: absolute; top: 114rpx; right: 18rpx; bottom: 24rpx; z-index: 7; display: flex; flex-direction: column; width: 72%; max-width: 800rpx; border: 1rpx solid #d4e0d9; border-radius: 22rpx; box-shadow: 0 8rpx 40rpx #183e4326; background: #f8faf9f5; overflow: hidden; }
-.queue-sidebar { bottom: 280rpx; z-index: 9; }
+.content-sidebar { position: absolute; top: 114rpx; right: 18rpx; bottom: calc(500rpx + env(safe-area-inset-bottom)); z-index: 7; display: flex; flex-direction: column; width: 72%; max-width: 800rpx; border: 1rpx solid #d4e0d9; border-radius: 22rpx; box-shadow: 0 8rpx 40rpx #183e4326; background: #f8faf9f5; overflow: hidden; }
 .drawer-header { display: flex; align-items: center; gap: 12rpx; padding: 18rpx 22rpx; border-bottom: 1rpx solid #d4e0d9; }
 .drawer-heading { font-size: 32rpx; font-weight: 600; }
 .drawer-scroll { flex: 1; height: 0; }
@@ -82,23 +77,49 @@ page { height: 100%; overflow: hidden; }
 .story-controls .seek-controls button { flex: 1; }
 .story-controls picker { width: 100%; }
 .story-controls .field { padding: 16rpx 18rpx; border: 1rpx solid #d4e0d9; border-radius: 12rpx; background: #fff; color: #183e43; font-size: 22rpx; }
+.arrival-note { margin-top: 16rpx; color: #587466; font-size: 21rpx; line-height: 1.6; }
 .extra-audio { margin-top: 24rpx; padding: 16rpx; border: 1rpx solid #d4e0d9; border-radius: 14rpx; background: #f6faf7; }
 .story-body .actions button { font-size: 23rpx; padding: 16rpx 18rpx; }
 .chapter { margin-top: 24rpx; border-top: 1rpx solid #d4e0d9; }
 .extra-row, .sequence-row { padding: 20rpx 0; border-top: 1rpx solid #d4e0d9; }
 .settings-row { display: flex; align-items: center; gap: 12rpx; padding: 18rpx 0; }
-.playback-dock { position: absolute; left: 18rpx; right: 18rpx; bottom: 24rpx; z-index: 5; padding: 16rpx; border: 1rpx solid #d4e0d9; border-radius: 24rpx; background: #f8faf9f5; box-shadow: 0 8rpx 32rpx #183e4320; }
-.dock-controls { display: flex; gap: 10rpx; }
-.dock-controls button { flex: 1; padding: 18rpx 8rpx; font-size: 22rpx; }
-.dock-controls .primary { flex: 2; }
-.dock-summary { padding-top: 14rpx; }
-.dock-title { font-weight: 600; font-size: 28rpx; }
-.dock-summary .muted { font-size: 20rpx; }
-.voice-button { position: absolute; right: 30rpx; bottom: 320rpx; z-index: 6; display: flex; align-items: center; justify-content: center; width: 84rpx; height: 84rpx; border-radius: 50%; background: #183e43; color: #fff; box-shadow: 0 6rpx 26rpx #183e4333; }
+.voice-button { position: absolute; right: 30rpx; bottom: calc(520rpx + env(safe-area-inset-bottom)); z-index: 6; display: flex; align-items: center; justify-content: center; width: 84rpx; height: 84rpx; border-radius: 50%; background: #183e43; color: #fff; box-shadow: 0 6rpx 26rpx #183e4333; }
 .voice-mic-icon { position: relative; width: 28rpx; height: 38rpx; }
 .voice-mic-head { position: absolute; left: 7rpx; top: 0; width: 14rpx; height: 24rpx; border: 3rpx solid currentColor; border-radius: 10rpx; }
 .voice-mic-stem { position: absolute; left: 4rpx; bottom: 0; width: 20rpx; height: 14rpx; border: 3rpx solid currentColor; border-top: 0; border-radius: 0 0 12rpx 12rpx; }
 .voice-button.holding { background: #a4483b; }
 .record-note { position: absolute; bottom: 390rpx; right: 24rpx; z-index: 12; padding: 16rpx; border-radius: 14rpx; background: #f8faf9; color: #183e43; }
-@media (max-width: 760px) { .content-sidebar { left: 18rpx; width: auto; max-width: none; } .queue-sidebar { left: 18rpx; width: auto; max-width: none; } }
+.arrival-prompt { position: absolute; right: 20rpx; top: 170rpx; z-index: 11; width: 560rpx; max-width: calc(100vw - 40rpx); max-height: calc(100vh - 700rpx); overflow-y: auto; padding: 22rpx; border: 1rpx solid #d4e0d9; border-radius: 22rpx; background: #f8faf9; box-shadow: 0 12rpx 36rpx #183e4330; }
+.arrival-candidate { display: flex; align-items: center; gap: 16rpx; padding: 18rpx 0; border-top: 1rpx solid #d4e0d9; }
+.arrival-title { color: #183e43; font-weight: 600; line-height: 1.5; }
+@media (max-width: 760px) { .content-sidebar { left: 18rpx; width: auto; max-width: none; } }
 @media (max-height: 640px) { .start-area { top: 40%; } .route-card { min-height: 230rpx; } .route-subtitle { display: none; } .route-name { margin: 10rpx 0; font-size: 30rpx; } .route-deck { padding-bottom: 18rpx; } }
+.tour-playback-dock{position:absolute;left:24rpx;right:24rpx;bottom:max(28rpx,env(safe-area-inset-bottom));z-index:8;padding:0 28rpx 12rpx;border:1px solid #d4e0d9;border-radius:44rpx;background:#fcfefd;box-shadow:0 20rpx 70rpx #183e4324;color:#183e43;box-sizing:border-box}
+.dock-location-note{margin:12rpx 0 0;color:#75897d;font-size:21rpx;line-height:1.6}
+@media(max-height:600px){.content-sidebar{bottom:calc(390rpx + env(safe-area-inset-bottom))}.arrival-prompt{max-height:calc(100vh - 550rpx)}}
+.dock-modes{display:flex;align-items:center;justify-content:space-between;gap:16rpx;min-height:88rpx;border-bottom:1px solid #e3ece7}
+.dock-modes button{display:flex;align-items:center;justify-content:flex-start;gap:12rpx;min-height:88rpx;margin:0;padding:8rpx 0;border:0;border-radius:0;background:transparent;color:#183e43;font-size:20rpx;line-height:1.4;text-align:left}
+.dock-room{font-weight:600}.dock-nearby{max-width:60%;color:#74877e!important}.dock-nearby.is-active{color:#183e43!important}
+.dock-switch{position:relative;flex:0 0 48rpx;height:28rpx;border-radius:20rpx;background:#cedbd3}.dock-switch view{position:absolute;top:6rpx;left:6rpx;width:16rpx;height:16rpx;border-radius:50%;background:#fff}.is-active .dock-switch{background:#367a68}.is-active .dock-switch view{left:26rpx}
+.dock-live-dot{flex:0 0 12rpx;height:12rpx;border-radius:50%;background:#3b9279}
+.dock-headphones-icon{position:relative;box-sizing:border-box;flex:0 0 28rpx;width:28rpx;height:28rpx;border:3rpx solid currentColor;border-bottom:0;border-radius:18rpx 18rpx 0 0}.dock-headphones-icon:before,.dock-headphones-icon:after{position:absolute;bottom:-2rpx;width:6rpx;height:14rpx;border-radius:3rpx;background:currentColor;content:''}.dock-headphones-icon:before{left:-3rpx}.dock-headphones-icon:after{right:-3rpx}
+.dock-main{display:flex;align-items:center;gap:24rpx;padding:24rpx 0 12rpx}.dock-main button{margin:0}
+.dock-play{display:flex;align-items:center;justify-content:center;flex:0 0 96rpx;width:96rpx;height:96rpx;min-height:96rpx;padding:0;border:0;border-radius:32rpx;background:#183e43;color:#fff;box-shadow:0 8rpx 24rpx #183e4320}
+.dock-play-icon{width:0;height:0;margin-left:6rpx;border-top:16rpx solid transparent;border-bottom:16rpx solid transparent;border-left:24rpx solid currentColor}.dock-pause-icon{width:26rpx;height:32rpx;border-left:8rpx solid currentColor;border-right:8rpx solid currentColor;box-sizing:border-box}
+.dock-story{display:block;flex:1;min-width:0;padding:0;border:0;border-radius:0;background:transparent;color:#183e43;text-align:left;line-height:1.4}.dock-caption{color:#71867a;font-size:19rpx}.dock-story-title{overflow:hidden;margin-top:6rpx;font:600 34rpx/1.4 'Songti SC','STSong',serif;text-overflow:ellipsis;white-space:nowrap}.dock-item-title{overflow:hidden;margin-top:4rpx;color:#74877e;font-size:20rpx;text-overflow:ellipsis;white-space:nowrap}
+.dock-queue{display:flex;align-items:center;justify-content:center;gap:10rpx;flex:0 0 94rpx;min-height:84rpx;padding:14rpx;border:0;border-radius:24rpx;background:#edf4ef;color:#183e43;font-size:21rpx}.dock-queue.is-active{background:#183e43;color:#fff}
+.dock-list-icon{display:flex;flex-direction:column;justify-content:space-between;width:30rpx;height:26rpx}.dock-list-icon view{height:3rpx;border-radius:3rpx;background:currentColor}.dock-list-icon view:last-child{width:66%}
+.dock-timeline{display:flex;align-items:center;gap:14rpx;color:#71867a;font-size:19rpx;font-variant-numeric:tabular-nums}.dock-timeline slider{flex:1;min-width:0;margin:12rpx 8rpx}
+.dock-transport{display:flex;align-items:center;gap:8rpx}.dock-transport button{display:flex;align-items:center;justify-content:center;flex:1;gap:8rpx;min-height:84rpx;margin:0;padding:8rpx 2rpx;border:0;border-radius:20rpx;background:transparent;color:#536f62;font-size:21rpx;line-height:1.4}.dock-transport button:first-child,.dock-transport button:last-child{flex:1.5}.dock-transport text{font-size:32rpx}
+.tour-queue-layer{position:absolute;inset:0;z-index:20}.queue-mask{position:absolute;inset:0;background:#183e434d}
+.queue-sidebar{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;max-height:80vh;padding:16rpx 40rpx max(40rpx,env(safe-area-inset-bottom));border:1px solid #d4e0d9;border-bottom:0;border-radius:52rpx 52rpx 0 0;background:#fcfefd;color:#183e43;box-shadow:0 -20rpx 80rpx #183e4324;box-sizing:border-box}
+.queue-grip{align-self:center;flex:0 0 8rpx;width:64rpx;margin-bottom:16rpx;border-radius:8rpx;background:#d4e2da}.queue-header{display:flex;align-items:center;justify-content:space-between;gap:24rpx;flex-shrink:0}.queue-heading{display:flex;align-items:center;gap:24rpx}.queue-heading-icon{display:flex;align-items:center;justify-content:center;width:78rpx;height:78rpx;border-radius:28rpx;background:#e9f2ed;color:#183e43}.queue-title{font:600 40rpx/1.4 'Songti SC','STSong',serif}.queue-caption{margin-top:8rpx;color:#75897d;font-size:22rpx}.queue-close{display:flex;align-items:center;justify-content:center;flex:0 0 84rpx;width:84rpx;height:84rpx;margin:0;padding:0;border:0;border-radius:24rpx;background:#edf3ef;color:#183e43;font-size:42rpx}
+.queue-hint{flex-shrink:0;margin:24rpx 0;color:#75897d;font-size:23rpx;line-height:1.7}.queue-settings{flex-shrink:0;margin-bottom:24rpx;padding:6rpx 24rpx;border:1px solid #e0e9e3;border-radius:32rpx;background:#f3f7f4}.queue-setting{display:flex;align-items:center;gap:20rpx;min-height:88rpx;color:#436354;font-size:24rpx;line-height:1.5}.queue-setting+.queue-setting{border-top:1px solid #e0e9e3}.queue-setting switch{flex-shrink:0;transform:scale(.8);transform-origin:right center}.queue-location-note{flex-shrink:0;margin-bottom:20rpx;color:#75897d;font-size:21rpx;line-height:1.6}
+.queue-scroll{flex:0 1 44vh;min-height:0;height:44vh;max-height:44vh}.queue-item{display:flex;align-items:center;gap:22rpx;min-height:132rpx;padding:20rpx 14rpx;border-top:1px solid #e4ece6;box-sizing:border-box}.queue-item:first-child{border:0}.queue-item.is-playing{padding:20rpx;border-color:transparent;border-radius:32rpx;background:#e9f2ed}.queue-item.is-playing+.queue-item{border-color:transparent}.queue-marker{display:flex;align-items:center;justify-content:center;flex:0 0 60rpx;height:60rpx;border:1px solid #dce6df;border-radius:22rpx;background:#fff;color:#688171;font-size:22rpx}.is-playing .queue-marker{border-color:#183e43;background:#183e43;color:#fff}.queue-item-copy{flex:1;min-width:0}.queue-item-name{overflow:hidden;color:#294b3d;font-size:27rpx;font-weight:600;text-overflow:ellipsis;white-space:nowrap}.queue-item-status{margin-top:8rpx;color:#75897d;font-size:21rpx}.is-playing .queue-item-status{color:#357965}.is-completed,.is-skipped{opacity:.6}
+.queue-item-action{display:flex;align-items:center;justify-content:center;flex:0 0 76rpx;width:76rpx;height:84rpx;margin:0;padding:0;border:0;border-radius:22rpx;background:#eaf2ed;color:#183e43;font-size:40rpx}.queue-item-action .dock-play-icon{border-top-width:11rpx;border-bottom-width:11rpx;border-left-width:17rpx}.queue-item-action.is-muted{background:transparent;color:#8b9b91}.queue-empty{padding:60rpx 32rpx;border:1px dashed #d4e2da;border-radius:32rpx;color:#75897d;font-size:25rpx;line-height:1.8;text-align:center}
+@media(max-height:600px){.dock-main{padding-top:14rpx}.dock-item-title{display:none}.dock-modes,.dock-modes button{min-height:72rpx}.dock-transport button{min-height:64rpx}.voice-button{display:none}.queue-sidebar{max-height:94vh}.queue-hint{margin:12rpx 0}.queue-settings{margin-bottom:12rpx}.queue-setting{min-height:72rpx}}
+.language-gate { background: #f5f8f1; color: #243d37; }
+.language-gate .eyebrow, .language-arrow { color: #246859; }
+.language-option { background: #fffef8; border-color: #cedbd0; color: #243d37; border-radius: 16rpx; }
+.sequence-video { position: absolute; top: 20%; left: 20rpx; right: 20rpx; z-index: 70; padding: 24rpx; background: #fffef8; border: 1rpx solid #cedbd0; border-radius: 20rpx; box-shadow: 0 20rpx 60rpx #183e4344; }
+.sequence-video video { width: 100%; height: 420rpx; }

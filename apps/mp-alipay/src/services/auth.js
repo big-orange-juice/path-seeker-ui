@@ -41,10 +41,10 @@ function login(data, register = false) {
     return save(result);
   });
 }
-function loginAlipay() {
+function loginAlipay(options = {}) {
   return authenticate(async captured => {
     const guestAccessToken = session && session.isGuest ? session.accessToken : null;
-    const requirePhoneNumber = authOptions.requirePhoneNumber !== false;
+    const requirePhoneNumber = options.requirePhoneNumber === true || authOptions.requirePhoneNumber !== false;
     let phoneResponse;
     if (requirePhoneNumber) {
       if (!my.getPhoneNumber) throw Error('当前支付宝版本不支持手机号授权，请更新客户端');

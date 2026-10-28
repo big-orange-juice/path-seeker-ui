@@ -16,8 +16,48 @@ await build({
   bundle: true, platform: 'node', format: 'esm', outdir: temporary, outExtension: { '.js': '.mjs' },
   external: ['vue'], alias: { '@': resolve(project, 'src'), '@path-seeker/ts-shared': resolve(project, '../../packages/ts-shared/src/index.ts') },
 })
-const { useTourSpeech } = await import(pathToFileURL(resolve(temporary, 'speech.mjs')).href)
+const { useTourSpeech, buildTourQueue } = await import(pathToFileURL(resolve(temporary, 'speech.mjs')).href)
 const { nearbyTourStops } = await import(pathToFileURL(resolve(temporary, 'progression.mjs')).href)
+
+test('分段讲解按顺序插入音乐和视频，跳过额外媒体时只保留讲解', () => {
+  const chapters = [
+    { id: 'first', order: 1, text: '第一段', interludes: [{ id: 'video', kind: 'video', title: '历史影像', url: '/film.mp4', order: 2 }, { id: 'music', kind: 'audio', title: '音乐', url: '/music.mp3', order: 1 }] },
+    { id: 'second', order: 2, text: '第二段' },
+  ]
+  assert.deepEqual(buildTourQueue([], chapters).map((item: { id: string }) => item.id), ['first', 'music', 'video', 'second'])
+  assert.deepEqual(buildTourQueue([], chapters, { skipExtraAudio: true }).map((item: { id: string }) => item.id), ['first', 'second'])
+})
+
+test('视频暂停、续播后继续下一段，切站后旧视频事件不可推进新队列', () => {
+  const created: Media[] = []
+  class Media {
+    src = ''; currentTime = 0; duration = 30; readyState = 1; ended = false
+    onplaying: (() => void) | null = null; onplay: (() => void) | null = null; onpause: (() => void) | null = null; onended: (() => void) | null = null
+    constructor(src = '') { this.src = src; created.push(this) }
+    play() { this.onplay?.(); this.onplaying?.(); return Promise.resolve() }
+    pause() { this.onpause?.() }
+    load() {}; remove() {}; removeAttribute() {}; addEventListener() {}
+  }
+  const previous = { Audio: globalThis.Audio, window: globalThis.window, document: globalThis.document }
+  Object.assign(globalThis, { Audio: Media, window: { speechSynthesis: undefined }, document: { createElement: () => new Media(), getElementById: () => ({ appendChild() {} }) } })
+  const renderer = createRenderer({ createElement: () => ({}), insert() {}, remove() {}, createText: () => ({}), createComment: () => ({}), setText() {}, setElementText() {}, parentNode: () => null, nextSibling: () => null, patchProp() {} })
+  let completed = 0, speech: ReturnType<typeof useTourSpeech>
+  const app = renderer.createApp({ setup() { speech = useTourSpeech(() => completed++); return () => null } }); app.mount({})
+  const chapters = [{ id: 'one', order: 1, audioUrl: '/one.mp3', interludes: [{ id: 'film', kind: 'video', url: '/film.mp4', order: 1 }] }, { id: 'two', order: 2, audioUrl: '/two.mp3' }]
+  try {
+    speech!.play({ id: 'first', extraAudios: [] }, chapters, 'zh')
+    created[0]!.onended?.()
+    assert.equal(created[1]!.src, '/film.mp4'); assert.equal(completed, 0)
+    created[1]!.pause(); assert.equal(speech!.status.value, 'paused')
+    speech!.resume(); assert.equal(speech!.status.value, 'playing')
+    const oldEnded = created[1]!.onended
+    created[1]!.ended = true; oldEnded?.()
+    assert.equal(created[2]!.src, '/two.mp3'); assert.equal(completed, 0)
+    created[2]!.onended?.(); assert.equal(completed, 1)
+    speech!.play({ id: 'next', extraAudios: [] }, [{ id: 'next-chapter', audioUrl: '/next.mp3' }], 'zh')
+    oldEnded?.(); assert.equal(speech!.currentItemId.value, 'next-chapter'); assert.equal(completed, 1)
+  } finally { app.unmount(); Object.assign(globalThis, previous) }
+})
 
 test('跳到后站后仍可发现前面未完成节点，后续节点排序优先，当前节点与已完成节点排除', () => {
   const stops = Array.from({ length: 4 }, (_, index) => ({ id: `stage-${index}`, placeId: `place-${index}`, order: index + 1, longitude: 0, latitude: 0 }))

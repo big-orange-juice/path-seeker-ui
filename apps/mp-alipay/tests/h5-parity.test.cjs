@@ -111,6 +111,31 @@ test('map follows GCJ coordinates, ignores weak fixes and retains range outlines
   page.toggleRoute(); assert.deepEqual(plain(page.data.map.polyline), ['boundary']); page.toggleRoute(); assert.deepEqual(plain(page.data.map.polyline), ['boundary', 'route']);
   page.onHide();
 });
+
+test('location marker updates without follow, stays separate from stops and clears on disable or denial', () => {
+  const h = harness(), page = setupTour(h); let deliver, fail, stopped = 0;
+  h.load('services/location').watch = (onFix, onError) => { deliver = onFix; fail = onError; return () => stopped++; };
+  const station = { id: 1, longitude: 116.4, latitude: 39.95 };
+  page.setData({ 'map.markers': [station], following: false });
+  page.toggleLocation({ detail: { value: true } });
+  deliver({ longitude: 116.3, latitude: 39.9, gcj: { longitude: 116.31, latitude: 39.91 }, accuracy: 10 });
+  let marker = page.data.map.markers.find(item => item.id === 0);
+  assert.equal(marker.longitude, 116.31); assert.equal(marker.latitude, 39.91);
+  assert.equal(marker.title, '我的位置'); assert.equal(marker.iconPath, '/assets/location-marker.png');
+  assert.equal(page.data.map.longitude, 116.31); assert.equal(page.data.following, false);
+  deliver({ gcj: { longitude: 116.32, latitude: 39.92 }, accuracy: 10 });
+  marker = page.data.map.markers.find(item => item.id === 0);
+  assert.equal(marker.longitude, 116.32); assert.equal(page.data.map.longitude, 116.31);
+  assert.equal(page.data.map.markers.length, 2);
+  page.marker({ detail: { markerId: 0 } }); assert.equal(h.requests.length, 0);
+  page.overview(); assert.deepEqual(plain(page.data.map.includePoints), [{ longitude: station.longitude, latitude: station.latitude }]);
+  page.toggleLocation({ detail: { value: false } });
+  assert.equal(stopped, 1); assert.deepEqual(plain(page.data.map.markers), [station]);
+  page.toggleLocation({ detail: { value: true } });
+  deliver({ gcj: { longitude: 116.33, latitude: 39.93 }, accuracy: 10 });
+  fail({ denied: true });
+  assert.equal(page.data.locationEnabled, false); assert.deepEqual(plain(page.data.map.markers), [station]);
+});
 test('tour voice tap opens sheet and keeps recording until chat toggles off', async () => {
   const h = harness(), tour = setupTour(h); let navigations = 0; h.my.navigateTo = () => navigations++;
   tour.play(); tour.startRecording();

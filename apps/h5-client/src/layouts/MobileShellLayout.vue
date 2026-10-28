@@ -16,8 +16,8 @@ const hideChromeHeader = computed(() => {
 const showBack = computed(() => {
   const path = route.path
   if (path.startsWith("/shell/ask")) return false
-  // 两个主入口：我的 / 户外（户外为整屏地图，另有自己的返回）
-  if (path === "/shell/me") return false
+  // 我的页从游览顶栏进入，保留返回入口。
+  if (path === "/shell/me") return true
   // 探索中 / 探索记录：从我的进入，需要返回
   if (path === "/shell/playing" || path === "/shell/archive") return true
   return route.meta.showTabBar === false
@@ -27,12 +27,12 @@ const goBack = () => {
     void router.back()
     return
   }
-  void router.replace("/shell/me")
+  void router.replace(route.path === '/shell/me' ? '/ride' : '/shell/me')
 }
 </script>
 
 <template>
-  <div class="client-shell">
+  <div class="client-shell" :class="{ 'client-tour-account': route.path === '/shell/me' }">
     <div class="client-frame client-frame-with-fab">
       <header
         v-if="!hideChromeHeader"
@@ -65,3 +65,9 @@ const goBack = () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+.client-tour-account{color-scheme:light;--void:#f8faf9;--panel:#fffef8;--panel-2:#edf5ef;--fg:#2b4039;--fg-dim:#687b72;--line:#d4e0d9;--gold:#246859;--gold-bright:#183e43;--gold-soft:#edf5ef;--foreground:150 19% 21%;--primary:165 48% 27%;--muted-foreground:145 8% 43%;--border:145 16% 85%;background:var(--void);color:var(--fg)}
+.client-tour-account :deep(.client-panel),.client-tour-account :deep(.client-stat-cell){border:1px solid var(--line);background:var(--panel);box-shadow:none;backdrop-filter:none}
+.client-tour-account :deep(.client-user-pill){border-color:var(--line);background:#edf5ef;color:var(--gold-bright)}
+</style>

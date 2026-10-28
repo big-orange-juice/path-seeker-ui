@@ -4,6 +4,7 @@
     "pages/translation-room/index",
     "pages/chat/index",
     "pages/me/index",
+    "pages/postcards/index",
     "pages/auth/index",
     "pages/records/index",
     "pages/privacy/index"

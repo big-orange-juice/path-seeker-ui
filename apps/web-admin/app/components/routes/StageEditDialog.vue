@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid'
 import GuideSelectDialog from '@/components/guides/GuideSelectDialog.vue'
 import NarrationPronunciationPanel from '@/components/routes/NarrationPronunciationPanel.vue'
 import NarrationSegmentsEditor from '@/components/routes/NarrationSegmentsEditor.vue'
+import NodeExperienceEditor from '@/components/postcards/NodeExperienceEditor.vue'
 import StageExtraAudioEditor from '@/components/routes/StageExtraAudioEditor.vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
@@ -113,6 +114,8 @@ const { uploadAttachment } = useUploadAttachment()
 
 const saving = ref(false)
 const segmentsEditor = useTemplateRef<InstanceType<typeof NarrationSegmentsEditor>>('segmentsEditor')
+const nodeExperienceEditor = useTemplateRef<InstanceType<typeof NodeExperienceEditor>>('nodeExperienceEditor')
+const nodeExperienceBusy = shallowRef(false)
 const segmentsUploading = shallowRef(false)
 /** 额外音频上传中：额外音频即时保存，需单独参与底部「保存」的禁用判断 */
 const extraAudioUploading = shallowRef(false)
@@ -214,7 +217,7 @@ const interactionTypeLabel = computed(
 const headerDescription = computed(() => `${nodeTitle.value} · ${interactionTypeLabel.value}`)
 const selectedGuideLabel = computed(() => form.guideName || (form.guideId ? '已选择导游' : '未选择导游'))
 const canSave = computed(() => Boolean(
-  props.canEdit && isSupported.value && stageId.value && props.routeId && !saving.value && !segmentsUploading.value && !extraAudioUploading.value,
+  props.canEdit && isSupported.value && stageId.value && props.routeId && !saving.value && !segmentsUploading.value && !extraAudioUploading.value && !nodeExperienceBusy.value,
 ))
 /** 解说节点稍宽；整体固定高度避免切换内容时弹窗抖动 */
 const dialogContentClass = computed(() =>
@@ -1683,7 +1686,7 @@ const handleGenerateAudio = async () => {
 }
 
 const closeDialog = () => {
-  if (saving.value || segmentsUploading.value || generatingAudio.value || imageBusy.value || generatingImage.value) return
+  if (saving.value || segmentsUploading.value || nodeExperienceBusy.value || generatingAudio.value || imageBusy.value || generatingImage.value) return
   closeImageLightbox()
   isOpen.value = false
 }
@@ -1700,7 +1703,7 @@ const handleSave = async () => {
   try {
     const saved = isNarration.value ? (await saveNarrationStage(), true) : await saveRegularStage()
     if (!saved) return
-    if (isNarration.value) await segmentsEditor.value?.save()
+    if (isNarration.value) { await segmentsEditor.value?.save(); await nodeExperienceEditor.value?.save() }
     emit('saved')
     isOpen.value = false
   } catch (error) {
@@ -2013,6 +2016,7 @@ const handleSave = async () => {
 
           <!-- type 11：三块清晰分区 — 正文 / 讲解与音频 / 配图 -->
           <template v-else-if="isNarration">
+            <NodeExperienceEditor v-if="stageId && props.routeId" :key="stageId" ref="nodeExperienceEditor" :stage-id="stageId" :can-edit="props.canEdit" :disabled="saving" @busy="nodeExperienceBusy = $event" @changed="emit('preview-refresh')" />
             <NarrationSegmentsEditor
               v-if="narrationDetail"
               :key="stageId"

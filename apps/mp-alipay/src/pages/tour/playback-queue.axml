@@ -1,0 +1,18 @@
+<view a:if="{{queueOpen}}" class="tour-queue-layer">
+  <view class="queue-mask" onTap="closeQueue"/>
+  <view class="queue-sidebar">
+    <view class="queue-grip"/>
+    <view class="queue-header"><view class="queue-heading"><view class="queue-heading-icon"><view class="dock-list-icon"><view/><view/><view/></view></view><view><view class="queue-title">{{messages.queueTitle}}</view><view class="queue-caption">{{queuedCount}} {{messages.queuePending}}</view></view></view><button class="queue-close" onTap="closeQueue" aria-label="{{messages.close}}">×</button></view>
+    <view class="queue-hint">{{messages.queueHint}}</view>
+    <view class="queue-settings">
+      <view class="queue-setting"><text class="grow">{{messages.queueAutoPlay}}</text><switch checked="{{autoplay}}" onChange="changeAutoplay" color="#367a68" disabled="{{busy || loading}}"/></view>
+      <view class="queue-setting"><text class="grow">{{messages.queueUnlockContent}}</text><switch checked="{{!lockContent}}" onChange="changeContentSwitch" color="#367a68" disabled="{{busy || loading}}"/></view>
+      <view class="queue-setting"><text class="grow">{{messages.skipExtraAudio}}</text><switch checked="{{skipExtra}}" onChange="changeExtra" color="#367a68" disabled="{{busy || loading}}"/></view>
+    </view>
+    <view a:if="{{locationEnabled}}" class="queue-location-note">{{locationNote}}</view>
+    <scroll-view class="queue-scroll" scroll-y="true">
+      <view a:if="{{!sequence.length}}" class="queue-empty">{{messages.queueEmpty}}</view>
+      <view a:for="{{sequence}}" a:key="id" class="queue-item is-{{item.status}}"><view class="queue-marker">{{item.status === 'completed' ? '✓' : item.status === 'skipped' ? '−' : item.index + 1}}</view><view class="queue-item-copy"><view class="queue-item-name">{{item.name}}</view><view class="queue-item-status">{{item.status === 'playing' ? messages.queuePlaying : item.status === 'completed' ? messages.queueCompleted : item.status === 'skipped' ? messages.queueSkipped : messages.queueQueued}}</view></view><button a:if="{{item.status === 'queued'}}" class="queue-item-action" data-id="{{item.id}}" onTap="playQueued" disabled="{{busy || loading}}" aria-label="{{messages.queuePlay}}"><view class="dock-play-icon"/></button><button a:if="{{item.status === 'queued'}}" class="queue-item-action is-muted" data-id="{{item.id}}" onTap="skipQueued" disabled="{{busy || loading}}" aria-label="{{messages.queueSkip}}">×</button></view>
+    </scroll-view>
+  </view>
+</view>

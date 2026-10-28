@@ -13,7 +13,7 @@ interface TourLocation {
   timestamp?: number
 }
 
-const props = defineProps<{ catalog: ClientCatalog | null; detail: ClientTourDetail | null; currentStopId: string | null; journey: boolean; location: TourLocation | null; showRoute: boolean }>()
+const props = defineProps<{ catalog: ClientCatalog | null; detail: ClientTourDetail | null; currentStopId: string | null; journey: boolean; location: TourLocation | null; locationLabel: string; showRoute: boolean }>()
 const emit = defineEmits<{ select: [id: string]; error: [] }>()
 const container = useTemplateRef<HTMLDivElement>('container')
 const map = shallowRef<any>(null)
@@ -138,7 +138,7 @@ function focusStop() {
 
 function renderLocation() {
   if (!map.value || !sdk) return
-  if (!props.location) {
+  if (!props.location || !Number.isFinite(props.location.longitude) || !Number.isFinite(props.location.latitude)) {
     if (userMarker) map.value.remove(userMarker)
     userMarker = null
     return
@@ -147,8 +147,17 @@ function renderLocation() {
   if (!userMarker) {
     const content = document.createElement('div')
     content.className = 'tour-map-location'
+    content.setAttribute('role', 'img')
+    content.setAttribute('aria-label', props.locationLabel)
+    const dot = document.createElement('span')
+    dot.className = 'tour-map-location-dot'
+    const label = document.createElement('span')
+    label.className = 'tour-map-location-label'
+    label.textContent = props.locationLabel
+    content.append(dot, label)
     userMarker = new sdk.Marker({ position, content, anchor: 'center', zIndex: 150 })
     map.value.add(userMarker)
+    map.value.setCenter(position)
   } else userMarker.setPosition(position)
   applyFollow()
 }
@@ -207,6 +216,13 @@ onMounted(async () => {
 watch(() => [props.catalog, props.detail, props.showRoute], render)
 watch(() => [props.currentStopId, props.journey], render)
 watch(() => props.location, renderLocation)
+watch(() => props.locationLabel, label => {
+  const content = userMarker?.getContent()
+  if (!(content instanceof HTMLElement)) return
+  content.setAttribute('aria-label', label)
+  const caption = content.querySelector('.tour-map-location-label')
+  if (caption) caption.textContent = label
+})
 // 结束行程后镜头不该还跟着一个已释放的定位
 watch(() => props.journey, value => { if (!value) following.value = false })
 onBeforeUnmount(() => { alive = false; map.value?.destroy(); map.value = null })
@@ -220,5 +236,7 @@ defineExpose({ zoomBy, overview, setFollowing, following })
 .tour-map{position:absolute;inset:0;background:#d9d5c9}
 .tour-map :deep(.tour-map-marker){max-width:180px;border:2px solid #fff;background:#fff;color:#2b4039;border-radius:8px;padding:6px 10px;font-size:12px;box-shadow:0 3px 10px #183e4330;white-space:nowrap}
 .tour-map :deep(.tour-map-marker.active){background:#183e43;color:#fff}
-.tour-map :deep(.tour-map-location){width:18px;height:18px;border:3px solid #fff;background:#287f91;border-radius:50%;box-shadow:0 0 0 7px #287f9133}
+.tour-map :deep(.tour-map-location){position:relative;display:grid;place-items:center;width:36px;height:36px}
+.tour-map :deep(.tour-map-location-dot){box-sizing:border-box;width:20px;height:20px;border:3px solid #fff;background:#287f91;border-radius:50%;box-shadow:0 0 0 7px #287f912b,0 2px 8px #183e4330}
+.tour-map :deep(.tour-map-location-label){position:absolute;top:calc(100% + 4px);left:50%;transform:translateX(-50%);padding:5px 9px;border:1px solid #c9dfe2;border-radius:10px;background:#fcfefd;color:#246879;box-shadow:0 3px 10px #183e431a;font:600 11px/1.5 sans-serif;white-space:nowrap}
 </style>

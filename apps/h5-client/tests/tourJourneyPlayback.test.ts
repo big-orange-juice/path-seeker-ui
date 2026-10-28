@@ -29,6 +29,65 @@ await build({
 })
 const { useTourJourney } = await import(pathToFileURL(resolve(temporary, 'useTourJourney.mjs')).href)
 
+test('近站定位需稳定停留，弱精度不入队，抑制结束后去重恢复且拒绝授权会停止监听', async () => {
+  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  const previousWindow = globalThis.window
+  const previousStorage = globalThis.localStorage
+  const originalNow = Date.now
+  let now = 1800000000000
+  Date.now = () => now
+  const callbacks: Array<{ success: PositionCallback; error: PositionErrorCallback }> = []
+  const cleared: number[] = []
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { geolocation: {
+    watchPosition(success: PositionCallback, error: PositionErrorCallback) { callbacks.push({ success, error }); return callbacks.length },
+    clearWatch(identifier: number) { cleared.push(identifier) },
+  } } })
+  Object.assign(globalThis, { window: { speechSynthesis: undefined }, localStorage: { getItem: () => null, setItem() {}, removeItem() {} } })
+  const renderer = createRenderer({
+    createElement: () => ({}), insert() {}, remove() {}, createText: () => ({}), createComment: () => ({}),
+    setText() {}, setElementText() {}, parentNode: () => null, nextSibling: () => null, patchProp() {},
+  })
+  let journey: any
+  const app = renderer.createApp({ setup() { journey = useTourJourney(); return () => null } })
+  app.mount({})
+  try {
+    const nearbyId = '9223372036854775804'
+    journey.preview.value = { route: { id: 'route', locale: 'zh' }, stops: [
+      { id: 'stage-0', order: 1, name: '起点', longitude: 116, latitude: 39, extraAudios: [], guideNarrations: [] },
+      { id: nearbyId, order: 2, name: '银锭桥', longitude: 116.383, latitude: 39.937, extraAudios: [], guideNarrations: [] },
+    ] }
+    await journey.start()
+    journey.startTracking()
+    const deliver = (accuracy: number) => callbacks[0]!.success({ coords: { longitude: 116.383, latitude: 39.937, accuracy, heading: null }, timestamp: now } as GeolocationPosition)
+    deliver(200)
+    now += 2000
+    deliver(200)
+    assert.equal(journey.playbackSequence.value.length, 0)
+    deliver(5)
+    assert.equal(journey.playbackSequence.value.length, 0)
+    journey.setApproachSuppressed(true)
+    now += 2000
+    deliver(5)
+    assert.equal(journey.playbackSequence.value.length, 0)
+    journey.setApproachSuppressed(false)
+    assert.equal(journey.playbackSequence.value[0].stopId, nearbyId)
+    deliver(5)
+    assert.equal(journey.playbackSequence.value.length, 1)
+    assert.equal(journey.currentStop.value.id, 'stage-0')
+    callbacks[0]!.error({ code: 1 } as GeolocationPositionError)
+    assert.equal(journey.tracking.value, false)
+    assert.equal(journey.locationPermissionDenied.value, true)
+    assert.equal(journey.location.value, null)
+    assert.ok(cleared.includes(1))
+  } finally {
+    app.unmount()
+    Date.now = originalNow
+    if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator)
+    else Reflect.deleteProperty(globalThis, 'navigator')
+    Object.assign(globalThis, { window: previousWindow, localStorage: previousStorage })
+  }
+})
+
 test('进入黄包车导航保持静音，手动切站可播放，播完后不自动推进', async () => {
   const previousAudio = globalThis.Audio
   const previousWindow = globalThis.window
@@ -89,16 +148,10 @@ test('进入黄包车导航保持静音，手动切站可播放，播完后不�
   }
 })
 
-test('地图定位不触发附近讲解、入队或切换内容，手动选站仍可播放', async () => {
+test('队列去重、暂停自动推进、内容锁定与立即播放保持一致', async () => {
   const previousAudio = globalThis.Audio
   const previousWindow = globalThis.window
   const previousStorage = globalThis.localStorage
-  const previousGeolocation = Object.getOwnPropertyDescriptor(navigator, 'geolocation')
-  const locationCallbacks: Array<(position: any) => void> = []
-  Object.defineProperty(navigator, 'geolocation', { configurable: true, value: {
-    watchPosition(callback: (position: any) => void) { locationCallbacks.push(callback); return locationCallbacks.length },
-    clearWatch() {},
-  } })
   const audios: FakeAudio[] = []
   class FakeAudio {
     currentTime = 0
@@ -128,31 +181,47 @@ test('地图定位不触发附近讲解、入队或切换内容，手动选站�
     })) }
     assert.equal(await journey.start(), true)
     await journey.selectStop(0)
-    journey.closeContentDrawer()
-    journey.startTracking()
-    const sequenceBeforeLocation = JSON.stringify(journey.playbackSequence.value)
-    const position = { coords: { longitude: 0.001, latitude: 0, accuracy: 5, heading: 0 }, timestamp: Date.now() }
-    for (const callback of locationCallbacks) callback(position)
-    await new Promise(resolve => setTimeout(resolve, 1700))
-    for (const callback of locationCallbacks) callback({ ...position, timestamp: Date.now() })
-    assert.equal(journey.location.value.longitude, 0.001)
-    assert.equal(journey.currentStop.value.id, 'stage-0')
-    assert.equal(journey.drawerOpen.value, false)
-    assert.equal(JSON.stringify(journey.playbackSequence.value), sequenceBeforeLocation)
-    assert.equal(audios.length, 1)
-    audios[0]!.onended?.()
+    const candidate = {
+      index: 1,
+      stop: journey.stops.value[1],
+      place: null,
+      anchor: { longitude: 0.001, latitude: 0 },
+      range: null,
+      distanceMeters: 0,
+      withinRange: true,
+      proximityMeters: 50,
+      releaseMeters: 80,
+    }
+    journey.location.value = { longitude: 0.001, latitude: 0, accuracy: 5, heading: null, timestamp: Date.now() }
+    journey.arrivalCandidates.value = [candidate]
+    await journey.acceptArrival(1)
+    journey.arrivalCandidates.value = [candidate]
+    await journey.acceptArrival(1)
+    assert.deepEqual(journey.playbackSequence.value.map((item: { stopId: string; status: string }) => [item.stopId, item.status]), [['stage-1', 'queued']])
+    journey.setAutoPlayEnabled(false)
+    journey.setContentAutoSwitchLocked(true)
+    audios[audios.length - 1]!.onended?.()
     await new Promise(resolve => setTimeout(resolve, 0))
-    assert.equal(journey.currentStop.value.id, 'stage-0')
     assert.equal(journey.speech.status.value, 'idle')
-    await journey.selectStop(1)
+    assert.equal(journey.currentStop.value.id, 'stage-0')
+    journey.setAutoPlayEnabled(true)
+    await new Promise(resolve => setTimeout(resolve, 0))
     assert.equal(journey.currentStop.value.id, 'stage-1')
-    assert.equal(journey.speech.status.value, 'playing')
-    journey.stopTracking()
-    assert.equal(journey.location.value, null)
+    assert.equal(journey.drawerStop.value.id, 'stage-0')
+    assert.equal(journey.playbackSequence.value[0].status, 'playing')
+    journey.location.value = { longitude: 0.002, latitude: 0, accuracy: 5, heading: null, timestamp: Date.now() }
+    journey.arrivalCandidates.value = [{ ...candidate, index: 2, stop: journey.stops.value[2] }]
+    await journey.acceptArrival(2)
+    await journey.playQueuedStop('stage-2')
+    assert.equal(journey.currentStop.value.id, 'stage-2')
+    assert.equal(journey.drawerStop.value.id, 'stage-2')
+    assert.deepEqual(journey.playbackSequence.value.map((item: { status: string }) => item.status), ['skipped', 'playing'])
+    journey.setAutoPlayEnabled(false)
+    audios[audios.length - 1]!.onended?.()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    assert.equal(journey.playbackSequence.value[1].status, 'completed')
   } finally {
     app.unmount()
-    if (previousGeolocation) Object.defineProperty(navigator, 'geolocation', previousGeolocation)
-    else Reflect.deleteProperty(navigator, 'geolocation')
     Object.assign(globalThis, { Audio: previousAudio, window: previousWindow, localStorage: previousStorage })
   }
 })

@@ -23,7 +23,8 @@ function harness(initial = session(), authOptions = {}) {
     getStorageSync: ({ key }) => ({ data: storage.get(key) }), setStorageSync: ({ key, data }) => storage.set(key, data), removeStorageSync: ({ key }) => storage.delete(key),
     getSystemInfoSync: () => ({ platform: 'Android', model: 'test' }),
     getPhoneNumber: options => options.success({ response: 'signed-phone-response' }),
-    request(options) { let chunk; const task = { options, aborted: false, abort() { this.aborted = true; }, ok(data, status = 200) { options.success({ data: { code: 0, data }, status }); }, text(data) { options.success({ data, status: 200 }); }, head(status = 200) { options.success({ status }); }, reject(error) { options.fail(error); }, chunk(data) { if (chunk) chunk({ data }); } }; if (my.chunked) task.onChunkReceived = callback => { chunk = callback; }; requests.push(task); return task; },
+    nodeExperiences: [],
+    request(options) { let chunk; const task = { options, aborted: false, abort() { this.aborted = true; }, ok(data, status = 200) { options.success({ data: { code: 0, data }, status }); }, text(data) { options.success({ data, status: 200 }); }, head(status = 200) { options.success({ status }); }, reject(error) { options.fail(error); }, chunk(data) { if (chunk) chunk({ data }); } }; if (my.chunked) task.onChunkReceived = callback => { chunk = callback; }; if (/\/Postcard\/Route\?/.test(options.url) && Array.isArray(my.nodeExperiences)) { task.ok(my.nodeExperiences); return task; } requests.push(task); return task; },
     createInnerAudioContext() {
       const audio = Object.assign(emitter(), { currentTime: 0, duration: 60, stopped: false, destroyed: false, play() { this.emit('Play'); }, pause() { this.emit('Pause'); }, stop() { this.stopped = true; this.emit('Stop'); }, destroy() { this.destroyed = true; }, seek(time) { this.currentTime = time; } });
       audioContexts.push(audio); return audio;
@@ -35,7 +36,7 @@ function harness(initial = session(), authOptions = {}) {
   };
   let definition, componentDefinition;
   const app = { globalData: { chatContext: null, selectedRoute: '' } };
-  const context = vm.createContext({ my, Page: d => { definition = d; }, Component: d => { componentDefinition = d; }, getApp: () => app, console, setTimeout, clearTimeout, setInterval, clearInterval, ArrayBuffer, Uint8Array });
+  const context = vm.createContext({ my, Page: d => { definition = d; }, Component: d => { componentDefinition = d; }, getApp: () => app, getCurrentPages: () => my.pages || [], console, setTimeout, clearTimeout, setInterval, clearInterval, ArrayBuffer, Uint8Array });
   const cache = new Map();
   function load(name) {
     const filename = path.resolve(dist, name.endsWith('.js') ? name : name + '.js');

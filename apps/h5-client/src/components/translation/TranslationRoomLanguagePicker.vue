@@ -25,8 +25,8 @@ const groupName = useId()
 .room-language-picker{min-width:0;margin:0;padding:0;border:0}
 .room-language-picker legend{margin-bottom:10px;padding:0;color:#2b4039;font-size:13px;font-weight:600}
 .room-language-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.room-language-option{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;border:1px solid #d4e0d9;border-radius:10px;background:#f8faf9;color:#587066;font-size:14px;cursor:pointer}
-.room-language-option.is-selected{border-color:#183e43;background:#edf5ef;color:#183e43;font-weight:600}
+.room-language-option{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:11px 12px;border:1px solid #d9e5dc;border-radius:12px;background:#f5f8f6;color:#587066;font-size:13px;cursor:pointer}
+.room-language-option.is-selected{border-color:#183e43;background:#e8f2ec;color:#183e43;font-weight:600}
 .room-language-option input{position:absolute;width:1px;height:1px;margin:0;opacity:0}
 .room-language-option:focus-within{outline:2px solid #183e43;outline-offset:2px}
 .room-language-option svg{flex-shrink:0}

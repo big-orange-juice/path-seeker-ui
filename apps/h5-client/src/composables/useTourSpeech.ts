@@ -13,9 +13,10 @@ import { playbackFocus } from '@/utils/playbackFocus'
  *
  * v5 追加：`seekBy`（±15 秒，文件精确 / 系统语音按句近似）、断点快照与断点恢复。
  */
-export type TourQueueItemType = 'extra-before' | 'chapter' | 'extra-after'
+export type TourQueueItemType = 'extra-before' | 'chapter' | 'extra-after' | 'interlude'
 
 export interface TourQueueItem {
+  mediaKind?: 'audio' | 'video'
   /** 条目 ID：额外音频用关联记录 ID，讲解章节用章节 ID */
   id: string
   type: TourQueueItemType
@@ -131,6 +132,11 @@ export function buildTourQueue(
       extraAudioId: null,
       chapterId: chapter.id || null,
     })
+    if (!options.skipExtraAudio) {
+      for (const media of (chapter.interludes ?? []).slice().sort((a, b) => a.order - b.order)) {
+        if (media.url) queue.push({ id: media.id, type: 'interlude', mediaKind: media.kind, title: media.title, text: '', audioUrl: media.url, durationSeconds: null, extraAudioId: null, chapterId: null })
+      }
+    }
   }
   if (!options.skipExtraAudio) {
     for (const audio of sortExtraAudios(extraAudios, 'after')) {
@@ -155,7 +161,7 @@ function isAutoplayBlocked(reason: unknown) {
 }
 
 /** 元数据未就绪时把起播位置挂到 loadedmetadata 上，避免 seek 被丢弃 */
-function applyStartTime(element: HTMLAudioElement, seconds: number) {
+function applyStartTime(element: HTMLMediaElement, seconds: number) {
   if (!(seconds > 0)) return
   const assign = () => {
     try { element.currentTime = seconds } catch { /* 不可寻址时从头播放 */ }
@@ -192,7 +198,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   let index = 0
   let options: TourQueueOptions = {}
   let locale: TourLocale = 'zh'
-  let audio: HTMLAudioElement | null = null
+  let audio: HTMLAudioElement | HTMLVideoElement | null = null
   let utterance: SpeechSynthesisUtterance | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
   let voicesChanged: (() => void) | undefined
@@ -223,6 +229,8 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   function releaseAudio() {
     if (!audio) return
     audio.onplaying = null
+    audio.onplay = null
+    audio.onpause = null
     audio.ontimeupdate = null
     audio.onloadedmetadata = null
     audio.onended = null
@@ -230,6 +238,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     audio.pause()
     audio.removeAttribute('src')
     audio.load()
+    if (audio.tagName === 'VIDEO') audio.remove()
     audio = null
   }
 
@@ -346,7 +355,12 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   function playFile(item: TourQueueItem, version: number) {
     const source = item.audioUrl
     if (!source) { failItem(item, version); return }
-    const element = new Audio(source)
+    const element = item.mediaKind === 'video' ? document.createElement('video') : new Audio(source)
+    if (item.mediaKind === 'video') {
+      const video = element as HTMLVideoElement
+      video.src = source; video.playsInline = true; video.controls = true
+      document.getElementById('tour-sequence-video')?.appendChild(video)
+    }
     audio = element
     const startAt = resumeSeconds
     resumeSeconds = 0
@@ -370,6 +384,10 @@ export function useTourSpeech(onNarrationEnd: () => void) {
       if (Number.isFinite(element.duration) && element.duration > 0) currentItemDuration.value = element.duration
     }
     element.onended = () => advance(version)
+    if (item.mediaKind === 'video') {
+      element.onpause = () => { if (version === queueVersion.value && !element.ended) { status.value = 'paused'; clearWait() } }
+      element.onplay = () => { if (version === queueVersion.value) { audioFocus.claim(); status.value = 'playing'; blocked.value = false } }
+    }
     element.onerror = () => failItem(item, version)
     applyStartTime(element, startAt)
     timer = setTimeout(() => failItem(item, version), FILE_START_TIMEOUT_MS)
@@ -451,6 +469,12 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     // 只要接口返回了音频文件就直接播放；没有文件时才回退系统语音。
     if (item.audioUrl) { playFile(item, version); return }
     speakItem(item, version, startSentence)
+  }
+
+  function skipInterlude() {
+    if (items[index]?.type !== 'interlude') return
+    audioFocus.claim(); status.value = 'playing'; blocked.value = false
+    advance(queueVersion.value)
   }
 
   /** 只准备条目与位置，不发起播放（断点记录的是"暂停中"时用） */
@@ -682,6 +706,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     queue,
     currentIndex,
     currentItem,
+    skipInterlude,
     currentItemId,
     currentItemType,
     playedSeconds,

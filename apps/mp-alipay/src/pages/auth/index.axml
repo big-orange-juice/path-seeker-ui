@@ -1,6 +1,6 @@
 <scroll-view scroll-y="true" class="full-page"><view class="page auth-page"><view class="eyebrow">PATH SEEKER · 寻迹</view><view class="title">{{register ? '让足迹有个归处' : '欢迎回来'}}。</view><view class="subtitle">登录后，继续你的城市漫游。</view><view class="card">
   <view class="section">支付宝授权登录</view>
-  <view class="subtitle">{{requirePhoneNumber ? '授权手机号以登录寻迹，并识别已有的车夫权限。' : '使用支付宝登录，加入房间体验语音翻译。'}}</view>
+  <view class="subtitle">{{postcardPhone ? '授权手机号，将电子明信片保存到你的账号。' : requirePhoneNumber ? '授权手机号以登录寻迹，并识别已有的车夫权限。' : '使用支付宝登录，加入房间体验语音翻译。'}}</view>
   <view class="agreement"><checkbox-group onChange="agree"><label class="row"><checkbox value="agree" checked="{{agreed}}"/><text class="muted">我已阅读并同意隐私说明</text></label></checkbox-group><button size="mini" class="quiet" onTap="privacy">查看隐私说明</button></view>
   <view a:if="{{error}}" class="error">{{error}}</view><button a:if="{{requirePhoneNumber}}" class="primary" loading="{{busy}}" disabled="{{busy || !agreed}}" open-type="getAuthorize" scope="phoneNumber" onGetAuthorize="alipay" onError="alipayError">手机号授权登录</button>
   <button a:else class="primary" loading="{{busy}}" disabled="{{busy || !agreed}}" onTap="alipay">支付宝授权登录</button>

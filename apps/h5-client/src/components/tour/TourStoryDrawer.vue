@@ -50,6 +50,7 @@ const emit = defineEmits<{
   skipExtraAudio: [value: boolean]
   playExtra: [id: string]
   contentLock: [value: boolean]
+  postcard: []
 }>()
 
 const extraAudios = computed(() => props.stop?.extraAudios ?? [])
@@ -163,7 +164,8 @@ function stopNumber(order: number) {
       </div>
     </section>
 
-    <div v-if="hasPlayableChapter" class="tour-story-text"><section v-for="chapter in narration?.chapters" :key="chapter.id || chapter.order"><h3 v-if="chapter.title">{{ chapter.title }}</h3><p>{{ chapter.text }}</p></section></div>
+    <button v-if="stop.experience?.enabled" type="button" class="tour-complete" @click="emit('postcard')">制作电子明信片</button>
+    <div v-if="hasPlayableChapter" class="tour-story-text"><section v-for="chapter in narration?.chapters" :key="chapter.id || chapter.order"><h3 v-if="chapter.title">{{ chapter.title }}</h3><p>{{ chapter.text }}</p><p v-for="media in chapter.interludes" :key="media.id">{{ media.kind === 'video' ? '视频' : '音乐' }} · {{ media.title }}</p></section></div>
     <p v-else class="tour-story-text">{{ messages.noNarration }}</p>
     <details v-if="stop.video"><summary>{{ messages.video }}</summary><video :src="stop.video" controls playsinline preload="none" /></details>
     <div v-if="(stop.images?.length ?? 0) > 1" class="tour-story-images"><figure v-for="image in stop.images?.slice(1)" :key="image.id"><img v-if="image.url" :src="image.url" :alt="image.altText || ''" loading="lazy"><figcaption v-if="image.caption">{{ image.caption }}</figcaption></figure></div>
@@ -180,4 +182,5 @@ function stopNumber(order: number) {
 @media(max-width:760px){.tour-story{left:10px;right:10px;top:72px;bottom:max(18px,env(safe-area-inset-bottom));width:auto;padding:14px;border-radius:14px}.tour-story-cover{height:150px}.tour-story-controls{gap:7px;margin:12px 0}.tour-story-controls button{flex:1;min-width:calc(50% - 7px);padding:9px 10px}.tour-story-controls button.tour-seek{min-width:calc(50% - 7px)}}
 .tour-stop-switcher{display:grid;gap:7px;margin:14px 0 16px}.tour-stop-switcher-heading{display:flex;align-items:center;justify-content:space-between;color:var(--tour-muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}.tour-stop-switcher-heading strong{color:var(--tour-lake);font-size:12px;letter-spacing:0}.tour-stop-tabs{display:flex;gap:7px;overflow-x:auto;margin:0;padding:2px 2px 8px;scroll-snap-type:x proximity;scrollbar-width:thin}.tour-stop-tabs button{display:flex;align-items:center;gap:8px;flex:0 0 auto;min-width:112px;padding:9px 11px;border:1px solid var(--tour-line);border-radius:10px;background:#fff;color:var(--tour-ink);font-size:12px;text-align:left;scroll-snap-align:start}.tour-stop-tabs button small{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;background:var(--tour-selected);color:var(--tour-muted);font-size:10px;font-weight:700}.tour-stop-tabs button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tour-stop-tabs button.active{border-color:var(--tour-lake);background:var(--tour-lake);color:#fff;box-shadow:0 5px 12px #183e4322}.tour-stop-tabs button.active small{background:#ffffff22;color:#fff}
 .tour-seek-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:inherit;width:100%}.tour-seek-controls button.tour-seek{min-width:0}
+@media(max-width:960px){.tour-story{bottom:calc(var(--tour-dock-height,220px) + max(16px,env(safe-area-inset-bottom)) + 12px)}}
 </style>

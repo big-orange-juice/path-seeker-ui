@@ -1,4 +1,5 @@
 <view class="story-body">
+  <button a:if="{{stop.experience && stop.experience.enabled}}" class="primary" onTap="postcard" disabled="{{busy || loading}}">制作电子明信片</button>
   <view a:if="{{browsing}}" class="story-alert">{{messages.browsingNoProgress}}</view>
   <image a:if="{{stop.images.length}}" class="stop-cover" src="{{stop.images[0].url}}" mode="aspectFill" onTap="previewImages" />
   <view class="story-controls">

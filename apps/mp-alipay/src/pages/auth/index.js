@@ -3,6 +3,7 @@ const storage = require('../../services/storage');
 const ui = require('../../core/ui');
 const { authOptions = {} } = require('../../config');
 Page({
+  onLoad(query = {}) { this._returnAfterPhone = query.phone === '1'; if (this._returnAfterPhone) this.setData({ requirePhoneNumber: true, postcardPhone: true }); },
   data: { guestLoginEnabled: authOptions.guestLogin === true, passwordLoginEnabled: authOptions.passwordLogin === true, requirePhoneNumber: authOptions.requirePhoneNumber !== false, register: false, account: '', password: '', username: '', phone: '', email: '', nickname: '', busy: false, error: '', agreed: false },
   onShow() { this._visible = true; },
   onHide() { this._visible = false; },
@@ -17,9 +18,9 @@ Page({
     if (!this.data.agreed) { this.setData({ error: '请先阅读并同意隐私说明' }); return; }
     this.setData({ busy: true, error: '' });
     try {
-      await auth.loginAlipay();
+      await auth.loginAlipay({ requirePhoneNumber: this.data.requirePhoneNumber });
       this.setData({ password: '' });
-      if (this._visible) my.reLaunch({ url: '/pages/me/index' });
+      if (this._visible) { if (this._returnAfterPhone && getCurrentPages().length > 1) my.navigateBack(); else my.reLaunch({ url: '/pages/me/index' }); }
     } catch (error) { if (this._visible) ui.error(this, error); }
     finally { this.setData({ busy: false }); }
   },

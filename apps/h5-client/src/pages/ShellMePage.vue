@@ -4,6 +4,7 @@ import { useRouter } from "vue-router"
 import { ChevronRight, History, LogOut, Play, User } from "lucide-vue-next"
 import { ClientSkeleton } from "@/components/ui"
 import HistoryRouteCard from "@/components/shell/HistoryRouteCard.vue"
+import PostcardHistory from '@/components/postcards/PostcardHistory.vue'
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useMissionStore } from "@/stores/useMissionStore"
 
@@ -99,6 +100,7 @@ onMounted(() => {
       </button>
     </section>
 
+    <PostcardHistory />
     <section class="grid grid-cols-2 gap-2">
       <div v-for="item in stats" :key="item.label" class="client-stat-cell">
         <p class="font-display text-lg leading-none">
@@ -179,8 +181,8 @@ onMounted(() => {
   overflow: hidden;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(209, 178, 111, 0.28);
+  border: 1px solid #d4e0d9;
   border-radius: 999px;
-  background: rgba(209, 178, 111, 0.12);
+  background: #edf5ef;
 }
 </style>
