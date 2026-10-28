@@ -54,7 +54,7 @@ const goBack = () => {
             <span>返回</span>
           </button>
         </div>
-        <RouterLink to="/auth" class="client-user-pill shrink-0">
+        <RouterLink :to="{ path: '/auth', query: { redirect: route.fullPath } }" class="client-user-pill shrink-0">
           {{ authStore.isLoggedIn ? authStore.displayName || "探索者" : "登录" }}
         </RouterLink>
       </header>

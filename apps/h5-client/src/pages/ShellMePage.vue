@@ -92,7 +92,7 @@ onMounted(() => {
       <button
         type="button"
         class="client-user-pill shrink-0"
-        @click="isGuest ? router.push('/auth') : handleLogout()"
+        @click="isGuest ? router.push({ path: '/auth', query: { redirect: '/shell/me' } }) : handleLogout()"
       >
         <LogOut v-if="!isGuest" class="mr-1 inline h-3 w-3" />
         {{ isGuest ? "绑定账号" : "退出" }}

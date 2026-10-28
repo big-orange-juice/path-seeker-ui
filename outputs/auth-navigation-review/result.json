@@ -1,0 +1,30 @@
+{
+  "mockedBackend": true,
+  "cases": [
+    {
+      "entry": "/shell/archive?tab=completed",
+      "preservesReturnPath": true,
+      "explicitBackWorks": true,
+      "loginReturnsToEntry": true,
+      "accountPageFlashes": 0,
+      "stableAfterLogin": true
+    },
+    {
+      "entry": "/shell/me",
+      "preservesReturnPath": true,
+      "explicitBackWorks": true,
+      "loginReturnsToEntry": true,
+      "accountPageFlashes": 0,
+      "stableAfterLogin": true
+    },
+    {
+      "entry": "/translation-room",
+      "preservesReturnPath": true,
+      "explicitBackWorks": true,
+      "loginReturnsToEntry": true,
+      "accountPageFlashes": 0,
+      "stableAfterLogin": true
+    }
+  ],
+  "pageErrors": []
+}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, shallowRef } from "vue"
+import { computed, onBeforeUnmount, reactive, shallowRef } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useToastStore } from "@path-seeker/client-state"
 import {
@@ -17,7 +17,10 @@ const route = useRoute()
 const router = useRouter()
 const mode = shallowRef<AuthMode>("login")
 const switchingAccount = shallowRef(false)
-const showAccount = computed(() => authStore.isAccountLoggedIn && !switchingAccount.value)
+const submitting = shallowRef(false)
+const showAccount = computed(() => authStore.isAccountLoggedIn && !switchingAccount.value && !submitting.value)
+let active = true
+onBeforeUnmount(() => { active = false })
 
 const loginForm = reactive({
   account: "",
@@ -50,7 +53,7 @@ const modeHint = computed(() => {
 })
 
 const primaryActionLabel = computed(() => {
-  if (authStore.pending) {
+  if (authStore.pending || submitting.value) {
     if (mode.value === "login") return "登录中…"
     if (mode.value === "register") return "注册中…"
     return "进入中…"
@@ -61,16 +64,12 @@ const primaryActionLabel = computed(() => {
 })
 
 async function backHome() {
+  if (!active) return
   await router.replace(redirectPath.value)
 }
 
-/** 有历史栈或带 redirect 时允许返回上一页 */
 function goBack() {
-  if (window.history.length > 1) {
-    void router.back()
-    return
-  }
-  void router.replace("/ride")
+  void backHome()
 }
 
 const canGoBack = computed(() => {
@@ -122,20 +121,25 @@ async function submitGuestLogin() {
 }
 
 async function submitCurrentMode() {
-  if (authStore.pending) return
-  if (mode.value === "guest") {
-    await submitGuestLogin()
-    return
+  if (authStore.pending || submitting.value) return
+  submitting.value = true
+  try {
+    if (mode.value === "guest") {
+      await submitGuestLogin()
+      return
+    }
+    if (mode.value === "login") {
+      await submitLogin()
+      return
+    }
+    await submitRegister()
+  } finally {
+    submitting.value = false
   }
-  if (mode.value === "login") {
-    await submitLogin()
-    return
-  }
-  await submitRegister()
 }
 
 const canSubmitCurrent = computed(() => {
-  if (authStore.pending) return false
+  if (authStore.pending || submitting.value) return false
   if (mode.value === "guest") return true
   if (mode.value === "login") return canSubmitLogin.value
   return canSubmitRegister.value
