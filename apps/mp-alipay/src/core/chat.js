@@ -235,7 +235,7 @@ module.exports = function createChat() { return {
   },
   cancelTouch() { this.destroyRecorder(); },
   destroyRecorder(silent = false, preserveHandoff = false) { this._press = null; if (!preserveHandoff) { if (this._voiceHandoff) this._voiceHandoff.cancel(); this._voiceHandoff = null; } if (this._recorder) this._recorder.destroy(); this._recorder = null; if (!silent && this._visible && !preserveHandoff) this.setData({ recording: false, transcribing: false, microphoneStarting: false }); },
-  microphoneHelp() { if (my.showAuthGuide) my.showAuthGuide({ authType: 'MICROPHONE' }); },
+  microphoneHelp() { speech.microphoneHelp(); },
   interruptTour() { if (this.props && this.props.onInterrupt) this.props.onInterrupt(); },
   settleTour() { if (this._visible && !this.data.busy && !this.data.recording && !this.data.transcribing && this.props && this.props.onSettled) this.props.onSettled(); },
   toggleBargeIn(event) { const enabled = !!ui.value(event); this.setData({ bargeInEnabled: enabled, error: '' }); if (enabled && audio.snapshot().owner === 'chat' && audio.snapshot().playing) this.startBargeIn(); else this.stopBargeIn(); },

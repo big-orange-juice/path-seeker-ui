@@ -49,6 +49,8 @@ export interface CreateRouteStagePayload {
   interactionType?: number;
   refPuzzleId?: string | null;
   refExhibitId?: string | null;
+  placeId?: string | null;
+  guideId?: string | null;
   unlockRule?: number;
   isRequired?: number;
   score?: number;
@@ -317,6 +319,7 @@ export interface RouteTranslationResponse {
 }
 
 export interface BuildOutdoorRouteDraftPayload {
+  fixedRouteCode: 'A' | 'B' | 'A+B' | 'D';
   museumId: string;
   title: string;
   theme?: string | null;

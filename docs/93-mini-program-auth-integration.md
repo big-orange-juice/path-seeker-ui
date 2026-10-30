@@ -4,7 +4,7 @@
 
 支付宝原生工程 `apps/mp-alipay` 使用手动支付宝授权登录，AppID 为 `2021007110628321`。要求手机号时，用户先同意隐私说明，再点击“手机号授权登录”。原生按钮配置 `open-type="getAuthorize" scope="phoneNumber"`，在 `onGetAuthorize` 中调用 `my.getPhoneNumber`，随后调用 `my.getAuthCode({ scopes: ['auth_user'] })`。进入页面、恢复会话和游客浏览不会主动调用支付宝授权。要求手机号时，拒绝或缺少手机号授权结果不会消费平台登录 code。
 
-2026-10-28 临时体验配置：前后端均已将 `RequirePhoneNumber` 开关关闭。登录页显示“支付宝授权登录”，仅调用 `my.getAuthCode`，不获取或提交手机号；后端仍校验支付宝授权码、换码响应签名与平台身份，返回 `isGuest=false` 的正式登录会话。普通账号可以输入房间码作为房客收听语音翻译。恢复方法见第 5 节；此开关不会按日期自动恢复。
+2026-10-29 恢复手机号授权：前后端 `RequirePhoneNumber` 均设为 `true`，服务端配置与开放平台一致的 AES 密钥。登录页显示“手机号授权登录”，先获取 `my.getPhoneNumber` 的完整签名结果，再调用 `my.getAuthCode`。部署服务端配置并重启 API、上传新构建的小程序后生效；此前无手机号正式账号按原有规则在下次授权时关联手机号账号。
 
 “手动”指由用户点击发起，平台可复用既有授权，因此不保证每次登录都重新显示授权弹窗；授权界面与用户已授权状态由支付宝控制。
 
@@ -125,8 +125,8 @@ https://www.omahaaigc.com/path-seeker/api/AppUser/MiniProgramLogin
       "PrivateKeyPem": "-----BEGIN PRIVATE KEY-----\n应用私钥正文\n-----END PRIVATE KEY-----",
       "AlipayPublicKeyPem": "-----BEGIN PUBLIC KEY-----\n支付宝公钥正文\n-----END PUBLIC KEY-----",
       "IdentityField": "open_id",
-      "RequirePhoneNumber": false,
-      "EncryptKey": "开启手机号要求时必填：与开放平台接口内容加密配置一致的 Base64 AES 密钥"
+      "RequirePhoneNumber": true,
+      "EncryptKey": "与开放平台接口内容加密配置一致的 Base64 AES 密钥（仅服务端保存）"
     },
     "Wechat": {
       "AppId": "微信小程序 AppID",
@@ -142,7 +142,7 @@ https://www.omahaaigc.com/path-seeker/api/AppUser/MiniProgramLogin
 
 - 小程序 `apps/mp-alipay/src/config.js`：`authOptions.requirePhoneNumber: false`，控制是否使用原生手机号授权按钮、调用手机号 API 和提交 `phoneResponse`。
 - 后端 `MiniProgramAuth:Alipay:RequirePhoneNumber: false`，环境变量名为 `MiniProgramAuth__Alipay__RequirePhoneNumber`。后端独立控制是否要求和验证手机号，客户端请求不能覆盖此设置。
-- 当前两端均已设为 `false`；需部署本次后端并重启 API，同时重新构建或上传小程序。跳过手机号期间不需要 AES 密钥，支付宝 AppID、应用私钥、支付宝公钥及身份校验仍然必需。
+- 当前两端均为 `true`。如需临时跳过手机号，须明确将两端开关均改为 `false`，部署后端并重启 API，同时重新构建或上传小程序。跳过手机号期间不需要 AES 密钥，支付宝 AppID、应用私钥、支付宝公钥及身份校验仍然必需。
 - 后续恢复：先补齐 AES 与平台加签配置，将两端开关均改为 `true`，重启 API 并重新构建小程序。两端省略此配置时均默认要求手机号。
 - 无手机号的支付宝账号以后可按既有规则关联已有手机号账号；此开关不改变车夫权限检查、不合并账号历史，也不自动授予开房权限。
 
@@ -159,6 +159,8 @@ https://www.omahaaigc.com/path-seeker/api/AppUser/MiniProgramLogin
 ### 手机号授权失败排查
 
 `my.getPhoneNumber` 返回的外层 `response` 是包含签名信息的 JSON 字符串；其内部 `response` 可为字符串或对象。服务端按原始内容验签，不重新序列化对象。成功结果必须通过 RSA2 验签；对象形式的平台失败结果只能用于返回错误，不能用于确认手机号或关联账号。
+
+2026-10-29 补充加密响应验签兼容：支付宝加密网关对原始 JSON 字符串节点签名，待验签内容包含密文两端的双引号和原始转义字符。后端对加密字符串先使用 `GetRawText()` 验签，并兼容直接对字符串值签名的既有响应；只有 RSA2 验签成功后，才使用 `GetString()` 得到的密文值执行 AES 解密。原实现统一使用 `GetString()` 验签，会把带引号签名的有效密文误判为 `11004 / 手机号授权验签失败`。该行为已在本地复现并修复；实际失败请求的原始 `phoneResponse` 尚未取得，因此线上根因仍需部署后重新授权验证。修复位于 `CulturalTourismSystem.Service.dll`，部署需包含更新后的 Service 程序集并重启 API；本次不涉及小程序代码修改。
 
 | 现象 | 含义与处理 |
 | --- | --- |
@@ -220,6 +222,10 @@ async function onWechatLoginTap() {
 服务端没有配置密钥时会明确返回尚未配置完成。先发布后端再发布小程序，避免新入口请求尚不存在的接口。后端回退前核对线上小程序对新接口的依赖；数据库表包含身份映射，应保留，不能通过删表作为回退步骤。
 
 ## 8. 验证结果与边界
+
+2026-10-29 手机号验签修复验证：重新编译后端 Web API 及测试工程，筛选 `MiniProgram`、`AppUserDriver` 与 `TranslationRoom` 通过 103 项测试（新增 6 项原始 JSON 密文签名测试，覆盖成功、转义、篡改、错误公钥、缺失签名和缺少 AES 配置）。独立检查另通过 25 组真实 RSA2/AES 运算，覆盖带引号密文、带转义密文、直接签名密文值、明文字符串和原始对象，以及篡改、错误公钥、无签名和错误算法拒绝。旧代码在同一带引号密文样例上复现第 84 行验签失败。尚未部署或进行真实支付宝授权复测。
+
+2026-10-29 恢复验证：`pnpm test:mp-alipay` 构建成功并通过 150 项测试，包括默认手机号授权、取消/迟到结果隔离、原生定位坐标与精度处理、弱定位/过期位置过滤，以及开启附近讲解后稳定靠近自动播放。后端使用现有 Debug 测试程序集（`--no-build --no-restore`），筛选 `MiniProgram`、`AppUserDriver` 与 `TranslationRoom` 通过 97 项测试。本地服务端配置已开启手机号要求并写入 AES 密钥，密钥长度为 16 字节；尚未部署服务端或上传小程序，未进行真机手机号授权与 GPS 实测。
 
 2026-10-28 验证：`pnpm test:mp-alipay` 通过 136 项测试；后端筛选 `MiniProgram`、`AppUserDriver` 与 `TranslationRoom` 通过 80 项测试；Web API 构建通过。新增覆盖跳过手机号后仍校验平台身份、正式登录与房客入房、授权取消与迟到结果隔离、恢复手机号要求、无手机号身份复用且不匹配车夫手机号账号。原有覆盖包括手机号字符串/原始对象/加密结果验签、篡改/缺失签名拒绝、两种签名类型字段、平台配置错误及缺少服务端 AES 的提示、已有车夫账号关联、旧版无手机号身份重新关联、身份冲突拒绝、微信与游客兼容、字符串 ID、授权取消及账号竞争。播放器另覆盖下一句预加载、预加载失败回退、暂停接句、超过 240 句收听清理及重复页面刷新抑制。
 

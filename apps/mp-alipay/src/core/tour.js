@@ -2,12 +2,14 @@ const { evaluateApproach, isUsableLocation, DEFAULT_APPROACH_POLICY, parseBounda
 const { gcj02ToWgs84, toGcj02 } = require('../shared/map-coordinates');
 function sorted(items) { return (items || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.id).localeCompare(String(b.id))); }
 function narrations(stop, locale) { return (stop.guideNarrations || []).filter(n => n.locale === locale); }
+function stopVideo(stop) { return stop && stop.video ? { id: 'stop-video-' + stop.id, title: stop.name, url: stop.video, text: '', kind: 'interlude-video' } : null; }
 function queueFor(stop, narration, options = {}) {
   const extras = options.skipExtra ? [] : sorted(stop.extraAudios);
   const before = extras.filter(e => e.position === 'before' && (!options.playedBefore || !options.playedBefore.includes(e.id)));
   const after = extras.filter(e => e.position === 'after');
   const extra = e => ({ id: e.id, title: e.title, url: e.url, text: '', kind: e.position });
-  return before.map(extra).concat(sorted(narration && narration.chapters).flatMap(c => [{ id: c.id, title: c.title, url: c.audioUrl, text: c.text || '', kind: 'chapter' }].concat(options.skipExtra ? [] : sorted(c.interludes).filter(m => m.url).map(m => ({ id: m.id, title: m.title, url: m.url, text: '', kind: m.kind === 'video' ? 'interlude-video' : 'interlude-audio' })))), after.map(extra));
+  const video = stopVideo(stop);
+  return before.map(extra).concat(sorted(narration && narration.chapters).flatMap(c => [{ id: c.id, title: c.title, url: c.audioUrl, text: c.text || '', kind: 'chapter' }].concat(options.skipExtra ? [] : sorted(c.interludes).filter(m => m.url).map(m => ({ id: m.id, title: m.title, url: m.url, text: '', kind: m.kind === 'video' ? 'interlude-video' : 'interlude-audio' })))), video ? [video] : [], after.map(extra));
 }
 function mapPoint(point) {
   if (!point || point.longitude === null || point.latitude === null) return null;
@@ -65,16 +67,21 @@ function candidates(stops, places, fix, completed, system = 1, now = Date.now(),
   if (!isUsableLocation(fix, DEFAULT_APPROACH_POLICY, now)) return [];
   return stops.map((stop, index) => ({ stop, index })).filter(({ stop, index }) => !completed.includes(stop.id) && index !== after).map(({ stop, index }) => {
     const place = places.find(p => p.id === stop.placeId);
-    let anchor = validPoint(place) ? place : validPoint(stop) ? stop : null;
-    if (!place && anchor && system !== 1) anchor = gcj02ToWgs84(toGcj02(anchor, system));
+    const anchor = validPoint(place) ? mapPoint(place) : validPoint(stop) ? (system === 1 ? mapPoint(stop) : gcj02ToWgs84(toGcj02(mapPoint(stop), system))) : null;
     const range = place && place.range;
     const policy = Object.assign({}, DEFAULT_APPROACH_POLICY, range ? { proximityMeters: range.defaultProximityDistanceMeters || DEFAULT_APPROACH_POLICY.proximityMeters, releaseMeters: range.defaultReleaseDistanceMeters || DEFAULT_APPROACH_POLICY.releaseMeters } : {}, stop.triggerRadiusMeters > 0 ? { proximityMeters: stop.triggerRadiusMeters, releaseMeters: Math.max(range && range.defaultReleaseDistanceMeters || DEFAULT_APPROACH_POLICY.releaseMeters, stop.triggerRadiusMeters) } : {});
-    const result = evaluateApproach(fix, place && place.range, anchor, policy);
+    let result = evaluateApproach(fix, range, anchor, policy);
+    if (result.distanceMeters === null && anchor) result = evaluateApproach(fix, null, anchor, Object.assign({}, policy, { proximityMeters: result.proximityMeters, releaseMeters: result.releaseMeters }));
     return { index, order: stop.order || 0, id: stop.id, name: stop.name, distance: result.distanceMeters, withinRange: result.withinRange, approaching: result.approaching };
   }).filter(c => c.approaching).sort((a, b) => Number(a.index <= after) - Number(b.index <= after) || a.order - b.order || a.distance - b.distance);
 }
 function checkpointMatches(cp, userId, visit, stopId, guideId) {
   return Boolean(cp && cp.userId === userId && visit && cp.visitId === visit.visitId && cp.routeId === visit.routeId && cp.stageId === stopId && cp.guideId === guideId);
 }
-function canCompleteAudio(queue, failed, browsing) { const chapters = queue.filter(i => i.kind === 'chapter'); return !browsing && !failed && chapters.length > 0 && chapters.every(i => Boolean(i.url)); }
-module.exports = { sorted, narrations, queueFor, mapData, candidates, checkpointMatches, canCompleteAudio };
+function canCompleteAudio(queue, failed, browsing, completedItemIds = []) {
+  if (browsing || failed) return false;
+  const chapters = queue.filter(item => item.kind === 'chapter');
+  if (chapters.length) return chapters.every(item => Boolean(item.url));
+  return queue.some(item => item.kind === 'interlude-video' && item.id.indexOf('stop-video-') === 0 && completedItemIds.includes(item.id));
+}
+module.exports = { sorted, narrations, stopVideo, queueFor, mapData, candidates, checkpointMatches, canCompleteAudio };

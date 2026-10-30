@@ -6,7 +6,7 @@ import { playbackFocus } from '@/utils/playbackFocus'
 
 /**
  * 站点播放队列（设计文档 §3.3）：
- *   before extra audio[] → narration chapter[] → after extra audio[]
+ *   前置音频 → 解说章节及段间媒体 → 节点视频 → 后置音频。
  *
  * 播放器统一管理 stageId、队列版本、当前条目 ID、条目类型、文件播放时间与播放状态；
  * 切换站点时队列版本自增，旧的异步结束事件按版本号丢弃，不会推进新节点。
@@ -47,7 +47,7 @@ export interface TourSeekResult {
 }
 
 export interface TourQueueOptions {
-  /** 与 C 端"跳过额外音频"开关一致：队列只含讲解章节 */
+  /** 跳过额外音频与段间媒体；节点视频仍在讲解后播放。 */
   skipExtraAudio?: boolean
   /** 本次游览已播过的前置额外音频；播放时就地写入新播过的 ID */
   playedBeforeExtraIds?: Set<string>
@@ -104,11 +104,17 @@ function sortExtraAudios(extraAudios: ClientStopExtraAudio[] | null | undefined,
     .sort((left, right) => (left.order - right.order) || left.id.localeCompare(right.id))
 }
 
-/** 构造站点队列：before extra audio[] → narration chapter[] → after extra audio[] */
+export function stopVideoQueueItem(stop: Pick<ClientTourStop, 'id' | 'name' | 'video'> | null | undefined): TourQueueItem | null {
+  if (!stop?.video) return null
+  return { id: `stop-video-${stop.id}`, type: 'interlude', mediaKind: 'video', title: stop.name, text: '', audioUrl: stop.video, durationSeconds: null, extraAudioId: null, chapterId: null }
+}
+
+/** 节点视频属于本站内容，跳过额外音频时仍接在解说之后播放。 */
 export function buildTourQueue(
   extraAudios: ClientStopExtraAudio[] | null | undefined,
   chapters: TourNarrationChapter[] | null | undefined,
   options: TourQueueOptions = {},
+  stop?: Pick<ClientTourStop, 'id' | 'name' | 'video'> | null,
 ): TourQueueItem[] {
   const queue: TourQueueItem[] = []
   if (!options.skipExtraAudio) {
@@ -138,6 +144,8 @@ export function buildTourQueue(
       }
     }
   }
+  const video = stopVideoQueueItem(stop)
+  if (video) queue.push(video)
   if (!options.skipExtraAudio) {
     for (const audio of sortExtraAudios(extraAudios, 'after')) {
       const item = extraQueueItem(audio)
@@ -160,20 +168,11 @@ function isAutoplayBlocked(reason: unknown) {
   return (reason as { name?: string } | null)?.name === 'NotAllowedError'
 }
 
-/** 元数据未就绪时把起播位置挂到 loadedmetadata 上，避免 seek 被丢弃 */
-function applyStartTime(element: HTMLMediaElement, seconds: number) {
-  if (!(seconds > 0)) return
-  const assign = () => {
-    try { element.currentTime = seconds } catch { /* 不可寻址时从头播放 */ }
-  }
-  if (element.readyState >= 1) assign()
-  else element.addEventListener('loadedmetadata', assign, { once: true })
-}
-
-export function useTourSpeech(onNarrationEnd: () => void) {
+export function useTourSpeech(onNarrationEnd: () => void, onStandaloneEnd: () => void = () => {}) {
   const status = shallowRef<'idle' | 'playing' | 'paused'>('idle')
   const error = shallowRef<'unavailable' | 'voiceMissing' | 'playback' | null>(null)
   const blocked = shallowRef(false)
+  const videoElement = shallowRef<HTMLVideoElement | null>(null)
   /** 额外音频播放失败被跳过时记下标题，空串表示没有提示 */
   const skippedExtraAudio = shallowRef('')
   const restorePrecision = shallowRef<TourRestorePrecision>('exact')
@@ -203,6 +202,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   let timer: ReturnType<typeof setTimeout> | undefined
   let voicesChanged: (() => void) | undefined
   /** 文件音频恢复位置（秒） */
+  let pendingFileSeek: number | null = null
   let resumeSeconds = 0
   /** 系统语音恢复位置：句子序号 */
   let sentences: string[] = []
@@ -211,6 +211,10 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   let resumeSentence = 0
   /** 本队列内已回退过系统语音的条目，避免反复回退 */
   const fallenBack = new Set<string>()
+  let mediaEpoch = 0
+  let playAttempt = 0
+  let formalQueue = false
+  const completedVideos = new Set<string>()
   let narrationTotal = 0
   let narrationPlayed = 0
   let narrationCompleted = false
@@ -228,6 +232,11 @@ export function useTourSpeech(onNarrationEnd: () => void) {
 
   function releaseAudio() {
     if (!audio) return
+    if (audio.tagName === 'VIDEO') {
+      const video = audio as HTMLVideoElement & { webkitDisplayingFullscreen?: boolean; webkitExitFullscreen?: () => void }
+      try { if (video.webkitDisplayingFullscreen) video.webkitExitFullscreen?.() } catch {}
+      videoElement.value = null
+    }
     audio.onplaying = null
     audio.onplay = null
     audio.onpause = null
@@ -235,6 +244,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     audio.onloadedmetadata = null
     audio.onended = null
     audio.onerror = null
+    pendingFileSeek = null
     audio.pause()
     audio.removeAttribute('src')
     audio.load()
@@ -243,6 +253,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   }
 
   function releaseUtterance() {
+    mediaEpoch += 1
     if (!utterance) return
     utterance.onstart = null
     utterance.onend = null
@@ -252,6 +263,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   }
 
   function releaseMedia() {
+    playAttempt += 1
     clearWait()
     releaseAudio()
     releaseUtterance()
@@ -301,6 +313,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   function advance(version: number) {
     if (version !== queueVersion.value || status.value !== 'playing' || !audioFocus.isCurrent()) return
     const item = items[index]
+    if (item?.mediaKind === 'video') completedVideos.add(item.id)
     if (item?.type === 'chapter') {
       narrationPlayed += 1
       if (narrationPlayed >= narrationTotal) narrationCompleted = true
@@ -322,11 +335,11 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     currentItemDuration.value = 0
     currentSentenceIndex.value = 0
     index = 0
-    // 后置额外音频播完才算队列结束；只有讲解章节真的播完才推进下一站
-    if (narrationCompleted) {
+    // 整站队列播完才提交进度；纯视频站须自然结束，单独观看只恢复被打断的讲解。
+    if (formalQueue && (narrationCompleted || (!narrationTotal && items.some(item => item.id === `stop-video-${stageId.value}` && completedVideos.has(item.id))))) {
       narrationCompleted = false
       onNarrationEnd()
-    }
+    } else if (!formalQueue) onStandaloneEnd()
   }
 
   /** 条目播放失败：额外音频提示并跳过；讲解章节先按既有策略回退系统语音 */
@@ -360,17 +373,24 @@ export function useTourSpeech(onNarrationEnd: () => void) {
       const video = element as HTMLVideoElement
       video.src = source; video.playsInline = true; video.controls = true
       document.getElementById('tour-sequence-video')?.appendChild(video)
+      videoElement.value = video
     }
     audio = element
+    const valid = () => version === queueVersion.value && audio === element
+    const attempt = ++playAttempt
     const startAt = resumeSeconds
+    pendingFileSeek = startAt > 0 ? startAt : null
+    playedSeconds.value = startAt
     resumeSeconds = 0
     currentItemDuration.value = item.durationSeconds ?? 0
     element.onloadedmetadata = () => {
-      if (version !== queueVersion.value) return
+      if (!valid()) return
+      if (pendingFileSeek !== null) { try { element.currentTime = pendingFileSeek; pendingFileSeek = null } catch {} }
       if (Number.isFinite(element.duration) && element.duration > 0) currentItemDuration.value = element.duration
     }
     element.onplaying = () => {
-      if (version !== queueVersion.value) return
+      if (!valid()) return
+      if (status.value !== 'playing') { element.pause(); return }
       clearWait()
       blocked.value = false
       // 已经开始播放的前置音频计入"本次游览已播过"，切换导游后不再重复
@@ -379,20 +399,20 @@ export function useTourSpeech(onNarrationEnd: () => void) {
       }
     }
     element.ontimeupdate = () => {
-      if (version !== queueVersion.value) return
-      if (Number.isFinite(element.currentTime)) playedSeconds.value = element.currentTime
+      if (!valid()) return
+      if (pendingFileSeek === null && Number.isFinite(element.currentTime)) playedSeconds.value = element.currentTime
       if (Number.isFinite(element.duration) && element.duration > 0) currentItemDuration.value = element.duration
     }
-    element.onended = () => advance(version)
+    element.onended = () => { if (valid()) advance(version) }
     if (item.mediaKind === 'video') {
-      element.onpause = () => { if (version === queueVersion.value && !element.ended) { status.value = 'paused'; clearWait() } }
-      element.onplay = () => { if (version === queueVersion.value) { audioFocus.claim(); status.value = 'playing'; blocked.value = false } }
+      element.onpause = () => { if (valid() && !element.ended) { status.value = 'paused'; clearWait() } }
+      element.onplay = () => { if (!valid()) return; if (['ask', 'room'].includes(playbackFocus.current() ?? '')) { element.pause(); return } audioFocus.claim(); status.value = 'playing'; blocked.value = false }
     }
-    element.onerror = () => failItem(item, version)
-    applyStartTime(element, startAt)
-    timer = setTimeout(() => failItem(item, version), FILE_START_TIMEOUT_MS)
+    element.onerror = () => { if (valid()) failItem(item, version) }
+    if (element.readyState >= 1 && pendingFileSeek !== null) { try { element.currentTime = pendingFileSeek; pendingFileSeek = null } catch {} }
+    timer = setTimeout(() => { if (valid() && attempt === playAttempt) failItem(item, version) }, FILE_START_TIMEOUT_MS)
     void element.play().catch((caught: unknown) => {
-      if (version !== queueVersion.value) return
+      if (!valid() || attempt !== playAttempt || status.value !== 'playing') return
       if (isAutoplayBlocked(caught)) {
         // 保留待播条目与恢复位置，等用户点"继续播放"
         clearWait()
@@ -422,8 +442,12 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     if (!synthesis) { failNarration('unavailable'); return }
     const sentence = sentences[sentenceIndex]
     if (!sentence) { advance(version); return }
+    const epoch = mediaEpoch
+    const valid = () => version === queueVersion.value && epoch === mediaEpoch && items[index] === item
+    let begun = false
     const begin = () => {
-      if (version !== queueVersion.value || status.value !== 'playing') return
+      if (begun || !valid() || status.value !== 'playing') return
+      begun = true
       clearWait()
       const voice = synthesis.getVoices().find(item => item.lang.toLowerCase().split(/[-_]/)[0] === locale)
       if (!voice) { failNarration('voiceMissing'); return }
@@ -431,16 +455,18 @@ export function useTourSpeech(onNarrationEnd: () => void) {
       utterance.voice = voice
       utterance.lang = TOUR_LANGUAGES.find(language => language.value === locale)!.speech
       utterance.rate = 0.95
-      utterance.onstart = () => clearTimeout(timer)
+      const activeUtterance = utterance
+      const current = () => valid() && utterance === activeUtterance
+      utterance.onstart = () => { if (current()) clearTimeout(timer) }
       utterance.onend = () => {
-        if (version !== queueVersion.value) return
+        if (!current() || status.value !== 'playing') return
         releaseUtterance()
         sentenceIndex += 1
         currentSentenceIndex.value = sentenceIndex
         speakSentence(item, version)
       }
-      utterance.onerror = () => failNarration('playback')
-      timer = setTimeout(() => failNarration('playback'), SPEECH_START_TIMEOUT_MS)
+      utterance.onerror = () => { if (current()) failNarration('playback') }
+      timer = setTimeout(() => { if (current()) failNarration('playback') }, SPEECH_START_TIMEOUT_MS)
       synthesis.resume()
       synthesis.speak(utterance)
     }
@@ -474,7 +500,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   function skipInterlude() {
     if (items[index]?.type !== 'interlude') return
     audioFocus.claim(); status.value = 'playing'; blocked.value = false
-    advance(queueVersion.value)
+    skipItem(items[index]!, queueVersion.value)
   }
 
   /** 只准备条目与位置，不发起播放（断点记录的是"暂停中"时用） */
@@ -500,7 +526,10 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     language: TourLocale,
     queueOptions: TourQueueOptions,
     resume?: TourResumeTarget | null,
+    formal = false,
   ) {
+    formalQueue = formal
+    completedVideos.clear()
     audioFocus.release()
     invalidateQueue()
     releaseMedia()
@@ -536,6 +565,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     }
     // 恢复时要把前面的讲解章节记为"已播"，否则完成判定会错位
     narrationPlayed = built.slice(0, startIndex).filter(item => item.type === 'chapter').length
+    narrationCompleted = narrationTotal > 0 && narrationPlayed >= narrationTotal
     if (startPaused) {
       prepareItemAt(startIndex, startSeconds, startSentence)
       resumeSeconds = startSeconds
@@ -561,7 +591,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     queueOptions: TourQueueOptions = {},
     resume?: TourResumeTarget | null,
   ) {
-    startQueue(stop?.id ?? null, buildTourQueue(stop?.extraAudios, chapters, queueOptions), language, queueOptions, resume)
+    startQueue(stop?.id ?? null, buildTourQueue(stop?.extraAudios, chapters, queueOptions, stop), language, queueOptions, resume, true)
   }
 
   /** 单独播放一条额外音频：站点没有讲解章节时也能用；不影响"已播过"记录 */
@@ -572,14 +602,23 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     return true
   }
 
+  function playVideo(stop: ClientTourStop | null, language: TourLocale) {
+    const item = stopVideoQueueItem(stop)
+    if (!item) return false
+    startQueue(stop?.id ?? null, [item], language, {}, null)
+    return true
+  }
+
   /** 暂停：保留当前条目；文件音频记住播放时间，系统语音记住当前句 */
   function pause() {
     if (status.value !== 'playing') return
+    playAttempt += 1
+    mediaEpoch += 1
     audioFocus.release()
     status.value = 'paused'
     clearWait()
     if (audio) {
-      const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0
+      const current = pendingFileSeek ?? (Number.isFinite(audio.currentTime) ? audio.currentTime : 0)
       resumeSeconds = current
       playedSeconds.value = current
       restorePrecision.value = 'exact'
@@ -608,9 +647,12 @@ export function useTourSpeech(onNarrationEnd: () => void) {
       if (resumeSeconds > 0) {
         try { audio.currentTime = resumeSeconds } catch { /* 不可寻址时从头播放 */ }
       }
-      timer = setTimeout(() => { if (version === queueVersion.value) failItem(item, version) }, FILE_START_TIMEOUT_MS)
-      void audio.play().catch((caught: unknown) => {
-        if (version !== queueVersion.value) return
+      const element = audio
+      const attempt = ++playAttempt
+      const valid = () => version === queueVersion.value && audio === element && attempt === playAttempt && status.value === 'playing'
+      timer = setTimeout(() => { if (valid()) failItem(item, version) }, FILE_START_TIMEOUT_MS)
+      void element.play().catch((caught: unknown) => {
+        if (!valid()) return
         if (isAutoplayBlocked(caught)) {
           clearWait()
           status.value = 'paused'
@@ -679,7 +721,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
   /** 断点快照：文件音频取精确秒数，系统语音取当前句序号 */
   function captureCheckpoint(): TourSpeechCheckpoint {
     const item = items[index]
-    const fileSeconds = audio && Number.isFinite(audio.currentTime) ? audio.currentTime : playedSeconds.value
+    const fileSeconds = pendingFileSeek ?? (audio && Number.isFinite(audio.currentTime) ? audio.currentTime : playedSeconds.value)
     return {
       itemId: item?.id ?? currentItemId.value,
       itemType: item?.type ?? currentItemType.value,
@@ -706,6 +748,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     queue,
     currentIndex,
     currentItem,
+    videoElement,
     skipInterlude,
     currentItemId,
     currentItemType,
@@ -715,6 +758,7 @@ export function useTourSpeech(onNarrationEnd: () => void) {
     canSeek,
     play,
     playExtra,
+    playVideo,
     pause,
     resume,
     stop,

@@ -20,6 +20,23 @@ async function audioFiles(sentences, tag) {
   } catch (error) { cleanup(paths); throw error; }
 }
 function cleanup(paths) { (paths || []).forEach(filePath => { fileCall('unlink', { filePath }).catch(() => {}); }); }
+let microphoneGuideOpen = false;
+function microphoneHelp() {
+  if (microphoneGuideOpen) return;
+  microphoneGuideOpen = true;
+  const finish = () => { microphoneGuideOpen = false; };
+  const explain = () => {
+    try { my.alert({ title: '开启麦克风权限', content: '请在手机系统设置中允许支付宝使用麦克风，再返回小程序点击麦克风重试。', buttonText: '知道了', complete: finish }); }
+    catch (_) { finish(); }
+  };
+  if (typeof my.showAuthGuide !== 'function') { explain(); return; }
+  try { my.showAuthGuide({ authType: 'MICROPHONE', success: result => { if (result && result.shown === false) explain(); else finish(); }, fail: explain }); }
+  catch (_) { explain(); }
+}
+function recordingError(result) {
+  const denied = Number(result.error) === 10;
+  return Object.assign(Error(Number(result.error) === 7 ? '录音太短，请点击麦克风说至少一秒后再结束' : denied ? '麦克风权限未开启，请开启权限后再次点击麦克风' : result.errorMessage || result.message || '录音失败，请使用文字提问'), { denied });
+}
 function asciiBytes(text) { return Array.from(text).map(c => c.charCodeAt(0)); }
 function multipartWav(buffer, boundary) {
   const head = asciiBytes('--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="question.wav"\r\nContent-Type: audio/wav\r\n\r\n');
@@ -65,7 +82,7 @@ function recorder(onState, onResult, onError) {
     held = false; state = 'idle'; release();
     if (closed) { detach(); return; }
     onState(false, false);
-    if (!cancelled) onError(Object.assign(Error(Number(result.error) === 7 ? '录音太短，请点击麦克风说至少一秒后再结束' : Number(result.error) === 10 ? '麦克风权限未开启，请允许后重试' : result.errorMessage || '录音失败，请使用文字提问'), { denied: Number(result.error) === 10 }));
+    if (!cancelled) { const failure = recordingError(result); onError(failure); if (failure.denied) microphoneHelp(); }
   };
   manager.onStart(start); manager.onStop(stop); manager.onError(error);
   return {
@@ -73,7 +90,7 @@ function recorder(onState, onResult, onError) {
       if (closed || processing || state !== 'idle' || recorderOwner) throw Error('录音尚未结束，请稍后重试');
       recorderOwner = owner; cancelled = false; held = true; state = 'starting';
       try { manager.start({ format: 'wav', sampleRate: 16000, numberOfChannels: 1, duration: 60000 }); }
-      catch (failure) { state = 'idle'; held = false; release(); throw failure; }
+      catch (failure) { state = 'idle'; held = false; release(); if (!closed && !cancelled && Number(failure.error) === 10) { microphoneHelp(); throw recordingError(failure); } throw failure; }
     },
     stop(cancel = false) { cancelled = cancel; held = false; if (state === 'recording') manager.stop(); },
     // 启动回调可能晚于页面隐藏；等待原生停止事件后再卸载，保证麦克风关闭。
@@ -82,4 +99,4 @@ function recorder(onState, onResult, onError) {
 }
 function reserveRecorder(owner) { if (recorderOwner) return false; recorderOwner = owner; return true; }
 function releaseRecorder(owner) { if (recorderOwner === owner) recorderOwner = null; }
-module.exports = { audioFiles, cleanup, multipartWav, transcribe, recorder, reserveRecorder, releaseRecorder };
+module.exports = { audioFiles, cleanup, multipartWav, transcribe, recorder, reserveRecorder, releaseRecorder, microphoneHelp };

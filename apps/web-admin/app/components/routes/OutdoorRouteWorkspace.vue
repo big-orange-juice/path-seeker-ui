@@ -9,7 +9,7 @@ import type { RouteMapDetail } from '@/types/route-map'
 import type { RouteNodeResponse } from '@/types/route'
 
 const props = defineProps<{ routeId: string; nodes: RouteNodeResponse[]; selectedStageId: string; canEdit: boolean; distanceMeters?: number | null; estimatedMinutes?: number | null; refreshVersion?: number; places?: CulturalPlaceRecord[] }>()
-const emit = defineEmits<{ select: [stageId: string]; edit: [stageId: string]; remove: [stageId: string]; changed: []; loaded: [detail: RouteMapDetail | null] }>()
+const emit = defineEmits<{ select: [stageId: string]; edit: [stageId: string]; remove: [stageId: string]; create: []; changed: []; loaded: [detail: RouteMapDetail | null] }>()
 const { request } = useApiClient()
 const detail = shallowRef<RouteMapDetail | null>(null)
 const error = shallowRef('')
@@ -146,6 +146,7 @@ defineExpose({ save })
     <RouteMapCanvas ref="canvas" :detail="detail" :places="places" :focused-stage-id="active?.stageId || ''" presentation="workspace" @select="emit('select', $event)" @edit="canEdit && emit('edit', $event)" @error="error = $event" />
     <div class="map-toolbar">
       <Map class="h-4 w-4 shrink-0" /><span>高德地图路线</span><b>{{ distance }}</b><b>{{ duration }}</b>
+      <Button v-if="canEdit" size="sm" variant="outline" :disabled="pending || loading" @click="emit('create')"><Plus class="mr-1 h-3 w-3" />新增站点</Button>
       <Button v-if="canEdit" size="sm" :disabled="!active?.stageId || pending" @click="active?.stageId && emit('edit', active.stageId)"><Pencil class="mr-1 h-3 w-3" />编辑这一站</Button>
       <Button v-if="canEdit" size="sm" variant="outline" :disabled="pending || loading" @click="openGeometryEditor()"><RouteIcon class="mr-1 h-3 w-3" />编辑路线形状</Button>
       <Button v-if="canEdit" size="sm" variant="outline" :disabled="pending || loading" @click="segmentsOpen = !segmentsOpen"><ListOrdered class="mr-1 h-3 w-3" />路段列表</Button>

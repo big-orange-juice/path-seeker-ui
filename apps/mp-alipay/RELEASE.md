@@ -29,7 +29,7 @@
 1. 确认小程序归属主体及认证状态，开发账号有该小程序的开发权限，负责提审和上架的账号有对应操作权限。体验成员按控制台规则添加。
 2. 完成名称、图标、简介、服务类目及运营联系信息。类目应与实际旅游导览、问答业务一致；按照所选类目提供平台要求的资质，具体材料见 [经营类目与资质](https://opendocs.alipay.com/b/03al2m)。
 3. 配置正式隐私政策和数据使用说明，说明定位、录音转写、账号、对话及行程记录的用途。小程序内的说明页不能替代运营方在平台提交的正式隐私政策。
-4. 按控制台要求完成定位、麦克风/录音相关能力与权限用途配置。当前临时关闭手机号要求：小程序 `authOptions.requirePhoneNumber=false`、后端 `MiniProgramAuth:Alipay:RequirePhoneNumber=false`，只跳过手机号，保留支付宝身份校验及正式登录；发布时需同步部署后端配置并重启 API。恢复手机号要求时，两端均改为 `true`，完成获取会员手机号能力与隐私用途配置、AES“接口内容加密方式”、接口加签及应用网关默认 RSA2 配置；后端填写相同的 `MiniProgramAuth:Alipay:EncryptKey`（环境变量 `MiniProgramAuth__Alipay__EncryptKey`）。配置与错误排查见 [身份登录接入说明](../../docs/93-mini-program-auth-integration.md#临时跳过手机号)。
+4. 按控制台要求完成定位、麦克风/录音相关能力与权限用途配置。2026-10-29 恢复手机号要求：小程序 `authOptions.requirePhoneNumber=true`，后端 `MiniProgramAuth:Alipay:RequirePhoneNumber=true`，同步部署服务端 AES 配置并重启 API，再上传新构建的小程序。获取会员手机号能力与隐私用途、AES“接口内容加密方式”、接口加签及应用网关默认 RSA2 均需配置；后端 `MiniProgramAuth:Alipay:EncryptKey`（环境变量 `MiniProgramAuth__Alipay__EncryptKey`）必须与开放平台一致。配置与错误排查见 [身份登录接入说明](../../docs/93-mini-program-auth-integration.md#5-服务端配置)。
 5. 配置请求及媒体访问所需域名，保存后核对生效情况。具体操作参照 [打包上传与域名白名单](https://opendocs.alipay.com/mini/ide/upload)。
 
 **开发预览通过不代表域名配置正确。** 官方说明中，上传前的模拟器、手机预览及调试默认不限制域名；上传后的体验版、审核版、灰度版和线上版只允许访问白名单域名。因此必须使用上传后的体验版重新测试网络请求和媒体加载。

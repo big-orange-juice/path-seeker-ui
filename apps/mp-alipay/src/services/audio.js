@@ -2,6 +2,7 @@
 let context = null, owner = '', queue = [], index = 0, hooks = {}, generation = 0, failed = false, playing = false;
 let accepting = false, finished = false, paused = false, prepared = null;
 let video = null;
+let completedItemIds = [];
 const isExtra = item => item && ['before', 'after', 'interlude-audio', 'interlude-video'].includes(item.kind);
 const listeners = {};
 function discardPrepared() {
@@ -41,7 +42,7 @@ function create(token) {
   context.obeyMuteSwitch = false;
   // 息屏/切后台继续播放；需 app.json 声明 requiredBackgroundModes: ["audio"]。
   try { context.supportBackgroundPlay = true; } catch (_) {}
-  listeners.Play = () => { if (valid()) { playing = true; notify(); } };
+  listeners.Play = () => { if (valid()) { if (paused) { active.pause(); return; } playing = true; notify(); } };
   listeners.Pause = () => { if (valid()) { playing = false; notify(); } };
   listeners.Stop = () => { if (valid()) { playing = false; notify(); } };
   listeners.TimeUpdate = () => { if (valid()) notify(); };
@@ -51,6 +52,7 @@ function create(token) {
   listeners.Ended = () => {
     if (!valid() || failed) return;
     playing = false;
+    completedItemIds.push(queue[index].id);
     if (hooks.itemEnded) hooks.itemEnded(queue[index]);
     if (!valid()) return;
     index++;
@@ -71,7 +73,7 @@ function create(token) {
 }
 let pendingSeek = null;
 function snapshot() {
-  return { owner, playing, index, item: queue[index] || null, time: video ? video.time : context ? context.currentTime || 0 : 0, duration: video ? video.duration : context ? context.duration || 0 : 0, failed, generation };
+  return { owner, playing, requested: !!queue[index] && !paused && !failed, index, item: queue[index] || null, time: video ? video.time : pendingSeek !== null ? pendingSeek : context ? context.currentTime || 0 : 0, duration: video ? video.duration : context ? context.duration || 0 : 0, failed, generation };
 }
 function notify() { if (hooks.change) hooks.change(snapshot()); }
 function next(token) {
@@ -83,7 +85,7 @@ function next(token) {
   const item = queue[index];
   if (!item) {
     notify();
-    if (!accepting && !finished) { finished = true; if (hooks.finished) hooks.finished({ failed }); }
+    if (!accepting && !finished) { finished = true; if (hooks.finished) hooks.finished({ failed, completedItemIds: completedItemIds.slice() }); }
     return;
   }
   if (!item.url) {
@@ -127,7 +129,7 @@ function stop(expectedOwner) {
   generation++;
   if (video && hooks.video) hooks.video(null, generation);
   video = null;
-  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false; paused = false;
+  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false; paused = false; completedItemIds = [];
   discardPrepared();
   dispose();
   queue = []; index = 0; owner = ''; failed = false;
@@ -142,6 +144,7 @@ function videoEvent(kind, token, id, detail = {}) {
   if (kind === 'play') { playing = true; paused = false; }
   if (kind === 'pause') { playing = false; paused = true; }
   if (kind === 'ended' || kind === 'skip' || kind === 'error') {
+    if (kind === 'ended') completedItemIds.push(queue[index].id);
     if (kind === 'error' && hooks.error) hooks.error(Error('段间视频播放失败，已继续讲解'));
     if (Number(token) !== generation) return;
     if (hooks.itemEnded) hooks.itemEnded(queue[index]);

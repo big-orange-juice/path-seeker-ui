@@ -35,6 +35,58 @@ test('short/denied native recorder errors are actionable and release ownership',
   r.start(); h.recorder.emit('Error', { error: 7 }); assert.match(errors[0].message, /至少一秒/);
   r.start(); h.recorder.emit('Error', { error: 10 }); assert.equal(errors[1].denied, true); r.destroy();
 });
+
+test('permission denial opens one microphone guide and waits for another user recording attempt', () => {
+  const h = harness(), speech = h.load('services/speech'), guides = [], errors = [], states = [];
+  h.my.showAuthGuide = options => guides.push(options);
+  const r = speech.recorder((...s) => states.push(s), () => assert.fail('permission denial cannot transcribe'), e => errors.push(e));
+  r.start(); h.recorder.emit('Error', { error: 10 }); h.recorder.emit('Error', { error: 10 });
+  assert.equal(guides.length, 1); assert.equal(guides[0].authType, 'MICROPHONE');
+  assert.equal(errors[0].denied, true); assert.match(errors[0].message, /再次点击麦克风/);
+  assert.deepEqual(states, [[false, false]]); assert.equal(h.requests.length, 0);
+  speech.microphoneHelp(); assert.equal(guides.length, 1);
+  guides[0].success({ shown: true });
+  assert.equal(h.recorder.starts.length, 1);
+  r.start(); h.recorder.emit('Start'); assert.deepEqual(states.at(-1), [true, false]);
+  r.destroy(); h.recorder.emit('Error', { error: 10 }); assert.equal(guides.length, 1);
+});
+
+test('ordinary recorder errors and cancelled or destroyed starts never open permission guides', () => {
+  for (const action of ['short', 'network', 'cancel', 'destroy']) {
+    const h = harness(), guides = [];
+    h.my.showAuthGuide = options => guides.push(options);
+    const r = h.load('services/speech').recorder(() => {}, () => {}, () => {});
+    r.start();
+    if (action === 'cancel') r.stop(true);
+    if (action === 'destroy') r.destroy();
+    h.recorder.emit('Error', { error: action === 'short' ? 7 : action === 'network' ? 3 : 10 });
+    assert.equal(guides.length, 0); r.destroy();
+  }
+});
+
+test('missing or failed permission guide explains system settings and remains retryable', () => {
+  for (const mode of ['missing', 'fail', 'throw', 'not-shown']) {
+    const h = harness(), speech = h.load('services/speech'), alerts = [];
+    h.my.alert = options => alerts.push(options);
+    if (mode === 'fail') h.my.showAuthGuide = options => options.fail({});
+    if (mode === 'throw') h.my.showAuthGuide = () => { throw Error('unsupported'); };
+    if (mode === 'not-shown') h.my.showAuthGuide = options => options.success({ shown: false });
+    speech.microphoneHelp(); assert.equal(alerts.length, 1); assert.match(alerts[0].content, /系统设置.*支付宝.*麦克风/);
+    speech.microphoneHelp(); assert.equal(alerts.length, 1);
+    alerts[0].complete({}); speech.microphoneHelp(); assert.equal(alerts.length, 2);
+    assert.equal(h.recorder.starts.length, 0); assert.equal(h.requests.length, 0);
+  }
+});
+
+test('synchronous permission error releases the recorder and also opens microphone guidance', () => {
+  const h = harness(), guides = [], speech = h.load('services/speech');
+  h.my.showAuthGuide = options => guides.push(options);
+  h.recorder.start = () => { throw { error: 10 }; };
+  const r = speech.recorder(() => {}, () => {}, () => {});
+  assert.throws(() => r.start(), e => e.denied && /再次点击麦克风/.test(e.message));
+  assert.equal(guides.length, 1);
+  const owner = {}; assert.equal(speech.reserveRecorder(owner), true); speech.releaseRecorder(owner); r.destroy();
+});
 test('successful recording transcribes to text and cleans original file after response', async () => {
   const h = harness(), results = [], states = [], r = h.load('services/speech').recorder((...s) => states.push(s), s => results.push(s), e => { throw e; });
   r.start(); h.recorder.emit('Start'); r.stop(); const stops = h.recorder.emit('Stop', { tempFilePath: '/question.audio' }); await tick();

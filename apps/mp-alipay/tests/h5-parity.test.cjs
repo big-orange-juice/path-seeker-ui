@@ -199,15 +199,33 @@ test('native duration limit stops recording and automatically submits once witho
 });
 
 test('handed-off permission failure clears starting state and releases recorder listeners', async () => {
-  const h = harness(), tour = setupTour(h);
+  const h = harness(), tour = setupTour(h), guides = [];
+  h.my.showAuthGuide = options => guides.push(options);
   tour.startRecording();
   const chat = h.page('chat'); chat.onLoad(); chat.onShow(); await tick();
   h.requests[0].ok([]); await tick();
   h.recorder.emit('Error', { error: 10 }); await tick();
   assert.equal(chat.data.recording, false); assert.equal(chat.data.microphoneStarting, false);
   assert.match(chat.data.error, /权限/); assert.equal(h.recorder.callbacks('Start').length, 0);
+  assert.equal(guides.length, 1); assert.equal(guides[0].authType, 'MICROPHONE');
+  guides[0].success({ shown: true }); assert.equal(h.recorder.starts.length, 1);
   await chat.toggleRecording(); assert.equal(h.recorder.starts.length, 2); chat.onHide();
   h.recorder.emit('Start'); await Promise.all(h.recorder.emit('Stop', { tempFilePath: '/retry-cancel.audio' }));
+});
+
+test('chat microphone permission denial opens guidance after resetting recording state and retries only on tap', async () => {
+  const h = harness(), chat = setupChat(h), guides = [];
+  h.my.showAuthGuide = options => {
+    assert.equal(chat.data.recording, false); assert.equal(chat.data.microphoneStarting, false);
+    guides.push(options);
+  };
+  await chat.toggleRecording(); h.recorder.emit('Error', { error: 10 });
+  assert.equal(guides.length, 1); assert.match(chat.data.error, /开启权限后再次点击麦克风/);
+  assert.equal(h.recorder.callbacks('Start').length, 0);
+  guides[0].success({ shown: true }); assert.equal(h.recorder.starts.length, 1); assert.equal(h.requests.length, 0);
+  await chat.toggleRecording(); h.recorder.emit('Start'); assert.equal(chat.data.recording, true);
+  chat.onHide(); await Promise.all(h.recorder.emit('Stop', { tempFilePath: '/permission-retry.audio' }));
+  assert.equal(h.requests.length, 0);
 });
 
 test('switching text mode cancels handed-off transcription and ignores its late result', async () => {

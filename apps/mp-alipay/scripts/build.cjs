@@ -99,7 +99,7 @@ function validateTemplate(page, checked = new Set()) {
     if (!new RegExp('\\b' + match[1] + '\\s*\\(').test(javascript)) throw Error('模板事件没有处理函数: ' + page + ':' + match[1]);
   }
   const tags = [];
-  const nativeTags = new Set(['view', 'text', 'rich-text', 'button', 'image', 'input', 'textarea', 'scroll-view', 'picker', 'switch', 'slider', 'checkbox-group', 'checkbox', 'label', 'map', 'video', 'block']);
+  const nativeTags = new Set(['view', 'text', 'rich-text', 'button', 'image', 'input', 'textarea', 'scroll-view', 'swiper', 'swiper-item', 'picker', 'switch', 'slider', 'checkbox-group', 'checkbox', 'label', 'map', 'video', 'block']);
   for (const match of template.matchAll(/<\/?([a-z][\w-]*)\b[^>]*>/g)) {
     if (!nativeTags.has(match[1]) && !components[match[1]]) throw Error('不支持的原生组件: ' + page + ':' + match[1]);
     if (match[0].startsWith('</')) { if (tags.pop() !== match[1]) throw Error('模板标签不匹配: ' + page); }

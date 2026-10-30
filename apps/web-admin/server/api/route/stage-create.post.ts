@@ -11,6 +11,8 @@ export interface CreateRouteStageBody {
   interactionType?: number
   refPuzzleId?: string | null
   refExhibitId?: string | null
+  placeId?: string | null
+  guideId?: string | null
   unlockRule?: number
   isRequired?: number
   score?: number

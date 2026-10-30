@@ -147,6 +147,50 @@ test('restored playback sequence reconciles server progress and discards another
   storage.write(storage.scoped(userId, 'sequence'), { ...saved, visitId: 'other' }); p.restoreSequence();
   assert.deepEqual(plain(p.data.sequence.map(i => i.id)), [stageId]);
 });
+
+test('重新开启近站可启动已有队列，但不覆盖用户主动暂停', () => {
+  for (const paused of [false, true]) {
+    const h = harness(), p = tourPage(h, visit());
+    p.setData({ stops: [stop(), stop('next', 2)], browsing: true });
+    p._manualBrowse = true; p._userPaused = paused;
+    p.sequenceStatus('next', 'queued', 1); p.watchLocation = () => {};
+    p.toggleTracking();
+    assert.equal(p.data.autoplay, true); assert.equal(p._manualBrowse, false);
+    assert.equal(h.requests.length, paused ? 0 : 1);
+  }
+});
+
+test('近站排队不会抢占正在加载但尚未报告 playing 的视频', () => {
+  const h = harness(), p = tourPage(h, visit()), audio = h.load('services/audio');
+  p.data.stop.video = '/stage.mp4'; p.data.stop.guideNarrations = [];
+  p.showStop(0, true); p.setData({ autoplay: true, stops: [p.data.stop, stop('next', 2)] }); p.play();
+  assert.equal(audio.snapshot().playing, false); assert.equal(audio.snapshot().item.kind, 'interlude-video');
+  p.enqueueCandidates([{ id: 'next', index: 1, distance: 3, order: 2 }]);
+  assert.equal(h.requests.length, 0); assert.equal(p.data.videoItem.url, '/stage.mp4');
+});
+
+test('翻译房间解除占用时重试已有近站队列，问答开启期间仍不切站', () => {
+  const h = harness(), p = tourPage(h, visit()), room = h.load('services/translation-session');
+  let state = { room: { isHost: false, status: 'live' }, paused: false, disconnected: false }, publish;
+  room.snapshot = () => state; room.subscribe = callback => { publish = callback; callback(state); return () => {}; };
+  p.setData({ stops: [stop(), stop('next', 2)], autoplay: true, browsing: true });
+  p.enqueueCandidates([{ id: 'next', index: 1, distance: 3, order: 2 }]); p.onShow();
+  assert.equal(h.requests.length, 0);
+  p.setData({ chatOpen: true }); state = {}; publish(state); assert.equal(h.requests.length, 0);
+  p.setData({ chatOpen: false }); publish(state); assert.equal(h.requests[0].options.data.stageId, 'next');
+});
+
+test('忙碌期间完成的讲解保留完成事件，失败的入站不会无限自动重试', async () => {
+  const h = harness(), p = tourPage(h, visit());
+  p.play(); p.setData({ busy: true }); h.audioContexts[0].emit('Ended');
+  assert.equal(h.requests.length, 0); assert.ok(p._pendingFinish);
+  p.setData({ busy: false }); p.flushFinished(); assert.equal(h.requests[0].options.data.action, 'complete');
+  h.requests[0].ok(visit({ completedStageIds: [stageId] })); await tick();
+  p.setData({ stops: [stop(), stop('next', 2)], autoplay: true });
+  p.enqueueCandidates([{ id: 'next', index: 1, distance: 3, order: 2 }]);
+  h.requests[1].reject({ errorMessage: '网络不可用' }); await tick();
+  assert.equal(h.requests.length, 2); assert.equal(p.data.busy, false); assert.equal(p.nextSequenceIndex(), 1);
+});
 test('destination boundaries, polygon holes and circular place ranges render alongside native markers', () => {
   const h = harness(), tour = h.load('core/tour'), ring = [[116.38, 39.93], [116.39, 39.93], [116.39, 39.94], [116.38, 39.93]];
   const detail = { route: route(), coordinateSystem: 1, stops: [{ ...stop(), placeId: 'place' }], geometry: { type: 'LineString', coordinates: [[116.38, 39.93], [116.39, 39.94]] } };
@@ -175,7 +219,8 @@ test('chat ignores an old initialization response after hiding and reopening', a
   assert.equal(p.data.sessions[0].id, 'current'); assert.equal(p.data.loading, false); assert.equal(h.requests.length, 2);
 });
 
-test('GPS stability adds nearby stops while manual browsing keeps current content', () => {
+test('GPS stability shows a three-second prompt while manual browsing keeps current content', t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
   const h = harness(), p = tourPage(h, visit()); let fix;
   h.load('services/location').watch = callback => { fix = callback; return () => {}; };
   const candidate = { id: 'next', index: 1, order: 2, distance: 4 };
@@ -184,8 +229,47 @@ test('GPS stability adds nearby stops while manual browsing keeps current conten
   p._manualBrowse = true; p.showStop(0, true); p.watchLocation();
   fix({ accuracy: 10 }); assert.equal(p.data.sequence.length, 0);
   p._dwell.at = Date.now() - 2000; fix({ accuracy: 10 });
-  assert.equal(p.data.sequence[0].id, 'next'); assert.equal(h.requests.length, 0); assert.equal(p.data.stop.id, stageId); assert.equal(p.data.candidates[0].id, 'next');
+  assert.equal(p.data.sequence.length, 0); assert.equal(h.requests.length, 0); assert.equal(p.data.stop.id, stageId); assert.equal(p.data.candidates[0].id, 'next');
+  t.mock.timers.tick(3000);
+  assert.equal(p.data.sequence[0].id, 'next'); assert.equal(p.data.arrivalCandidate, null); assert.equal(h.requests.length, 0);
   p.dismissCandidates(); fix({ accuracy: 10 }); assert.equal(p.data.candidates.length, 0);
+});
+
+test('enabling nearby stories follows location and starts stable candidates after the prompt expires', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
+  const h = harness(), p = tourPage(h, visit({ currentStageId: null })); let onFix, stopped = 0;
+  h.load('services/location').watch = callback => { onFix = callback; return () => stopped++; };
+  p.showStop(0, true); p.toggleTracking();
+  assert.equal(p.data.locationEnabled, true); assert.equal(p.data.autoplay, true); assert.equal(p.data.following, true);
+  const fix = { longitude: 116.383, latitude: 39.937, accuracy: 10, timestamp: Date.now() };
+  onFix(fix); assert.equal(h.requests.length, 0);
+  p._dwell.at = Date.now() - 2000; onFix(fix);
+  assert.equal(h.requests.length, 0); assert.equal(p.data.arrivalCandidate.id, stageId);
+  t.mock.timers.tick(2999); assert.equal(h.requests.length, 0);
+  t.mock.timers.tick(1); assert.equal(p.data.arrivalCandidate, null);
+  assert.equal(h.requests[0].options.data.stageId, stageId);
+  assert.equal(h.requests[0].options.data.action, 'start');
+  h.requests[0].ok(visit()); await tick();
+  assert.equal(p.data.playing, true); assert.equal(h.audioContexts.length, 1);
+  assert.match(p.data.locationNote, /10/);
+  p.toggleTracking();
+  assert.equal(p.data.autoplay, false); assert.equal(p.data.locationEnabled, false); assert.equal(stopped, 1);
+});
+
+test('weak GPS resets dwell and permission denial clears tracking and the position marker', () => {
+  const h = harness(), p = tourPage(h, visit({ currentStageId: null })); let onFix, onError;
+  h.load('services/location').watch = (fix, error) => { onFix = fix; onError = error; return () => {}; };
+  p.showStop(0, true); p.toggleTracking();
+  const fix = { longitude: 116.383, latitude: 39.937, accuracy: 10, timestamp: Date.now() };
+  onFix(fix); assert.ok(p._dwell);
+  p._dwell.at = Date.now() - 2000; onFix({ ...fix, accuracy: 100 });
+  assert.equal(p._dwell, null); assert.equal(p.data.candidates.length, 0);
+  assert.equal(p.data.locationNote, p.data.messages.locationUnknown); assert.equal(h.requests.length, 0);
+  onFix(fix); assert.ok(p._dwell); assert.equal(h.requests.length, 0);
+  onError({ denied: true });
+  assert.equal(p.data.locationEnabled, false); assert.equal(p._watch, null); assert.equal(p._fix, null);
+  assert.equal(p.data.map.markers.some(marker => marker.id === 0), false);
+  assert.equal(p.data.locationNote, p.data.messages.permissionDenied);
 });
 
 test('nearby prompt can explicitly enter a candidate and starts that stop', async () => {

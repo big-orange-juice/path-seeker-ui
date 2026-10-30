@@ -29,6 +29,42 @@ await build({
 })
 const { useTourJourney } = await import(pathToFileURL(resolve(temporary, 'useTourJourney.mjs')).href)
 
+test('手动观看视频保留解说断点，浏览其他节点时不会串用当前播放状态', async () => {
+  const previous = { Audio: globalThis.Audio, window: globalThis.window, localStorage: globalThis.localStorage, document: globalThis.document }
+  const saved = new Map<string, string>()
+  const storage = { getItem: (key: string) => saved.get(key) ?? null, setItem: (key: string, value: string) => saved.set(key, value), removeItem: (key: string) => saved.delete(key) }
+  class Media {
+    tagName = 'AUDIO'; currentTime = 0; duration = 60; readyState = 1
+    onplaying: (() => void) | null = null; onended: (() => void) | null = null
+    play() { this.onplaying?.(); return Promise.resolve() }
+    pause() {}; load() {}; removeAttribute() {}; remove() {}; addEventListener() {}
+  }
+  Object.assign(globalThis, { Audio: Media, window: { speechSynthesis: undefined, sessionStorage: storage }, localStorage: storage, document: { createElement: () => Object.assign(new Media(), { tagName: 'VIDEO' }), getElementById: () => ({ appendChild() {} }) } })
+  const renderer = createRenderer({ createElement: () => ({}), insert() {}, remove() {}, createText: () => ({}), createComment: () => ({}), setText() {}, setElementText() {}, parentNode: () => null, nextSibling: () => null, patchProp() {} })
+  let journey: any
+  const app = renderer.createApp({ setup() { journey = useTourJourney(); return () => null } }); app.mount({})
+  try {
+    journey.preview.value = { route: { id: 'route', locale: 'zh' }, stops: [0, 1].map(index => ({
+      id: `stage-${index}`, name: '本站', order: index + 1, video: '/stage.mp4', extraAudios: [],
+      guideNarrations: [{ id: 'guide', locale: 'zh', chapters: [{ id: 'chapter', order: 1, text: '解说', audioUrl: '/chapter.mp3' }] }],
+    })) }
+    await journey.start(); await journey.selectStop(0)
+    journey.playStopVideo()
+    const key = 'path-seeker:tour-playback:route:stage-0'
+    assert.equal(JSON.parse(saved.get(key)!).itemId, 'chapter')
+    assert.equal(journey.speech.currentItem.value.mediaKind, 'video')
+    journey.saveCheckpoint('page-hide')
+    assert.equal(JSON.parse(saved.get(key)!).itemId, 'chapter')
+    journey.playCurrentStop()
+    journey.openContentDrawer(1, 'map-selection')
+    journey.playStopVideo()
+    assert.equal(journey.speech.currentItemId.value, 'chapter')
+    journey.openContentDrawer(0, 'map-selection')
+    journey.saveCheckpoint('manual')
+    assert.equal(JSON.parse(saved.get(key)!).itemId, 'chapter')
+  } finally { app.unmount(); Object.assign(globalThis, previous) }
+})
+
 test('近站定位需稳定停留，弱精度不入队，抑制结束后去重恢复且拒绝授权会停止监听', async () => {
   const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
   const previousWindow = globalThis.window
@@ -206,8 +242,11 @@ test('队列去重、暂停自动推进、内容锁定与立即播放保持一�
     assert.equal(journey.currentStop.value.id, 'stage-0')
     journey.setAutoPlayEnabled(true)
     await new Promise(resolve => setTimeout(resolve, 0))
+    assert.equal(journey.currentStop.value.id, 'stage-0')
+    journey.setContentAutoSwitchLocked(false)
+    await new Promise(resolve => setTimeout(resolve, 0))
     assert.equal(journey.currentStop.value.id, 'stage-1')
-    assert.equal(journey.drawerStop.value.id, 'stage-0')
+    assert.equal(journey.drawerStop.value.id, 'stage-1')
     assert.equal(journey.playbackSequence.value[0].status, 'playing')
     journey.location.value = { longitude: 0.002, latitude: 0, accuracy: 5, heading: null, timestamp: Date.now() }
     journey.arrivalCandidates.value = [{ ...candidate, index: 2, stop: journey.stops.value[2] }]

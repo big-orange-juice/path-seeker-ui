@@ -5,7 +5,7 @@ module.exports = {
   background: true,
   // 真机联调诊断日志：定位问答流式接收问题期间打开，上线前改回 false。
   diagnostics: true,
-  authOptions: { guestLogin: false, passwordLogin: false, requirePhoneNumber: false },
+  authOptions: { guestLogin: false, passwordLogin: false, requirePhoneNumber: true },
   voiceId: 'male-qn-qingse',
   locales: [
     { value: 'zh', label: '中文' }, { value: 'en', label: 'English' },

@@ -81,11 +81,11 @@ test('损坏的断点数据不会抛错，按无效处理', () => {
   assert.equal(readTourCheckpoint(storage, 'route-1', 'stop-2'), null)
 })
 
-test('自动推进模式：定位可用为 proximity，否则 sequential', () => {
+test('自动推进模式：开启定位后等待近站，弱精度不退化为顺序播放', () => {
   assert.equal(resolveAutoAdvanceMode({ tracking: true, locationError: false, fixUsable: true }), 'proximity')
   assert.equal(resolveAutoAdvanceMode({ tracking: false, locationError: false, fixUsable: true }), 'sequential')
-  assert.equal(resolveAutoAdvanceMode({ tracking: true, locationError: true, fixUsable: true }), 'sequential')
-  assert.equal(resolveAutoAdvanceMode({ tracking: true, locationError: false, fixUsable: false }), 'sequential')
+  assert.equal(resolveAutoAdvanceMode({ tracking: true, locationError: true, fixUsable: true }), 'proximity')
+  assert.equal(resolveAutoAdvanceMode({ tracking: true, locationError: false, fixUsable: false }), 'proximity')
   assert.equal(shouldAdvanceAfterQueue('sequential'), true)
   assert.equal(shouldAdvanceAfterQueue('proximity'), false)
 })

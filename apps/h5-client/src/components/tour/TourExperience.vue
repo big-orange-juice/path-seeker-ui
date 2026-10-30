@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useElementSize } from '@vueuse/core'
+import { useElementSize, useFullscreen as useVideoFullscreen } from '@vueuse/core'
 import { Focus, Languages, ListMusic, Maximize2, MessageCircle, Mic, Minimize2, Minus, Navigation, Plus, Route, UserRound } from 'lucide-vue-next'
 import { isTourLocale, TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
 import TourLanguageGate from '@/components/tour/TourLanguageGate.vue'
@@ -26,6 +26,7 @@ const props = defineProps<{ museumId: string }>()
 const route = useRoute()
 const router = useRouter()
 const journey = useTourJourney()
+const videoFullscreen = useVideoFullscreen(journey.speech.videoElement, { autoExit: true })
 const postcardOpen = shallowRef(false)
 const fullscreen = useFullscreen()
 const askStore = useAskStore()
@@ -51,6 +52,14 @@ let resumeNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let drawerReturnFocus: HTMLElement | null = null
 let previousBodyOverflow = ''
 const messages = computed(() => tourMessages(journey.locale.value))
+async function enterVideoFullscreen() {
+  if (!journey.speech.videoElement.value) return
+  try {
+    await videoFullscreen.enter()
+  } catch {
+    voiceNotice.value = messages.value.videoFullscreenUnavailable
+  }
+}
 function openVoiceAsk() {
   if (journey.pending.value || !journey.currentStop.value) return
   journey.beginAskInterrupt()
@@ -93,7 +102,7 @@ const canPlayCurrent = computed(() => {
   if (!stop) return false
   const hasChapter = (journey.narration.value?.chapters ?? [])
     .some(chapter => Boolean(chapter.text?.trim()) || Boolean(chapter.audioUrl))
-  if (hasChapter) return true
+  if (hasChapter || stop.video) return true
   if (journey.skipExtraAudio.value) return false
   return (stop.extraAudios ?? []).some(item => Boolean(item.url))
 })
@@ -118,7 +127,7 @@ watch(() => voice.error.value, (message) => {
 watch(
   () => askStore.open || askStore.voiceInputActive || voice.listening.value || pageHidden.value || roomAudioActive.value,
   (suppressed) => journey.setApproachSuppressed(suppressed),
-  { immediate: true },
+  { immediate: true, flush: 'sync' },
 )
 
 /** 恢复进行中的游览后直接进入行程视图 */
@@ -152,8 +161,8 @@ function handleVisibility() {
     journey.handleVisibilityHidden()
     return
   }
-  if (!viewingJourney.value || roomAudioActive.value || askStore.voiceInputActive || askStore.isSseAudioBusy) return
-  const result = journey.handleVisibilityVisible()
+  const allowResume = viewingJourney.value && !roomAudioActive.value && !askStore.voiceInputActive && !askStore.isSseAudioBusy
+  const result = journey.handleVisibilityVisible(allowResume)
   if (result === 'blocked-paused') showResumeNotice()
 }
 
@@ -341,11 +350,14 @@ function openAskWithContext() {
 /** 近站讲解开关：关掉定位时同步退出跟随，避免镜头停在最后一次定位上 */
 function toggleTracking() {
   if (journey.tracking.value) {
+    journey.setAutoPlayEnabled(false)
     journey.stopTracking()
     if (following.value) following.value = tourMap.value?.setFollowing(false) ?? false
     return
   }
   journey.startTracking()
+  journey.setAutoPlayEnabled(true)
+  following.value = tourMap.value?.setFollowing(true) ?? false
 }
 
 function toggleFollow() {
@@ -421,18 +433,20 @@ onBeforeUnmount(() => {
     <button v-if="!viewingJourney && journey.active.value" class="tour-return" type="button" @click="viewingJourney = true">{{ journey.active.value.route?.title }} · {{ messages.resume }}</button>
     <template v-if="viewingJourney && journey.currentStop.value">
       <TourArrivalPrompt v-if="showArrivalPrompt && !queueOpen && !askStore.open" :candidates="visibleArrivalCandidates" :pending="journey.pending.value" :messages="messages" :playing-stop-name="journey.currentStop.value?.name || null" @accept="journey.acceptArrival" @dismiss="journey.dismissArrival" />
-      <nav class="tour-tools" :aria-label="messages.routeTools">
-        <button type="button" :aria-label="messages.content" :title="messages.content" @click="openDrawerFromDock"><ListMusic :size="17" /></button>
-        <button type="button" :aria-label="messages.queueTitle" :title="messages.queueTitle" @click="toggleQueue"><span>{{ queuedCount }}</span></button>
-        <button type="button" :class="{ active: routeVisible }" :aria-pressed="routeVisible" :aria-label="routeVisible ? messages.hideRoute : messages.showRoute" :title="routeVisible ? messages.hideRoute : messages.showRoute" @click="toggleRoute"><Route :size="16" /></button>
-        <span class="toolbar-divider" aria-hidden="true" />
-        <button type="button" :aria-label="messages.zoomOut" :title="messages.zoomOut" @click="tourMap?.zoomBy(-1)"><Minus :size="16" /></button>
-        <button type="button" :aria-label="messages.overview" :title="messages.overview" @click="tourMap?.overview()"><Focus :size="16" /></button>
-        <button type="button" :class="{ active: following }" :aria-pressed="following" :disabled="!journey.tracking.value" :aria-label="following ? messages.unfollow : messages.follow" :title="following ? messages.unfollow : messages.follow" @click="toggleFollow"><Navigation :size="16" /></button>
-        <button type="button" :aria-label="messages.zoomIn" :title="messages.zoomIn" @click="tourMap?.zoomBy(1)"><Plus :size="16" /></button>
-        <span class="toolbar-divider" aria-hidden="true" />
-        <button type="button" class="toolbar-ask" :aria-label="messages.ask" :title="messages.ask" @click="ask"><MessageCircle :size="18" /></button>
-      </nav>
+      <div class="tour-tools-space">
+        <nav class="tour-tools" :aria-label="messages.routeTools">
+          <button type="button" :aria-label="messages.content" :title="messages.content" @click="openDrawerFromDock"><ListMusic :size="17" /></button>
+          <button type="button" :aria-label="messages.queueTitle" :title="messages.queueTitle" @click="toggleQueue"><span>{{ queuedCount }}</span></button>
+          <button type="button" :class="{ active: routeVisible }" :aria-pressed="routeVisible" :aria-label="routeVisible ? messages.hideRoute : messages.showRoute" :title="routeVisible ? messages.hideRoute : messages.showRoute" @click="toggleRoute"><Route :size="16" /></button>
+          <span class="toolbar-divider" aria-hidden="true" />
+          <button type="button" :aria-label="messages.zoomOut" :title="messages.zoomOut" @click="tourMap?.zoomBy(-1)"><Minus :size="16" /></button>
+          <button type="button" :aria-label="messages.overview" :title="messages.overview" @click="tourMap?.overview()"><Focus :size="16" /></button>
+          <button type="button" :class="{ active: following }" :aria-pressed="following" :disabled="!journey.tracking.value" :aria-label="following ? messages.unfollow : messages.follow" :title="following ? messages.unfollow : messages.follow" @click="toggleFollow"><Navigation :size="16" /></button>
+          <button type="button" :aria-label="messages.zoomIn" :title="messages.zoomIn" @click="tourMap?.zoomBy(1)"><Plus :size="16" /></button>
+          <span class="toolbar-divider" aria-hidden="true" />
+          <button type="button" class="toolbar-ask" :aria-label="messages.ask" :title="messages.ask" @click="ask"><MessageCircle :size="18" /></button>
+        </nav>
+      </div>
       <Transition name="story-drawer">
         <div v-if="journey.drawerOpen.value && journey.drawerStop.value" ref="drawerHost" class="tour-drawer-host" @pointerdown="journey.markDrawerInteraction()" @scroll.passive="journey.markDrawerInteraction()">
           <TourStoryDrawer
@@ -445,10 +459,8 @@ onBeforeUnmount(() => {
             :paused="isPaused"
             :pending="journey.pending.value"
             :messages="messages"
-            :skip-extra-audio="journey.skipExtraAudio.value"
             :blocked="journey.speech.blocked.value"
             :restore-approximate="journey.speech.restorePrecision.value === 'approximate'"
-            :playing-item-id="journey.speech.currentItemId.value"
             :playing-label="journey.speech.currentItem.value?.title || ''"
             :matches-playing="journey.drawerMatchesPlaying.value"
             :playing-stop-name="journey.currentStop.value?.name || null"
@@ -463,8 +475,7 @@ onBeforeUnmount(() => {
             @seek="seek"
             @select="journey.selectStop"
             @guide="journey.selectGuide"
-            @skip-extra-audio="journey.setSkipExtraAudio"
-            @play-extra="journey.playExtraAudio"
+            @play-video="journey.playStopVideo"
             @content-lock="journey.setContentAutoSwitchLocked"
             @postcard="postcardOpen = true; journey.speech.pause()"
           />
@@ -539,16 +550,29 @@ onBeforeUnmount(() => {
       </div>
     </template>
     <TourLanguageGate v-if="!journey.languageReady.value" :title="messages.chooseLanguage" @select="selectLanguage" />
-    <section v-show="journey.speech.currentItem.value?.mediaKind === 'video' && speechStatus !== 'idle'" class="tour-sequence-video" aria-label="段间视频"><header><strong>{{ playingItemLabel }}</strong><button type="button" @click="journey.speech.skipInterlude()">跳过视频</button></header><div id="tour-sequence-video" /><button v-if="isPaused" type="button" @click="journey.resumePlayback">继续播放</button></section>
+    <section v-show="journey.speech.currentItem.value?.mediaKind === 'video' && speechStatus !== 'idle'" class="tour-sequence-video" :aria-label="messages.video">
+      <header>
+        <strong>{{ playingItemLabel }}</strong>
+        <div class="tour-video-actions">
+          <button v-if="videoFullscreen.isSupported.value" type="button" @click="enterVideoFullscreen"><Maximize2 :size="16" aria-hidden="true" />{{ messages.videoFullscreen }}</button>
+          <button type="button" @click="journey.speech.skipInterlude()">{{ messages.skipVideo }}</button>
+        </div>
+      </header>
+      <div id="tour-sequence-video" />
+      <button v-if="isPaused" type="button" @click="journey.resumePlayback">{{ messages.continuePlayback }}</button>
+    </section>
     <PostcardComposer v-if="postcardOpen && journey.drawerStop.value?.experience?.enabled" :key="journey.drawerStop.value.id" :experience="journey.drawerStop.value.experience" :visit-id="journey.visit.value?.visitId || null" :title="journey.drawerStop.value.name || ''" @close="postcardOpen = false" />
   </main>
 </template>
 
 <style scoped>
+.tour-video-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:100%}.tour-video-actions button{display:flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:6px 10px;border:1px solid var(--tour-line);border-radius:8px;background:var(--tour-selected);font:inherit;font-size:12px}.tour-sequence-video header{flex-wrap:wrap}.tour-sequence-video header strong{flex:1 1 100px;min-width:0;overflow-wrap:anywhere}.tour-sequence-video :deep(video:fullscreen){width:100%;height:100%;max-height:none;object-fit:contain;background:#000}.tour-sequence-video :deep(video:-webkit-full-screen){width:100%;height:100%;max-height:none;object-fit:contain;background:#000}
 .tour-sequence-video{position:absolute;z-index:75;left:50%;top:50%;transform:translate(-50%,-50%);width:min(640px,calc(100% - 24px));background:var(--tour-paper-strong,#fffef8);border:1px solid var(--tour-line,#cbdacf);border-radius:12px;padding:16px;box-shadow:0 20px 60px #183e4355}.tour-sequence-video header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px}.tour-sequence-video button{min-height:40px;color:var(--tour-lake,#246859)}.tour-sequence-video :deep(video){display:block;width:100%;max-height:60dvh}
 .tour-experience{--tour-lake:#183e43;--tour-ink:#2b4039;--tour-muted:#7b8a80;--tour-paper:#f8faf9;--tour-paper-strong:#f8faf9f5;--tour-paper-fade:#f8faf9db;--tour-selected:#edf5ef;--tour-line:#d4e0d9;--tour-display:"Noto Serif SC","Songti SC","STSong","SimSun",serif;position:fixed;inset:0;z-index:30;overflow:hidden;background:var(--tour-paper);color:var(--tour-ink)}
 .tour-header{position:absolute;left:0;right:0;top:0;z-index:8;display:flex;align-items:center;gap:16px;min-height:58px;padding:0 28px;border-bottom:1px solid #dbe5df;background:var(--tour-paper);color:var(--tour-lake)}.tour-header.journey{left:12px;right:12px;top:max(12px,env(safe-area-inset-top));min-height:44px;padding:12px;border:0;border-radius:10px;background:#f8faf9f2;box-shadow:0 3px 14px #183e4315}.tour-header strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}.tour-header button{border:0;background:transparent;color:var(--tour-lake);font-size:12px}.tour-header .tour-fullscreen{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;padding:0;border:1px solid var(--tour-line);border-radius:9px;background:#fff}.tour-area-name{display:flex;align-items:baseline;gap:10px}.tour-area-name strong{font:600 17px var(--tour-display);letter-spacing:3px}.tour-area-name small{color:#78917e;font:9px/1 sans-serif;letter-spacing:2px}.tour-language{display:flex;align-items:center;gap:7px;color:var(--tour-lake);font-size:12px}.tour-language select{border:0;background:transparent;color:var(--tour-lake);font-size:12px;outline:none}.tour-notices{position:absolute;top:76px;left:12px;right:12px;z-index:4;pointer-events:none}.tour-notices p{width:fit-content;margin:4px 0;padding:8px 12px;border-radius:8px;background:#f8faf9ed;box-shadow:0 3px 14px #183e4310;font-size:12px;pointer-events:auto}.tour-notices button{margin-left:10px;text-decoration:underline}
-.tour-tools{position:absolute;left:12px;top:50%;z-index:5;display:flex;flex-direction:column;align-items:center;gap:3px;width:52px;padding:4px;border:1px solid #dbe5df;border-radius:15px;background:#fffffff2;box-shadow:0 7px 25px #183e4330;backdrop-filter:blur(12px);transform:translateY(-50%)}.tour-tools button{display:flex;align-items:center;justify-content:center;width:42px;height:38px;padding:0;border:0;border-radius:10px;background:transparent;color:#263f55}.tour-tools button:hover,.tour-tools button.active{background:#e4f0ea}.tour-tools button:focus-visible{outline:2px solid #263f55;outline-offset:-2px}.toolbar-divider{width:28px;height:1px;margin:2px 0;background:#dbe5df}.toolbar-ask{height:43px!important}
+.tour-tools-space{position:absolute;top:calc(max(12px,env(safe-area-inset-top)) + 92px);bottom:calc(max(16px,env(safe-area-inset-bottom)) + var(--tour-dock-height,220px) + 12px);left:12px;z-index:5;display:flex;align-items:center;width:52px;pointer-events:none}
+.tour-tools{display:flex;flex-direction:column;align-items:center;gap:3px;width:52px;max-height:100%;padding:4px;border:1px solid #dbe5df;border-radius:15px;background:#fffffff2;box-shadow:0 7px 25px #183e4330;backdrop-filter:blur(12px);overflow-y:auto;overscroll-behavior:contain;pointer-events:auto;box-sizing:border-box}.tour-tools button{display:flex;flex-shrink:0;align-items:center;justify-content:center;width:42px;height:38px;padding:0;border:0;border-radius:10px;background:transparent;color:#263f55}.tour-tools button:hover,.tour-tools button.active{background:#e4f0ea}.tour-tools button:focus-visible{outline:2px solid #263f55;outline-offset:-2px}.toolbar-divider{flex-shrink:0;width:28px;height:1px;margin:2px 0;background:#dbe5df}.toolbar-ask{height:43px!important}
+@media(max-height:600px){.tour-tools-space{top:calc(max(12px,env(safe-area-inset-top)) + 64px)}}
 .tour-experience.is-journey .tour-notices{top:116px}
 .tour-return{position:absolute;top:74px;right:12px;z-index:4;max-width:75%;padding:12px;border:1px solid #dbe5df;border-radius:8px;background:#f8faf9ed;color:var(--tour-lake);font-size:12px;box-shadow:0 3px 12px #183e4315}
 .tour-header .tour-account{display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:5px;min-height:34px;padding:6px 8px;border:1px solid var(--tour-line);border-radius:9px;background:#fff;white-space:nowrap}
@@ -560,7 +584,7 @@ onBeforeUnmount(() => {
 .story-drawer-enter-to,.story-drawer-leave-from{opacity:1;transform:translateX(0)}
 .queue-panel-enter-active,.queue-panel-leave-active{transition:opacity .18s ease,transform .18s ease}.queue-panel-enter-from,.queue-panel-leave-to{opacity:0;transform:translateY(8px)}
 @media(prefers-reduced-motion:reduce){.story-drawer-enter-active,.story-drawer-leave-active,.queue-panel-enter-active,.queue-panel-leave-active{transition:none}}
-@media(max-width:760px){.tour-header{min-height:56px;padding:0 16px;gap:10px}.tour-header.journey{left:8px;right:8px}.tour-area-name strong{font-size:16px}.tour-language{font-size:11px}.tour-language select{max-width:76px;font-size:11px}.tour-tools{left:10px}.tour-notices{top:70px}.tour-voice{left:auto;right:18px;bottom:calc(max(16px,env(safe-area-inset-bottom)) + var(--tour-dock-height,220px) + 16px);transform:none}.tour-voice-button{width:50px;height:50px}.tour-voice-hint{display:none}}
+@media(max-width:760px){.tour-header{min-height:56px;padding:0 16px;gap:10px}.tour-header.journey{left:8px;right:8px}.tour-area-name strong{font-size:16px}.tour-language{font-size:11px}.tour-language select{max-width:76px;font-size:11px}.tour-tools-space{left:10px}.tour-notices{top:70px}.tour-voice{left:auto;right:18px;bottom:calc(max(16px,env(safe-area-inset-bottom)) + var(--tour-dock-height,220px) + 16px);transform:none}.tour-voice-button{width:50px;height:50px}.tour-voice-hint{display:none}}
 .tour-voice-button{touch-action:none;user-select:none}
 .tour-voice-button:disabled{opacity:.5}
 .tour-voice{position:absolute;left:510px;bottom:32px;z-index:9;display:flex;flex-direction:column;align-items:center;gap:6px;transform:translateX(-50%)}
@@ -579,6 +603,6 @@ onBeforeUnmount(() => {
 @media(max-width:760px){.tour-voice{left:auto;right:18px;bottom:calc(max(16px,env(safe-area-inset-bottom)) + var(--tour-dock-height,220px) + 16px);transform:none}}
 @media(max-width:760px){.tour-voice-hint.is-active{position:absolute;right:0;bottom:calc(100% + 12px);display:block;width:max-content;max-width:min(280px,80vw)}}
 .tour-queue-layer{position:absolute;inset:0;z-index:20;background:#183e432b;backdrop-filter:blur(3px)}
-@media(min-width:761px){.tour-header.journey{left:20px;right:20px;border-radius:16px}.tour-tools{left:20px}.tour-voice{transform:none}.tour-voice-hint{max-width:200px}}
+@media(min-width:761px){.tour-header.journey{left:20px;right:20px;border-radius:16px}.tour-tools-space{left:20px}.tour-voice{transform:none}.tour-voice-hint{max-width:200px}}
 @media(max-height:600px){.tour-voice{display:none}.tour-tools{top:43%;gap:0}.tour-tools button{height:30px}}
 </style>

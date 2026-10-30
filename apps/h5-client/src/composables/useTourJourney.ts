@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, shallowRef } from 'vue'
+import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
 import { isTourLocale, isUsableLocation, type TourLocale } from '@path-seeker/ts-shared'
 import {
   abandonRouteVisit,
@@ -22,6 +22,7 @@ import {
 } from '@/utils/tourCheckpoint'
 import { decideQueueFinishedOutcome, isRangeVersionChanged, resolveAutoAdvanceMode, type AutoAdvanceMode } from '@/utils/tourAutoAdvance'
 import type { ClientCatalog, ClientPlace, ClientTourDetail, ClientTourStop, RouteVisit } from '@/types/clientCatalog'
+import { playbackFocus } from '@/utils/playbackFocus'
 import { hasStableApproach } from '@/utils/tourPlaybackContext'
 
 /** C 端"跳过额外音频"开关的本地持久化键（只存本地，不回写 B 端配置） */
@@ -66,7 +67,7 @@ interface StoredActiveRoute {
 }
 
 function readSkipExtraAudio() {
-  try { return localStorage.getItem(SKIP_EXTRA_AUDIO_KEY) === '1' } catch { return false }
+  return false
 }
 
 function readAutoPlay() {
@@ -183,6 +184,13 @@ export function useTourJourney() {
   let candidateStartedAt = 0
   let furthest = -1
   let alive = true
+  // 手动看视频保留原解说断点，避免刷新后把独立观看误当成整站讲解已完成。
+  let standaloneVideoPlayback = false
+  let standaloneResume: { version: number; checkpoint: TourPlaybackCheckpoint } | null = null
+  let pendingPlayback: { version: number; automatic: boolean } | null = null
+  let pendingFinish: { version: number; stageId: string } | null = null
+  let pageVisible = true
+  let userPaused = false
   /** 本次进入周期的自动打开/自动播放记录，按 stopId 去重 */
   const autoOpenState = new Map<string, AutoOpenState>()
   /** 语音问答打断现场：问答结束据此决定恢复 */
@@ -192,7 +200,7 @@ export function useTourJourney() {
   const checkpointStorage = browserCheckpointStorage()
   const previousQueueFinished = shallowRef(0)
 
-  const speech = useTourSpeech(() => { void handleQueueFinished() })
+  const speech = useTourSpeech(() => { void handleQueueFinished() }, handleStandaloneFinished)
 
   function sequenceItemOf(stopId: string | null | undefined) {
     return stopId ? playbackSequence.value.find(item => item.stopId === stopId) ?? null : null
@@ -306,7 +314,7 @@ export function useTourJourney() {
   function buildCheckpoint(interruptedBy: TourInterruptReason): TourPlaybackCheckpoint | null {
     const route = active.value?.route
     const stop = currentStop.value
-    if (!route || !stop) return null
+    if (!route || !stop || standaloneVideoPlayback) return null
     const snapshot = speech.captureCheckpoint()
     return {
       routeId: route.id,
@@ -357,6 +365,10 @@ export function useTourJourney() {
 
   /** 构建并播放当前站点队列；replayAll 表示显式"重新播放整站"，前置音频也重跑 */
   function playCurrentStop(replayAll = false, resume?: Parameters<typeof speech.play>[4]) {
+    pendingPlayback = null
+    standaloneResume = null
+    standaloneVideoPlayback = false
+    userPaused = false
     if (replayAll) playedBeforeExtraIds.clear()
     const browsing = selectionMode.value === 'previous' || selectionMode.value === 'next'
     speech.play(currentStop.value, narration.value?.chapters ?? [], locale.value, {
@@ -367,6 +379,47 @@ export function useTourJourney() {
     }, resume ?? null)
     if (speech.status.value === 'playing' && (selectionMode.value !== 'arrival' || !contentAutoSwitchLocked.value)) openContentDrawer(currentIndex.value, 'playback')
   }
+
+  function playbackAllowed(automatic: boolean) {
+    return pageVisible && !askInterrupt && !approachSuppressed.value && !userPaused && !['ask', 'room'].includes(playbackFocus.current() ?? '')
+      && (!automatic || (autoPlayEnabled.value && !contentAutoSwitchLocked.value && !browsing.value))
+  }
+
+  function flushPendingPlayback() {
+    const request = pendingPlayback
+    if (!request) return false
+    if (request.version !== journeyVersion || !visit.value || request.automatic && visit.value.status !== 1) { pendingPlayback = null; return false }
+    if (busy.value || !playbackAllowed(request.automatic)) return false
+    playCurrentStop()
+    const stop = currentStop.value
+    if (stop) updateSequenceItem(stop.id, 'playing')
+    return true
+  }
+
+  function handleStandaloneFinished() {
+    const snapshot = standaloneResume
+    if (!snapshot || snapshot.version !== journeyVersion) { standaloneResume = null; return }
+    if (!pageVisible || askInterrupt || approachSuppressed.value || ['ask', 'room'].includes(playbackFocus.current() ?? '')) return
+    const cp = snapshot.checkpoint
+    playCurrentStop(false, { queueIndex: cp.queueIndex, itemId: cp.itemId, currentTimeSeconds: cp.currentTimeSeconds, sentenceIndex: cp.sentenceIndex, paused: cp.statusBeforeInterrupt !== 'playing' || userPaused })
+  }
+
+  function flushPendingFinish() {
+    const event = pendingFinish
+    if (!event) return
+    if (event.version !== journeyVersion || event.stageId !== currentStageId() || visit.value?.completedStageIds?.includes(event.stageId)) { pendingFinish = null; return }
+    if (busy.value || !pageVisible || askInterrupt || approachSuppressed.value) return
+    pendingFinish = null
+    void handleQueueFinished()
+  }
+
+  watch([busy, approachSuppressed, autoPlayEnabled, contentAutoSwitchLocked], () => {
+    if (!alive || busy.value) return
+    flushPendingFinish()
+    if (busy.value) return
+    if (standaloneResume && speech.status.value === 'idle') handleStandaloneFinished()
+    flushPendingPlayback()
+  })
 
   /** 断点恢复：位置来自 sessionStorage；"暂停中"的断点恢复出条目后保持暂停 */
   function restorePlaybackFromCheckpoint() {
@@ -404,10 +457,12 @@ export function useTourJourney() {
   function setContentAutoSwitchLocked(value: boolean) {
     if (value) drawerStopId.value = drawerStop.value?.id ?? null
     contentAutoSwitchLocked.value = value
+    if (!value) void startNextPlaybackSequence()
   }
 
   function invalidateInterrupts() {
     journeyVersion += 1
+    if (standaloneResume) standaloneResume.version = journeyVersion
     askInterrupt = null
     backgroundResume = null
   }
@@ -583,6 +638,9 @@ export function useTourJourney() {
     if (!stop || !currentVisit) return
     stopPending.value = true
     const version = ++journeyVersion
+    pendingPlayback = null
+    standaloneResume = null
+    if (reason === 'manual') userPaused = false
     clearCheckpoint()
     if (!sequenceStopId) markInterruptedSequence()
     speech.stop()
@@ -600,15 +658,14 @@ export function useTourJourney() {
       }
       writeStoredActiveRoute({ routeId: active.value?.route?.id ?? '', stageId: stop.id, locale: locale.value, updatedAt: Date.now() })
       if (alive && version === journeyVersion) {
-        if (reason !== 'resume') playCurrentStop()
-        if (sequenceStopId && sequenceStopId === stop.id) updateSequenceItem(stop.id, 'playing')
+        if (reason !== 'resume') pendingPlayback = { version, automatic: reason === 'arrival' }
         if (reason === 'arrival') {
           // 自动开始播放：去重记账，若被浏览器拦下则走既有的 blocked 提示
           markStopAutoPlayed(stop.id, stop.placeId ?? '', placeOf(stop)?.range?.rangeVersion ?? null)
         }
       }
     } catch (caught) { if (version === journeyVersion) error.value = caught instanceof Error ? caught.message : 'saveFailed' }
-    finally { stopPending.value = false }
+    finally { if (version === journeyVersion) { stopPending.value = false; flushPendingPlayback() } }
   }
 
   /** 用户点击站点 / 地图选择 / 抽屉切站：写进度并播放 */
@@ -652,11 +709,12 @@ export function useTourJourney() {
    * - 其他模式：先标记完成（完成与切站解耦），再按自动推进模式决定是否切下一站。
    */
   async function handleQueueFinished() {
-    previousQueueFinished.value += 1
     if (selectionMode.value === 'previous' || selectionMode.value === 'next') return
     const stop = currentStop.value
     const currentVisit = visit.value
-    if (!stop || !currentVisit || currentVisit.status !== 1 || busy.value) return
+    if (!stop || !currentVisit || currentVisit.status !== 1 || currentVisit.completedStageIds?.includes(stop.id)) return
+    if (busy.value || !pageVisible || askInterrupt || approachSuppressed.value) { pendingFinish = { version: journeyVersion, stageId: stop.id }; return }
+    previousQueueFinished.value += 1
     const sequenceItem = sequenceItemOf(stop.id)
     const version = journeyVersion
     pending.value = true
@@ -689,7 +747,7 @@ export function useTourJourney() {
         mode: autoAdvanceMode.value,
         hasNextStop: next < stops.value.length,
       })
-      if (outcome === 'advance' && autoPlayEnabled.value && !approachSuppressed.value) await enterStop(next, 'arrival')
+      if (outcome === 'advance' && playbackAllowed(true)) await enterStop(next, 'arrival')
       else if (outcome === 'finish') { speech.stop(); stopTracking() }
       // proximity：只标记完成，停在本节点 idle，等接近触发自动开始
     } catch (caught) {
@@ -727,11 +785,15 @@ export function useTourJourney() {
   function togglePlayback() {
     if (busy.value) return
     if (speech.status.value === 'playing') {
+      userPaused = true
       invalidateInterrupts()
       speech.pause()
       saveCheckpoint('manual')
       return
     }
+    userPaused = false
+    if (pendingPlayback) pendingPlayback.automatic = false
+    if (pendingPlayback && flushPendingPlayback()) return
     if (speech.status.value === 'paused') {
       speech.resume()
       return
@@ -777,8 +839,21 @@ export function useTourJourney() {
     const stop = currentStop.value
     const extraAudio = stop?.extraAudios?.find(item => item.id === id)
     if (!stop || !extraAudio) return
+    const checkpoint = standaloneResume?.checkpoint ?? buildCheckpoint('manual')
     invalidateInterrupts()
+    standaloneResume = checkpoint && checkpoint.itemId ? { version: journeyVersion, checkpoint } : null
+    standaloneVideoPlayback = true
     speech.playExtra(stop, extraAudio, locale.value)
+  }
+
+  function playStopVideo() {
+    if (busy.value || !drawerMatchesPlaying.value || !drawerStop.value?.video) return
+    const checkpoint = standaloneResume?.checkpoint ?? (speech.status.value !== 'idle' ? buildCheckpoint('manual') : null)
+    if (speech.status.value !== 'idle') saveCheckpoint('manual')
+    invalidateInterrupts()
+    standaloneResume = checkpoint && checkpoint.itemId ? { version: journeyVersion, checkpoint } : null
+    standaloneVideoPlayback = true
+    speech.playVideo(drawerStop.value, locale.value)
   }
 
   /** ±15 秒：两处入口（底部控制条 / 内容抽屉）共用 */
@@ -792,7 +867,9 @@ export function useTourJourney() {
   /** 自动播放被阻止时由"继续播放"入口调用 */
   function resumePlayback() {
     if (busy.value) return
-    speech.resume()
+    userPaused = false
+    if (pendingPlayback) pendingPlayback.automatic = false
+    if (!flushPendingPlayback()) speech.resume()
   }
 
   // ==================== 语音问答打断与恢复（方案 §5.2） ====================
@@ -801,8 +878,8 @@ export function useTourJourney() {
   function beginAskInterrupt() {
     const stageId = currentStageId()
     if (!active.value?.route || !stageId) return
-    const wasPlaying = speech.status.value === 'playing'
-    if (wasPlaying) saveCheckpoint('voice-ask')
+    const wasPlaying = speech.status.value === 'playing' || Boolean(askInterrupt?.token === journeyVersion && askInterrupt.stageId === stageId && askInterrupt.wasPlaying)
+    if (speech.status.value === 'playing') saveCheckpoint('voice-ask')
     askInterrupt = { token: journeyVersion, routeId: active.value.route.id, stageId, wasPlaying }
     speech.pause()
   }
@@ -812,9 +889,10 @@ export function useTourJourney() {
    * 返回 `resumed` / `blocked-paused` / `noop`，页面据此决定是否提示"继续"。
    */
   function endAskInterrupt(): 'resumed' | 'blocked-paused' | 'noop' {
+    if (!pageVisible || approachSuppressed.value || ['ask', 'room'].includes(playbackFocus.current() ?? '')) return 'noop'
     const snapshot = askInterrupt
     askInterrupt = null
-    if (!snapshot || !snapshot.wasPlaying) return 'noop'
+    if (!snapshot || !snapshot.wasPlaying) { flushPendingFinish(); return flushPendingPlayback() ? 'resumed' : 'noop' }
     if (snapshot.routeId !== active.value?.route?.id) return 'noop'
     if (snapshot.stageId !== currentStageId()) return 'noop'
     if (snapshot.token !== journeyVersion) return 'noop'
@@ -828,6 +906,8 @@ export function useTourJourney() {
    * - 被浏览器阻止自动播放时返回 `blocked-paused`，由页面提示"继续播放"。
    */
   function resumeRouteNarration(): 'resumed' | 'blocked-paused' | 'noop' {
+    if (!pageVisible || askInterrupt || approachSuppressed.value || userPaused) return 'noop'
+    if (standaloneResume && speech.status.value === 'idle') { handleStandaloneFinished(); return 'resumed' }
     const before = speech.status.value
     if (before === 'playing') return 'noop'
     if (before === 'idle') {
@@ -841,6 +921,7 @@ export function useTourJourney() {
   // ==================== 切后台（方案 §5.4） ====================
 
   function handleVisibilityHidden() {
+    pageVisible = false
     const route = active.value?.route
     const stageId = currentStageId()
     if (!route || !stageId) return
@@ -857,7 +938,12 @@ export function useTourJourney() {
   }
 
   /** 回到前台：尽量自动恢复，被浏览器拦截时返回 blocked-paused，由页面提示"继续" */
-  function handleVisibilityVisible(): 'resumed' | 'blocked-paused' | 'noop' {
+  function handleVisibilityVisible(allowResume = true): 'resumed' | 'blocked-paused' | 'noop' {
+    pageVisible = true
+    if (!allowResume) return 'noop'
+    if (askInterrupt) endAskInterrupt()
+    flushPendingFinish()
+    if (flushPendingPlayback()) return 'resumed'
     const snapshot = backgroundResume
     backgroundResume = null
     if (!snapshot?.wasPlaying) return 'noop'
@@ -947,16 +1033,23 @@ export function useTourJourney() {
 
   /** 播放全局序列中下一个尚未开始的景点；当前景点播放期间只追加，不打断。 */
   async function startNextPlaybackSequence(force = false) {
-    if (busy.value || visit.value?.status !== 1 || speech.status.value !== 'idle' || (!force && (!autoPlayEnabled.value || approachSuppressed.value || browsing.value))) return
+    if (flushPendingPlayback()) return
+    if (pendingPlayback || busy.value || visit.value?.status !== 1 || speech.status.value !== 'idle' || !playbackAllowed(!force)) return
     const next = playbackSequence.value.find(item => item.status === 'queued')
     if (!next) return
-    await enterStop(next.index, 'arrival', next.stopId)
+    await enterStop(next.index, force ? 'manual' : 'arrival', next.stopId)
   }
 
   async function playQueuedStop(stopId: string) {
     if (busy.value || visit.value?.status !== 1) return
     const item = sequenceItemOf(stopId)
     if (!item || item.status !== 'queued') return
+    if (pendingPlayback?.version === journeyVersion && currentStop.value?.id === stopId) {
+      userPaused = false
+      pendingPlayback.automatic = false
+      flushPendingPlayback()
+      return
+    }
     markInterruptedSequence()
     await enterStop(item.index, 'manual', item.stopId)
   }
@@ -964,6 +1057,7 @@ export function useTourJourney() {
   function skipQueuedStop(stopId: string) {
     const item = sequenceItemOf(stopId)
     if (!item || item.status !== 'queued') return
+    if (pendingPlayback && currentStop.value?.id === stopId) pendingPlayback = null
     updateSequenceItem(stopId, 'skipped')
     if (speech.status.value === 'idle') void startNextPlaybackSequence()
   }
@@ -1086,7 +1180,12 @@ export function useTourJourney() {
   /** 页面层设置抑制（问一问浮层打开、语音识别中、页面后台） */
   function setApproachSuppressed(value: boolean) {
     approachSuppressed.value = value
-    if (!value) void startNextPlaybackSequence()
+    if (!value) {
+      if (askInterrupt) endAskInterrupt()
+      flushPendingFinish()
+      if (standaloneResume && speech.status.value === 'idle') handleStandaloneFinished()
+      void startNextPlaybackSequence()
+    }
     if (!value && candidateKey && hasStableApproach(candidateStartedAt, Date.now(), TOUR_ARRIVAL_POLICY.dwellMs)) {
       handleApproach(collectCandidates(Date.now()))
     }
@@ -1185,6 +1284,7 @@ export function useTourJourney() {
     togglePlayback,
     replayCurrentStop,
     playExtraAudio,
+    playStopVideo,
     seekBy,
     resumePlayback,
     selectGuide,

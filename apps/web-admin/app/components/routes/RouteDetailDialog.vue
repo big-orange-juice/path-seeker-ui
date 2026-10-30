@@ -29,6 +29,7 @@ import RouteMapEditorDialog from '@/components/routes/RouteMapEditorDialog.vue';
 import OutdoorRouteWorkspace from '@/components/routes/OutdoorRouteWorkspace.vue';
 import OutdoorRoutePreview from '@/components/routes/OutdoorRoutePreview.vue';
 import StageEditDialog from '@/components/routes/StageEditDialog.vue';
+import RouteStageCreateDialog from '@/components/routes/RouteStageCreateDialog.vue';
 import { useActionFeedback } from '@/composables/useActionFeedback';
 import { useChatAttachmentLimits } from '@/composables/useChatAttachmentLimits';
 import { useCulturalPlaces } from '@/composables/useCulturalPlaces';
@@ -91,6 +92,7 @@ const actionFeedback = useActionFeedback();
 const selectedStageId = shallowRef('');
 usePlatformAssistantSelection(() => props.open ? ({ routeId: props.record?.id || '', stageId: selectedStageId.value }) : {});
 const stageEditOpen = shallowRef(false);
+const outdoorStageCreateOpen = shallowRef(false);
 const routeMapOpen = shallowRef(false);
 const mapRefreshVersion = shallowRef(0);
 const outdoorMapDetail = shallowRef<RouteMapDetail | null>(null);
@@ -685,6 +687,7 @@ async function saveRouteTitle() {
           @select="selectedStageId = $event"
           @edit="editOutdoorStage"
           @remove="removeOutdoorStage"
+          @create="outdoorStageCreateOpen = true"
           @loaded="outdoorMapDetail = $event"
           @changed="emit('refresh-silent')" />
         <section v-else class="route-canvas-column flex min-h-0 min-w-0 flex-col">
@@ -855,6 +858,15 @@ async function saveRouteTitle() {
     @saved="handleStageSaved"
     @reference="addChatReference"
     @preview-refresh="handleNarrationPreviewRefresh" />
+
+  <RouteStageCreateDialog
+    v-if="isOutdoor"
+    v-model:open="outdoorStageCreateOpen"
+    :route-id="routeId"
+    :museum-id="props.record?.museumId || ''"
+    :can-edit="props.canEdit"
+    :next-order="Math.max(0, ...sortedNodes.map(node => node.sortOrder || node.stageNo || 0)) + 1"
+    @created="selectedStageId = $event; flushSilentDetailRefresh()" />
 
   <!-- 新增站点弹窗：暂注释，待完善创建字段后再开放
   <Dialog v-model:open="stageCreateDialogOpen">

@@ -21,10 +21,8 @@ Page({
     finally { if (active()) this.setData({ loading: false }); }
   },
   login() { my.navigateTo({ url: '/pages/auth/index' }); },
-  records() { my.navigateTo({ url: '/pages/records/index' }); },
   postcards() { my.navigateTo({ url: '/pages/postcards/index' }); },
   privacy() { my.navigateTo({ url: '/pages/privacy/index' }); },
-  tour() { my.reLaunch({ url: '/pages/tour/index' }); },
   edit() { this.setData({ editing: !this.data.editing }); },
   input(event) { const field = ui.dataset(event).field; if (['nickname', 'country', 'voiceId'].includes(field)) this.setData({ [field]: ui.value(event) }); },
   locale(event) { const index = Number(ui.value(event)); if (!locales[index]) return; storage.write('locale', locales[index].value); storage.write('tour-locale', locales[index].value); this.setData({ localeIndex: index }); },

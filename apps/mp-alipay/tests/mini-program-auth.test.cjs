@@ -3,8 +3,22 @@ const assert = require('node:assert/strict');
 const { harness: createHarness, tick, plain, session, userId } = require('./harness.cjs');
 function harness(initial) { return createHarness(initial, { requirePhoneNumber: true }); }
 
+test('default production login requests signed phone data before platform authorization', async () => {
+  const h = createHarness(), page = h.page('auth'), calls = [];
+  assert.equal(page.data.requirePhoneNumber, true);
+  h.my.getPhoneNumber = options => { calls.push('phone'); options.success({ response: 'encrypted-signed-phone' }); };
+  h.my.getAuthCode = options => { calls.push('identity'); options.success({ authCode: 'platform-code' }); };
+  page.onShow(); page.setData({ agreed: true });
+  const login = page.alipay(); await tick();
+  assert.deepEqual(calls, ['phone', 'identity']);
+  assert.equal(h.requests[0].options.data.phoneResponse, 'encrypted-signed-phone');
+  assert.equal(Object.hasOwn(h.requests[0].options.data, 'encryptKey'), false);
+  h.requests[0].ok({ ...session(), isGuest: false }); await login;
+  assert.equal(h.auth.current().isGuest, false);
+});
+
 test('temporary phone-free login skips phone APIs and supports the room guest entry', async () => {
-  const h = createHarness(), page = h.page('auth');
+  const h = createHarness(undefined, { requirePhoneNumber: false }), page = h.page('auth');
   assert.equal(page.data.requirePhoneNumber, false);
   h.my.getPhoneNumber = () => { throw Error('phone API must not be called'); };
   h.my.getAuthCode = options => options.success({ authCode: 'phone-free-code' });
@@ -30,11 +44,11 @@ test('temporary phone-free login skips phone APIs and supports the room guest en
 });
 
 test('phone-free login cancellation and late responses keep account isolation', async () => {
-  const cancelled = createHarness(); delete cancelled.my.getPhoneNumber;
+  const cancelled = createHarness(undefined, { requirePhoneNumber: false }); delete cancelled.my.getPhoneNumber;
   cancelled.my.getAuthCode = options => options.fail({});
   await assert.rejects(cancelled.auth.loginAlipay(), /未完成支付宝授权/);
   assert.equal(cancelled.requests.length, 0); assert.equal(cancelled.auth.current().isGuest, true);
-  const h = createHarness(); h.my.getAuthCode = options => options.success({ authCode: 'code' });
+  const h = createHarness(undefined, { requirePhoneNumber: false }); h.my.getAuthCode = options => options.success({ authCode: 'code' });
   const login = h.auth.loginAlipay(), rejected = assert.rejects(login, /账号已切换/); await tick();
   h.auth.logout(); h.requests[0].ok({ ...session(), isGuest: false }); await rejected;
   assert.equal(h.auth.current(), null);

@@ -1,8 +1,8 @@
 /**
  * 下一节点自动推进策略（方案 §4.5）：
  *
- * - `proximity`：定位可用。音频播完只标记完成、不切站；走到下一节点范围内且队列空闲时自动开始播放。
- * - `sequential`：定位不可用。音频播完标记完成并自动开始下一节点。
+ * - `proximity`：正在监听定位。音频播完只标记完成、不切站；走到下一节点范围内且队列空闲时自动开始播放。
+ * - `sequential`：未开启定位。音频播完标记完成并自动开始下一节点。
  *
  * 这里只做纯判定，方便单测；状态与播放动作由 useTourJourney 负责。
  */
@@ -18,9 +18,9 @@ export interface AutoAdvanceInput {
   fixUsable: boolean
 }
 
-/** 定位可用 = 正在监听 + 没有报错 + 最近定位通过质量校验；否则退化为顺序播放 */
+/** 开启定位后，即使暂时弱精度或位置过期也等待近站判定，避免误播远处下一站 */
 export function resolveAutoAdvanceMode(input: AutoAdvanceInput): AutoAdvanceMode {
-  return input.tracking && !input.locationError && input.fixUsable ? 'proximity' : 'sequential'
+  return input.tracking ? 'proximity' : 'sequential'
 }
 
 /** 队列结束后是否要自动切下一站 */

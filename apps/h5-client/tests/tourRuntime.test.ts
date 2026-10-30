@@ -28,6 +28,58 @@ test('分段讲解按顺序插入音乐和视频，跳过额外媒体时只保�
   assert.deepEqual(buildTourQueue([], chapters, { skipExtraAudio: true }).map((item: { id: string }) => item.id), ['first', 'second'])
 })
 
+test('节点视频接在全部解说后、后置音频前，跳过额外音频仍保留视频', () => {
+  const stop = { id: 'stage', name: '本站影像', video: '/stage.mp4' }
+  const chapters = [{ id: 'one', audioUrl: '/one.mp3' }, { id: 'two', audioUrl: '/two.mp3' }]
+  const extras = [{ id: 'after', position: 'after', order: 1, url: '/after.mp3' }]
+  assert.deepEqual(buildTourQueue(extras, chapters, {}, stop).map(item => item.id), ['one', 'two', 'stop-video-stage', 'after'])
+  assert.deepEqual(buildTourQueue(extras, chapters, { skipExtraAudio: true }, stop).map(item => item.id), ['one', 'two', 'stop-video-stage'])
+  assert.deepEqual(buildTourQueue([], [], {}, stop).map(item => item.mediaKind), ['video'])
+  assert.deepEqual(buildTourQueue([], chapters, {}, { ...stop, video: null }).map(item => item.id), ['one', 'two'])
+})
+
+test('解说结束自动播放节点视频，视频播完才完成；手动观看与切站不误完成', () => {
+  const created: Media[] = []
+  class Media {
+    tagName: string; src = ''; currentTime = 0; duration = 30; readyState = 1; ended = false
+    onplaying: (() => void) | null = null; onplay: (() => void) | null = null; onpause: (() => void) | null = null; onended: (() => void) | null = null
+    playCount = 0; removed = false; webkitDisplayingFullscreen = false; fullscreenExits = 0
+    webkitExitFullscreen() { this.fullscreenExits++; this.webkitDisplayingFullscreen = false }
+    constructor(src = '', tag = 'AUDIO') { this.src = src; this.tagName = tag; created.push(this) }
+    play() { this.playCount++; this.onplay?.(); this.onplaying?.(); return Promise.resolve() }
+    pause() { this.onpause?.() }
+    load() {}; remove() { this.removed = true }; removeAttribute() {}; addEventListener() {}
+  }
+  const previous = { Audio: globalThis.Audio, window: globalThis.window, document: globalThis.document }
+  Object.assign(globalThis, { Audio: Media, window: { speechSynthesis: undefined }, document: { createElement: () => new Media('', 'VIDEO'), getElementById: () => ({ appendChild() {} }) } })
+  const renderer = createRenderer({ createElement: () => ({}), insert() {}, remove() {}, createText: () => ({}), createComment: () => ({}), setText() {}, setElementText() {}, parentNode: () => null, nextSibling: () => null, patchProp() {} })
+  let completed = 0, speech: ReturnType<typeof useTourSpeech>
+  const app = renderer.createApp({ setup() { speech = useTourSpeech(() => completed++); return () => null } }); app.mount({})
+  const stop = { id: 'stage', name: '本站', video: '/stage.mp4', extraAudios: [] }
+  try {
+    speech!.play(stop, [{ id: 'chapter', audioUrl: '/chapter.mp3' }], 'zh')
+    created[0]!.onended?.()
+    assert.equal(created[1]!.src, '/stage.mp4'); assert.equal(created[1]!.playCount, 1); assert.equal(completed, 0)
+    created[1]!.pause(); assert.equal(speech!.status.value, 'paused')
+    speech!.resume(); assert.equal(created[1]!.playCount, 2)
+    created[1]!.webkitDisplayingFullscreen = true
+    created[1]!.ended = true; created[1]!.onended?.()
+    assert.equal(completed, 1); assert.equal(created[1]!.removed, true)
+    assert.equal(created[1]!.fullscreenExits, 1); assert.equal(speech!.videoElement.value, null)
+    speech!.playVideo(stop, 'zh')
+    const lateEnd = created[2]!.onended
+    speech!.play({ id: 'next', extraAudios: [] }, [{ id: 'next-chapter', audioUrl: '/next.mp3' }], 'zh')
+    lateEnd?.(); assert.equal(speech!.currentItemId.value, 'next-chapter'); assert.equal(completed, 1)
+    speech!.playVideo(stop, 'zh'); created[4]!.ended = true; created[4]!.onended?.()
+    assert.equal(completed, 1)
+    speech!.play(stop, [{ id: 'chapter', audioUrl: '/chapter.mp3' }], 'zh', {}, { queueIndex: 1, itemId: 'stop-video-stage', currentTimeSeconds: 12, paused: true })
+    speech!.resume()
+    const restoredVideo = created.at(-1)!
+    assert.equal(restoredVideo.src, '/stage.mp4'); assert.equal(restoredVideo.currentTime, 12)
+    restoredVideo.ended = true; restoredVideo.onended?.(); assert.equal(completed, 2)
+  } finally { app.unmount(); Object.assign(globalThis, previous) }
+})
+
 test('视频暂停、续播后继续下一段，切站后旧视频事件不可推进新队列', () => {
   const created: Media[] = []
   class Media {

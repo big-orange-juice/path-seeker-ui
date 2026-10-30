@@ -1,6 +1,7 @@
 import type { TourLocale } from '@path-seeker/ts-shared'
 
 const zh = {
+  previousImage: '上一张图片', nextImage: '下一张图片', skipVideo: '跳过视频', videoFullscreen: '全屏播放', videoFullscreenUnavailable: '暂时无法进入全屏，请使用视频播放器中的全屏按钮重试',
   currentLocation: '我的位置',
   chooseLanguage: '选择讲解语言', routes: '选择这一程', routeHint: '跟随不同导游，听见不同的北京。', search: '搜索路线、导游或途经点', start: '开始行程', startHint: '开启定位，沿途为你讲解', back: '返回地图', end: '结束行程',
   play: '播放讲解', pause: '暂停', resume: '继续', content: '查看内容', close: '收起', next: '接下来看', complete: '完成这一站', locate: '开启近站讲解', stopLocate: '关闭定位', locationFailed: '定位不可用，仍可手动选择站点', permissionDenied: '未获得定位权限，请在浏览器设置中允许后重试', enterFullscreen: '进入全屏', exitFullscreen: '退出全屏', loading: '正在加载…', retry: '重试',
@@ -132,6 +133,13 @@ export function tourMessages(locale: TourLocale): TourMessages {
     ...experienceMessages[locale],
     ...arrivalMessages[locale],
     ...voiceMessages[locale],
+    ...({
+      en: { previousImage: 'Previous image', nextImage: 'Next image', skipVideo: 'Skip video', videoFullscreen: 'Play fullscreen', videoFullscreenUnavailable: 'Unable to enter fullscreen. Try the fullscreen button in the video player.' },
+      ru: { previousImage: 'Предыдущее фото', nextImage: 'Следующее фото', skipVideo: 'Пропустить видео', videoFullscreen: 'На весь экран', videoFullscreenUnavailable: 'Не удалось открыть полный экран. Попробуйте кнопку в видеоплеере.' },
+      es: { previousImage: 'Imagen anterior', nextImage: 'Imagen siguiente', skipVideo: 'Omitir vídeo', videoFullscreen: 'Pantalla completa', videoFullscreenUnavailable: 'No se pudo abrir la pantalla completa. Prueba el botón del reproductor.' },
+      fr: { previousImage: 'Image précédente', nextImage: 'Image suivante', skipVideo: 'Passer la vidéo', videoFullscreen: 'Plein écran', videoFullscreenUnavailable: 'Impossible de passer en plein écran. Essayez le bouton du lecteur vidéo.' },
+      ja: { previousImage: '前の画像', nextImage: '次の画像', skipVideo: '動画をスキップ', videoFullscreen: '全画面で再生', videoFullscreenUnavailable: '全画面に切り替えられません。動画プレーヤーの全画面ボタンで再試行してください。' },
+    } as Partial<Record<TourLocale, Partial<typeof zh>>>)[locale],
     ...navigationMessages[locale],
     ...tourInterfaceMessages[locale],
   }

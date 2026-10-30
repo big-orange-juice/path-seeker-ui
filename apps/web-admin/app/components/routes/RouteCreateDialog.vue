@@ -65,13 +65,13 @@ watch(
             新增主题路线
           </DialogTitle>
           <DialogDescription class="text-xs">
-            输入一句话主题，通过对话创建路线。
+            选择线路创建，或通过主题对话生成路线。
           </DialogDescription>
         </DialogHeader>
       </div>
 
       <div class="flex min-h-0 flex-1 flex-col">
-        <nav v-if="props.outdoor" class="flex gap-2 border-b px-5 py-2"><Button variant="outline" size="sm" @click="activeTab = 'theme'">主题生成</Button><Button variant="outline" size="sm" @click="activeTab = 'outdoor'">文化点编排</Button></nav>
+        <nav v-if="props.outdoor" class="flex gap-2 border-b px-5 py-2"><Button variant="outline" size="sm" @click="activeTab = 'theme'">主题生成</Button><Button variant="outline" size="sm" @click="activeTab = 'outdoor'">线路创建</Button></nav>
         <OutdoorRouteDraftForm v-if="activeTab === 'outdoor'" :museum-id="props.museumId || ''" @created="emit('routeChanged', $event)" />
         <RouteChatWorkspace
           v-else

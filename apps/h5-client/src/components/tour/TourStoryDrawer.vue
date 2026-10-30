@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Pause, Play, RotateCcw, SkipBack, SkipForward } from 'lucide-vue-next'
-import type { ClientStopExtraAudio, ClientTourStop, TourGuideNarration } from '@/types/clientCatalog'
+import type { ClientTourStop, TourGuideNarration } from '@/types/clientCatalog'
 import type { TourMessages } from '@/utils/tourMessages'
+import TourImageCarousel from './TourImageCarousel.vue'
 
 /**
  * 站点内容抽屉（方案 §3、§4.1）：
  * - 控制行的播放／暂停与 ±15 秒与底部迷你控制条**同源**：都由父级下发的 speech 状态与 seekBy 驱动；
  * - 抽屉展示的节点可能是"接近但还没切站"的节点（matchesPlaying=false），此时播放控制仍作用于正在播放的节点；
- * - "跳过额外音频"开关只影响队列构成，不写回 B 端配置。
  */
 const props = defineProps<{
   stop: ClientTourStop | null
@@ -19,13 +19,10 @@ const props = defineProps<{
   paused: boolean
   pending: boolean
   messages: TourMessages
-  skipExtraAudio: boolean
   /** 浏览器阻止自动播放，等待用户点击"继续播放" */
   blocked: boolean
   /** 系统语音按句恢复，位置为近似值 */
   restoreApproximate: boolean
-  /** 当前正在播放的条目（用于列表高亮） */
-  playingItemId: string | null
   playingLabel: string | null
   /** 抽屉展示的节点是否就是正在播放的节点 */
   matchesPlaying: boolean
@@ -47,19 +44,16 @@ const emit = defineEmits<{
   seek: [deltaSeconds: number]
   select: [index: number]
   guide: [id: string | null]
-  skipExtraAudio: [value: boolean]
-  playExtra: [id: string]
   contentLock: [value: boolean]
   postcard: []
+  playVideo: []
 }>()
 
 const extraAudios = computed(() => props.stop?.extraAudios ?? [])
-const beforeAudios = computed(() => sortGroup('before'))
-const afterAudios = computed(() => sortGroup('after'))
 const hasPlayableChapter = computed(() => Boolean(props.narration?.chapters?.length))
 const hasPlayableExtra = computed(() => extraAudios.value.some(item => item.url))
-// 主按钮对应"整站队列"的内容：跳过额外音频时只看讲解章节；单条额外音频另有独立按钮
-const canPlay = computed(() => hasPlayableChapter.value || (!props.skipExtraAudio && hasPlayableExtra.value))
+// 整站播放包含额外音频、讲解章节与节点视频。
+const canPlay = computed(() => hasPlayableChapter.value || Boolean(props.stop?.video) || hasPlayableExtra.value)
 /** 播放主按钮：展示别的节点时是"进入本节点播放"，同节点时是播放/暂停切换 */
 const playLabel = computed(() => {
   if (!props.matchesPlaying) return props.messages.enterStopPlay
@@ -80,25 +74,6 @@ function formatSeconds(value: number) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`
 }
 
-function sortGroup(position: 'before' | 'after') {
-  return extraAudios.value
-    .filter(item => item.position === position)
-    .slice()
-    .sort((left, right) => (left.order - right.order) || left.id.localeCompare(right.id))
-}
-
-function toggleExtraAudio(event: Event) {
-  emit('skipExtraAudio', (event.target as HTMLInputElement).checked)
-}
-
-function durationText(item: ClientStopExtraAudio) {
-  return item.durationSeconds == null ? '' : `${item.durationSeconds} ${props.messages.secondsShort}`
-}
-
-function itemLabel(item: ClientStopExtraAudio, index: number) {
-  return item.title || `${props.messages.extraAudio} ${index + 1}`
-}
-
 function stopNumber(order: number) {
   return String(order).padStart(2, '0')
 }
@@ -113,8 +88,7 @@ function stopNumber(order: number) {
     </div>
     <p v-if="!matchesPlaying && playingStopName" class="tour-story-alert" role="status">{{ messages.drawerNotPlaying }}{{ playingStopName }}</p>
     <p v-if="browsing" class="tour-story-alert" role="status">{{ messages.browsingNoProgress }}</p>
-    <img v-if="stop.images?.[0]?.url" class="tour-story-cover" :src="stop.images[0].url" :alt="stop.images[0].altText || stop.name || ''">
-    <p v-if="stop.images?.[0]?.caption" class="tour-image-caption">{{ stop.images[0].caption }}</p>
+    <TourImageCarousel :key="stop.id" :images="stop.images" :title="stop.name || messages.content" :previous-label="messages.previousImage" :next-label="messages.nextImage" />
     <div class="tour-story-controls">
       <button type="button" :disabled="(!canPlay && matchesPlaying) || pending" @click="emit('play')"><Play v-if="!playing || !matchesPlaying" :size="14" aria-hidden="true" /><Pause v-else :size="14" aria-hidden="true" />{{ playLabel }}</button>
       <button type="button" :disabled="!matchesPlaying || !canPlay || pending" @click="emit('replay')"><RotateCcw :size="14" aria-hidden="true" />{{ messages.replayStop }}</button>
@@ -132,51 +106,20 @@ function stopNumber(order: number) {
     <p v-if="blocked" class="tour-queue-status is-blocked" role="status">{{ messages.autoplayBlocked }}</p>
     <p v-if="stop.arrivalNote" class="tour-arrival">{{ stop.arrivalNote }}</p>
 
-    <section v-if="extraAudios.length" class="tour-extra">
-      <h3>{{ messages.extraAudio }}</h3>
-      <label class="tour-extra-toggle">
-        <input type="checkbox" :checked="skipExtraAudio" :disabled="pending" @change="toggleExtraAudio">
-        <span>{{ messages.skipExtraAudio }}</span>
-      </label>
-      <div v-if="beforeAudios.length" class="tour-extra-group">
-        <h4>{{ messages.beforeAudio }}</h4>
-        <ul>
-          <li v-for="(item, index) in beforeAudios" :key="item.id" :class="{ 'is-playing': item.id === playingItemId }">
-            <button type="button" :disabled="!matchesPlaying || pending || !item.url" @click="emit('playExtra', item.id)">
-              <Play :size="13" aria-hidden="true" />
-              <span>{{ itemLabel(item, index) }}</span>
-              <small v-if="durationText(item)">{{ durationText(item) }}</small>
-            </button>
-          </li>
-        </ul>
-      </div>
-      <div v-if="afterAudios.length" class="tour-extra-group">
-        <h4>{{ messages.afterAudio }}</h4>
-        <ul>
-          <li v-for="(item, index) in afterAudios" :key="item.id" :class="{ 'is-playing': item.id === playingItemId }">
-            <button type="button" :disabled="!matchesPlaying || pending || !item.url" @click="emit('playExtra', item.id)">
-              <Play :size="13" aria-hidden="true" />
-              <span>{{ itemLabel(item, index) }}</span>
-              <small v-if="durationText(item)">{{ durationText(item) }}</small>
-            </button>
-          </li>
-        </ul>
-      </div>
-    </section>
+
 
     <button v-if="stop.experience?.enabled" type="button" class="tour-complete" @click="emit('postcard')">制作电子明信片</button>
     <div v-if="hasPlayableChapter" class="tour-story-text"><section v-for="chapter in narration?.chapters" :key="chapter.id || chapter.order"><h3 v-if="chapter.title">{{ chapter.title }}</h3><p>{{ chapter.text }}</p><p v-for="media in chapter.interludes" :key="media.id">{{ media.kind === 'video' ? '视频' : '音乐' }} · {{ media.title }}</p></section></div>
     <p v-else class="tour-story-text">{{ messages.noNarration }}</p>
-    <details v-if="stop.video"><summary>{{ messages.video }}</summary><video :src="stop.video" controls playsinline preload="none" /></details>
-    <div v-if="(stop.images?.length ?? 0) > 1" class="tour-story-images"><figure v-for="image in stop.images?.slice(1)" :key="image.id"><img v-if="image.url" :src="image.url" :alt="image.altText || ''" loading="lazy"><figcaption v-if="image.caption">{{ image.caption }}</figcaption></figure></div>
+    <button v-if="stop.video" type="button" class="tour-story-video" :disabled="pending || !matchesPlaying" @click="emit('playVideo')"><Play :size="16" aria-hidden="true" />{{ messages.video }}</button>
   </aside>
 </template>
 
 <style scoped>
+.tour-story-video{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:44px;margin-top:16px;padding:10px 16px;border:1px solid var(--tour-line);border-radius:10px;background:var(--tour-selected);color:var(--tour-lake);font:inherit;font-size:13px}.tour-story-video:disabled{opacity:.5}
 .tour-content-lock{display:flex;align-items:center;gap:7px;margin-top:10px;min-height:36px;padding:7px 10px;border:1px solid var(--tour-line);border-radius:8px;background:var(--tour-selected);color:var(--tour-lake);font-size:12px;text-align:left}.tour-content-lock svg{flex-shrink:0}.tour-story button:focus-visible,.tour-story select:focus-visible{outline:2px solid var(--tour-lake);outline-offset:2px}.tour-story header h2{overflow-wrap:anywhere;min-width:0}.tour-story header button{flex-shrink:0}
 .tour-story{position:absolute;right:12px;top:76px;bottom:168px;z-index:6;width:min(380px,calc(100% - 24px));overflow:auto;overscroll-behavior:contain;border-radius:12px;background:#fffef8f5;color:#273744;padding:16px;box-shadow:0 4px 24px #0003}.tour-story header{display:flex;align-items:center;justify-content:space-between;gap:12px}.tour-story h2{font-size:20px;margin:0}.tour-story header button{font-size:12px;color:#647382}.tour-stop-tabs{display:flex;gap:6px;overflow:auto;margin:14px 0}.tour-stop-tabs button{white-space:nowrap;border:1px solid #bcc8ce;border-radius:20px;padding:6px 10px;font-size:12px}.tour-stop-tabs button.active{background:#263f55;color:#fff}.tour-story-cover{width:100%;height:190px;object-fit:cover;border-radius:8px}.tour-image-caption{font-size:11px;color:#69777e;margin:6px 0}.tour-story-controls{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}.tour-story-controls button,.tour-complete{display:flex;align-items:center;justify-content:center;gap:6px;background:#263f55;color:#fff;border-radius:8px;padding:10px 16px;font-size:13px}.tour-story-controls button.tour-seek{min-width:84px;min-height:44px;background:#eef3f0;color:#263f55;padding:10px 12px}.tour-story-controls button:disabled,.tour-complete:disabled{opacity:.5}.tour-story-controls select{max-width:100%;background:#e9ede9;padding:8px;border-radius:6px}.tour-queue-status{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 12px;padding:8px 10px;border-radius:8px;background:#eef3f0;color:#41565f;font-size:12px}.tour-queue-status small{color:#6b7d84}.tour-queue-status.is-blocked{background:#fdf1e3;color:#8a5a24}.tour-story-alert{margin:0 0 10px;padding:8px 10px;border-radius:8px;background:#fdf1e3;color:#8a5a24;font-size:12px}.tour-story-text{font-size:14px;line-height:1.9;white-space:pre-wrap}.tour-story-text h3{font-size:16px;margin:16px 0 6px}.tour-arrival{font-size:12px;color:#647382}.tour-story video,.tour-story-images img{width:100%;border-radius:8px}.tour-story summary{font-size:13px;cursor:pointer;margin:12px 0}.tour-story-images figure{margin:16px 0}.tour-story-images figcaption{font-size:11px;color:#69777e}.tour-complete{width:100%;margin-top:18px}
-.tour-extra{margin:16px 0;padding:12px;border:1px solid #dbe5df;border-radius:10px;background:#f6faf7}.tour-extra h3{margin:0 0 8px;font-size:14px}.tour-extra-toggle{display:flex;align-items:center;gap:7px;font-size:12px;color:#41565f}.tour-extra-group{margin-top:10px}.tour-extra-group h4{margin:0 0 6px;color:#647382;font-size:11px;font-weight:600}.tour-extra-group ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}.tour-extra-group button{display:flex;align-items:center;gap:7px;width:100%;padding:8px 10px;border:1px solid #dbe5df;border-radius:8px;background:#fff;color:#263f55;font-size:12px;text-align:left}.tour-extra-group button span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tour-extra-group button small{color:#78878f;font-size:11px}.tour-extra-group li.is-playing button{border-color:#263f55;background:#e4f0ea}
-.tour-story{border:1px solid var(--tour-line);background:var(--tour-paper-strong);color:var(--tour-ink);box-shadow:0 6px 24px #183e4320}.tour-stop-tabs button.active,.tour-story-controls button,.tour-complete{background:var(--tour-lake);color:#fff}.tour-stop-tabs button,.tour-extra-group button{border-color:var(--tour-line)}.tour-story-controls button.tour-seek,.tour-queue-status,.tour-extra{background:var(--tour-selected);color:var(--tour-lake)}.tour-extra-group li.is-playing button{border-color:var(--tour-lake);background:var(--tour-selected)}.tour-story header button{min-height:36px;border:0;background:transparent;padding:4px;color:var(--tour-muted)}
+.tour-story{border:1px solid var(--tour-line);background:var(--tour-paper-strong);color:var(--tour-ink);box-shadow:0 6px 24px #183e4320}.tour-stop-tabs button.active,.tour-story-controls button,.tour-complete{background:var(--tour-lake);color:#fff}.tour-stop-tabs button{border-color:var(--tour-line)}.tour-story-controls button.tour-seek,.tour-queue-status{background:var(--tour-selected);color:var(--tour-lake)}.tour-story header button{min-height:36px;border:0;background:transparent;padding:4px;color:var(--tour-muted)}
 @media(min-width:900px){.tour-story{width:clamp(380px,32vw,440px)}}
 .tour-story{bottom:max(20px,env(safe-area-inset-bottom))}
 @media(max-width:760px){.tour-story{left:10px;right:10px;top:72px;bottom:max(18px,env(safe-area-inset-bottom));width:auto;padding:14px;border-radius:14px}.tour-story-cover{height:150px}.tour-story-controls{gap:7px;margin:12px 0}.tour-story-controls button{flex:1;min-width:calc(50% - 7px);padding:9px 10px}.tour-story-controls button.tour-seek{min-width:calc(50% - 7px)}}

@@ -47,7 +47,7 @@ const localizationOpen = shallowRef(false);
 const localizationRecord = shallowRef<RouteRecord | null>(null);
 const selectedMuseumOutdoor = computed(() => {
   const museum = museumData.value.list.find(item => item.id === selectedMuseumId.value);
-  return museum?.venueType === 2 || museum?.venueType === 3;
+  return museum?.venueType === 2 || museum?.venueType === 3 || museum?.venueType === 4;
 });
 const actionPendingIds = shallowRef<string[]>([]);
 const confirmDialogOpen = shallowRef(false);

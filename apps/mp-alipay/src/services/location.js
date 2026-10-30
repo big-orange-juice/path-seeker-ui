@@ -1,4 +1,17 @@
 const { gcj02ToWgs84 } = require('../shared/map-coordinates');
+function coordinate(value, limit) {
+  if (value === null || value === undefined || typeof value === 'boolean' || typeof value === 'string' && !value.trim()) return NaN;
+  const number = Number(value);
+  return Number.isFinite(number) && Math.abs(number) <= limit ? number : NaN;
+}
+function precision(result) {
+  for (const value of [result.horizontalAccuracy, result.accuracy]) {
+    if (value === null || value === undefined || typeof value === 'boolean' || typeof value === 'string' && !value.trim()) continue;
+    const number = Number(value);
+    if (Number.isFinite(number) && number >= 0) return number;
+  }
+  return 999;
+}
 function watch(onFix, onError) {
   let closed = false, timer = null;
   const poll = () => {
@@ -6,10 +19,10 @@ function watch(onFix, onError) {
     my.getLocation({ type: 0, cacheTimeout: 0,
       success(result) {
         if (closed) return;
-        const gcj = { longitude: Number(result.longitude), latitude: Number(result.latitude) };
-        const accuracy = Number(result.horizontalAccuracy || result.accuracy);
+        const gcj = { longitude: coordinate(result.longitude, 180), latitude: coordinate(result.latitude, 90) };
+        const accuracy = precision(result);
         if (!Number.isFinite(gcj.longitude) || !Number.isFinite(gcj.latitude)) onError(Error('无法获得有效定位'));
-        else onFix(Object.assign(gcj02ToWgs84(gcj), { gcj, accuracy: Number.isFinite(accuracy) ? accuracy : 999, heading: typeof result.direction === 'number' && result.direction >= 0 && result.direction <= 360 ? result.direction : null, timestamp: Date.now() }));
+        else onFix(Object.assign(gcj02ToWgs84(gcj), { gcj, accuracy, heading: typeof result.direction === 'number' && result.direction >= 0 && result.direction <= 360 ? result.direction : null, timestamp: Date.now() }));
       },
       fail(result) {
         if (closed) return;

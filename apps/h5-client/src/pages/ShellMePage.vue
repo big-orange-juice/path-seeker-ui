@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue"
 import { useRouter } from "vue-router"
-import { ChevronRight, History, LogOut, Play, User } from "lucide-vue-next"
-import { ClientSkeleton } from "@/components/ui"
-import HistoryRouteCard from "@/components/shell/HistoryRouteCard.vue"
+import { LogOut, User } from "lucide-vue-next"
 import PostcardHistory from '@/components/postcards/PostcardHistory.vue'
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useMissionStore } from "@/stores/useMissionStore"
-
-/** 我的页每列表只做概览，超出交给对应完整页 */
-const PREVIEW_LIMIT = 2
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -37,20 +32,11 @@ const accountLine = computed(() => {
 
 const playing = computed(() => missionStore.playingHistory)
 const completed = computed(() => missionStore.completedHistory)
-const playingPreview = computed(() => playing.value.slice(0, PREVIEW_LIMIT))
-const completedPreview = computed(() => completed.value.slice(0, PREVIEW_LIMIT))
 
 const stats = computed(() => [
   { label: "进行中", value: playing.value.length },
   { label: "已完成", value: completed.value.length },
 ])
-
-const playingLoading = computed(
-  () => missionStore.playingHistoryPending && playing.value.length === 0,
-)
-const historyLoading = computed(
-  () => missionStore.playHistoryPending && completed.value.length === 0,
-)
 
 async function refresh() {
   // 两份历史来自不同接口，并行拉取
@@ -110,64 +96,6 @@ onMounted(() => {
           {{ item.label }}
         </p>
       </div>
-    </section>
-
-    <!-- ② 探索：进行中的路线 -->
-    <section class="client-surface-block space-y-2.5">
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 text-left"
-        @click="router.push('/shell/playing')"
-      >
-        <Play class="h-4 w-4 text-primary" />
-        <span class="flex-1 font-medium">探索</span>
-        <span class="text-xs text-muted-foreground">
-          {{ playing.length ? `全部 ${playing.length}` : "" }}
-        </span>
-        <ChevronRight class="h-4 w-4 text-muted-foreground" />
-      </button>
-
-      <ClientSkeleton v-if="playingLoading" class="h-20 w-full rounded-[1rem]" />
-      <template v-else-if="playingPreview.length">
-        <HistoryRouteCard
-          v-for="item in playingPreview"
-          :key="`p-${item.routeId}-${item.startedAt || ''}`"
-          :item="item"
-          mode="map"
-        />
-      </template>
-      <p v-else class="text-xs text-muted-foreground">
-        暂无进行中的探索，去挑一条户外路线。
-      </p>
-    </section>
-
-    <!-- ③ 历史：已完成路线 -->
-    <section class="client-surface-block space-y-2.5">
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 text-left"
-        @click="router.push('/shell/archive')"
-      >
-        <History class="h-4 w-4 text-primary" />
-        <span class="flex-1 font-medium">探索记录</span>
-        <span class="text-xs text-muted-foreground">
-          {{ completed.length ? `全部 ${completed.length}` : "" }}
-        </span>
-        <ChevronRight class="h-4 w-4 text-muted-foreground" />
-      </button>
-
-      <ClientSkeleton v-if="historyLoading" class="h-20 w-full rounded-[1rem]" />
-      <template v-else-if="completedPreview.length">
-        <HistoryRouteCard
-          v-for="item in completedPreview"
-          :key="`c-${item.routeId}-${item.completedAt || item.startedAt || ''}`"
-          :item="item"
-          mode="finale"
-        />
-      </template>
-      <p v-else class="text-xs text-muted-foreground">
-        还没有完成记录，走完路线后会留在这里。
-      </p>
     </section>
   </div>
 </template>
