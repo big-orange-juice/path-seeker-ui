@@ -33,6 +33,13 @@ export default defineEventHandler(async (event): Promise<UpdateNarrationStageRes
   if (body?.exhibitId !== undefined) {
     payload.exhibitId = body.exhibitId == null ? null : String(body.exhibitId).trim() || null
   }
+  if (body?.placeId !== undefined && body.placeId !== null) {
+    const placeId = String(body.placeId).trim()
+    if (!/^[1-9]\d*$/.test(placeId)) {
+      throw createError({ statusCode: 400, message: '请选择有效的关联景点。' })
+    }
+    payload.placeId = placeId
+  }
   if (body?.guideId !== undefined) {
     payload.guideId = body.guideId == null ? null : String(body.guideId).trim() || null
   }

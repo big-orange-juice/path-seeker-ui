@@ -31,7 +31,8 @@ test('nearest stop shows its image, repeated fixes do not extend three seconds, 
   assert.deepEqual(plain(page.data.sequence.map(stop => stop.id)), [nearId]);
   assert.equal(h.requests[0].options.data.stageId, nearId);
   assert.equal(page.data.arrivalCandidate, null); assert.equal(page._arrivalTimer, null);
-  deliver(); assert.equal(page.data.arrivalCandidate, null);
+  deliver(); assert.equal(page.data.arrivalCandidate.id, farId);
+  assert.deepEqual(plain(page.data.sequence.map(stop => stop.id)), [nearId]);
 });
 
 test('choosing another stop restarts its countdown and queues the chosen string ID', t => {

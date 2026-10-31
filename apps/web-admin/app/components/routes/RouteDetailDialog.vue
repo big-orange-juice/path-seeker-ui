@@ -854,6 +854,8 @@ async function saveRouteTitle() {
     :node="selectedNode"
     :route-nodes="sortedNodes"
     :outdoor="isOutdoor"
+    :places="outdoorPlaces"
+    :bound-place-id="outdoorMapDetail?.stations.find(station => station.stageId === selectedNode?.stageId)?.placeId || ''"
     :can-edit="props.canEdit"
     :referenced-attachment-ids="chatReferenceIds"
     :locale="props.record?.locale || 'zh'"

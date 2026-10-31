@@ -228,7 +228,7 @@ test('GPS stability shows a three-second prompt while manual browsing keeps curr
   p.setData({ stops: [stop(), stop('next', 2)], locationEnabled: true, autoplay: true });
   p._manualBrowse = true; p.showStop(0, true); p.watchLocation();
   fix({ accuracy: 10 }); assert.equal(p.data.sequence.length, 0);
-  p._dwell.at = Date.now() - 2000; fix({ accuracy: 10 });
+  t.mock.timers.tick(2000); fix({ accuracy: 10 });
   assert.equal(p.data.sequence.length, 0); assert.equal(h.requests.length, 0); assert.equal(p.data.stop.id, stageId); assert.equal(p.data.candidates[0].id, 'next');
   t.mock.timers.tick(3000);
   assert.equal(p.data.sequence[0].id, 'next'); assert.equal(p.data.arrivalCandidate, null); assert.equal(h.requests.length, 0);
@@ -243,7 +243,7 @@ test('enabling nearby stories follows location and starts stable candidates afte
   assert.equal(p.data.locationEnabled, true); assert.equal(p.data.autoplay, true); assert.equal(p.data.following, true);
   const fix = { longitude: 116.383, latitude: 39.937, accuracy: 10, timestamp: Date.now() };
   onFix(fix); assert.equal(h.requests.length, 0);
-  p._dwell.at = Date.now() - 2000; onFix(fix);
+  t.mock.timers.tick(2000); onFix(fix);
   assert.equal(h.requests.length, 0); assert.equal(p.data.arrivalCandidate.id, stageId);
   t.mock.timers.tick(2999); assert.equal(h.requests.length, 0);
   t.mock.timers.tick(1); assert.equal(p.data.arrivalCandidate, null);

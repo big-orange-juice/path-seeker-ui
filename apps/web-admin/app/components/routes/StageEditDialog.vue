@@ -25,6 +25,7 @@ import DialogHeader from '@/components/shadcn/dialog/DialogHeader.vue'
 import DialogTitle from '@/components/shadcn/dialog/DialogTitle.vue'
 import { IMAGE_LIGHTBOX_Z_INDEX } from '@/components/shadcn/dialog/layer'
 import Input from '@/components/shadcn/input/Input.vue'
+import Select from '@/components/shadcn/select/Select.vue'
 import Textarea from '@/components/shadcn/textarea/Textarea.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import type { ChatAttachmentReference } from '@/types/chat'
@@ -47,6 +48,7 @@ import {
 import { mapGuideResponse } from '@/composables/useGuideManagement'
 import type { GuideRecord, GuideResponseListTotalPageResult } from '@/types/guide'
 import type { RouteNodeResponse } from '@/types/route'
+import type { CulturalPlaceRecord } from '@/types/cultural-place'
 import { buildStageHints } from '@/utils/stageHints'
 
 interface Props {
@@ -58,6 +60,8 @@ interface Props {
   referencedAttachmentIds?: string[]
   routeNodes?: RouteNodeResponse[]
   outdoor?: boolean
+  places?: CulturalPlaceRecord[]
+  boundPlaceId?: string
 }
 
 interface ChoiceOptionRow {
@@ -107,6 +111,8 @@ const props = withDefaults(defineProps<Props>(), {
   referencedAttachmentIds: () => [],
   routeNodes: () => [],
   outdoor: false,
+  places: () => [],
+  boundPlaceId: '',
 })
 const emit = defineEmits<{
   'update:open': [value: boolean]
@@ -119,6 +125,8 @@ const { request } = useApiClient()
 const { uploadAttachment } = useUploadAttachment()
 
 const saving = ref(false)
+const selectedPlaceId = shallowRef('')
+const selectablePlaces = computed(() => props.places.filter(place => place.status === 1 || place.id === props.boundPlaceId))
 const segmentsEditor = useTemplateRef<InstanceType<typeof NarrationSegmentsEditor>>('segmentsEditor')
 const nodeExperienceEditor = useTemplateRef<InstanceType<typeof NodeExperienceEditor>>('nodeExperienceEditor')
 const autoTriggerEditor = useTemplateRef<InstanceType<typeof StageAutoTriggerEditor>>('autoTriggerEditor')
@@ -644,6 +652,7 @@ const resetForm = () => {
   ) as Record<string, unknown>
 
   form.title = node?.title || ''
+  selectedPlaceId.value = props.boundPlaceId
   form.subtitle = node?.subtitle || ''
   form.prompt = readText(config.content)
     || readText(config.Content)
@@ -1621,6 +1630,9 @@ const saveNarrationStage = async () => {
       title: form.title.trim() || null,
       subtitle: form.subtitle.trim() || null,
       exhibitId: props.node?.refExhibitId ?? null,
+      ...(props.outdoor && selectedPlaceId.value && selectedPlaceId.value !== props.boundPlaceId
+        ? { placeId: selectedPlaceId.value }
+        : {}),
       guideId: form.guideId || null,
       userStyleInput: form.userStyleInput.trim() || null,
       sceneContext: form.sceneContext.trim() || null,
@@ -1773,6 +1785,15 @@ const handleSave = async () => {
               v-model="form.title"
               class="max-w-xl"
               :disabled="!props.canEdit || saving" />
+          </label>
+
+          <label v-if="isNarration && props.outdoor && selectablePlaces.length" class="block max-w-xl space-y-1.5 text-sm font-medium">
+            关联景点
+            <Select v-model="selectedPlaceId" searchable :disabled="!props.canEdit || saving">
+              <option value="" disabled>选择关联景点</option>
+              <option v-for="place in selectablePlaces" :key="place.id" :value="place.id">{{ place.name }}</option>
+            </Select>
+            <span class="block text-xs font-normal text-muted-foreground">自动解说使用关联景点的定位和范围。</span>
           </label>
 
           <StageAutoTriggerEditor

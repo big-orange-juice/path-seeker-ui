@@ -2,6 +2,7 @@
 let context = null, owner = '', queue = [], index = 0, hooks = {}, generation = 0, failed = false, playing = false;
 let accepting = false, finished = false, paused = false, prepared = null;
 let video = null;
+let pauseRequested = false;
 let completedItemIds = [];
 const isExtra = item => item && ['before', 'after', 'interlude-audio', 'interlude-video'].includes(item.kind);
 const listeners = {};
@@ -116,10 +117,11 @@ function playQueue(nextOwner, items, nextHooks = {}, checkpoint = {}) {
   pendingSeek = checkpoint.time > 0 ? checkpoint.time : null;
   next(generation);
 }
-function pause() { paused = true; if (context) context.pause(); if (video && hooks.videoControl) hooks.videoControl('pause'); playing = false; notify(); }
+function pause() { paused = true; pauseRequested = true; if (context) context.pause(); if (video && hooks.videoControl) hooks.videoControl('pause'); playing = false; notify(); }
 function resume(expectedOwner) {
   if (owner !== expectedOwner) return;
   paused = false;
+  pauseRequested = false;
   if (!queue[index]) return;
   if (video) { if (hooks.videoControl) hooks.videoControl('play'); return; }
   if (failed || !context) { failed = false; next(generation); } else context.play();
@@ -129,7 +131,7 @@ function stop(expectedOwner) {
   generation++;
   if (video && hooks.video) hooks.video(null, generation);
   video = null;
-  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false; paused = false; completedItemIds = [];
+  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false; paused = false; pauseRequested = false; completedItemIds = [];
   discardPrepared();
   dispose();
   queue = []; index = 0; owner = ''; failed = false;
@@ -141,7 +143,7 @@ function seek(seconds, expectedOwner) {
 function videoEvent(kind, token, id, detail = {}) {
   if (!video || Number(token) !== generation || !queue[index] || queue[index].id !== id) return;
   if (kind === 'time') { video.time = Number(detail.currentTime) || 0; video.duration = Number(detail.duration) || 0; }
-  if (kind === 'play') { playing = true; paused = false; }
+  if (kind === 'play') { playing = true; paused = false; pauseRequested = false; }
   if (kind === 'pause') { playing = false; paused = true; }
   if (kind === 'ended' || kind === 'skip' || kind === 'error') {
     if (kind === 'ended') completedItemIds.push(queue[index].id);
@@ -149,7 +151,8 @@ function videoEvent(kind, token, id, detail = {}) {
     if (Number(token) !== generation) return;
     if (hooks.itemEnded) hooks.itemEnded(queue[index]);
     if (Number(token) !== generation) return;
-    paused = false; index++; next(generation); return;
+    if (kind === 'skip') pauseRequested = false;
+    paused = pauseRequested; index++; next(generation); return;
   }
   notify();
 }

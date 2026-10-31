@@ -192,6 +192,7 @@ export interface GenerateRouteStageNarrationImageResponse {
  */
 export interface UpdateNarrationStageRequest {
   stageId: string
+  placeId?: string | null
   title?: string | null
   subtitle?: string | null
   exhibitId?: string | null
