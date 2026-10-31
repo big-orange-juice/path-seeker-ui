@@ -852,6 +852,8 @@ async function saveRouteTitle() {
     v-model:open="stageEditOpen"
     :route-id="routeId"
     :node="selectedNode"
+    :route-nodes="sortedNodes"
+    :outdoor="isOutdoor"
     :can-edit="props.canEdit"
     :referenced-attachment-ids="chatReferenceIds"
     :locale="props.record?.locale || 'zh'"

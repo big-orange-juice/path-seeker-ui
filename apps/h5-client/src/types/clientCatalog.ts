@@ -89,6 +89,7 @@ export interface ClientStopExtraAudio {
 }
 
 export interface ClientTourStop {
+  autoTriggerPrerequisiteStageId?: string | null
   experience?: NodeExperience | null
   triggerRadiusMeters?: number | null
   id: string
@@ -122,6 +123,7 @@ export interface ClientTourDetail {
 }
 
 export interface RouteVisit {
+  visitedStageIds?: string[] | null
   visitId: string
   routeId: string
   destinationId: string | null

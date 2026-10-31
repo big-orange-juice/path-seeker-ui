@@ -1,5 +1,6 @@
 import {
   DEFAULT_APPROACH_POLICY,
+  canAutoTriggerStop,
   evaluateApproach,
   isUsableLocation,
   type ApproachPoint,
@@ -88,6 +89,7 @@ export function nearbyTourStops(
   now = Date.now(),
   policy: ApproachPolicy = TOUR_ARRIVAL_POLICY,
   completedStageIds: Iterable<string> = [],
+  visitedStageIds: Iterable<string> = [],
 ): TourStopCandidate[] {
   if (!fix || !isUsableLocation(fix, policy, now)) return []
   // 已完成站点不再作为接近候选（方案 §7.5：以 completedStageIds 为准）
@@ -99,6 +101,7 @@ export function nearbyTourStops(
   stops.forEach((stop, index) => {
     if (stop.id === stops[after]?.id) return
     if (completed.has(stop.id)) return
+    if (!canAutoTriggerStop(stop, stops, visitedStageIds)) return
     const place = stop.placeId ? placeById.get(stop.placeId) ?? null : null
     const anchor = tourStopAnchor(stop, place)
     if (!anchor) return

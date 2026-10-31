@@ -387,8 +387,8 @@ async function evaluate() {
 
 /* ------------------------------------------------------------------ 保存与越界引导 */
 
-const optionalNumber = (value: string): number | null => {
-  const text = value.trim()
+const optionalNumber = (value: string | number): number | null => {
+  const text = String(value).trim()
   if (!text) return null
   const number = Number(text)
   return Number.isFinite(number) ? number : null

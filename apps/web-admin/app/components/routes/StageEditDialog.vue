@@ -11,9 +11,11 @@ import {
 import { v4 as uuidv4 } from 'uuid'
 import GuideSelectDialog from '@/components/guides/GuideSelectDialog.vue'
 import NarrationPronunciationPanel from '@/components/routes/NarrationPronunciationPanel.vue'
+import NarrationImageRemoveDialog from '@/components/routes/NarrationImageRemoveDialog.vue'
 import NarrationSegmentsEditor from '@/components/routes/NarrationSegmentsEditor.vue'
 import NodeExperienceEditor from '@/components/postcards/NodeExperienceEditor.vue'
 import StageExtraAudioEditor from '@/components/routes/StageExtraAudioEditor.vue'
+import StageAutoTriggerEditor from '@/components/routes/StageAutoTriggerEditor.vue'
 import Button from '@/components/shadcn/button/Button.vue'
 import Dialog from '@/components/shadcn/dialog/Dialog.vue'
 import DialogContent from '@/components/shadcn/dialog/DialogContent.vue'
@@ -54,6 +56,8 @@ interface Props {
   canEdit?: boolean
   locale?: string
   referencedAttachmentIds?: string[]
+  routeNodes?: RouteNodeResponse[]
+  outdoor?: boolean
 }
 
 interface ChoiceOptionRow {
@@ -101,6 +105,8 @@ interface StageFormState {
 const props = withDefaults(defineProps<Props>(), {
   canEdit: true,
   referencedAttachmentIds: () => [],
+  routeNodes: () => [],
+  outdoor: false,
 })
 const emit = defineEmits<{
   'update:open': [value: boolean]
@@ -115,6 +121,7 @@ const { uploadAttachment } = useUploadAttachment()
 const saving = ref(false)
 const segmentsEditor = useTemplateRef<InstanceType<typeof NarrationSegmentsEditor>>('segmentsEditor')
 const nodeExperienceEditor = useTemplateRef<InstanceType<typeof NodeExperienceEditor>>('nodeExperienceEditor')
+const autoTriggerEditor = useTemplateRef<InstanceType<typeof StageAutoTriggerEditor>>('autoTriggerEditor')
 const nodeExperienceBusy = shallowRef(false)
 const segmentsUploading = shallowRef(false)
 /** 额外音频上传中：额外音频即时保存，需单独参与底部「保存」的禁用判断 */
@@ -152,6 +159,8 @@ const PENDING_GEN_TIP = '已提交生成，完成后请点击刷新查看。'
 const PENDING_NARRATION_TEXT_TIP = '解说词生成中，完成后请点击刷新查看。'
 /** 解说配图本地列表；与 detail.images 同步，增删走 NarrationImage API */
 const narrationImages = shallowRef<RouteStageNarrationImageResponse[]>([])
+const pendingImageRemoval = shallowRef<RouteStageNarrationImageResponse | null>(null)
+const imageRemovalError = shallowRef('')
 const referencedAttachmentIdSet = computed(
   () => new Set(props.referencedAttachmentIds.map((id) => String(id).trim()).filter(Boolean)),
 )
@@ -1367,15 +1376,26 @@ const handleImageFiles = async (event: Event) => {
   }
 }
 
-const removeNarrationImage = async (image: RouteStageNarrationImageResponse) => {
+const removeNarrationImage = (image: RouteStageNarrationImageResponse) => {
   if (!props.canEdit || imageBusy.value) return
-  if (!window.confirm('确定删除这张配图吗？')) return
+  imageRemovalError.value = ''
+  pendingImageRemoval.value = image
+}
+
+const closeImageRemoval = (open: boolean) => {
+  if (!open && !imageBusy.value) pendingImageRemoval.value = null
+}
+
+const confirmImageRemoval = async () => {
+  const image = pendingImageRemoval.value
+  if (!props.canEdit || imageBusy.value || !image) return
+  const removalStageId = stageId.value
 
   const id = String(image.id ?? '').trim()
   const attachmentId = String(image.attachmentId ?? '').trim()
 
   imageBusy.value = true
-  errorMessage.value = ''
+  imageRemovalError.value = ''
   try {
     // 已绑定记录走 delete；仅本地 pending 的直接从列表移除，保存时 attachmentIds 会同步
     if (id) {
@@ -1384,18 +1404,26 @@ const removeNarrationImage = async (image: RouteStageNarrationImageResponse) => 
         body: { id },
       })
     }
+    // 请求返回前若已切换节点，不把旧节点的结果写入新节点配图。
+    if (stageId.value !== removalStageId) return
     narrationImages.value = narrationImages.value.filter((item) => {
       if (id && String(item.id ?? '') === id) return false
       if (!id && attachmentId && String(item.attachmentId ?? '') === attachmentId) return false
       return true
     })
+    pendingImageRemoval.value = null
     emit('preview-refresh')
   } catch (error) {
-    errorMessage.value = resolveError(error, '配图删除失败。')
+    imageRemovalError.value = resolveError(error, '配图移除失败，请重试。')
   } finally {
     imageBusy.value = false
   }
 }
+
+watch(() => [props.open, stageId.value], () => {
+  pendingImageRemoval.value = null
+  imageRemovalError.value = ''
+})
 
 const referenceNarrationImage = (
   image: RouteStageNarrationImageResponse,
@@ -1703,7 +1731,7 @@ const handleSave = async () => {
   try {
     const saved = isNarration.value ? (await saveNarrationStage(), true) : await saveRegularStage()
     if (!saved) return
-    if (isNarration.value) { await segmentsEditor.value?.save(); await nodeExperienceEditor.value?.save() }
+    if (isNarration.value) { await segmentsEditor.value?.save(); await nodeExperienceEditor.value?.save(); await autoTriggerEditor.value?.save() }
     emit('saved')
     isOpen.value = false
   } catch (error) {
@@ -1746,6 +1774,13 @@ const handleSave = async () => {
               class="max-w-xl"
               :disabled="!props.canEdit || saving" />
           </label>
+
+          <StageAutoTriggerEditor
+            v-if="isNarration && props.outdoor && props.node && props.routeNodes.length > 1 && props.routeNodes[props.routeNodes.length - 1]?.stageId === stageId"
+            ref="autoTriggerEditor"
+            :node="props.node"
+            :nodes="props.routeNodes"
+            :disabled="!props.canEdit || saving" />
 
           <template v-if="isObserveChoice">
             <section class="space-y-3 border-t border-border/60 pt-5">
@@ -2474,6 +2509,14 @@ const handleSave = async () => {
       </DialogFooter>
     </DialogContent>
   </Dialog>
+
+  <NarrationImageRemoveDialog
+    :open="Boolean(pendingImageRemoval)"
+    :image-url="pendingImageRemoval?.imageUrl || ''"
+    :pending="imageBusy"
+    :error="imageRemovalError"
+    @update:open="closeImageRemoval"
+    @confirm="confirmImageRemoval" />
 
   <GuideSelectDialog
     v-model:open="guideSelectOpen"

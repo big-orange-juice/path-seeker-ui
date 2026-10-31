@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..');
 const repo = path.resolve(root, '../..');
 const src = path.join(root, 'src');
 const out = path.join(root, 'dist');
-const shared = ['geo', 'geo-range', 'map-coordinates', 'translation-room', 'translation-room-messages'];
+const shared = ['geo', 'geo-range', 'map-coordinates', 'tour-auto-trigger', 'translation-room', 'translation-room-messages'];
 function files(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? files(path.join(dir, e.name)) : [path.join(dir, e.name)]);
 }

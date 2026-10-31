@@ -19,6 +19,31 @@ await build({
 const { useTourSpeech, buildTourQueue } = await import(pathToFileURL(resolve(temporary, 'speech.mjs')).href)
 const { nearbyTourStops } = await import(pathToFileURL(resolve(temporary, 'progression.mjs')).href)
 
+test('回环起点与终点重合时，仅终点依赖本次到访的前序节点，其他站点仍自由触发', () => {
+  const start = { id: '391000000000000001', order: 1, longitude: 116.38, latitude: 39.94 }
+  const ordinary = { id: '391000000000000002', order: 2, longitude: 116.38, latitude: 39.94 }
+  const prerequisite = { id: '391000000000000012', order: 12, longitude: 116.39, latitude: 39.95 }
+  const end = { id: '391000000000000013', order: 13, longitude: 116.38, latitude: 39.94, autoTriggerPrerequisiteStageId: prerequisite.id }
+  const stops = [start, ordinary, prerequisite, end]
+  const now = Date.now(), fix = { longitude: 116.38, latitude: 39.94, accuracy: 5, timestamp: now }
+  const ids = (visited: string[], completed: string[] = []) => nearbyTourStops(stops, [], fix, -1, now, undefined, completed, visited).map(item => item.stop.id)
+  assert.deepEqual(ids([]), [start.id, ordinary.id])
+  // 前序仅到访、未播完也解锁；起点完成后不会因为同坐标重复触发。
+  assert.deepEqual(ids([prerequisite.id], [start.id]), [ordinary.id, end.id])
+  assert.deepEqual(ids([prerequisite.id], [start.id, end.id]), [ordinary.id])
+  // 新游览不继承旧游览的到访状态。
+  assert.deepEqual(ids([]), [start.id, ordinary.id])
+})
+
+test('前序节点已移出或引用终点自身时，终点自动触发保持锁定', () => {
+  const now = Date.now(), fix = { longitude: 116.38, latitude: 39.94, accuracy: 5, timestamp: now }
+  for (const predecessor of ['removed', 'end']) {
+    const stops = [{ id: 'start', order: 1, longitude: fix.longitude, latitude: fix.latitude },
+      { id: 'end', order: 2, longitude: fix.longitude, latitude: fix.latitude, autoTriggerPrerequisiteStageId: predecessor }]
+    assert.deepEqual(nearbyTourStops(stops, [], fix, -1, now, undefined, [], [predecessor]).map(item => item.stop.id), ['start'])
+  }
+})
+
 test('分段讲解按顺序插入音乐和视频，跳过额外媒体时只保留讲解', () => {
   const chapters = [
     { id: 'first', order: 1, text: '第一段', interludes: [{ id: 'video', kind: 'video', title: '历史影像', url: '/film.mp4', order: 2 }, { id: 'music', kind: 'audio', title: '音乐', url: '/music.mp3', order: 1 }] },

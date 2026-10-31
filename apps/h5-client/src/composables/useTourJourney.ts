@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue'
-import { isTourLocale, isUsableLocation, type TourLocale } from '@path-seeker/ts-shared'
+import { canAutoTriggerStop, mergeVisitArrivalProgress, isTourLocale, isUsableLocation, type TourLocale } from '@path-seeker/ts-shared'
 import {
   abandonRouteVisit,
   fetchActiveRouteVisit,
@@ -193,6 +193,29 @@ export function useTourJourney() {
   let userPaused = false
   /** 本次进入周期的自动打开/自动播放记录，按 stopId 去重 */
   const autoOpenState = new Map<string, AutoOpenState>()
+  const arrivalWrites = new Map<string, Promise<void>>()
+
+  function recordPrerequisiteArrival(stopId: string): Promise<void> {
+    const currentVisit = visit.value
+    if (!currentVisit || currentVisit.status !== 1
+      || !stops.value.some(stop => stop.autoTriggerPrerequisiteStageId === stopId)
+      || currentVisit.visitedStageIds?.includes(stopId)) return Promise.resolve()
+    const key = `${currentVisit.visitId}:${stopId}`
+    const existing = arrivalWrites.get(key)
+    if (existing) return existing
+    const write = (async () => { try {
+      const response = await updateRouteVisitStop(currentVisit, stopId, 'arrive')
+      if (!alive || visit.value?.visitId !== currentVisit.visitId) return
+      // 到站写回与播放器切站可能并行，只合并到访集合，避免旧响应覆盖当前播放进度。
+      visit.value = { ...visit.value, visitedStageIds: [...new Set([
+        ...(visit.value.visitedStageIds ?? []), ...(response.visitedStageIds ?? []),
+      ])] }
+    } catch (caught) {
+      if (visit.value?.visitId === currentVisit.visitId) error.value = caught instanceof Error ? caught.message : 'saveFailed'
+    } finally { arrivalWrites.delete(key) } })()
+    arrivalWrites.set(key, write)
+    return write
+  }
   /** 语音问答打断现场：问答结束据此决定恢复 */
   let askInterrupt: { token: number; routeId: string; stageId: string; wasPlaying: boolean } | null = null
   /** 切后台现场：回到前台据此决定恢复 */
@@ -617,7 +640,7 @@ export function useTourJourney() {
       clearStoredPlaybackSequence()
       resetPlaybackSequence()
       active.value = selected
-      visit.value = response
+      visit.value = mergeVisitArrivalProgress(visit.value, response)
       currentIndex.value = Math.max(0, stops.value.findIndex(stop => stop.id === response.currentStageId))
       furthest = currentIndex.value
       resetAutoOpenState()
@@ -636,6 +659,7 @@ export function useTourJourney() {
     const stop = stops.value[index]
     const currentVisit = visit.value
     if (!stop || !currentVisit) return
+    if (reason === 'arrival' && !canAutoTriggerStop(stop, stops.value, currentVisit.visitedStageIds ?? currentVisit.completedStageIds ?? [])) return
     stopPending.value = true
     const version = ++journeyVersion
     pendingPlayback = null
@@ -652,9 +676,12 @@ export function useTourJourney() {
     if (reason !== 'arrival' || !contentAutoSwitchLocked.value) drawerStopId.value = stop.id
     try {
       if (currentVisit.status === 1) {
+        const arrivalWrite = arrivalWrites.get(`${currentVisit.visitId}:${stop.id}`)
+        if (arrivalWrite) await arrivalWrite
+        if (!alive || version !== journeyVersion) return
         const response = await updateRouteVisitStop(currentVisit, stop.id, 'start')
         if (!alive || version !== journeyVersion) return
-        visit.value = response
+        visit.value = mergeVisitArrivalProgress(visit.value, response)
       }
       writeStoredActiveRoute({ routeId: active.value?.route?.id ?? '', stageId: stop.id, locale: locale.value, updatedAt: Date.now() })
       if (alive && version === journeyVersion) {
@@ -722,7 +749,7 @@ export function useTourJourney() {
     try {
       const response = await updateRouteVisitStop(currentVisit, stop.id, 'complete', 2)
       if (!alive || version !== journeyVersion) return
-      visit.value = response
+      visit.value = mergeVisitArrivalProgress(visit.value, response)
       if (response.status !== 1) {
         // 最后一站：结束行程
         if (sequenceItem) updateSequenceItem(stop.id, 'completed')
@@ -769,7 +796,7 @@ export function useTourJourney() {
     try {
       const response = await updateRouteVisitStop(currentVisit, stop.id, 'complete', 1)
       if (!alive || version !== journeyVersion) return
-      visit.value = response
+      visit.value = mergeVisitArrivalProgress(visit.value, response)
       const nearby = arrivalCandidates.value[0]?.index ?? -1
       const next = nearby > currentIndex.value ? nearby : currentIndex.value + 1
       if (response.status === 1 && next < stops.value.length) await enterStop(next, 'manual')
@@ -996,6 +1023,7 @@ export function useTourJourney() {
       now,
       TOUR_ARRIVAL_POLICY,
       visit.value?.completedStageIds ?? [],
+      visit.value?.visitedStageIds ?? visit.value?.completedStageIds ?? [],
     ).filter(candidate => !sequenceItemOf(candidate.stop.id))
   }
 
@@ -1028,6 +1056,7 @@ export function useTourJourney() {
     if (!evaluated || !evaluated.approaching) { dismissArrival(); return }
     dismissArrival()
     const item = enqueuePlaybackStop(index, 'arrival-confirmed')
+    if (item) void recordPrerequisiteArrival(candidate.stop.id)
     if (item && speech.status.value === 'idle') await startNextPlaybackSequence(true)
   }
 
@@ -1035,7 +1064,9 @@ export function useTourJourney() {
   async function startNextPlaybackSequence(force = false) {
     if (flushPendingPlayback()) return
     if (pendingPlayback || busy.value || visit.value?.status !== 1 || speech.status.value !== 'idle' || !playbackAllowed(!force)) return
-    const next = playbackSequence.value.find(item => item.status === 'queued')
+    const next = playbackSequence.value.find(item => item.status === 'queued'
+      && stops.value[item.index]?.id === item.stopId
+      && canAutoTriggerStop(stops.value[item.index]!, stops.value, visit.value?.visitedStageIds ?? visit.value?.completedStageIds ?? []))
     if (!next) return
     await enterStop(next.index, force ? 'manual' : 'arrival', next.stopId)
   }
@@ -1086,6 +1117,7 @@ export function useTourJourney() {
       if (autoOpenState.get(candidate.stop.id)?.dismissedAt) continue
       const item = enqueuePlaybackStop(candidate.index, 'nearby-auto')
       if (!item) continue
+      void recordPrerequisiteArrival(candidate.stop.id)
       const rangeVersion = candidate.place?.range?.rangeVersion ?? null
       if (autoPlayEnabled.value && !contentAutoSwitchLocked.value && speech.status.value === 'idle' && !hasAutoOpened(candidate.stop.id)) {
         openContentDrawer(candidate.index, 'arrival')

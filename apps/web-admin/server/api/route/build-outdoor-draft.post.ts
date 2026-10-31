@@ -8,7 +8,7 @@ export default defineEventHandler(async event => {
     || !['A', 'B', 'A+B', 'D'].includes(body.fixedRouteCode)
     || !Array.isArray(body.placeIds)
     || (body.fixedRouteCode === 'D' && body.placeIds.length !== 0)
-    || body.placeIds.some(id => typeof id !== 'string' || !id.trim()) || new Set(body.placeIds).size !== body.placeIds.length) {
+    || body.placeIds.some(id => typeof id !== 'string' || !id.trim())) {
     throw createError({ statusCode: 400, message: '请选择目的地和线路，填写路线标题；自定义 D 线从空白路线开始。' });
   }
   return unwrapApiResponse(await backendFetch<ApiResponse<BuildOutdoorRouteDraftResponse>>(event, '/Route/BuildOutdoorDraft', { method: 'POST', body }));

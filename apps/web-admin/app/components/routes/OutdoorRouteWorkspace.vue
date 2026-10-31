@@ -4,6 +4,7 @@ import { ListOrdered, Map, Minus, Pencil, Plus, Route as RouteIcon, Trash2 } fro
 import Button from '@/components/shadcn/button/Button.vue'
 import RouteMapCanvas from '@/components/routes/RouteMapCanvas.vue'
 import RouteMapEditorDialog from '@/components/routes/RouteMapEditorDialog.vue'
+import OutdoorTemplateUpdateDialog from '@/components/routes/OutdoorTemplateUpdateDialog.vue'
 import type { CulturalPlaceRecord } from '@/types/cultural-place'
 import type { RouteMapDetail } from '@/types/route-map'
 import type { RouteNodeResponse } from '@/types/route'
@@ -17,6 +18,16 @@ const pending = shallowRef(false)
 const loading = shallowRef(false)
 const stopsOpen = shallowRef(false)
 const segmentsOpen = shallowRef(false)
+const templateOpen = shallowRef(false)
+const templateCode = computed(() => {
+  const codes = props.nodes.flatMap(node => {
+    try {
+      const code = JSON.parse(node.config || '{}').fixed_route_code
+      return typeof code === 'string' && ['A', 'B', 'A+B'].includes(code) ? [code] : []
+    } catch { return [] }
+  })
+  return new Set(codes).size === 1 ? codes[0] || '' : ''
+})
 const canvas = shallowRef<{ zoomBy: (delta: number) => void; fit: () => void } | null>(null)
 const ordered = computed(() => [...props.nodes].sort((left, right) => (left.sortOrder || left.stageNo) - (right.sortOrder || right.stageNo)))
 const active = computed(() => ordered.value.find(node => node.stageId === props.selectedStageId) ?? ordered.value[0] ?? null)
@@ -143,10 +154,12 @@ defineExpose({ save })
 
 <template>
   <section class="outdoor-workspace">
+    <OutdoorTemplateUpdateDialog v-model:open="templateOpen" :route-id="routeId" :template-code="templateCode" :can-edit="canEdit" @applied="load(); emit('changed')" />
     <RouteMapCanvas ref="canvas" :detail="detail" :places="places" :focused-stage-id="active?.stageId || ''" presentation="workspace" @select="emit('select', $event)" @edit="canEdit && emit('edit', $event)" @error="error = $event" />
     <div class="map-toolbar">
       <Map class="h-4 w-4 shrink-0" /><span>高德地图路线</span><b>{{ distance }}</b><b>{{ duration }}</b>
       <Button v-if="canEdit" size="sm" variant="outline" :disabled="pending || loading" @click="emit('create')"><Plus class="mr-1 h-3 w-3" />新增站点</Button>
+      <Button v-if="canEdit && templateCode" size="sm" variant="outline" :disabled="pending || loading" @click="templateOpen = true">按模板更新</Button>
       <Button v-if="canEdit" size="sm" :disabled="!active?.stageId || pending" @click="active?.stageId && emit('edit', active.stageId)"><Pencil class="mr-1 h-3 w-3" />编辑这一站</Button>
       <Button v-if="canEdit" size="sm" variant="outline" :disabled="pending || loading" @click="openGeometryEditor()"><RouteIcon class="mr-1 h-3 w-3" />编辑路线形状</Button>
       <Button v-if="canEdit" size="sm" variant="outline" :disabled="pending || loading" @click="segmentsOpen = !segmentsOpen"><ListOrdered class="mr-1 h-3 w-3" />路段列表</Button>

@@ -315,8 +315,12 @@ Page({
   async enter(index, play = true, automatic = false) {
     const stop = this.data.stops[index], visit = this.data.visit, rev = this._rev, user = this._user;
     if (!stop || !visit || visit.status !== 1) return;
+    if (automatic && !tour.canAutoTriggerStop(stop, this.data.stops, visit.visitedStageIds || visit.completedStageIds || [])) return;
     if (!automatic) this._userPaused = false;
     if ((visit.completedStageIds || []).includes(stop.id)) { this._manualBrowse = true; this.showStop(index, true); this.setData({ tourStage: 'navigation', contentOpen: true }); if (play) this.play(); return; }
+    const arrivalWrite = this._arrivalWrites && this._arrivalWrites.get(visit.visitId + ':' + stop.id);
+    if (arrivalWrite) await arrivalWrite;
+    if (rev !== this._rev || user !== ui.userId()) return;
     const result = await visits.update(visit, stop.id, 'start', this.data.route);
     if (rev !== this._rev || user !== ui.userId()) return;
     this.setData({ sequence: this.data.sequence.map(item => item.status === 'playing' && item.id !== stop.id ? Object.assign({}, item, { status: 'queued' }) : item) });
@@ -457,8 +461,22 @@ Page({
   },
   saveSequence() { if (this.data.visit && this.data.route && this._user === ui.userId()) storage.write(storage.scoped(this._user, 'sequence'), { routeId: this.data.route.id, visitId: this.data.visit.visitId, items: this.data.sequence, updatedAt: Date.now() }); },
   sequenceStatus(id, status, index) { if (!this.data.stops[index]) return; const items = this.data.sequence.slice(), existing = items.findIndex(item => item.id === id), item = { id, name: this.data.stops[index].name, index, status }; if (existing < 0) items.push(item); else items[existing] = item; this.setData({ sequence: items, queuedCount: items.filter(entry => entry.status === 'queued').length }); this.saveSequence(); },
-  enqueueCandidates(candidates) { candidates.slice().sort((a, b) => a.distance - b.distance || a.order - b.order).forEach(candidate => { if (!this.data.sequence.some(item => item.id === candidate.id) && !(this.data.visit.completedStageIds || []).includes(candidate.id)) this.sequenceStatus(candidate.id, 'queued', candidate.index); }); this.startNextSequence(); },
-  nextSequenceIndex() { const next = this.data.sequence.find(item => item.status === 'queued' && !(this.data.visit && this.data.visit.completedStageIds || []).includes(item.id)); return next ? next.index : -1; },
+  enqueueCandidates(candidates) { candidates.slice().sort((a, b) => a.distance - b.distance || a.order - b.order).forEach(candidate => { if (!this.data.sequence.some(item => item.id === candidate.id) && !(this.data.visit.completedStageIds || []).includes(candidate.id)) { this.sequenceStatus(candidate.id, 'queued', candidate.index); this.recordPrerequisiteArrival(candidate.id); } }); this.startNextSequence(); },
+  recordPrerequisiteArrival(stopId) {
+    const visit = this.data.visit, user = this._user;
+    if (!visit || visit.status !== 1 || (visit.visitedStageIds || []).includes(stopId) || !this.data.stops.some(stop => stop.autoTriggerPrerequisiteStageId === stopId)) return;
+    const writes = this._arrivalWrites || (this._arrivalWrites = new Map()), key = visit.visitId + ':' + stopId;
+    if (writes.has(key)) return writes.get(key);
+    const write = (async () => { try {
+      const result = await visits.update(visit, stopId, 'arrive', this.data.route);
+      if (this._user !== user || user !== ui.userId() || !this.data.visit || this.data.visit.visitId !== visit.visitId) return;
+      const merged = Object.assign({}, this.data.visit, { visitedStageIds: Array.from(new Set((this.data.visit.visitedStageIds || []).concat(result.visitedStageIds || []))) });
+      this.setData({ visit: merged }); this._heldVisit = { visit: merged, route: this.data.route };
+    } catch (e) { if (this.data.visit && this.data.visit.visitId === visit.visitId) ui.error(this, e); }
+    finally { writes.delete(key); } })();
+    writes.set(key, write); return write;
+  },
+  nextSequenceIndex() { const visit = this.data.visit || {}; const next = this.data.sequence.find(item => item.status === 'queued' && !(visit.completedStageIds || []).includes(item.id) && this.data.stops[item.index] && this.data.stops[item.index].id === item.id && tour.canAutoTriggerStop(this.data.stops[item.index], this.data.stops, visit.visitedStageIds || visit.completedStageIds || [])); return next ? next.index : -1; },
   flushPlayback() {
     const pending = this._pendingPlayback;
     if (!pending) return false;
@@ -483,7 +501,7 @@ Page({
       this.updateLocationMarker(fix);
       if (this.data.following) this.followLocation(fix);
       if (!this.canDetectArrival()) { this._dwell = null; this.clearArrivalPrompt(); return; }
-      const candidates = tour.candidates(this.data.stops, this._places || [], fix, this.data.visit.completedStageIds || [], this._detail.coordinateSystem || 1, Date.now(), this.data.stops.findIndex(s => s.id === this.data.visit.currentStageId));
+      const candidates = tour.candidates(this.data.stops, this._places || [], fix, this.data.visit.completedStageIds || [], this._detail.coordinateSystem || 1, Date.now(), this.data.stops.findIndex(s => s.id === this.data.visit.currentStageId), this.data.visit.visitedStageIds || this.data.visit.completedStageIds || []);
       const key = candidates.map(c => c.id).join('|');
       if (!key) { this._dwell = null; this._dismissedCandidates = new Set(); this.clearArrivalPrompt(); return; }
       if (this.data.arrivalCandidate && !candidates.some(candidate => candidate.id === this.data.arrivalCandidate.id)) this.clearArrivalPrompt();
@@ -512,7 +530,7 @@ Page({
     const step = () => {
       this._arrivalTimer = null;
       if (!this.canPromptArrival() || this._rev !== token.rev || this.data.route.id !== token.routeId || this.data.visit.visitId !== token.visitId || !this.data.arrivalCandidate || this.data.arrivalCandidate.id !== token.id) { this.clearArrivalPrompt(); return; }
-      const fresh = tour.candidates(this.data.stops, this._places || [], this._fix, this.data.visit.completedStageIds || [], this._detail.coordinateSystem || 1, Date.now(), this.data.stops.findIndex(stop => stop.id === this.data.visit.currentStageId));
+      const fresh = tour.candidates(this.data.stops, this._places || [], this._fix, this.data.visit.completedStageIds || [], this._detail.coordinateSystem || 1, Date.now(), this.data.stops.findIndex(stop => stop.id === this.data.visit.currentStageId), this.data.visit.visitedStageIds || this.data.visit.completedStageIds || []);
       const current = fresh.find(item => item.id === token.id);
       if (!current || this.data.sequence.some(item => item.id === token.id)) { this.clearArrivalPrompt(); return; }
       const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));

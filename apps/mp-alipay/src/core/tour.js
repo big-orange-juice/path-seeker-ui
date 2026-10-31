@@ -1,5 +1,6 @@
 const { evaluateApproach, isUsableLocation, DEFAULT_APPROACH_POLICY, parseBoundary, boundaryPolygons, circleToRing } = require('../shared/geo-range');
 const { gcj02ToWgs84, toGcj02 } = require('../shared/map-coordinates');
+const { canAutoTriggerStop } = require('../shared/tour-auto-trigger');
 function sorted(items) { return (items || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.id).localeCompare(String(b.id))); }
 function narrations(stop, locale) { return (stop.guideNarrations || []).filter(n => n.locale === locale); }
 function stopVideo(stop) { return stop && stop.video ? { id: 'stop-video-' + stop.id, title: stop.name, url: stop.video, text: '', kind: 'interlude-video' } : null; }
@@ -63,9 +64,9 @@ function mapData(detail, destination, places = []) {
   const center = markers[0] || (destinationPoint ? toGcj02(destinationPoint, destination.coordinateSystem || 1) : { longitude: 116.383, latitude: 39.937 });
   return { markers, polyline: safeLines, routeLines: lines, boundaryLines: boundaries, longitude: Number.isFinite(center.longitude) ? center.longitude : 116.383, latitude: Number.isFinite(center.latitude) ? center.latitude : 39.937, includePoints: markers.map(m => ({ longitude: m.longitude, latitude: m.latitude })) };
 }
-function candidates(stops, places, fix, completed, system = 1, now = Date.now(), after = -1) {
+function candidates(stops, places, fix, completed, system = 1, now = Date.now(), after = -1, visited = completed) {
   if (!isUsableLocation(fix, DEFAULT_APPROACH_POLICY, now)) return [];
-  return stops.map((stop, index) => ({ stop, index })).filter(({ stop, index }) => !completed.includes(stop.id) && index !== after).map(({ stop, index }) => {
+  return stops.map((stop, index) => ({ stop, index })).filter(({ stop, index }) => !completed.includes(stop.id) && index !== after && canAutoTriggerStop(stop, stops, visited)).map(({ stop, index }) => {
     const place = places.find(p => p.id === stop.placeId);
     const anchor = validPoint(place) ? mapPoint(place) : validPoint(stop) ? (system === 1 ? mapPoint(stop) : gcj02ToWgs84(toGcj02(mapPoint(stop), system))) : null;
     const range = place && place.range;
@@ -84,4 +85,4 @@ function canCompleteAudio(queue, failed, browsing, completedItemIds = []) {
   if (chapters.length) return chapters.every(item => Boolean(item.url));
   return queue.some(item => item.kind === 'interlude-video' && item.id.indexOf('stop-video-') === 0 && completedItemIds.includes(item.id));
 }
-module.exports = { sorted, narrations, stopVideo, queueFor, mapData, candidates, checkpointMatches, canCompleteAudio };
+module.exports = { sorted, narrations, stopVideo, queueFor, mapData, candidates, checkpointMatches, canCompleteAudio, canAutoTriggerStop };

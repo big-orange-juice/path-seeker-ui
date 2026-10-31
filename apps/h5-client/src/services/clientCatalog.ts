@@ -31,7 +31,7 @@ export function fetchActiveRouteVisit(routeId: string) {
   return request<RouteVisit | null>('/RouteVisit/Active', { query: { routeId } })
 }
 
-export function updateRouteVisitStop(visit: RouteVisit, stageId: string, action: 'start' | 'complete', completionSource = 1) {
+export function updateRouteVisitStop(visit: RouteVisit, stageId: string, action: 'start' | 'complete' | 'arrive', completionSource = 1) {
   return request<RouteVisit>('/RouteVisit/UpdateStop', {
     method: 'POST', data: { routeId: visit.routeId, visitId: visit.visitId, stageId, action, completionSource },
   })

@@ -1,10 +1,12 @@
 const http = require('./http');
 const auth = require('./auth');
 const storage = require('./storage');
+const { mergeVisitArrivalProgress } = require('../shared/tour-auto-trigger');
 function key() { return storage.scoped(auth.current().userId, 'visits'); }
 function list() { return auth.current() ? storage.read(key(), []) : []; }
 function remember(visit, route, user = auth.current() && auth.current().userId) {
   if (!user || !auth.current() || user !== auth.current().userId) throw Error('账号已切换');
+  visit = mergeVisitArrivalProgress(list().find(item => item.visitId === visit.visitId), visit);
   const records = list().filter(r => r.visitId !== visit.visitId);
   records.unshift(Object.assign({}, visit, { title: route.title, cover: route.cover, updatedAt: new Date().toISOString() }));
   storage.write(key(), records.slice(0, 100));
