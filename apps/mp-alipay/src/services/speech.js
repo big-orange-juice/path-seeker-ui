@@ -58,7 +58,7 @@ async function transcribe(filePath, active = () => true) {
   return http.post('/ExhibitChat/transcribe', multipartWav(result.data, boundary), { headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary }, timeout: 120000 });
 }
 let recorderOwner = null;
-function recorder(onState, onResult, onError) {
+function recorder(onState, onResult, onError, options = {}) {
   if (!my.getRecorderManager) throw Error('当前支付宝版本不支持录音，请使用文字提问');
   const manager = my.getRecorderManager();
   const owner = {};
@@ -73,7 +73,7 @@ function recorder(onState, onResult, onError) {
     onState(false, !cancelled);
     if (cancelled) { cleanup([result.tempFilePath]); return; }
     processing = true;
-    try { const response = await transcribe(result.tempFilePath, () => !closed); if (!closed) onResult(response.text || ''); }
+    try { if (options.submit) await options.submit(result.tempFilePath, () => !closed); else { const response = await transcribe(result.tempFilePath, () => !closed); if (!closed) onResult(response.text || ''); } }
     catch (failure) { if (!closed) onError(failure); }
     finally { processing = false; cleanup([result.tempFilePath]); }
   };
@@ -89,7 +89,7 @@ function recorder(onState, onResult, onError) {
     start() {
       if (closed || processing || state !== 'idle' || recorderOwner) throw Error('录音尚未结束，请稍后重试');
       recorderOwner = owner; cancelled = false; held = true; state = 'starting';
-      try { manager.start({ format: 'wav', sampleRate: 16000, numberOfChannels: 1, duration: 60000 }); }
+      try { manager.start({ format: 'wav', sampleRate: 16000, numberOfChannels: 1, duration: options.duration || 60000 }); }
       catch (failure) { state = 'idle'; held = false; release(); if (!closed && !cancelled && Number(failure.error) === 10) { microphoneHelp(); throw recordingError(failure); } throw failure; }
     },
     stop(cancel = false) { cancelled = cancel; held = false; if (state === 'recording') manager.stop(); },

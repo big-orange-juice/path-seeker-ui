@@ -26,6 +26,7 @@ const fixtures: Record<string, string> = {
       const socket = { id, channel, readyState: 1, bufferedAmount: 0, closed: false, sent: [], send(value) { this.sent.push(value); }, close() { this.closed = true; this.readyState = 3; } };
       fixture.sockets.push(socket); return socket;
     }`,
+  '@/services/roomQuestions': `import { fixture } from '@/services/translationRoom'; export async function uploadRoomQuestion(roomId, wav, requestId, signal) { fixture.uploads.push({ roomId, wav, requestId, signal }); if (fixture.uploadPending) return fixture.uploadPending; return { questionId: 'question-1', status: 'accepted' }; }`,
   'mic.js': `import { fixture } from '@/services/translationRoom'; export async function startTranslationMic(context, onFrame) { fixture.onFrame = onFrame; if (fixture.microphone) return fixture.microphone; return { async stop(options) { fixture.stops++; await fixture.stopHook?.(options); } }; }`,
   'pcm.js': `import { fixture } from '@/services/translationRoom'; export const createPcmEncoder = (rate, send) => ({ feed(frame) { fixture.frames.push(frame.length); send(new ArrayBuffer(frame.length * 2)); }, flush() { fixture.flushes++; send(new ArrayBuffer(4)); } });`,
   '@/utils/roomEchoGuard': `import { fixture } from '@/services/translationRoom'; export function createRoomEchoGuard(onChange) {
@@ -48,6 +49,12 @@ await build({
 })
 const { useTranslationRoom, useTranslationRoomStore, useAuthStore, fixture, playbackFocus } = await import(pathToFileURL(resolve(temporary, 'session.mjs')).href)
 const tick = () => new Promise(resolveTick => setImmediate(resolveTick))
+
+function questionEvent(id: string, status = 'ready', audio = true) {
+  return { type: 'question.updated', payload: { id, speakerId: '9223372036854775804', displayName: 'Alice',
+    sourceLanguage: 'en', targetLanguage: 'zh-CN', source: 'Can we stop here?', text: '可以停车吗？',
+    status, error: '', expiresAt: Date.now() + 120000, audio: audio ? [{ hex: 'aabb', format: 'mp3' }] : null } }
+}
 
 function setup(context: TestContext) {
   const originalAudioContext = Object.getOwnPropertyDescriptor(globalThis, 'AudioContext')
@@ -74,11 +81,103 @@ function setup(context: TestContext) {
   fixture.played = []; fixture.resumeFailure = false; fixture.decodeFailure = false
   fixture.frames = []; fixture.flushes = 0; fixture.stopHook = null; fixture.onFrame = null
   fixture.echo = false
+  fixture.uploads = []; fixture.uploadPending = null
   setActivePinia(createPinia())
   const store = useTranslationRoomStore()
   context.after(async () => { await store.leave(false); store.$dispose() })
   return store
 }
+
+test('host waits for input pause acknowledgement, then plays visitor audio and can resume commentary', async context => {
+  const store = setup(context)
+  await store.create('zh-CN')
+  const socket = fixture.sockets[0]
+  socket.onopen()
+  const start = store.startSpeaking(); await tick(); fixture.sockets[1].onopen(); await start
+  socket.onmessage({ data: JSON.stringify(questionEvent('question-1')) })
+  assert.equal(store.questions[0].status, 'ready')
+  assert.equal(store.questionPlaying, false)
+  const listen = store.listenQuestions()
+  await tick()
+  assert.equal(store.speaking, false)
+  assert.equal(store.questionPlaying, false)
+  assert.equal(JSON.parse(fixture.sockets[1].sent.at(-1)).type, 'input.pause')
+  assert.equal(fixture.requests.some((request: any) => /\/(end|close)$/.test(request.path)), false)
+  socket.onmessage({ data: JSON.stringify({ type: 'input.paused' }) })
+  await listen; await tick()
+  assert.equal(store.questionPlaying, true)
+  assert.equal(store.questions[0].status, 'playing')
+  fixture.played.at(-1).onended()
+  await tick()
+  assert.equal(store.questions[0].status, 'played')
+  assert.equal(store.questionPlaying, false)
+  const resume = store.startSpeaking(); await tick(); fixture.sockets[2].onopen(); await resume
+  assert.equal(store.speaking, true)
+  assert.equal(socket.closed, false)
+})
+
+test('visitor short recording uploads one WAV with string identifiers and cancels cleanly', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  const socket = fixture.sockets[0]; socket.onopen()
+  socket.onmessage({ data: JSON.stringify({ type: 'subscription.ready', targetLanguage: 'en', payload: { room: { ...store.room, guestSpeechEnabled: true } } }) })
+  store.startQuestion(); await tick()
+  assert.equal(store.questionRecording, true)
+  assert.equal(fixture.echo, true)
+  fixture.onFrame(new Float32Array(16000))
+  store.stopQuestion(); await tick(); await tick()
+  assert.equal(fixture.uploads.length, 1)
+  assert.equal(fixture.uploads[0].roomId, '9223372036854775805')
+  assert.match(fixture.uploads[0].requestId, /^[a-f0-9]{32}$/)
+  assert.equal(new TextDecoder().decode(fixture.uploads[0].wav.slice(0, 4)), 'RIFF')
+  assert.equal(store.questionRecording, false)
+  assert.equal(store.questionUploading, false)
+  assert.equal(fixture.echo, false)
+  store.startQuestion(); await tick(); fixture.onFrame(new Float32Array(16000)); store.cancelQuestion(); await tick()
+  assert.equal(fixture.uploads.length, 1)
+  assert.equal(store.questionRecording, false)
+})
+
+test('late microphone permission after leaving is stopped without uploading or changing a new room', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  fixture.sockets[0].onopen()
+  store.room = { ...store.room, guestSpeechEnabled: true }
+  let finish: (mic: any) => void = () => {}
+  fixture.microphone = new Promise(resolve => { finish = resolve })
+  store.startQuestion(); await tick()
+  await store.leave(false)
+  let stopped = 0
+  finish({ async stop(options: any) { assert.equal(options.flush, false); stopped++ } })
+  await tick(); await tick()
+  assert.equal(stopped, 1)
+  assert.equal(store.room, null)
+  assert.equal(store.questionRecording, false)
+  assert.equal(fixture.uploads.length, 0)
+})
+
+test('question audio uses its own message stream and is cleared when disconnected or interrupted', async context => {
+  const store = setup(context)
+  await store.create('zh-CN'); const socket = fixture.sockets[0]; socket.onopen()
+  socket.onmessage({ data: JSON.stringify(questionEvent('q-1')) })
+  socket.onmessage({ data: JSON.stringify(questionEvent('q-2')) })
+  assert.equal(store.questions.length, 2)
+  assert.equal(store.feed.length, 0)
+  await store.listenQuestions(); await tick()
+  assert.equal(store.questions[0].status, 'playing')
+  const ask = playbackFocus.channel('ask', () => {}); ask.claim()
+  assert.equal(store.questionPlaying, false)
+  assert.equal(store.questions[0].status, 'ready')
+  ask.release()
+  await store.listenQuestions(); await tick()
+  fixture.played.at(-1).onended(); await tick(); await tick()
+  assert.equal(store.questions[0].status, 'played')
+  assert.equal(store.questions[1].status, 'playing')
+  socket.onclose()
+  assert.equal(store.questionPlaying, false)
+  assert.equal(store.questions[1].status, 'expired')
+  assert.equal(store.questions.some((item: any) => item.audioAvailable), false)
+})
 
 test('returning from room page preserves socket, microphone and multilingual feed in application session', async context => {
   const store = setup(context)

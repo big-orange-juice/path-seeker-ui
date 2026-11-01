@@ -128,6 +128,7 @@ function resume(expectedOwner) {
 }
 function stop(expectedOwner) {
   if (expectedOwner && owner !== expectedOwner) return;
+  const interrupted = !expectedOwner && hooks.interrupted;
   generation++;
   if (video && hooks.video) hooks.video(null, generation);
   video = null;
@@ -135,6 +136,7 @@ function stop(expectedOwner) {
   discardPrepared();
   dispose();
   queue = []; index = 0; owner = ''; failed = false;
+  if (interrupted) interrupted();
 }
 function seek(seconds, expectedOwner) {
   if (video && owner === expectedOwner) { video.time = Math.max(0, seconds); if (hooks.videoControl) hooks.videoControl('seek', video.time); notify(); return; }

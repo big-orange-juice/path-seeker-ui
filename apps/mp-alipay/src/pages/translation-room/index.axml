@@ -25,7 +25,22 @@
     </scroll-view>
     <button a:if="{{showLatest}}" class="chat-latest" onTap="followLatest">↓ {{messages.latest}}</button>
   </view>
-  <view class="chat-toolbar"><view class="chat-toolbar-status">{{room.isHost ? (speaking ? messages.echoHint : notice) : audioNotice}}</view><view class="chat-toolbar-actions"><view class="chat-mode-icon">{{room.isHost ? '♪' : '♫'}}</view>
+  <view class="chat-toolbar">
+    <view a:if="{{room.guestSpeechEnabled}}" class="room-questions">
+      <view a:if="{{questions.length}}" class="question-heading">{{questionMessages.title}}</view>
+      <scroll-view a:if="{{questions.length}}" class="question-list" scroll-y="{{true}}">
+        <view a:for="{{questions}}" a:key="id" class="question-item"><view class="question-meta">{{item.displayName}} · {{item.statusLabel}}</view><view a:if="{{item.text}}">{{item.text}}</view><view a:if="{{item.source}}" class="question-source">{{item.source}}</view></view>
+      </scroll-view>
+      <view a:if="{{questionError}}" class="question-error">{{questionError}}</view>
+      <view a:if="{{!room.isHost}}" class="question-actions">
+        <button class="question-talk {{questionRecording ? 'is-recording' : ''}}" onTouchStart="startQuestion" onTouchEnd="stopQuestion" onTouchCancel="cancelQuestion" disabled="{{busy || disconnected || questionUploading || room.status === 'closed' || room.status === 'draining'}}">{{questionUploading ? questionMessages.sending : questionRecording ? questionMessages.recording : questionMessages.talk}}</button>
+        <button a:if="{{questionRecording}}" class="question-cancel" onTap="cancelQuestion">{{questionMessages.cancel}}</button>
+      </view>
+      <view a:if="{{!room.isHost}}" class="question-hint">{{questionMessages.hint}}</view>
+      <button a:if="{{room.isHost && questionPlaying}}" class="question-talk" onTap="stopQuestions">{{questionMessages.stop}}</button>
+      <button a:elif="{{room.isHost && hasPendingQuestions}}" class="question-talk" onTap="listenQuestions" disabled="{{busy || disconnected || room.status === 'closed' || room.status === 'draining'}}">{{speaking ? questionMessages.pauseListen : questionMessages.listen}}</button>
+    </view>
+    <view class="chat-toolbar-status">{{room.isHost ? (speaking ? messages.echoHint : notice) : audioNotice}}</view><view class="chat-toolbar-actions"><view class="chat-mode-icon">{{room.isHost ? '♪' : '♫'}}</view>
     <button a:if="{{disconnected && room.status !== 'closed'}}" class="chat-talk" onTap="openDetails" disabled="{{busy}}">{{room.isHost ? messages.reconnect : messages.listenAgain}}</button>
     <button a:elif="{{room.isHost}}" class="chat-talk {{speaking ? 'is-speaking' : ''}}" onTap="startSpeaking" disabled="{{busy || speaking || room.status === 'closed' || room.status === 'draining'}}">{{room.status === 'closed' ? messages.ended : speaking ? messages.micOn : messages.start}}</button>
     <button a:else class="chat-talk" onTap="togglePause" disabled="{{busy || disconnected}}">{{paused || audioError ? messages.resume : messages.pause}}</button>

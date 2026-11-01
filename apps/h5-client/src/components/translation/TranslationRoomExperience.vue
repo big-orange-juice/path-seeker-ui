@@ -6,6 +6,7 @@ import { ArrowLeft, Headphones, Mic, MoreHorizontal, Volume2 } from 'lucide-vue-
 import TranslationRoomControls from './TranslationRoomControls.vue'
 import TranslationRoomFeed from './TranslationRoomFeed.vue'
 import TranslationRoomDetails from './TranslationRoomDetails.vue'
+import TranslationRoomQuestions from './TranslationRoomQuestions.vue'
 import { useTranslationRoom } from '@/composables/useTranslationRoom'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { formatRoomMessage } from '../../../../../packages/ts-shared/src/translation-room-messages'
@@ -49,6 +50,7 @@ async function joinRoom(code: string, language: string) {
       <p v-if="error" role="alert" class="chat-error">{{ error }}</p>
       <TranslationRoomFeed :room="room" :items="feed" :source="source" :language="language" />
       <footer class="chat-toolbar">
+        <TranslationRoomQuestions v-if="room.guestSpeechEnabled" :host="room.isHost" :language="language" :items="feature.questions.value" :recording="feature.questionRecording.value" :uploading="feature.questionUploading.value" :playing="feature.questionPlaying.value" :speaking="speaking" :disabled="busy || !connected || room.status === 'closed' || room.status === 'draining'" :error="feature.questionError.value" @start="feature.startQuestion" @stop="feature.stopQuestion()" @cancel="feature.cancelQuestion" @listen="feature.listenQuestions" @stop-playback="feature.stopQuestions" />
         <p class="chat-toolbar-status" role="status"><Volume2 v-if="!room.isHost" :size="13" aria-hidden="true" />{{ room.isHost ? (speaking ? messages.echoHint : notice) : audioNotice }}</p>
         <div class="chat-toolbar-actions"><span class="chat-mode-icon" :class="{ 'is-live': speaking }"><Mic v-if="room.isHost" :size="22" aria-hidden="true" /><Headphones v-else :size="22" aria-hidden="true" /></span>
           <button v-if="needsConnection" type="button" class="chat-talk" :disabled="busy" @click="showDetails = true">{{ room.isHost ? messages.reconnect : messages.listenAgain }}</button>

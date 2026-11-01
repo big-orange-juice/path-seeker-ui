@@ -8,6 +8,7 @@ export interface TranslationRoom {
   sourceLanguage: string
   status: string
   listenerCount: number
+  guestSpeechEnabled?: boolean
   languages?: { language: string; count: number }[]
   qrImageDataUri?: string
   members?: { userId: string; displayName: string; language: string }[]

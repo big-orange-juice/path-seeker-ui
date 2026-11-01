@@ -16,6 +16,7 @@ function connect(room, hooks) {
   const cursor = new RoomEventCursor(room.isHost);
   let closed = false, opened = false, paused = false, heartbeat, hex = '', format = 'mp3', writes = Promise.resolve(), fileIndex = 0;
   let recorder = null, recording = false, stopping = null, stopped = null, uploads = Promise.resolve(), pendingUploads = 0;
+  let guestCapture = false, awaitSegment = false, pauseAck = null;
   const paths = [];
   const playbackHooks = {
     error: error => { if (hooks.playbackError) hooks.playbackError(error); else hooks.error(error); },
@@ -36,7 +37,7 @@ function connect(room, hooks) {
     if (!hex) return;
     const sentence = { hex, format }, index = fileIndex++; hex = '';
     writes = writes.then(async () => {
-      if (!active()) return;
+      if (!active() || guestCapture || awaitSegment) return;
       if (audio.snapshot().owner !== 'translation-room') { paused = true; if (hooks.interrupted) hooks.interrupted(); return; }
       const playbackToken = token;
       const files = await speech.audioFiles([sentence], 'room-' + Date.now() + '-' + index);
@@ -53,8 +54,9 @@ function connect(room, hooks) {
       const event = JSON.parse(message.data);
       if (!cursor.accept(event)) return;
       const payload = event.payload || {};
-      if (event.type === 'audio.started') { hex = ''; format = payload.format || 'mp3'; }
-      if (event.type === 'audio.delta' && !room.isHost) {
+      if (event.type === 'input.paused' && pauseAck) { pauseAck.resolve(); pauseAck = null; }
+      if (event.type === 'audio.started') { hex = ''; format = payload.format || 'mp3'; if (!guestCapture) awaitSegment = false; }
+      if (event.type === 'audio.delta' && !room.isHost && !guestCapture && !awaitSegment) {
         if (payload.encoding && payload.encoding !== 'hex' || payload.audio && !/^(?:[0-9a-fA-F]{2})*$/.test(payload.audio)) throw Error('语音格式无效');
         hex += payload.audio || ''; format = payload.format || format;
         if (hex.length > 16 * 1024 * 1024) throw Error('语音积压过多，请重新收听');
@@ -132,6 +134,7 @@ function connect(room, hooks) {
     return stopping;
   }
   function close(stopAudio = true) {
+    if (pauseAck) { pauseAck.reject(Error('讲解连接已断开')); pauseAck = null; }
     if (closed) {
       if (stopAudio && token !== null) {
         audio.stop('translation-room');
@@ -150,6 +153,19 @@ function connect(room, hooks) {
   }
   return {
     close, startRecording,
+    async pauseInput() {
+      if (!recorder) return;
+      let timer;
+      const acknowledged = new Promise((resolve, reject) => { pauseAck = { resolve, reject }; timer = setTimeout(() => { pauseAck = null; reject(Error('暂停讲解超时')); }, 45000); });
+      acknowledged.catch(() => {});
+      try { await stopRecording(); await send({ type: 'input.pause' }); await acknowledged; }
+      finally { clearTimeout(timer); pauseAck = null; stopping = null; }
+    },
+    muteForQuestion(value) {
+      guestCapture = value; awaitSegment = true; hex = '';
+      if (value) { audio.stop('translation-room'); speech.cleanup(paths.splice(0)); }
+      else if (active() && !room.isHost && !audio.snapshot().owner) { token = audio.beginStream('translation-room', playbackHooks); if (paused) audio.pause(); }
+    },
     pause(value) {
       paused = value;
       if (value) { if (audio.snapshot().owner === 'translation-room') audio.pause(); }

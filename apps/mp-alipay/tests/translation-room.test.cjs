@@ -75,6 +75,128 @@ function socketHarness() {
   return { fixture, handlers, sent, service: fixture.load('services/translation-room') };
 }
 
+function question(id, status = 'ready', withAudio = true) {
+  return { type: 'question.updated', payload: { id, speakerId: '9223372036854775804', displayName: 'Alice',
+    sourceLanguage: 'en', targetLanguage: 'zh-CN', source: 'Can we stop here?', text: '可以停车吗？',
+    status, expiresAt: Date.now() + 120000, audio: withAudio ? [{ hex: 'aabb', format: 'mp3' }] : null } };
+}
+
+async function leaveQuestionRoom(session, fixture) {
+  const leaving = session.leave();
+  await tick();
+  fixture.requests.filter(request => /\/leave$/.test(request.options.url)).forEach(request => request.ok({}));
+  await leaving;
+}
+
+test('question stream retains string identities, ignores subscriber language and expires private audio', () => {
+  const { RoomQuestionFeed, questionWav, questionMessages } = require('../dist/shared/translation-room-questions');
+  const feed = new RoomQuestionFeed();
+  assert.equal(feed.accept(question('9223372036854775803')), true);
+  assert.equal(feed.items[0].speakerId, '9223372036854775804');
+  assert.equal(feed.items[0].audio, undefined);
+  assert.equal(feed.playable('9223372036854775803').length, 1);
+  feed.expire(Date.now() + 130000);
+  assert.equal(feed.items[0].status, 'expired');
+  assert.equal(feed.playable('9223372036854775803'), null);
+  assert.equal(new DataView(questionWav([new ArrayBuffer(9600)])).getUint32(24, true), 16000);
+  assert.throws(() => questionWav([new ArrayBuffer(100)]), /invalid_recording/);
+  assert.equal(new Set(['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'fr', 'de', 'es'].map(language => questionMessages(language).talk)).size, 8);
+});
+
+test('host pauses through the existing socket, waits for server acknowledgement and resumes recording', async () => {
+  const { fixture, handlers, sent, service } = socketHarness();
+  const connection = service.connect({ roomId: '42', isHost: true }, { event() {}, error() {}, disconnected() {} });
+  handlers.Open();
+  try {
+    await connection.startRecording(); fixture.recorder.emit('Start');
+    let finished = false;
+    const pausing = connection.pauseInput().then(() => { finished = true; });
+    fixture.recorder.emit('Stop', { tempFilePath: '/tmp/pause.wav' });
+    await tick(); await tick();
+    assert.equal(JSON.parse(sent.at(-1).data).type, 'input.pause');
+    assert.equal(finished, false);
+    assert.equal(sent.some(item => !item.isBuffer && JSON.parse(item.data).type === 'input.end'), false);
+    handlers.Message({ data: JSON.stringify({ type: 'input.paused' }) });
+    await pausing;
+    await connection.startRecording();
+    assert.equal(fixture.recorder.starts.length, 2);
+    assert.equal(JSON.parse(sent.at(-1).data).type, 'input.start');
+  } finally { connection.close(); fixture.recorder.emit('Stop', { tempFilePath: '/tmp/final.wav' }); }
+});
+
+test('visitor room recording uses question upload, cancels without transcription and releases microphone', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  try {
+    session.attach({ roomId: '9223372036854775805', isHost: false, guestSpeechEnabled: true, status: 'live' }, 'en'); handlers.Open();
+    session.startQuestion(); fixture.recorder.emit('Start');
+    assert.equal(session.snapshot().questionRecording, true);
+    assert.equal(fixture.recorder.starts[0].duration, 30000);
+    session.stopQuestion(); fixture.recorder.emit('Stop', { tempFilePath: '/tmp/question.wav' });
+    await tick();
+    assert.equal(fixture.requests.length, 1);
+    assert.match(fixture.requests[0].options.url, /TranslationRooms\/9223372036854775805\/questions$/);
+    const body = Buffer.from(fixture.requests[0].options.data).toString('latin1');
+    assert.match(body, /name="requestId"\r\n\r\n[a-f0-9]{32}/);
+    assert.match(body, /Content-Type: audio\/wav/);
+    fixture.requests[0].ok({ questionId: 'question-1', status: 'accepted' });
+    await tick(); await tick();
+    assert.equal(session.snapshot().questionUploading, false);
+    assert.equal(session.snapshot().questionRecording, false);
+    session.startQuestion(); fixture.recorder.emit('Start'); session.cancelQuestion(); fixture.recorder.emit('Stop', { tempFilePath: '/tmp/cancel.wav' });
+    await tick();
+    assert.equal(fixture.requests.length, 1);
+    assert.ok(fixture.removed.includes('/tmp/cancel.wav'));
+  } finally { await leaveQuestionRoom(session, fixture); }
+});
+
+test('question recorder errors remain retryable and leaving aborts an unfinished upload', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  try {
+    session.attach({ roomId: '42', isHost: false, guestSpeechEnabled: true, status: 'live' }, 'en'); handlers.Open();
+    session.startQuestion(); fixture.recorder.emit('Error', { error: 1, errorMessage: 'failed' });
+    assert.equal(session.snapshot().questionRecording, false);
+    session.startQuestion(); fixture.recorder.emit('Start');
+    session.stopQuestion(); fixture.recorder.emit('Stop', { tempFilePath: '/tmp/question.wav' });
+    await tick();
+    assert.equal(fixture.requests.length, 1);
+    const uploading = fixture.requests[0];
+    session.disconnect();
+    assert.equal(uploading.aborted, true);
+    uploading.ok({ questionId: 'old' }); await tick();
+    assert.equal(session.snapshot().questionUploading, false);
+    assert.equal(session.snapshot().questions.length, 0);
+  } finally { await leaveQuestionRoom(session, fixture); }
+});
+
+test('host receives questions without language broadcast, serializes playback and yields to other audio', async () => {
+  const { fixture, handlers } = socketHarness();
+  const session = fixture.load('services/translation-session');
+  const audio = fixture.load('services/audio');
+  try {
+    session.attach({ roomId: '42', isHost: true, guestSpeechEnabled: true }); handlers.Open();
+    handlers.Message({ data: JSON.stringify(question('q1')) });
+    handlers.Message({ data: JSON.stringify(question('q2')) });
+    assert.equal(session.snapshot().questions.length, 2);
+    assert.equal(session.snapshot().feed.length, 0);
+    assert.equal(fixture.audioContexts.length, 0);
+    await session.listenQuestions(); await tick();
+    assert.equal(session.snapshot().questionPlaying, true);
+    assert.equal(session.snapshot().questions[0].status, 'playing');
+    fixture.audioContexts.at(-1).emit('Ended'); await tick(); await tick();
+    assert.equal(session.snapshot().questions[0].status, 'played');
+    assert.equal(session.snapshot().questions[1].status, 'playing');
+    audio.playQueue('tour', [{ id: 'tour', url: '/tour.mp3' }]);
+    assert.equal(session.snapshot().questionPlaying, false);
+    assert.equal(session.snapshot().questions[1].status, 'ready');
+    assert.ok(fixture.removed.length >= 2);
+    session.disconnect();
+    assert.equal(session.snapshot().questions[1].status, 'expired');
+    assert.equal(session.snapshot().questions[1].audioAvailable, false);
+  } finally { await session.leave(); }
+});
+
 test('Alipay preserves final Chinese source when translation start is missing or arrives empty', async () => {
   const { fixture, handlers } = socketHarness();
   const session = fixture.load('services/translation-session');

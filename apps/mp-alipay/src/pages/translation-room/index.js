@@ -4,6 +4,7 @@ const rooms = require('../../services/translation-room');
 const session = require('../../services/translation-session');
 const { ROOM_LANGUAGES, groupRoomMessages } = require('../../shared/translation-room');
 const { formatRoomMessage, localizeRoomNotice, roomMessages } = require('../../shared/translation-room-messages');
+const { questionMessages, questionStatus } = require('../../shared/translation-room-questions');
 Page({
   data: { room: null, canHost: false, permissionPending: true, code: '', languages: ROOM_LANGUAGES, language: 'zh-CN', messages: roomMessages('zh-CN'), languageIndex: 0, sourceIndex: 0, source: '', translated: '', feed: [], chatGroups: [], languageGroups: [], sourceLabel: '', pendingSource: '', detailsOpen: false, showLatest: false, scrollTarget: '', speaking: false, paused: false, busy: false, disconnected: false, notice: '正在确认账号权限…', error: '' },
   onLoad(query = {}) {
@@ -81,6 +82,9 @@ Page({
       if (this._title !== title && my.setNavigationBar) my.setNavigationBar({ title });
       this._title = title;
       this.setData(Object.assign({}, value, {
+        questionMessages: questionMessages(value.language),
+        questions: value.questions.map(item => Object.assign({}, item, { statusLabel: questionStatus(item.status, value.language) })),
+        hasPendingQuestions: value.questions.some(item => item.status === 'ready' && item.audioAvailable),
         feed: value.feed.slice().reverse(), chatGroups, sourceLabel, pendingSource, languageGroups, scrollTarget,
         languageIndex: selectedIndex, sourceIndex: selectedIndex,
         sourceDescription: formatRoomMessage(messages.original, { language: sourceLabel || '' }),
@@ -93,7 +97,7 @@ Page({
   },
   back() { my.navigateBack({ fail: () => my.reLaunch({ url: '/pages/tour/index' }) }); },
   scan() { my.scan({ type: 'qr', success: result => { const match = /(?:[?&]roomCode=)(\d{8})(?:&|$)/.exec(result.code || ''); const code = match ? match[1] : /^\d{8}$/.test(result.code || '') ? result.code : ''; this.setData(code ? { code, error: '' } : { error: this.data.messages.invalidQr }); } }); },
-  onHide() { this._visible = false; this._permissionTask = null; if (this._unsubscribe) this._unsubscribe(); this._unsubscribe = null; },
+  onHide() { session.cancelQuestion(); this._visible = false; this._permissionTask = null; if (this._unsubscribe) this._unsubscribe(); this._unsubscribe = null; },
   onUnload() { this.onHide(); },
   async run(action) {
     if (this.data.busy) return;
@@ -114,6 +118,11 @@ Page({
     session.event(event);
   },
   startSpeaking() { this.run(() => session.startSpeaking()); },
+  startQuestion() { if (!this.data.busy && !this.data.questionUploading) session.startQuestion(); },
+  stopQuestion() { session.stopQuestion(); },
+  cancelQuestion() { session.cancelQuestion(); },
+  listenQuestions() { this.run(() => session.listenQuestions()); },
+  stopQuestions() { session.stopQuestions(); },
   changeLanguage() { this.run(() => session.changeLanguage()); },
   togglePause() { session.togglePause(); },
   end() { this.run(() => session.end(false)); },
