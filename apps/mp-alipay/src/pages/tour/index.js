@@ -6,6 +6,7 @@ const visits = require('../../services/visits');
 const audio = require('../../services/audio');
 const speech = require('../../services/speech');
 const location = require('../../services/location');
+const { createRouteMatcher, arrivalLocation } = require('../../core/route-location');
 const tour = require('../../core/tour');
 const ui = require('../../core/ui');
 const config = require('../../config');
@@ -13,7 +14,6 @@ const translation = require('../../services/translation-session');
 const { locales } = config;
 const { tourMessages } = require('../../shared/tourMessages');
 const { formatRoomMessage } = require('../../shared/translation-room-messages');
-const { toGcj02 } = require('../../shared/map-coordinates');
 const { DEFAULT_APPROACH_POLICY, isUsableLocation, metersBetween } = require('../../shared/geo-range');
 const arrivalMessages = require('../../core/arrival-messages');
 function finiteCoordinate(value) {
@@ -81,7 +81,7 @@ Page({
     if (rememberedLocale && rememberedLocale !== this.data.locale) { const selected = getApp().globalData.selectedRoute; getApp().globalData.selectedRoute = ''; this.chooseLocale({ detail: { value: Math.max(0, locales.findIndex(l => l.value === rememberedLocale)) } }, selected); return; }
     const selected = getApp().globalData.selectedRoute;
     if (selected) { getApp().globalData.selectedRoute = ''; this._backgroundResume = null; this._askResume = null; this.selectRoute(selected, true); return; }
-    if (this.data.locationEnabled) this.watchLocation();
+    if (this.data.locationEnabled) this.watchLocation(true);
     if (getApp().globalData.openChat) { getApp().globalData.openChat = false; this.ask(); return; }
     if (this._askResume) this.resumeAfterAsk();
     else if (this._extraReturn) { const snapshot = this._extraReturn; this._extraReturn = null; this._backgroundResume = null; this.restorePlayback(snapshot); }
@@ -268,27 +268,31 @@ Page({
     if (this.data.tourStage !== 'navigation') return;
     const marker = this.data.map.markers.find(item => item.id === this.data.stopIndex + 1);
     const follow = this.data.following && isUsableLocation(this._fix, DEFAULT_APPROACH_POLICY);
-    const center = follow && finiteCoordinate(this._fix.gcj || toGcj02(this._fix, 1)) || finiteCoordinate(marker) || finiteCoordinate(this.data.map);
+    const center = follow && this.mapLocation(this._fix) || finiteCoordinate(marker) || finiteCoordinate(this.data.map);
     if (!center) return;
     this.setData({ mapSkew: 50, mapScale: 18, mapRotation: follow && Number.isFinite(this._fix.heading) ? this._fix.heading : 0, 'map.longitude': center.longitude, 'map.latitude': center.latitude, 'map.includePoints': [] }, () => this.mapReady());
   },
   overview() { this.setData({ following: false, mapSkew: 0, mapRotation: 0, 'map.includePoints': this.data.map.markers.filter(marker => marker.id !== 0).map(finiteCoordinate).filter(Boolean) }); if (my.createMapContext && this.data.map.includePoints.length) my.createMapContext('tour-map').includePoints({ points: this.data.map.includePoints, padding: [30, 30, 30, 30] }); },
-  recenter() { this.setData({ following: true }); if (my.createMapContext) my.createMapContext('tour-map').moveToLocation(); },
+  recenter() { this.setData({ following: true }); if (this._fix && isUsableLocation(this._fix, DEFAULT_APPROACH_POLICY)) this.followLocation(this._fix, true); else if (my.createMapContext) my.createMapContext('tour-map').moveToLocation(); },
   toggleFollow() { if (!this.data.locationEnabled) return; this.setData({ following: !this.data.following, mapSkew: 50, mapScale: 18, 'map.includePoints': [] }); if (this.data.following && this._fix) this.followLocation(this._fix, true); },
   toggleRoute() { const showRoute = !this.data.showRoute; this.setData({ showRoute, 'map.polyline': showRoute ? (this._fullPolyline || []) : (this.data.map.boundaryLines || []) }); },
   zoomIn() { this.setData({ mapScale: Math.min(20, (this.data.mapScale || 15) + 1) }); },
   zoomOut() { this.setData({ mapScale: Math.max(5, (this.data.mapScale || 15) - 1) }); },
   toggleImmersive() { this.setData({ immersive: !this.data.immersive }); },
+  mapLocation(fix) {
+    if (!this._routeMatcher) this._routeMatcher = createRouteMatcher();
+    return this._routeMatcher.match(fix, this.data.map.routeLines);
+  },
   followLocation(fix, force = false) {
-    const point = fix.gcj || toGcj02(fix, 1);
-    if (!Number.isFinite(point.longitude) || !Number.isFinite(point.latitude) || !isUsableLocation(fix, DEFAULT_APPROACH_POLICY)) return;
+    const point = this.mapLocation(fix);
+    if (!point || !isUsableLocation(fix, DEFAULT_APPROACH_POLICY)) return;
     if (!force && this._followCenter && metersBetween(this._followCenter, point) < 5) return;
     this._followCenter = { longitude: point.longitude, latitude: point.latitude };
     this.setData({ 'map.longitude': point.longitude, 'map.latitude': point.latitude, 'map.includePoints': [], ...(Number.isFinite(fix.heading) ? { mapRotation: fix.heading } : {}) }, () => this.mapReady());
   },
   updateLocationMarker(fix) {
     if (!this.data.locationEnabled) return;
-    const point = finiteCoordinate(fix.gcj || toGcj02(fix, 1));
+    const point = this.mapLocation(fix);
     if (!point) return;
     const markers = this.data.map.markers.filter(marker => marker.id !== 0);
     const firstFix = markers.length === this.data.map.markers.length && isUsableLocation(fix, DEFAULT_APPROACH_POLICY);
@@ -536,12 +540,15 @@ Page({
   playQueued(event) { const item = this.data.sequence.find(s => s.id === ui.dataset(event).id && s.status === 'queued'); if (item) { this._userPaused = false; if (!this.data.busy && this._pendingPlayback && this._pendingPlayback.key === this.contextKey() && item.id === this.data.stop.id) { this._pendingPlayback.automatic = false; this.flushPlayback(); return; } this.mutate(() => this.enter(item.index)); } },
   skipQueued(event) { if (this.data.busy || this.data.loading) return; const item = this.data.sequence.find(s => s.id === ui.dataset(event).id && s.status === 'queued'); if (item) { if (this._pendingPlayback && item.id === (this.data.stop && this.data.stop.id)) { this._pendingPlayback = null; this.setData({ browsing: true }); } this.sequenceStatus(item.id, 'skipped', item.index); this.startNextSequence(); } },
   toggleLocation(event) {
+    if (this._routeMatcher) this._routeMatcher.reset();
     this.clearArrivalPrompt();
     this._followCenter = null;
     const enabled = !!ui.value(event); this.setData({ locationEnabled: enabled, locationNote: enabled ? this.data.messages.locationUnknown : this.data.messages.locationHint }); this._dwell = null; this._dismissedCandidates = new Set();
     if (enabled) this.watchLocation(); else { if (this._watch) this._watch(); this._watch = null; this._fix = null; this.setData({ candidates: [], following: false, 'map.markers': this.data.map.markers.filter(marker => marker.id !== 0) }); }
   },
-  watchLocation() {
+  watchLocation(refresh = false) {
+    if (refresh && this._routeMatcher) this._routeMatcher.reset();
+    if (refresh) { if (this._watch) this._watch(); this._watch = null; this._fix = null; this._dwell = null; this.clearArrivalPrompt(); }
     if (this._watch || (!this._visible && !config.background)) return;
     const stopWatch = location.watch(fix => {
       this._fix = fix; this.setData({ locationNote: fix.accuracy > 65 ? this.data.messages.locationUnknown : formatRoomMessage(this.data.messages.locationAccuracy, { accuracy: Math.round(fix.accuracy) }) });
@@ -575,7 +582,12 @@ Page({
   },
   canDetectArrival() { return (this._visible || config.background) && this.data.locationEnabled && this.data.tourStage === 'navigation' && this.data.route && this.data.visit && this.data.visit.status === 1 && !this.data.loading && !this.data.chatOpen && !this.data.recording && !this.data.transcribing && !this._asking && !this.roomAudioActive() && this._user === ui.userId() && (this._authVersion === undefined || this._authVersion === auth.version()); },
   canPromptArrival() { return this.canDetectArrival() && this._visible && !this.data.queueOpen && !this.data.contentOpen; },
-  nearbyCandidates(fix = this._fix) { const visit = this.data.visit || {}, now = Date.now(); if (!isUsableLocation(fix, DEFAULT_APPROACH_POLICY, now) || this._dwell && now - this._dwell.updatedAt > DEFAULT_APPROACH_POLICY.maxAgeMs) this._dwell = null; return tour.candidates(this.data.stops, this._places || [], fix, visit.completedStageIds || [], this._detail && this._detail.coordinateSystem || 1, now, this.data.stops.findIndex(stop => stop.id === visit.currentStageId), visit.visitedStageIds || visit.completedStageIds || [], this._dwell && this._dwell.arrivals ? Array.from(this._dwell.arrivals.keys()) : []); },
+  nearbyCandidates(fix = this._fix) {
+    const visit = this.data.visit || {}, now = Date.now();
+    const evaluatedFix = arrivalLocation(fix, this.mapLocation(fix), now);
+    if (!evaluatedFix || this._dwell && now - this._dwell.updatedAt > DEFAULT_APPROACH_POLICY.maxAgeMs) this._dwell = null;
+    return tour.candidates(this.data.stops, this._places || [], evaluatedFix, visit.completedStageIds || [], this._detail && this._detail.coordinateSystem || 1, now, this.data.stops.findIndex(stop => stop.id === visit.currentStageId), visit.visitedStageIds || visit.completedStageIds || [], this._dwell && this._dwell.arrivals ? Array.from(this._dwell.arrivals.keys()) : []);
+  },
   clearArrivalPrompt() { clearTimeout(this._arrivalTimer); this._arrivalTimer = null; this.setData({ candidates: [], arrivalCandidate: null, arrivalCountdown: '' }); },
   showArrivalPrompt(candidate) {
     clearTimeout(this._arrivalTimer);

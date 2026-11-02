@@ -6,17 +6,33 @@ const vm = require('node:vm');
 const { harness, plain } = require('./harness.cjs');
 
 function locationHarness() {
-  const calls = [], timers = new Map(), fixes = [], errors = [];
+  const calls = [], timers = new Map(), fixes = [], errors = [], diagnostics = [];
   const module = { exports: {} };
   vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, '../dist/services/location.js'), 'utf8'), {
-    module, require: () => require('../dist/shared/map-coordinates.js'),
+    module, require: name => name === './diag' ? { diag: (event, data) => diagnostics.push({ event, data }) } : require('../dist/shared/map-coordinates.js'),
     my: { getLocation: options => calls.push(options) },
     setTimeout(fn, delay) { const id = {}; timers.set(id, { fn, delay }); return id; },
     clearTimeout: id => timers.delete(id),
   });
   const stop = module.exports.watch(fix => fixes.push(fix), error => errors.push(error));
-  return { calls, timers, fixes, errors, stop };
+  return { calls, timers, fixes, errors, stop, diagnostics, service: module.exports };
 }
+
+test('background diagnostics record callback intervals and lifecycle without coordinates', () => {
+  const h = locationHarness();
+  h.service.reportCapabilities();
+  assert.equal(h.diagnostics[0].data.getLocation, true);
+  assert.equal(h.diagnostics[0].data.startLocationUpdateBackground, false);
+  h.service.setForeground(false);
+  h.calls[0].success({ longitude: 116, latitude: 40, accuracy: 8 });
+  const logged = h.diagnostics.find(item => item.event === 'location-fix').data;
+  assert.equal(logged.foreground, false); assert.equal(logged.accuracy, 8);
+  assert.equal(logged.intervalMs, null); assert.ok(logged.hiddenMs >= 0);
+  assert.equal('longitude' in logged, false); assert.equal('latitude' in logged, false);
+  h.service.setForeground(true);
+  assert.ok(h.diagnostics.at(-1).data.hiddenMs >= 0);
+  h.stop();
+});
 
 test('native GCJ-02 fixes convert to WGS84 and retain map coordinates, accuracy and heading', () => {
   const h = locationHarness(), request = h.calls[0];

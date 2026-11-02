@@ -20,6 +20,18 @@ function setup(t) {
   return { h, page, audio, stops, fix };
 }
 
+test('background fixes queue an arrival only after a fresh stable dwell and gaps restart that dwell', t => {
+  const { page, fix } = setup(t); page.setData({ autoplay: false });
+  page.onHide(); fix(0);
+  t.mock.timers.tick(16000); fix(0);
+  assert.equal(page.data.sequence.length, 0);
+  t.mock.timers.tick(2000); fix(0);
+  assert.equal(page.data.sequence.length, 1);
+  assert.equal(page.data.sequence[0].id, 'bar');
+  assert.equal(page.data.arrivalCandidate, null);
+  page.onUnload();
+});
+
 test('a 30m circle enters at 35m and retains its countdown through jitter up to the 45m release boundary', t => {
   const { page, fix } = setup(t); page.setData({ autoplay: false });
   fix(34); t.mock.timers.tick(2000); fix(38);

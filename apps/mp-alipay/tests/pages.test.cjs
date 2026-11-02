@@ -250,15 +250,16 @@ test('GPS stability shows a three-second prompt while manual browsing keeps curr
   const h = harness(), p = tourPage(h, visit()); let fix;
   h.load('services/location').watch = callback => { fix = callback; return () => {}; };
   const candidate = { id: 'next', index: 1, order: 2, distance: 4 };
+  const measurement = () => ({ longitude: 116.383, latitude: 39.937, accuracy: 10, timestamp: Date.now() });
   h.load('core/tour').candidates = () => [candidate];
   p.setData({ stops: [stop(), stop('next', 2)], locationEnabled: true, autoplay: true });
   p._manualBrowse = true; p.showStop(0, true); p.watchLocation();
-  fix({ accuracy: 10 }); assert.equal(p.data.sequence.length, 0);
-  t.mock.timers.tick(2000); fix({ accuracy: 10 });
+  fix(measurement()); assert.equal(p.data.sequence.length, 0);
+  t.mock.timers.tick(2000); fix(measurement());
   assert.equal(p.data.sequence.length, 0); assert.equal(h.requests.length, 0); assert.equal(p.data.stop.id, stageId); assert.equal(p.data.candidates[0].id, 'next');
   t.mock.timers.tick(3000);
   assert.equal(p.data.sequence[0].id, 'next'); assert.equal(p.data.arrivalCandidate, null); assert.equal(h.requests.length, 0);
-  p.dismissCandidates(); fix({ accuracy: 10 }); assert.equal(p.data.candidates.length, 0);
+  p.dismissCandidates(); fix(measurement()); assert.equal(p.data.candidates.length, 0);
 });
 
 test('enabling nearby stories follows location and starts stable candidates after the prompt expires', async t => {
