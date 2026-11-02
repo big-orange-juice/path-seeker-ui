@@ -112,6 +112,7 @@ test('同一队列旧 ended 和 play Promise 拒绝均不能修改新条目', as
 for (const end of ['ended', 'skip', 'error']) test('纯视频正式站完成判定：' + end, async () => {
   const f = await setup(), { journey: j, media, requests } = f
   try {
+    j.setAutoPlayEnabled(false)
     j.stops.value[0].video = '/video.mp4'; j.stops.value[0].guideNarrations = []; j.playCurrentStop()
     if (end === 'ended') { media.at(-1)!.ended = true; media.at(-1)!.onended!() }
     else if (end === 'skip') j.speech.skipInterlude()

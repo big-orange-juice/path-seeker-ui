@@ -18,9 +18,9 @@ await build({
   plugins: [{ name: 'catalog-fixture', setup(builder: any) {
     builder.onResolve({ filter: /services\/clientCatalog/ }, () => ({ path: 'catalog', namespace: 'fixture' }))
     builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ contents: `
-      export const fetchClientCatalog = async () => ({});
-      export const fetchClientTour = async () => ({});
-      export const fetchActiveRouteVisit = async () => null;
+      export const fetchClientCatalog = async () => globalThis.tourCatalogFixture?.catalog ?? {};
+      export const fetchClientTour = async () => globalThis.tourCatalogFixture?.detail ?? {};
+      export const fetchActiveRouteVisit = async () => globalThis.tourCatalogFixture?.visit ?? null;
       export const abandonRouteVisit = async () => {};
       export const startRouteVisit = async () => ({ id: 'visit', routeId: 'route', currentStageId: 'stage-0', status: 1, completedStageIds: [] });
       export const updateRouteVisitStop = async (visit, stageId, action) => ({ ...visit, currentStageId: stageId, completedStageIds: action === 'complete' ? [...visit.completedStageIds, stageId] : visit.completedStageIds });
@@ -28,6 +28,69 @@ await build({
   } }],
 })
 const { useTourJourney } = await import(pathToFileURL(resolve(temporary, 'useTourJourney.mjs')).href)
+
+for (const entry of ['start', 'restore']) test(`近站讲解默认开启并主动请求定位：${entry}，授权后接近站点自动播放`, async () => {
+  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  const previous = { Audio: globalThis.Audio, window: globalThis.window, localStorage: globalThis.localStorage }
+  const originalNow = Date.now
+  let now = 1800000000000
+  Date.now = () => now
+  const callbacks: Array<{ success: PositionCallback; error: PositionErrorCallback }> = []
+  const cleared: number[] = []
+  const audios: Media[] = []
+  class Media {
+    currentTime = 0; duration = 60; readyState = 1
+    onplaying: (() => void) | null = null
+    constructor() { audios.push(this) }
+    play() { this.onplaying?.(); return Promise.resolve() }
+    pause() {}; load() {}; removeAttribute() {}; addEventListener() {}
+  }
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { geolocation: {
+    watchPosition(success: PositionCallback, error: PositionErrorCallback) { callbacks.push({ success, error }); return callbacks.length },
+    clearWatch(id: number) { cleared.push(id) },
+  } } })
+  const saved = new Map<string, string>([['path-seeker:tour-auto-play', '0']])
+  const storage = { getItem: (key: string) => saved.get(key) ?? null, setItem: (key: string, value: string) => saved.set(key, value), removeItem: (key: string) => saved.delete(key) }
+  Object.assign(globalThis, { Audio: Media, window: { speechSynthesis: undefined, sessionStorage: storage }, localStorage: storage })
+  const detail = { route: { id: 'route', locale: 'zh' }, stops: [
+    { id: 'stage-0', name: '起点', order: 1, longitude: 116, latitude: 39, extraAudios: [], guideNarrations: [] },
+    { id: 'near', name: '近站', order: 2, longitude: 116.383, latitude: 39.937, extraAudios: [], guideNarrations: [{ guideId: 'guide', locale: 'zh', chapters: [{ id: 'near-chapter', text: '近站讲解', audioUrl: '/near.mp3' }] }] },
+  ] }
+  ;(globalThis as any).tourCatalogFixture = { catalog: { routes: [detail.route] }, detail, visit: { visitId: 'visit', routeId: 'route', status: 1, currentStageId: 'stage-0', completedStageIds: [] } }
+  const renderer = createRenderer({ createElement: () => ({}), insert() {}, remove() {}, createText: () => ({}), createComment: () => ({}), setText() {}, setElementText() {}, parentNode: () => null, nextSibling: () => null, patchProp() {} })
+  let journey: any
+  const app = renderer.createApp({ setup() { journey = useTourJourney(); return () => null } }); app.mount({})
+  try {
+    assert.equal(callbacks.length, 0)
+    if (entry === 'start') { journey.preview.value = detail; await journey.start() }
+    else await journey.load('destination', 'route')
+    assert.equal(journey.tracking.value, true)
+    assert.equal(journey.autoPlayEnabled.value, true)
+    assert.equal(callbacks.length, 2)
+    const deliver = () => callbacks[0]!.success({ coords: { longitude: 116.383, latitude: 39.937, accuracy: 5, heading: null }, timestamp: now } as GeolocationPosition)
+    deliver(); now += 2000; deliver()
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(journey.currentStop.value.id, 'near')
+    assert.equal(journey.speech.currentItemId.value, 'near-chapter')
+    assert.equal(audios.length, 1)
+    callbacks[0]!.error({ code: 1 } as GeolocationPositionError)
+    assert.equal(journey.locationPermissionDenied.value, true)
+    assert.equal(journey.tracking.value, false)
+    assert.ok(cleared.includes(1))
+    journey.startTracking()
+    assert.equal(callbacks.length, 4)
+    journey.setAutoPlayEnabled(false); journey.stopTracking()
+    journey.handleVisibilityHidden(); journey.handleVisibilityVisible(false)
+    assert.equal(journey.tracking.value, false)
+    assert.equal(callbacks.length, 4)
+  } finally {
+    app.unmount(); Date.now = originalNow
+    if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator)
+    else Reflect.deleteProperty(globalThis, 'navigator')
+    Object.assign(globalThis, previous)
+    Reflect.deleteProperty(globalThis, 'tourCatalogFixture')
+  }
+})
 
 test('手动观看视频保留解说断点，浏览其他节点时不会串用当前播放状态', async () => {
   const previous = { Audio: globalThis.Audio, window: globalThis.window, localStorage: globalThis.localStorage, document: globalThis.document }
@@ -93,7 +156,9 @@ test('近站定位需稳定停留，弱精度不入队，抑制结束后去重�
       { id: nearbyId, order: 2, name: '银锭桥', longitude: 116.383, latitude: 39.937, extraAudios: [], guideNarrations: [] },
     ] }
     await journey.start()
-    journey.startTracking()
+    assert.equal(journey.tracking.value, true)
+    assert.equal(journey.autoPlayEnabled.value, true)
+    journey.setAutoPlayEnabled(false)
     const deliver = (accuracy: number) => callbacks[0]!.success({ coords: { longitude: 116.383, latitude: 39.937, accuracy, heading: null }, timestamp: now } as GeolocationPosition)
     deliver(200)
     now += 2000
@@ -158,7 +223,7 @@ test('进入黄包车导航保持静音，手动切站可播放，播完后不�
     assert.equal(await journey.start(), true)
     assert.equal(journey.drawerOpen.value, false)
     assert.equal(audios.length, 0)
-    assert.equal(journey.autoPlayEnabled.value, false)
+    assert.equal(journey.autoPlayEnabled.value, true)
     assert.equal(journey.drawerStop.value.id, 'stage-0')
     journey.closeContentDrawer()
     await journey.selectStop(1)

@@ -22,6 +22,7 @@ test('new guest session opens the authorization page before loading the tour cat
 });
 test('first tour launch waits for language selection and preserves a linked route before entering navigation', async () => {
   const h = harness(), p = h.page('tour');
+  const locationRequests = []; h.my.getLocation = options => locationRequests.push(options);
   p.onLoad({ routeId }); await tick();
   assert.equal(p.data.tourStage, 'language'); assert.equal(h.requests.length, 0);
   const selection = p.chooseLanguage({ currentTarget: { dataset: { index: 0 } } }); await tick();
@@ -30,11 +31,16 @@ test('first tour launch waits for language selection and preserves a linked rout
   assert.match(h.requests[1].options.url, new RegExp('routeId=' + routeId));
   h.requests[1].ok({ route: route(), stops: [stop()] }); await tick(); h.requests[2].ok(null); await selection;
   assert.equal(p.data.tourStage, 'overview'); assert.equal(p.data.contentOpen, false);
+  assert.equal(locationRequests.length, 0);
   const start = p.startVisit(); h.requests[3].ok(visit()); await tick();
   h.requests[4].ok(visit()); await start;
   assert.equal(p.data.tourStage, 'navigation'); assert.equal(p.data.contentOpen, false);
+  assert.equal(p.data.autoplay, true); assert.equal(p.data.locationEnabled, true);
+  assert.equal(locationRequests.length, 1);
+  p.toggleTracking(); p.onHide(); p.onShow();
+  assert.equal(p.data.locationEnabled, false); assert.equal(locationRequests.length, 1);
   p.openContent(); assert.equal(p.data.contentOpen, true);
-  p.closeContent(); assert.equal(p.data.contentOpen, false); assert.equal(h.load('services/audio').snapshot().playing, false);
+  p.closeContent(); assert.equal(p.data.contentOpen, false); assert.equal(h.load('services/audio').snapshot().playing, true);
   p.openContent(); p.toggleQueue(); assert.equal(p.data.contentOpen, false); assert.equal(p.data.queueOpen, true);
   p.backToOverview(); assert.equal(p.data.tourStage, 'overview'); assert.equal(p.data.queueOpen, false);
   assert.equal(p.data.visit.visitId, visitId); assert.equal(h.requests.length, 5);
@@ -46,9 +52,12 @@ test('remembered language opens an empty overview and restored visits open the n
   page.onLoad(); await tick(); empty.requests[0].ok({ routes: [], destinations: [], places: [] }); await tick();
   assert.equal(page.data.tourStage, 'overview'); assert.equal(page.data.locale, 'en'); assert.equal(page.data.loading, false);
   const h = harness(), restored = h.page('tour');
+  const locationRequests = []; h.my.getLocation = options => locationRequests.push(options);
   restored.onLoad({ lang: 'zh', routeId }); await tick(); h.requests[0].ok({ routes: [route()], destinations: [], places: [] }); await tick();
   h.requests[1].ok({ route: route(), stops: [stop()] }); await tick(); h.requests[2].ok(visit()); await tick();
   assert.equal(restored.data.tourStage, 'navigation'); assert.equal(restored.data.contentOpen, false);
+  assert.equal(restored.data.locationEnabled, true); assert.equal(restored.data.autoplay, true);
+  assert.equal(locationRequests.length, 1);
   restored.onUnload(); page.onUnload();
 });
 test('route selection accepts a null active visit and defaults to browsing the first stop', async () => {
@@ -57,6 +66,23 @@ test('route selection accepts a null active visit and defaults to browsing the f
   assert.match(h.requests[1].options.url, /RouteVisit\/Active/); h.requests[1].ok(null); await selection;
   assert.equal(p.data.stop.id, stageId); assert.equal(p.data.visit, null); assert.equal(p.data.browsing, true); assert.equal(p.data.loading, false);
   p.play(); h.audioContexts[0].emit('Ended'); await tick(); assert.equal(h.requests.length, 2);
+});
+
+test('starting navigation requests native location, reports denial and retries only on user action', async () => {
+  const h = harness(), p = tourPage(h, visit());
+  p.setData({ tourStage: 'overview' });
+  const locationRequests = []; h.my.getLocation = options => locationRequests.push(options);
+  const starting = p.startVisit(); h.requests[0].ok(visit()); await starting;
+  assert.equal(locationRequests.length, 1);
+  assert.equal(locationRequests[0].type, 0);
+  locationRequests[0].fail({ error: 11 }); locationRequests[0].complete();
+  assert.equal(p.data.locationEnabled, false); assert.equal(p._watch, null);
+  assert.equal(p.data.locationNote, p.data.messages.permissionDenied);
+  p.onHide(); p.onShow(); assert.equal(locationRequests.length, 1);
+  p.toggleTracking(); assert.equal(locationRequests.length, 2);
+  locationRequests[1].success({ longitude: 116.383, latitude: 39.937, accuracy: 5 });
+  assert.equal(p.data.locationEnabled, true); assert.ok(p._fix);
+  p.onUnload();
 });
 test('late route response cannot replace the latest selection; missing route stays actionable', async () => {
   const h = harness(), p = tourPage(h), first = p.selectRoute('first'), last = p.selectRoute(routeId);

@@ -70,7 +70,7 @@ Page({
   me() { my.navigateTo({ url: '/pages/me/index' }); },
   postcard() { const stop = this.data.stop; if (!stop || !stop.experience || !stop.experience.enabled) return; const visit = this.data.visit; if (!visit) { my.showToast({ content: '请先开始本条路线的游览', type: 'none' }); return; } audio.pause(); my.navigateTo({ url: '/pages/postcards/index?routeId=' + encodeURIComponent(this.data.route.id) + '&stageId=' + encodeURIComponent(stop.id) + '&visitId=' + encodeURIComponent(visit.visitId) }); },
   translationRoom() { translation.prepareEntry(this.data.locale); my.navigateTo({ url: '/pages/translation-room/index' }); },
-  data: { mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], queuedCount: 0, lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: false, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: tourMessages('zh').locationHint, candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
+  data: { mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], queuedCount: 0, lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: true, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: tourMessages('zh').locationHint, candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
   onLoad(query = {}) { this._rev = 0; this._visible = true; this._asking = false; this._dismissedCandidates = new Set(); this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, sequence: [], queuedCount: 0, lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
   onShow() {
     this._visible = true;
@@ -131,7 +131,7 @@ Page({
       const prefs = storage.read(storage.scoped(this._user, 'preferences'), {});
       storage.write('tour-locale', locale);
       this.applyLocale(locale);
-      this.setData({ autoplay: prefs.autoplay === true, skipExtra: false, lockContent: !!prefs.lockContent, tourStage: 'overview' });
+      this.setData({ autoplay: true, skipExtra: false, lockContent: !!prefs.lockContent, tourStage: 'overview' });
       if (!await this.loadCatalog(launch.destinationId || '') || token !== this._initToken || this._user !== ui.userId()) return;
       const selected = getApp().globalData.selectedRoute || launch.routeId || storage.read(storage.scoped(this._user, 'route'), '');
       getApp().globalData.selectedRoute = '';
@@ -201,7 +201,7 @@ Page({
       const resumable = current >= 0 && !(visit.completedStageIds || []).includes(stops[current].id);
       this.showStop(current >= 0 ? current : 0, !resumable);
       if (resumable && this.data.tourStage === 'navigation') this._pendingPlayback = { key: this.contextKey(), automatic: true };
-      if (this.data.tourStage === 'navigation') this.focusNavigationMap();
+      if (this.data.tourStage === 'navigation') { this.enableNearbyGuidance(); this.focusNavigationMap(); }
     } catch (e) { if (rev === this._rev) ui.error(this, e); }
     finally { if (rev === this._rev) { this.setData({ loading: false }); this.startNextSequence(); } }
   },
@@ -315,7 +315,7 @@ Page({
       this.setData({ visit }); this._heldVisit = { visit, route: this.data.route };
       if (previousVisitId !== visit.visitId) this.restoreSequence();
       await this.enter(fresh ? 0 : this.data.stopIndex, false);
-      if (rev === this._rev && user === ui.userId()) { this.setData({ tourStage: 'navigation', contentOpen: false, queueOpen: false }); this.focusNavigationMap(); }
+      if (rev === this._rev && user === ui.userId()) { this.setData({ tourStage: 'navigation', contentOpen: false, queueOpen: false }); this.enableNearbyGuidance(); this.focusNavigationMap(); }
     } catch (e) { if (rev === this._rev && user === ui.userId()) ui.error(this, e); }
     finally { if (rev === this._rev && user === ui.userId()) { this.setData({ busy: false }); this.flushFinished(); this.startNextSequence(); } }
   },
@@ -358,6 +358,12 @@ Page({
   toggleQueue() { if (this.data.videoItem) return; this.clearArrivalPrompt(); this.setData({ queueOpen: !this.data.queueOpen, contentOpen: false }); },
   closeQueue() { this.setData({ queueOpen: false }); },
   toggleTracking() { const enabled = !this.data.locationEnabled; this.setData({ autoplay: enabled, following: enabled, ...(enabled ? { mapSkew: 50, mapScale: 18, 'map.includePoints': [] } : {}) }); this.preferences(); this.toggleLocation({ detail: { value: enabled } }); if (enabled) { this._manualBrowse = false; this.startNextSequence(); } },
+  enableNearbyGuidance() {
+    // 只在开始或恢复游览时默认开启；onShow 沿用当前开关，尊重本次手动关闭。
+    this.setData({ autoplay: true, following: true });
+    if (!this.data.locationEnabled) this.toggleLocation({ detail: { value: true } });
+    else this.watchLocation();
+  },
   roomAudioActive() { const state = translation.snapshot(); return state.speaking || state.audioPlaying || Boolean(state.room && !state.room.isHost && !state.paused && !state.disconnected && state.room.status !== 'closed'); },
   showLanguage() { if (this.data.busy || this.data.loading) return; this.clearArrivalPrompt(); this._dwell = null; this.setData({ tourStage: 'language', contentOpen: false, queueOpen: false, candidates: [] }); },
   enterCurrent() { if (!this.data.visit || this.data.visit.status !== 1) return this.startVisit(); this.mutate(() => this.enter(this.data.stopIndex)); },

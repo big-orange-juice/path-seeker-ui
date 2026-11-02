@@ -70,10 +70,6 @@ function readSkipExtraAudio() {
   return false
 }
 
-function readAutoPlay() {
-  return false
-}
-
 function readStoredActiveRoute(): StoredActiveRoute | null {
   try {
     const raw = localStorage.getItem(ACTIVE_ROUTE_KEY)
@@ -119,7 +115,7 @@ export function useTourJourney() {
   const currentIndex = shallowRef(0)
   /** 跨景点的统一自动播放序列；景点内部的 before/chapter/after 仍由 useTourSpeech 管理。 */
   const playbackSequence = shallowRef<PlaybackSequenceItem[]>([])
-  const autoPlayEnabled = shallowRef(readAutoPlay())
+  const autoPlayEnabled = shallowRef(true)
   const contentAutoSwitchLocked = shallowRef(false)
   const guideId = shallowRef<string | null>(null)
   const pending = shallowRef(false)
@@ -580,6 +576,7 @@ export function useTourJourney() {
         .filter(index => index >= 0)
       furthest = Math.max(currentIndex.value, ...(completed.length ? completed : [currentIndex.value]))
       journeyRestored.value = true
+      if (autoPlayEnabled.value) startTracking()
       return true
     } catch {
       return false
@@ -647,6 +644,10 @@ export function useTourJourney() {
       journeyRestored.value = false
       writeStoredActiveRoute({ routeId: selected.route.id, stageId: currentStop.value?.id ?? null, locale: locale.value, updatedAt: Date.now() })
       await enterStop(currentIndex.value, 'resume')
+      if (!alive) return false
+      // 开始游览即申请定位，避免只进入导航却整程没有接近检测。
+      setAutoPlayEnabled(true)
+      startTracking()
       return true
     } catch (caught) { error.value = caught instanceof Error ? caught.message : 'startFailed'; return false }
     finally { pending.value = false }
