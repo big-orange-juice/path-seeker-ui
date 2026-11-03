@@ -61,5 +61,6 @@ export function useDriverLocations() {
     clearInterval(timer);
     document.removeEventListener('visibilitychange', visibilityChanged);
   });
-  return { keyword, status, selectedId, filtered, selected, pending, error, updatedAt, refresh };
+  const getServerTime = () => Date.now() + serverOffset;
+  return { keyword, status, selectedId, filtered, selected, pending, error, updatedAt, refresh, getServerTime };
 }

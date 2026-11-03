@@ -23,6 +23,7 @@ public final class DriverLocationService extends Service {
     static final String STOP = "com.pathseeker.driver.STOP";
     static volatile boolean running;
     private static final String CHANNEL = "driver_location";
+    private static final long LOCATION_INTERVAL_MS = 1500;
     private final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
     private SessionStore store;
     private DriverApi api;
@@ -59,7 +60,7 @@ public final class DriverLocationService extends Service {
             client = new AMapLocationClient(getApplicationContext());
             AMapLocationClientOption options = new AMapLocationClientOption();
             options.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);
-            options.setInterval(3000);
+            options.setInterval(LOCATION_INTERVAL_MS);
             options.setLocationCacheEnable(false);
             options.setNeedAddress(false);
             options.setOffset(true);
@@ -88,7 +89,7 @@ public final class DriverLocationService extends Service {
             client.startLocation();
             store.preferences().edit().putBoolean("sharing", true).apply();
             status("定位已启动，等待有效坐标");
-            worker.scheduleWithFixedDelay(this::upload, 0, 3, TimeUnit.SECONDS);
+            worker.scheduleWithFixedDelay(this::upload, 0, LOCATION_INTERVAL_MS, TimeUnit.MILLISECONDS);
         } catch (Exception failure) { terminate(failure.getMessage()); }
         return START_NOT_STICKY;
     }
