@@ -20,7 +20,7 @@ Page({
     try {
       await auth.loginAlipay({ requirePhoneNumber: this.data.requirePhoneNumber });
       this.setData({ password: '' });
-      if (this._visible) { if (this._returnAfterPhone && getCurrentPages().length > 1) my.navigateBack(); else my.reLaunch({ url: '/pages/me/index' }); }
+      if (this._visible) { if (this._returnAfterPhone && getCurrentPages().length > 1) my.navigateBack(); else my.reLaunch({ url: '/pages/tour/index?view=routes' }); }
     } catch (error) { if (this._visible) ui.error(this, error); }
     finally { this.setData({ busy: false }); }
   },
@@ -32,7 +32,7 @@ Page({
     this.setData({ busy: true, error: '' });
     try {
       await auth.login(d.register ? { username: d.username.trim() || null, phone: d.phone.trim() || null, email: d.email.trim() || null, password: d.password, nickname: d.nickname.trim() || null, preferredLang: storage.read('locale', 'zh') } : { account: d.account.trim(), password: d.password }, d.register);
-      this.setData({ password: '' }); if (this._visible) my.reLaunch({ url: '/pages/me/index' });
+      this.setData({ password: '' }); if (this._visible) my.reLaunch({ url: '/pages/tour/index?view=routes' });
     } catch (e) { if (this._visible) ui.error(this, e); }
     finally { this.setData({ busy: false }); }
   },

@@ -21,6 +21,7 @@ Page({
     finally { if (active()) this.setData({ loading: false }); }
   },
   login() { my.navigateTo({ url: '/pages/auth/index' }); },
+  backToRoutes() { my.reLaunch({ url: '/pages/tour/index?view=routes' }); },
   postcards() { my.navigateTo({ url: '/pages/postcards/index' }); },
   privacy() { my.navigateTo({ url: '/pages/privacy/index' }); },
   edit() { this.setData({ editing: !this.data.editing }); },

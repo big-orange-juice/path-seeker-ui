@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { harness, tick, userId } = require('./harness.cjs');
 function setup() {
   const h = harness(), page = h.page('tour');
+  page.driverRoomAvailable = () => true;
   page._rev = 0; page._user = userId; page._visible = true; page._places = []; page._detail = { coordinateSystem: 1 };
   h.my.createVideoContext = () => ({ pause() {}, play() {}, seek() {} });
   const stops = ['a', 'b'].map(id => ({ id, name: id, images: [], extraAudios: [], guideNarrations: [{ guideId: 'guide', locale: 'zh', chapters: [{ id: 'chapter-' + id, audioUrl: '/' + id + '.mp3' }] }] }));

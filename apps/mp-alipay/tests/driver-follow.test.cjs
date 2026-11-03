@@ -25,17 +25,45 @@ function setup(t, live = true) {
 
 test('without joining a room automatic guidance stays off and tapping follow opens room entry', () => {
   const h = harness(), page = h.page('tour'), navigations = [];
+  assert.equal(page.data.autoplay, false);
   h.my.navigateTo = value => navigations.push(value.url);
   h.my.getLocation = () => assert.fail('native location must not be called');
   page.watchLocation = () => assert.fail('driver watch must not start without joining');
   page.enableNearbyGuidance();
+  assert.equal(page.data.autoplay, false);
   assert.equal(page.data.locationEnabled, false); assert.equal(page.data.following, false);
   assert.equal(navigations.length, 0);
   page.toggleTracking();
+  assert.equal(page.data.autoplay, false);
   assert.equal(page.data.locationEnabled, false); assert.equal(page.data.following, false);
   assert.equal(page.data.locationNote, page.data.messages.driverRoomRequired);
   assert.deepEqual(navigations, ['/pages/translation-room/index']);
   assert.equal(h.requests.length, 0);
+});
+
+test('joining a connected room enables autoplay and range detection, leaving switches both off', () => {
+  const h = harness(), page = h.page('tour');
+  const state = { room: null, disconnected: false, following: true };
+  h.load('services/translation-session').snapshot = () => state;
+  page._visible = true;
+  page.setData({ tourStage: 'navigation', visit: { visitId: 'visit', status: 1 } });
+  let watches = 0, stops = 0;
+  page.watchLocation = () => { watches++; page._watch = () => { stops++; }; };
+  page.changeAutoplay({ detail: { value: true } });
+  assert.equal(page.data.autoplay, false);
+  page.syncDriverFollowing();
+  assert.equal(page.data.autoplay, false); assert.equal(page.data.locationEnabled, false);
+  state.room = { roomId, status: 'live', isHost: false };
+  page.syncDriverFollowing();
+  assert.equal(page.data.autoplay, true); assert.equal(page.data.locationEnabled, true);
+  assert.equal(watches, 1);
+  page.changeAutoplay({ detail: { value: false } });
+  page.syncDriverFollowing();
+  assert.equal(page.data.autoplay, false);
+  state.room = null;
+  page.syncDriverFollowing();
+  assert.equal(page.data.autoplay, false); assert.equal(page.data.locationEnabled, false);
+  assert.equal(stops, 1);
 });
 
 test('host, closed and disconnected rooms cannot enable driver following', () => {
@@ -59,6 +87,7 @@ test('leaving a room switches following off and clears its marker and pending co
   await deliver(); t.mock.timers.tick(2000); await deliver(); assert.ok(page.data.arrivalCandidate);
   updateRoom({ room: null });
   assert.equal(page.data.locationEnabled, false); assert.equal(page.data.following, false);
+  assert.equal(page.data.autoplay, false);
   assert.equal(page._watch, null); assert.equal(page._fix, null); assert.equal(page.data.arrivalCandidate, null);
   assert.equal(page.data.map.markers.some(marker => marker.id === 0), false);
   t.mock.timers.tick(10000); assert.equal(page.data.sequence.length, 0); page.onUnload();
@@ -107,9 +136,11 @@ test('reconnecting restarts following after acknowledgement and preserves a manu
   t.after(unsubscribe);
   updateRoom({ disconnected: true, reconnecting: true, following: true });
   assert.equal(page.data.locationEnabled, false);
+  assert.equal(page.data.autoplay, false);
   assert.equal(h.requests[0].aborted, true);
   updateRoom({ disconnected: false, reconnecting: false });
   assert.equal(page.data.locationEnabled, true);
+  assert.equal(page.data.autoplay, true);
   assert.equal(page.data.following, true);
   assert.equal(h.requests.length, 2);
   h.load('services/translation-session').setFollowing = value => { state.following = value; };
@@ -118,6 +149,7 @@ test('reconnecting restarts following after acknowledgement and preserves a manu
   updateRoom({ disconnected: false, reconnecting: false });
   page.enableNearbyGuidance();
   assert.equal(page.data.locationEnabled, false);
+  assert.equal(page.data.autoplay, false);
   assert.equal(h.requests.length, 2);
   page.onUnload();
 });

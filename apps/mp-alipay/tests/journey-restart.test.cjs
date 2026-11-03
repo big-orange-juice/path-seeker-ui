@@ -52,13 +52,17 @@ test('a fresh visit starts at the first stop even when the last preview was Houh
   h.requests[1].ok({ ...fresh, currentStageId: firstId }); await starting; page.onUnload();
 });
 
-test('restoring navigation without a room keeps driver following off and resumes the current stop', async () => {
+test('restoring navigation without a room keeps autoplay off until the current stop is played manually', async () => {
   const { h, page, route, stops, visit, audio } = setup();
   page.setData({ autoplay: false });
   const selecting = page.selectRoute(routeId, true);
   h.requests[0].ok({ route, stops, coordinateSystem: 1 }); await tick();
   h.requests[1].ok(visit); await selecting;
-  assert.equal(page.data.locationEnabled, false); assert.equal(page.data.autoplay, true);
+  assert.equal(page.data.locationEnabled, false); assert.equal(page.data.autoplay, false);
+  assert.equal(audio.snapshot().item, null);
+  assert.equal(page.data.sequence.find(item => item.id === barId).status, 'queued');
+  assert.equal(page.data.contentOpen, false);
+  page.playQueued({ currentTarget: { dataset: { id: barId } } });
   assert.equal(audio.snapshot().item.id, 'chapter-' + barId);
   assert.equal(page.data.sequence.find(item => item.id === barId).status, 'playing');
   assert.equal(page.data.contentOpen, false); page.onUnload();

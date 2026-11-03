@@ -90,7 +90,8 @@ test('guest and password login can be enabled independently', async () => {
 });
 
 test('authorization is requested only by an explicit agreed tap and duplicate taps are blocked', async () => {
-  const h = harness(), page = h.page('auth'), authorizations = [];
+  const h = harness(), page = h.page('auth'), authorizations = [], navigations = [];
+  h.my.reLaunch = options => navigations.push(options.url);
   h.my.getAuthCode = options => authorizations.push(options);
   page.onShow(); assert.equal(authorizations.length, 0);
   await page.alipay(); assert.equal(authorizations.length, 0); assert.ok(page.data.error);
@@ -109,6 +110,7 @@ test('authorization is requested only by an explicit agreed tap and duplicate ta
   h.requests[0].ok({ ...session(), isGuest: false }); await login;
   assert.equal(h.auth.current().userId, userId); assert.equal(h.auth.current().isGuest, false);
   assert.equal(page.data.busy, false);
+  assert.deepEqual(navigations, ['/pages/tour/index?view=routes']);
 });
 
 test('cancelled authorization keeps the guest session and never calls login API', async () => {

@@ -35,12 +35,12 @@ test('first tour launch waits for language selection and preserves a linked rout
   const start = p.startVisit(); h.requests[3].ok(visit()); await tick();
   h.requests[4].ok(visit()); await start;
   assert.equal(p.data.tourStage, 'navigation'); assert.equal(p.data.contentOpen, false);
-  assert.equal(p.data.autoplay, true); assert.equal(p.data.locationEnabled, false);
+  assert.equal(p.data.autoplay, false); assert.equal(p.data.locationEnabled, false);
   assert.equal(locationRequests.length, 0);
   p.toggleTracking(); p.onHide(); p.onShow();
   assert.equal(p.data.locationEnabled, false); assert.equal(locationRequests.length, 0);
   p.openContent(); assert.equal(p.data.contentOpen, true);
-  p.closeContent(); assert.equal(p.data.contentOpen, false); assert.equal(h.load('services/audio').snapshot().playing, true);
+  p.closeContent(); assert.equal(p.data.contentOpen, false); assert.equal(h.load('services/audio').snapshot().playing, false);
   p.openContent(); p.toggleQueue(); assert.equal(p.data.contentOpen, false); assert.equal(p.data.queueOpen, true);
   p.backToOverview(); assert.equal(p.data.tourStage, 'overview'); assert.equal(p.data.queueOpen, false);
   assert.equal(p.data.visit.visitId, visitId); assert.equal(h.requests.length, 5);
@@ -56,9 +56,30 @@ test('remembered language opens an empty overview and restored visits open the n
   restored.onLoad({ lang: 'zh', routeId }); await tick(); h.requests[0].ok({ routes: [route()], destinations: [], places: [] }); await tick();
   h.requests[1].ok({ route: route(), stops: [stop()] }); await tick(); h.requests[2].ok(visit()); await tick();
   assert.equal(restored.data.tourStage, 'navigation'); assert.equal(restored.data.contentOpen, false);
-  assert.equal(restored.data.locationEnabled, false); assert.equal(restored.data.autoplay, true);
+  assert.equal(restored.data.locationEnabled, false); assert.equal(restored.data.autoplay, false);
   assert.equal(locationRequests.length, 0);
   restored.onUnload(); page.onUnload();
+});
+
+test('route list entry defaults to Chinese and stays on the list even with an active visit', async () => {
+  const h = harness(), page = h.page('tour');
+  page.onLoad({ view: 'routes' }); await tick();
+  assert.match(h.requests[0].options.url, /ClientCatalog\/Catalog/);
+  h.requests[0].ok({ routes: [route()], destinations: [], places: [] }); await tick();
+  h.requests[1].ok({ route: route(), stops: [stop()] }); await tick();
+  h.requests[2].ok(visit()); await tick();
+  assert.equal(page.data.locale, 'zh'); assert.equal(page.data.tourStage, 'overview');
+  assert.equal(page.data.visit.visitId, visitId);
+  assert.equal(page.data.autoplay, false); assert.equal(page.data.locationEnabled, false);
+  assert.equal(h.load('services/audio').snapshot().playing, false);
+  page.onUnload();
+});
+
+test('my page returns to the route list even when opened without a previous page', () => {
+  const h = harness(), navigations = [], page = h.page('me');
+  h.my.reLaunch = options => navigations.push(options.url);
+  page.backToRoutes();
+  assert.deepEqual(navigations, ['/pages/tour/index?view=routes']);
 });
 test('route selection accepts a null active visit and defaults to browsing the first stop', async () => {
   const h = harness(), p = tourPage(h);
@@ -194,12 +215,13 @@ test('近站排队不会抢占正在加载但尚未报告 playing 的视频', ()
 
 test('翻译房间解除占用时重试已有近站队列，问答开启期间仍不切站', () => {
   const h = harness(), p = tourPage(h, visit()), room = h.load('services/translation-session');
-  let state = { room: { isHost: false, status: 'live' }, paused: false, disconnected: false }, publish;
+  let state = { room: { roomId: '9223372036854775802', isHost: false, status: 'live' }, paused: false, disconnected: false }, publish;
   room.snapshot = () => state; room.subscribe = callback => { publish = callback; callback(state); return () => {}; };
+  p.watchLocation = () => {};
   p.setData({ stops: [stop(), stop('next', 2)], autoplay: true, browsing: true });
   p.enqueueCandidates([{ id: 'next', index: 1, distance: 3, order: 2 }]); p.onShow();
   assert.equal(h.requests.length, 0);
-  p.setData({ chatOpen: true }); state = {}; publish(state); assert.equal(h.requests.length, 0);
+  p.setData({ chatOpen: true }); state = { ...state, paused: true }; publish(state); assert.equal(h.requests.length, 0);
   p.setData({ chatOpen: false }); publish(state); assert.equal(h.requests[0].options.data.stageId, 'next');
 });
 
