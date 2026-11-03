@@ -1,0 +1,36 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@color/driver_background">
+    <FrameLayout android:id="@+id/map_host" android:layout_width="match_parent" android:layout_height="match_parent" />
+    <ScrollView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="top" android:layout_margin="16dp" android:fillViewport="false">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_card" android:elevation="8dp">
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:background="@drawable/bg_console_header" android:padding="20dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:gravity="center_vertical">
+                    <TextView android:id="@+id/account_name" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:textColor="#B8C9D6" android:textSize="13sp" android:maxLines="1" android:ellipsize="end" />
+                    <Button android:id="@+id/settings" style="@style/DriverTextButton" android:layout_width="64dp" android:layout_height="48dp" android:textColor="@android:color/white" android:text="@string/settings_action" />
+                </LinearLayout>
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/console_title" android:textSize="15sp" android:textColor="#B8C9D6" />
+                <TextView android:id="@+id/room_code" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:text="@string/no_room_code" android:textColor="@android:color/white" android:fontFamily="monospace" android:textSize="36sp" android:letterSpacing="0.06" android:maxLines="1" android:ellipsize="end" />
+                <TextView android:id="@+id/commentary_state" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="@string/commentary_idle" android:textColor="#C2E4DA" android:textSize="14sp" android:maxLines="2" android:ellipsize="end" android:accessibilityLiveRegion="polite" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="52dp" android:paddingStart="20dp" android:paddingEnd="12dp" android:gravity="center_vertical">
+                <TextView android:id="@+id/listener_count" style="@style/DriverBody" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/listeners_waiting" />
+                <Button android:id="@+id/room_action" style="@style/DriverTextButton" android:layout_width="104dp" android:layout_height="48dp" android:text="@string/create_room_action" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_gravity="bottom" android:orientation="vertical" android:paddingTop="32dp" android:background="@drawable/bg_console_bottom">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="48dp" android:paddingStart="16dp" android:paddingEnd="16dp" android:gravity="center_vertical">
+            <TextView android:id="@+id/map_message" style="@style/DriverCaption" android:layout_width="0dp" android:layout_height="48dp" android:layout_weight="1" android:layout_marginEnd="12dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:gravity="center_vertical" android:background="@drawable/bg_card" android:text="@string/map_loading" android:maxLines="2" android:clickable="true" android:focusable="true" />
+            <Button android:id="@+id/recenter" style="@style/DriverTextButton" android:layout_width="64dp" android:layout_height="48dp" android:background="@drawable/bg_card" android:text="@string/recenter_action" />
+        </LinearLayout>
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_margin="16dp" android:orientation="vertical" android:padding="16dp" android:background="@drawable/bg_card" android:elevation="6dp">
+            <TextView android:id="@+id/commentary_text" style="@style/DriverBody" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/commentary_text_waiting" android:maxLines="2" android:ellipsize="end" />
+            <LinearLayout android:layout_width="match_parent" android:layout_height="72dp" android:layout_marginTop="12dp" android:gravity="center_vertical">
+                <Button android:id="@+id/details_action" style="@style/DriverTextButton" android:layout_width="64dp" android:layout_height="56dp" android:text="@string/trip_details" />
+                <Button android:id="@+id/microphone_action" style="@style/DriverPrimaryButton" android:layout_width="0dp" android:layout_height="68dp" android:layout_weight="1" android:layout_marginStart="8dp" android:layout_marginEnd="8dp" android:background="@drawable/bg_mic" android:drawableStart="@drawable/ic_microphone" android:drawablePadding="8dp" android:paddingStart="20dp" android:paddingEnd="20dp" android:text="@string/commentary_start" />
+                <Button android:id="@+id/questions_action" style="@style/DriverTextButton" android:layout_width="64dp" android:layout_height="56dp" android:text="@string/questions_action" />
+            </LinearLayout>
+            <ProgressBar android:id="@+id/microphone_level" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="3dp" android:max="100" android:progressTint="@color/driver_teal" android:progressBackgroundTint="@color/driver_line" android:contentDescription="@string/microphone_level" />
+            <TextView android:id="@+id/feedback" style="@style/DriverCaption" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="8dp" android:textColor="@color/driver_error" android:accessibilityLiveRegion="polite" android:visibility="gone" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

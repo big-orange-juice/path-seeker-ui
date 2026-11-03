@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { harness, tick, userId, plain } = require('./harness.cjs');
 const { wgs84ToGcj02 } = require('../dist/shared/map-coordinates');
-const { evaluateApproach } = require('../dist/shared/geo-range');
+const { evaluateApproach, distanceToPlaceRangeSegmentMeters } = require('../dist/shared/geo-range');
 
 const center = { longitude: 116.3856068, latitude: 39.9377928 };
 const stageId = '9223372036854775804', placeId = '9223372036854775803';
@@ -34,10 +34,10 @@ test('Houhai circle uses distance to the circumference in every direction, inclu
   }
 });
 
-test('native GCJ fixes reach a circular place, show the countdown and start narration after stable arrival', async t => {
+test('driver GCJ fixes reach a circular place, show the countdown and start narration after stable arrival', async t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
-  const h = harness(), page = h.page('tour'), nativeRequests = [];
-  h.my.getLocation = options => nativeRequests.push(options);
+  const h = harness(), page = h.page('tour'); let onFix;
+  h.load('services/location').watch = callback => { onFix = callback; return () => {}; };
   page._rev = 0; page._visible = true; page._user = userId;
   page._places = [place]; page._detail = { coordinateSystem: 1 };
   page.setData({
@@ -46,13 +46,10 @@ test('native GCJ fixes reach a circular place, show the countdown and start narr
   });
   page.showStop(0, true); page.toggleTracking();
   const gcj = wgs84ToGcj02(destination(16));
-  const deliver = request => {
-    request.success({ longitude: String(gcj.longitude), latitude: String(gcj.latitude), horizontalAccuracy: '35' });
-    request.complete();
-  };
-  deliver(nativeRequests[0]);
+  const deliver = () => onFix({ ...destination(16), gcj, accuracy: 35, timestamp: Date.now(), source: 'driver' });
+  deliver();
   assert.equal(page.data.arrivalCandidate, null); assert.equal(h.requests.length, 0);
-  t.mock.timers.tick(3000); deliver(nativeRequests[1]);
+  t.mock.timers.tick(3000); deliver();
   assert.equal(page.data.arrivalCandidate.id, stageId);
   assert.ok(Math.abs(page.data.arrivalCandidate.distance - 3.5) < 0.01);
   assert.match(page.data.arrivalCountdown, /3/);
@@ -77,4 +74,16 @@ test('reported 35m precision does not cause a point 35m from the center to match
   }
   assert.equal(page.data.arrivalCandidate, null); assert.equal(h.requests.length, 0);
   assert.deepEqual(plain(page.data.sequence), []); page.onUnload();
+});
+
+test('a WGS84 segment crossing a point range matches when both endpoint samples are outside', () => {
+  const tour = harness().load('core/tour');
+  const start = destination(-55, 0), end = destination(55, 0);
+  const now = Date.now();
+  const previous = { ...start, accuracy: 10, timestamp: now - 1000 };
+  const current = { ...end, accuracy: 10, timestamp: now };
+  const result = tour.candidates([stop], [place], current, [], 1, now, -1, [], [], previous);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].source, 'segment');
+  assert.ok(distanceToPlaceRangeSegmentMeters(previous, current, null, center) < 0.01);
 });

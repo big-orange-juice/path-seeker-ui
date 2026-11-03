@@ -21,7 +21,7 @@ test('nearby fixes project onto a route segment without changing the original me
 });
 
 test('distant, weak, stale and invalid geometry inputs never force a fix onto a route', () => {
-  for (const fix of [fixAt(116.385, 39.941), fixAt(116.385, 39.9404, 65), fixAt(116.385, 39.94012, 66), { ...fixAt(), timestamp: Date.now() - 16000 }]) {
+  for (const fix of [fixAt(116.385, 39.941), fixAt(116.385, 39.9407, 65), fixAt(116.385, 39.94012, 66), { ...fixAt(), timestamp: Date.now() - 16000 }]) {
     assert.deepEqual(mapLocation(fix, road), fix.gcj);
   }
   const fix = fixAt();
@@ -62,6 +62,7 @@ test('unmatched and excessive corrections retain the original arrival position',
 
 test('marker and camera use the same corrected point while retaining the original measurement', () => {
   const h = harness(), page = h.page('tour'), fix = fixAt();
+  h.load('config').routeCorrection = true;
   let deliver;
   h.load('services/location').watch = callback => { deliver = callback; return () => {}; };
   page._visible = true;
@@ -76,19 +77,17 @@ test('marker and camera use the same corrected point while retaining the origina
   page.onUnload();
 });
 
-test('returning to the foreground replaces a suspended request and clears old arrival state', () => {
-  const h = harness(), page = h.page('tour'), requests = [];
-  h.my.getLocation = options => requests.push(options);
+test('returning to the foreground refreshes the driver watch and clears old arrival state', t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
+  const h = harness(), page = h.page('tour'); let refreshes = 0, watches = 0;
+  h.load('services/location').watch = () => { watches++; const stop = () => {}; stop.refresh = () => refreshes++; return stop; };
   page._visible = true;
   page.setData({ locationEnabled: true });
   page.watchLocation();
   page._fix = fixAt(); page._dwell = { updatedAt: Date.now() };
-  page.onHide(); assert.equal(requests.length, 1);
-  page.onShow(); assert.equal(requests.length, 2);
+  page.onHide(); assert.equal(watches, 1);
+  t.mock.timers.tick(3000);
+  page.onShow(); assert.equal(watches, 1); assert.equal(refreshes, 1);
   assert.equal(page._fix, null); assert.equal(page._dwell, null);
-  requests[0].success({ longitude: 116.4, latitude: 39.9, accuracy: 5 });
-  assert.equal(page._fix, null);
-  requests[1].success({ longitude: 116.385, latitude: 39.94, accuracy: 5 });
-  assert.ok(page._fix);
   page.onUnload();
 });

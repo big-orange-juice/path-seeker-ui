@@ -1,4 +1,4 @@
-const { evaluateApproach, isUsableLocation, DEFAULT_APPROACH_POLICY, parseBoundary, boundaryPolygons, circleToRing } = require('../shared/geo-range');
+const { evaluateApproach, isUsableLocation, DEFAULT_APPROACH_POLICY, parseBoundary, boundaryPolygons, circleToRing, distanceToPlaceRangeSegmentMeters, metersBetween } = require('../shared/geo-range');
 const { gcj02ToWgs84, toGcj02 } = require('../shared/map-coordinates');
 const { canAutoTriggerStop } = require('../shared/tour-auto-trigger');
 function sorted(items) { return (items || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.id).localeCompare(String(b.id))); }
@@ -64,9 +64,13 @@ function mapData(detail, destination, places = []) {
   const center = markers[0] || (destinationPoint ? toGcj02(destinationPoint, destination.coordinateSystem || 1) : { longitude: 116.383, latitude: 39.937 });
   return { markers, polyline: safeLines, routeLines: lines, boundaryLines: boundaries, longitude: Number.isFinite(center.longitude) ? center.longitude : 116.383, latitude: Number.isFinite(center.latitude) ? center.latitude : 39.937, includePoints: markers.map(m => ({ longitude: m.longitude, latitude: m.latitude })) };
 }
-function candidates(stops, places, fix, completed, system = 1, now = Date.now(), after = -1, visited = completed, retained = []) {
+function candidates(stops, places, fix, completed, system = 1, now = Date.now(), after = -1, visited = completed, retained = [], previousFix = null) {
   if (!isUsableLocation(fix, DEFAULT_APPROACH_POLICY, now)) return [];
   const previous = new Set(retained);
+  const canUseSegment = previousFix && isUsableLocation(previousFix, DEFAULT_APPROACH_POLICY, now)
+    && fix.timestamp >= previousFix.timestamp
+    && fix.timestamp - previousFix.timestamp <= DEFAULT_APPROACH_POLICY.maxAgeMs
+    && metersBetween(previousFix, fix) <= 120;
   return stops.map((stop, index) => ({ stop, index })).filter(({ stop, index }) => !completed.includes(stop.id) && index !== after && canAutoTriggerStop(stop, stops, visited)).map(({ stop, index }) => {
     const place = places.find(p => p.id === stop.placeId);
     const anchor = validPoint(place) ? mapPoint(place) : validPoint(stop) ? (system === 1 ? mapPoint(stop) : gcj02ToWgs84(toGcj02(mapPoint(stop), system))) : null;
@@ -74,7 +78,18 @@ function candidates(stops, places, fix, completed, system = 1, now = Date.now(),
     const policy = Object.assign({}, DEFAULT_APPROACH_POLICY, range ? { proximityMeters: range.defaultProximityDistanceMeters || DEFAULT_APPROACH_POLICY.proximityMeters, releaseMeters: range.defaultReleaseDistanceMeters || DEFAULT_APPROACH_POLICY.releaseMeters } : {}, stop.triggerRadiusMeters > 0 ? { proximityMeters: stop.triggerRadiusMeters, releaseMeters: Math.max(range && range.defaultReleaseDistanceMeters || DEFAULT_APPROACH_POLICY.releaseMeters, stop.triggerRadiusMeters) } : {});
     let result = evaluateApproach(fix, range, anchor, policy);
     if (result.distanceMeters === null && anchor) result = evaluateApproach(fix, null, anchor, Object.assign({}, policy, { proximityMeters: result.proximityMeters, releaseMeters: result.releaseMeters }));
-    return { index, order: stop.order || 0, id: stop.id, name: stop.name, distance: result.distanceMeters, withinRange: result.withinRange, approaching: result.approaching, releasing: result.releasing };
+    let distance = result.distanceMeters, source = 'point', withinRange = result.withinRange;
+    if (canUseSegment) {
+      const segmentDistance = distanceToPlaceRangeSegmentMeters(previousFix, fix, range, anchor);
+      const previousResult = evaluateApproach(previousFix, range, anchor, policy);
+      const movingToward = previousResult.distanceMeters === null || distance === null || distance <= previousResult.distanceMeters + 1;
+      if (segmentDistance !== null && movingToward && (distance === null || segmentDistance < distance)) {
+        distance = segmentDistance;
+        source = 'segment';
+        withinRange = segmentDistance <= 0;
+      }
+    }
+    return { index, order: stop.order || 0, id: stop.id, name: stop.name, distance, withinRange, approaching: distance !== null && distance <= result.proximityMeters, releasing: distance === null || distance > result.releaseMeters, source };
   }).filter(c => c.approaching || previous.has(c.id) && !c.releasing).sort((a, b) => Number(a.index <= after) - Number(b.index <= after) || a.order - b.order || a.distance - b.distance);
 }
 function checkpointMatches(cp, userId, visit, stopId, guideId) {

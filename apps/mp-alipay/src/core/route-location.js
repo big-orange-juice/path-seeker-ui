@@ -38,8 +38,9 @@ function routeGraph(routeLines) {
   return segments;
 }
 
-function candidatesFor(raw, fix, segments) {
-  const limit = Math.min(30, Math.max(10, fix.accuracy));
+function correctionLimit(fix) { return Math.min(65, Math.max(15, fix.accuracy * 1.5)); }
+
+function candidatesFor(raw, fix, segments, limit = correctionLimit(fix)) {
   return segments.map(segment => {
     const projection = project(raw, segment.start, segment.end);
     if (!projection) return null;
@@ -108,53 +109,88 @@ function arrivalLocation(fix, point, now = Date.now()) {
   const raw = rawPoint(fix);
   if (!raw || !usableFix(fix, now)) return null;
   if (!validPoint(point) || point.longitude === raw.longitude && point.latitude === raw.latitude) return fix;
-  if (metersBetween(raw, point) > Math.min(30, Math.max(10, fix.accuracy))) return fix;
+  if (metersBetween(raw, point) > correctionLimit(fix)) return fix;
   return Object.assign({}, fix, gcj02ToWgs84(point), { gcj: point });
 }
 
-function createRouteMatcher() {
-  let source, segments = [], history = null, cachedFix = null, cachedPoint = null;
-  function reset() { history = null; cachedFix = null; cachedPoint = null; }
-  function match(fix, routeLines, now = Date.now()) {
+function scoreCandidates(candidates, history, fix, raw) {
+  if (!history) return candidates.map(candidate => Object.assign({}, candidate, { cost: candidate.distance }));
+  const elapsed = (fix.timestamp - history.timestamp) / 1000;
+  const movement = metersBetween(raw, history.raw);
+  const uncertainty = Math.min(30, Math.max(fix.accuracy, history.accuracy));
+  const budget = Math.max(40, elapsed * 12 + uncertainty);
+  const cache = new Map();
+  const distances = node => { if (!cache.has(node)) cache.set(node, distancesFrom(node, budget)); return cache.get(node); };
+  return candidates.map(candidate => {
+    let cost = Infinity;
+    for (const previous of history.beam) {
+      const travelled = travelDistance(previous, candidate, distances);
+      if (travelled > budget) continue;
+      const transition = Math.max(0, Math.abs(travelled - movement) - uncertainty * 0.5);
+      cost = Math.min(cost, previous.cost * 0.7 + transition + directionCost(previous, candidate, raw, history.raw, movement, uncertainty));
+    }
+    return Object.assign({}, candidate, { cost: cost + candidate.distance });
+  }).filter(candidate => Number.isFinite(candidate.cost));
+}
+
+function candidateBeam(candidates) {
+  const bestCost = candidates[0].cost;
+  return candidates.slice(0, 6).map(candidate => Object.assign({}, candidate, { cost: candidate.cost - bestCost }));
+}
+
+function createRouteMatcher({ enabled = true } = {}) {
+  let source, segments = [], history = null, pending = null, cachedFix = null, cachedResult = null, lastDisplay = null;
+  function reset() { history = null; pending = null; cachedFix = null; cachedResult = null; lastDisplay = null; }
+  function resolve(fix, routeLines, now = Date.now()) {
+    if (!enabled) {
+      const point = rawPoint(fix);
+      return { point, arrivalPoint: point && usableFix(fix, now) ? point : null, status: 'disabled', distanceMeters: point ? 0 : null };
+    }
     if (source !== routeLines) { source = routeLines; segments = routeGraph(routeLines); reset(); }
     const raw = rawPoint(fix);
-    if (!raw || !usableFix(fix, now)) { reset(); return raw; }
-    if (cachedFix === fix) return cachedPoint;
-    if (history && fix.timestamp <= history.timestamp) return raw;
-    if (history && fix.timestamp - history.timestamp > DEFAULT_APPROACH_POLICY.maxAgeMs) reset();
+    const finish = (point, arrivalPoint, status) => {
+      cachedFix = fix;
+      cachedResult = { point, arrivalPoint, status, distanceMeters: raw && point ? metersBetween(raw, point) : null };
+      if (segments.length && point) lastDisplay = point;
+      return cachedResult;
+    };
+    if (cachedResult && cachedFix === fix && usableFix(fix, now)) return cachedResult;
+    if (!raw) { history = null; pending = null; return finish(lastDisplay, null, 'invalid'); }
+    const nearest = candidatesFor(raw, fix, segments, Infinity)[0];
+    if (!nearest) { history = null; pending = null; return finish(raw, null, 'no-route'); }
+    if (!usableFix(fix, now)) { history = null; pending = null; return finish(lastDisplay || nearest.point, null, 'weak-or-stale'); }
+    if (history && fix.timestamp <= history.timestamp) return finish(lastDisplay || nearest.point, null, 'out-of-order');
+    if (history && fix.timestamp - history.timestamp > DEFAULT_APPROACH_POLICY.maxAgeMs) { history = null; pending = null; }
     const candidates = candidatesFor(raw, fix, segments);
-    if (!candidates.length) { reset(); return raw; }
-    let scored;
-    if (!history) scored = candidates.map(candidate => Object.assign(candidate, { cost: candidate.distance }));
-    else {
-      const elapsed = (fix.timestamp - history.timestamp) / 1000;
-      const movement = metersBetween(raw, history.raw);
-      const uncertainty = Math.min(30, Math.max(fix.accuracy, history.accuracy));
-      const budget = Math.max(40, elapsed * 12 + uncertainty);
-      const cache = new Map();
-      const distances = node => { if (!cache.has(node)) cache.set(node, distancesFrom(node, budget)); return cache.get(node); };
-      scored = candidates.map(candidate => {
-        let cost = Infinity;
-        for (const previous of history.beam) {
-          const travelled = travelDistance(previous, candidate, distances);
-          if (travelled > budget) continue;
-          const transition = Math.max(0, Math.abs(travelled - movement) - uncertainty * 0.5);
-          cost = Math.min(cost, previous.cost * 0.7 + transition + directionCost(previous, candidate, raw, history.raw, movement, uncertainty));
-        }
-        return Object.assign(candidate, { cost: cost + candidate.distance });
-      }).filter(candidate => Number.isFinite(candidate.cost));
+    if (!candidates.length) { pending = null; return finish(lastDisplay || nearest.point, null, 'off-route'); }
+    let scored = scoreCandidates(candidates, history, fix, raw);
+    if (!scored.length) {
+      if (pending && fix.timestamp <= pending.timestamp) return finish(lastDisplay || nearest.point, null, 'jump');
+      const consistent = pending && fix.timestamp - pending.timestamp <= DEFAULT_APPROACH_POLICY.maxAgeMs ? scoreCandidates(candidates, pending, fix, raw) : [];
+      const startedAt = consistent.length ? pending.startedAt : fix.timestamp;
+      const recovery = consistent.length ? consistent : scoreCandidates(candidates, null, fix, raw);
+      recovery.sort((first, second) => first.cost - second.cost);
+      pending = { beam: candidateBeam(recovery), raw, accuracy: fix.accuracy, timestamp: fix.timestamp, startedAt };
+      if (!consistent.length || fix.timestamp - startedAt < DEFAULT_APPROACH_POLICY.dwellMs) return finish(lastDisplay || nearest.point, null, 'jump');
+      scored = recovery;
     }
-    if (!scored.length) { reset(); return raw; }
+    pending = null;
     scored.sort((first, second) => first.cost - second.cost);
     const best = scored[0];
     const alternative = scored.find(candidate => metersBetween(candidate.point, best.point) > 8);
     const ambiguous = alternative && alternative.cost - best.cost < 4;
-    const beam = scored.filter(candidate => candidate.cost - best.cost <= 12).slice(0, 6).map(candidate => Object.assign({}, candidate, { cost: candidate.cost - best.cost }));
+    const beam = candidateBeam(scored.filter(candidate => candidate.cost - best.cost <= 12));
     history = { beam, raw, accuracy: fix.accuracy, timestamp: fix.timestamp };
-    cachedFix = fix; cachedPoint = ambiguous ? raw : best.point;
-    return cachedPoint;
+    return finish(best.point, ambiguous ? null : best.point, ambiguous ? 'ambiguous' : 'matched');
   }
-  return { match, reset };
+  function match(fix, routeLines, now = Date.now()) { return resolve(fix, routeLines, now).arrivalPoint || rawPoint(fix); }
+  function display(fix, routeLines, now = Date.now()) { return resolve(fix, routeLines, now).point; }
+  function arrival(fix, routeLines, now = Date.now()) {
+    const result = resolve(fix, routeLines, now);
+    if (result.status === 'jump' || result.status === 'out-of-order') return null;
+    return arrivalLocation(fix, result.arrivalPoint, now);
+  }
+  return { match, display, arrival, resolve, reset };
 }
 
 module.exports = { mapLocation, arrivalLocation, createRouteMatcher };

@@ -6,6 +6,7 @@ const { harness, tick } = require('./harness.cjs');
 
 test('driver permission shows the host controls and room creation has no vehicle binding', async () => {
   const fixture = harness();
+  fixture.load('config').driverHostInApp = false;
   const page = fixture.page('translation-room');
   page.onLoad();
   await tick();
@@ -26,6 +27,7 @@ test('driver permission shows the host controls and room creation has no vehicle
 
 test('ordinary users cannot create a host room from the page', async () => {
   const fixture = harness();
+  fixture.load('config').driverHostInApp = false;
   const page = fixture.page('translation-room');
   page._visible = true;
   page.create();
@@ -42,6 +44,40 @@ function wav(sampleRate = 16000) {
   text(36, 'data'); view.setUint32(40, 8, true); view.setInt16(44, -32768, true); view.setInt16(46, 32767, true);
   return bytes;
 }
+
+test('guest-only Alipay entry hides host actions even for an authorized driver and blocks creation', async () => {
+  const fixture = harness();
+  const page = fixture.page('translation-room');
+  page.onLoad();
+  await tick();
+  fixture.requests[0].ok({ canHost: true });
+  await tick();
+  assert.equal(page.data.canHost, false);
+  assert.match(page.data.notice, /输入房间码/);
+  page.setData({ canHost: true });
+  page.create();
+  await tick();
+  assert.equal(fixture.requests.length, 1);
+  assert.match(page.data.error, /APP/);
+  page.onUnload();
+});
+
+test('guest-only Alipay entry does not take over an APP host socket when the owner joins their room', async () => {
+  const fixture = harness();
+  const page = fixture.page('translation-room');
+  page.onLoad();
+  await tick();
+  fixture.requests[0].ok({ canHost: true });
+  await tick();
+  page.setData({ code: '12345678' });
+  page.join();
+  await tick();
+  fixture.requests[1].ok({ roomId: '9223372036854775805', code: '12345678', isHost: true });
+  await tick();
+  assert.equal(fixture.load('services/translation-session').snapshot().room, null);
+  assert.match(page.data.error, /房主/);
+  page.onUnload();
+});
 test('native WAV extraction preserves signed PCM and base64 used by Alipay sockets', () => {
   const source = wav(), pcm = wavPcm(source);
   assert.equal(new DataView(pcm).getInt16(0, true), -32768);
@@ -323,6 +359,7 @@ test('ASR capacity pause stops only the host connection and discards its late re
 
 test('room creation returns to navigation and recording survives hiding and unloading the room page', async () => {
   const { fixture, handlers } = socketHarness();
+  fixture.load('config').driverHostInApp = false;
   const session = fixture.load('services/translation-session');
   const page = fixture.page('translation-room');
   let returned = 0;

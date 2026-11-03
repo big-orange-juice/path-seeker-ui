@@ -26,6 +26,7 @@ export const adminNavItems: AdminNavItem[] = [
   { label: '主题路线', to: `${ADMIN_ROUTE_PREFIX}/routes`, icon: 'route' },
   { label: '明信片模板', to: `${ADMIN_ROUTE_PREFIX}/postcards`, icon: 'library' },
   { label: 'C端用户管理', to: `${ADMIN_ROUTE_PREFIX}/app-users`, icon: 'user-round' },
+  { label: '车夫位置', to: `${ADMIN_ROUTE_PREFIX}/driver-locations`, icon: 'map' },
   { label: '发音词典', to: `${ADMIN_ROUTE_PREFIX}/pronunciation`, icon: 'megaphone' },
   { label: '用户管理', to: `${ADMIN_ROUTE_PREFIX}/users`, icon: 'user-round' },
 ];

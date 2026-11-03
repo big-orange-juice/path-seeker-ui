@@ -36,9 +36,9 @@ test('first tour launch waits for language selection and preserves a linked rout
   h.requests[4].ok(visit()); await start;
   assert.equal(p.data.tourStage, 'navigation'); assert.equal(p.data.contentOpen, false);
   assert.equal(p.data.autoplay, true); assert.equal(p.data.locationEnabled, true);
-  assert.equal(locationRequests.length, 1);
+  assert.equal(locationRequests.length, 0);
   p.toggleTracking(); p.onHide(); p.onShow();
-  assert.equal(p.data.locationEnabled, false); assert.equal(locationRequests.length, 1);
+  assert.equal(p.data.locationEnabled, false); assert.equal(locationRequests.length, 0);
   p.openContent(); assert.equal(p.data.contentOpen, true);
   p.closeContent(); assert.equal(p.data.contentOpen, false); assert.equal(h.load('services/audio').snapshot().playing, true);
   p.openContent(); p.toggleQueue(); assert.equal(p.data.contentOpen, false); assert.equal(p.data.queueOpen, true);
@@ -57,7 +57,7 @@ test('remembered language opens an empty overview and restored visits open the n
   h.requests[1].ok({ route: route(), stops: [stop()] }); await tick(); h.requests[2].ok(visit()); await tick();
   assert.equal(restored.data.tourStage, 'navigation'); assert.equal(restored.data.contentOpen, false);
   assert.equal(restored.data.locationEnabled, true); assert.equal(restored.data.autoplay, true);
-  assert.equal(locationRequests.length, 1);
+  assert.equal(locationRequests.length, 0);
   restored.onUnload(); page.onUnload();
 });
 test('route selection accepts a null active visit and defaults to browsing the first stop', async () => {
@@ -68,20 +68,16 @@ test('route selection accepts a null active visit and defaults to browsing the f
   p.play(); h.audioContexts[0].emit('Ended'); await tick(); assert.equal(h.requests.length, 2);
 });
 
-test('starting navigation requests native location, reports denial and retries only on user action', async () => {
+test('starting navigation without a driver room never requests native location or detects arrivals', async () => {
   const h = harness(), p = tourPage(h, visit());
   p.setData({ tourStage: 'overview' });
   const locationRequests = []; h.my.getLocation = options => locationRequests.push(options);
   const starting = p.startVisit(); h.requests[0].ok(visit()); await starting;
-  assert.equal(locationRequests.length, 1);
-  assert.equal(locationRequests[0].type, 0);
-  locationRequests[0].fail({ error: 11 }); locationRequests[0].complete();
-  assert.equal(p.data.locationEnabled, false); assert.equal(p._watch, null);
-  assert.equal(p.data.locationNote, p.data.messages.permissionDenied);
-  p.onHide(); p.onShow(); assert.equal(locationRequests.length, 1);
-  p.toggleTracking(); assert.equal(locationRequests.length, 2);
-  locationRequests[1].success({ longitude: 116.383, latitude: 39.937, accuracy: 5 });
-  assert.equal(p.data.locationEnabled, true); assert.ok(p._fix);
+  assert.equal(locationRequests.length, 0); assert.equal(p._fix, null);
+  assert.equal(p.data.locationNote, p.data.messages.driverRoomRequired);
+  p.onHide(); p.onShow(); assert.equal(locationRequests.length, 0);
+  p.toggleTracking(); p.toggleTracking(); assert.equal(locationRequests.length, 0);
+  assert.equal(p._fix, null); assert.equal(p.data.arrivalCandidate, null);
   p.onUnload();
 });
 test('late route response cannot replace the latest selection; missing route stays actionable', async () => {
@@ -283,20 +279,22 @@ test('enabling nearby stories follows location and starts stable candidates afte
   assert.equal(p.data.autoplay, false); assert.equal(p.data.locationEnabled, false); assert.equal(stopped, 1);
 });
 
-test('weak GPS resets dwell and permission denial clears tracking and the position marker', () => {
+test('weak driver precision is tolerated briefly, then missing driver coordinates clear arrival state', () => {
   const h = harness(), p = tourPage(h, visit({ currentStageId: null })); let onFix, onError;
   h.load('services/location').watch = (fix, error) => { onFix = fix; onError = error; return () => {}; };
   p.showStop(0, true); p.toggleTracking();
   const fix = { longitude: 116.383, latitude: 39.937, accuracy: 10, timestamp: Date.now() };
   onFix(fix); assert.ok(p._dwell);
-  p._dwell.at = Date.now() - 2000; onFix({ ...fix, accuracy: 100 });
+  onFix({ ...fix, accuracy: 100 });
+  assert.ok(p._dwell); assert.equal(p.data.candidates.length, 0);
+  p._dwell.lastSeenAt = Date.now() - 7000; onFix({ ...fix, accuracy: 100 });
   assert.equal(p._dwell, null); assert.equal(p.data.candidates.length, 0);
   assert.equal(p.data.locationNote, p.data.messages.locationUnknown); assert.equal(h.requests.length, 0);
   onFix(fix); assert.ok(p._dwell); assert.equal(h.requests.length, 0);
-  onError({ denied: true });
-  assert.equal(p.data.locationEnabled, false); assert.equal(p._watch, null); assert.equal(p._fix, null);
+  onError({ driver: true, reason: 'driverWaiting' });
+  assert.equal(p.data.locationEnabled, true); assert.ok(p._watch); assert.equal(p._fix, null);
   assert.equal(p.data.map.markers.some(marker => marker.id === 0), false);
-  assert.equal(p.data.locationNote, p.data.messages.permissionDenied);
+  assert.equal(p.data.locationNote, p.data.messages.driverWaiting);
 });
 
 test('nearby prompt can explicitly enter a candidate and starts that stop', async () => {

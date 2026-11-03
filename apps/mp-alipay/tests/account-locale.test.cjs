@@ -47,6 +47,7 @@ test('same-ID account upgrade clears the old room while token refresh preserves 
 
 test('returning room page refreshes host permission after same-ID login', async () => {
   const h = harness(), page = h.page('translation-room');
+  h.load('config').driverHostInApp = false;
   page.onLoad(); page.onShow(); await tick();
   assert.equal(h.requests.length, 1);
   h.requests[0].ok({ canHost: false }); await tick(); page.onHide();
@@ -117,6 +118,7 @@ test('navigation confirmation content and native buttons follow the selected lan
 
 test('a stale guest permission response cannot restore tourist controls after host login', async () => {
   const h = harness(), page = h.page('translation-room');
+  h.load('config').driverHostInApp = false;
   page.onLoad(); await tick(); page.onHide();
   const login = h.auth.login({ account: 'host', password: 'secret' });
   h.requests[1].ok({ ...session(userId, 'host-token'), isGuest: false }); await login;
@@ -187,7 +189,7 @@ test('all navigation languages update native title, location hints and confirmat
     page.applyLocale(locale);
     const messages = h.load('shared/tourMessages').tourMessages(locale);
     assert.equal(titles.at(-1), messages.tourTitle);
-    assert.equal(page.data.locationNote, messages.locationHint);
+    assert.equal(page.data.locationNote, h.load('core/driver-messages')(locale).locationHint);
     page._rev = 0; page._user = userId;
     page.setData({ visit: { visitId: '9223372036854775805' } });
     const ending = page.endVisit();

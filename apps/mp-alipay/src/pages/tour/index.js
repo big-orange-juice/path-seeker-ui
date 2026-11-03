@@ -6,7 +6,8 @@ const visits = require('../../services/visits');
 const audio = require('../../services/audio');
 const speech = require('../../services/speech');
 const location = require('../../services/location');
-const { createRouteMatcher, arrivalLocation } = require('../../core/route-location');
+const { createRouteMatcher } = require('../../core/route-location');
+const { diag } = require('../../services/diag');
 const tour = require('../../core/tour');
 const ui = require('../../core/ui');
 const config = require('../../config');
@@ -16,6 +17,10 @@ const { tourMessages } = require('../../shared/tourMessages');
 const { formatRoomMessage } = require('../../shared/translation-room-messages');
 const { DEFAULT_APPROACH_POLICY, isUsableLocation, metersBetween } = require('../../shared/geo-range');
 const arrivalMessages = require('../../core/arrival-messages');
+const driverMessages = require('../../core/driver-messages');
+const routeLocationKeys = { 'off-route': 'locationRouteEstimate', jump: 'locationRouteEstimate', ambiguous: 'locationRouteAmbiguous' };
+const ARRIVAL_GAP_MS = 6000;
+const ARRIVAL_MAX_MISSED_FRAMES = 2;
 function finiteCoordinate(value) {
   if (!value || value.longitude === null || value.latitude === null || value.longitude === undefined || value.latitude === undefined || value.longitude === '' || value.latitude === '') return null;
   const longitude = Number(value && value.longitude), latitude = Number(value && value.latitude);
@@ -71,9 +76,10 @@ Page({
   postcard() { const stop = this.data.stop; if (!stop || !stop.experience || !stop.experience.enabled) return; const visit = this.data.visit; if (!visit) { my.showToast({ content: '请先开始本条路线的游览', type: 'none' }); return; } audio.pause(); my.navigateTo({ url: '/pages/postcards/index?routeId=' + encodeURIComponent(this.data.route.id) + '&stageId=' + encodeURIComponent(stop.id) + '&visitId=' + encodeURIComponent(visit.visitId) }); },
   translationRoom() { translation.prepareEntry(this.data.locale); my.navigateTo({ url: '/pages/translation-room/index' }); },
   data: { mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], queuedCount: 0, lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: true, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: tourMessages('zh').locationHint, candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
-  onLoad(query = {}) { this._rev = 0; this._visible = true; this._asking = false; this._dismissedCandidates = new Set(); this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, sequence: [], queuedCount: 0, lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
+  onLoad(query = {}) { this._rev = 0; this._visible = true; this._asking = false; this._dismissedCandidates = new Set(); this._arrivalLogged = new Set(); this._arrivalPreviousFix = null; this._launch = { routeId: typeof query.routeId === 'string' ? query.routeId : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, sequence: [], queuedCount: 0, lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
   onShow() {
     this._visible = true;
+    this.applyLocale(this.data.locale);
     if (!this._roomSubscription) this._roomSubscription = translation.subscribe(value => { if (this._visible) { this.setData({ hasTranslationRoom: Boolean(value.room) }); this.startNextSequence(); } });
     if (this._user && (this._user !== ui.userId() || this._authVersion !== undefined && this._authVersion !== auth.version())) { this.reset(); this.initialize(); return; }
     if (this._initializing) return;
@@ -101,7 +107,7 @@ Page({
     if (getApp().globalData.voiceInput === this._voice && this._voice) { this._voice.cancel(); getApp().globalData.voiceInput = null; }
     if (this._recorder && !this._handedVoice) this.cancelVoice();
     this.setData({ chatOpen: false });
-    this._dwell = null;
+    this._dwell = null; this._arrivalPreviousFix = null;
     // 后台模式保留定位轮询与讲解播放；关闭时维持“离开页面即暂停”。
     if (!config.background) {
       if (this._watch) { this._watch(); this._watch = null; }
@@ -167,7 +173,7 @@ Page({
     if (this.data.locationEnabled) this.watchLocation();
   },
   applyLocale(locale) {
-    const messages = Object.assign({}, tourMessages(locale), arrivalMessages(locale));
+    const messages = Object.assign({}, tourMessages(locale), arrivalMessages(locale), driverMessages(locale));
     const locationNote = this.data.locationEnabled && this._fix ? this._fix.accuracy > 65 ? messages.locationUnknown : formatRoomMessage(messages.locationAccuracy, { accuracy: Math.round(this._fix.accuracy) }) : messages.locationHint;
     this.setData({ locale, messages, localeIndex: Math.max(0, locales.findIndex(item => item.value === locale)), locationNote });
     if (my.setNavigationBar) my.setNavigationBar({ title: messages.tourTitle });
@@ -280,13 +286,14 @@ Page({
   zoomOut() { this.setData({ mapScale: Math.max(5, (this.data.mapScale || 15) - 1) }); },
   toggleImmersive() { this.setData({ immersive: !this.data.immersive }); },
   mapLocation(fix) {
-    if (!this._routeMatcher) this._routeMatcher = createRouteMatcher();
-    return this._routeMatcher.match(fix, this.data.map.routeLines);
+    if (!this._routeMatcher) this._routeMatcher = createRouteMatcher({ enabled: config.routeCorrection });
+    return this._routeMatcher.display(fix, this.data.map.routeLines);
   },
   followLocation(fix, force = false) {
     const point = this.mapLocation(fix);
     if (!point || !isUsableLocation(fix, DEFAULT_APPROACH_POLICY)) return;
-    if (!force && this._followCenter && metersBetween(this._followCenter, point) < 5) return;
+    const followDistance = this.data.map.routeLines && this.data.map.routeLines.length ? 1 : 5;
+    if (!force && this._followCenter && metersBetween(this._followCenter, point) < followDistance) return;
     this._followCenter = { longitude: point.longitude, latitude: point.latitude };
     this.setData({ 'map.longitude': point.longitude, 'map.latitude': point.latitude, 'map.includePoints': [], ...(Number.isFinite(fix.heading) ? { mapRotation: fix.heading } : {}) }, () => this.mapReady());
   },
@@ -543,30 +550,56 @@ Page({
     if (this._routeMatcher) this._routeMatcher.reset();
     this.clearArrivalPrompt();
     this._followCenter = null;
-    const enabled = !!ui.value(event); this.setData({ locationEnabled: enabled, locationNote: enabled ? this.data.messages.locationUnknown : this.data.messages.locationHint }); this._dwell = null; this._dismissedCandidates = new Set();
+    const enabled = !!ui.value(event); this.setData({ locationEnabled: enabled, locationNote: enabled ? this.data.messages.locationUnknown : this.data.messages.locationHint }); this._dwell = null; this._arrivalPreviousFix = null; this._arrivalLogged = new Set(); this._dismissedCandidates = new Set();
     if (enabled) this.watchLocation(); else { if (this._watch) this._watch(); this._watch = null; this._fix = null; this.setData({ candidates: [], following: false, 'map.markers': this.data.map.markers.filter(marker => marker.id !== 0) }); }
   },
   watchLocation(refresh = false) {
-    if (refresh && this._routeMatcher) this._routeMatcher.reset();
-    if (refresh) { if (this._watch) this._watch(); this._watch = null; this._fix = null; this._dwell = null; this.clearArrivalPrompt(); }
+    this.setData({ messages: Object.assign({}, this.data.messages, driverMessages(this.data.locale)) });
+    if (refresh) {
+      this._fix = null; this._dwell = null; this._arrivalPreviousFix = null; this.clearArrivalPrompt();
+      if (this._watch && this._watch.refresh) { this._watch.refresh(); return; }
+      if (this._watch) this._watch();
+      this._watch = null;
+    }
     if (this._watch || (!this._visible && !config.background)) return;
     const stopWatch = location.watch(fix => {
-      this._fix = fix; this.setData({ locationNote: fix.accuracy > 65 ? this.data.messages.locationUnknown : formatRoomMessage(this.data.messages.locationAccuracy, { accuracy: Math.round(fix.accuracy) }) });
+      this._fix = fix;
       this.updateLocationMarker(fix);
+      const match = this._routeMatcher.resolve(fix, this.data.map.routeLines);
+      const qualityNote = fix.accuracy > 65 ? this.data.messages.locationUnknown : formatRoomMessage(this.data.messages.locationAccuracy, { accuracy: Math.round(fix.accuracy) });
+      const noteKey = routeLocationKeys[match.status];
+      this.setData({ locationNote: noteKey ? this.data.messages[noteKey] : qualityNote });
+      diag('location-match', { status: match.status, offsetMeters: match.distanceMeters === null ? null : Math.round(match.distanceMeters), routeParts: (this.data.map.routeLines || []).length, coordinateSystem: this._detail && (this._detail.coordinateSystem || this._detail.route && this._detail.route.coordinateSystem) || 1 });
       if (this.data.following) this.followLocation(fix);
       if (!this.canDetectArrival()) { this._dwell = null; this.clearArrivalPrompt(); return; }
-      if (isUsableLocation(fix, DEFAULT_APPROACH_POLICY, Date.now())) { this.flushFinished(); this.startNextSequence(); }
+      const now = Date.now(), usable = isUsableLocation(fix, DEFAULT_APPROACH_POLICY, now);
+      if (usable) { this.flushFinished(); this.startNextSequence(); }
       if (!this.canDetectArrival()) { this._dwell = null; this.clearArrivalPrompt(); return; }
-      const candidates = this.nearbyCandidates(fix);
-      const key = candidates.map(c => c.id).join('|');
-      if (!key) { this._dwell = null; this._dismissedCandidates = new Set(); this.clearArrivalPrompt(); return; }
+      const evaluatedFix = usable ? this._routeMatcher.arrival(fix, this.data.map.routeLines, now) : null;
+      if (!usable || !evaluatedFix) {
+        if (this._dwell && now - this._dwell.lastSeenAt <= ARRIVAL_GAP_MS && this._dwell.missedFrames < ARRIVAL_MAX_MISSED_FRAMES) {
+          this._dwell.missedFrames += 1;
+          return;
+        }
+        this._dwell = null; this._arrivalPreviousFix = null; this._dismissedCandidates = new Set(); this.clearArrivalPrompt(); return;
+      }
+      const previousArrivalFix = this._arrivalPreviousFix;
+      const candidates = this.nearbyCandidates(fix, evaluatedFix, previousArrivalFix);
+      this._arrivalPreviousFix = evaluatedFix;
+      if (!candidates.length) { this._dwell = null; this._arrivalPreviousFix = evaluatedFix; this._arrivalLogged = new Set(); this._dismissedCandidates = new Set(); this.clearArrivalPrompt(); return; }
       if (this.data.arrivalCandidate && !candidates.some(candidate => candidate.id === this.data.arrivalCandidate.id)) this.clearArrivalPrompt();
-      const now = Date.now(), previous = this._dwell && this._dwell.arrivals || new Map();
-      this._dwell = { updatedAt: now, arrivals: new Map(candidates.map(candidate => [candidate.id, previous.has(candidate.id) ? previous.get(candidate.id) : now])) };
+      const previous = this._dwell && this._dwell.arrivals || new Map();
+      this._dwell = { updatedAt: now, lastSeenAt: now, missedFrames: 0, arrivals: new Map(candidates.map(candidate => [candidate.id, previous.has(candidate.id) ? previous.get(candidate.id) : now])) };
       const dismissedCandidates = this._dismissedCandidates || (this._dismissedCandidates = new Set());
       Array.from(dismissedCandidates).forEach(id => { if (!candidates.some(candidate => candidate.id === id)) dismissedCandidates.delete(id); });
       const stable = candidates.filter(candidate => now - this._dwell.arrivals.get(candidate.id) >= DEFAULT_APPROACH_POLICY.dwellMs);
       if (!stable.length) return;
+      const arrivalLogged = this._arrivalLogged || (this._arrivalLogged = new Set());
+      stable.forEach(candidate => {
+        if (arrivalLogged.has(candidate.id)) return;
+        arrivalLogged.add(candidate.id);
+        diag('arrival-decision', { spotId: candidate.id, distance: candidate.distance === null ? null : Math.round(candidate.distance), accuracy: Math.round(fix.accuracy), speed: previousArrivalFix && previousArrivalFix.timestamp !== evaluatedFix.timestamp ? Math.round(metersBetween(previousArrivalFix, evaluatedFix) / Math.max(0.001, (evaluatedFix.timestamp - previousArrivalFix.timestamp) / 1000) * 100) / 100 : null, source: candidate.source || 'point', dwellMs: now - this._dwell.arrivals.get(candidate.id), latencyMs: now - this._dwell.arrivals.get(candidate.id) });
+      });
       stable.forEach(candidate => { if (this.data.sequence.some(item => item.id === candidate.id && item.status === 'queued')) this.recordPrerequisiteArrival(candidate.id); });
       if (!this._visible && config.background) { this.clearArrivalPrompt(); this.enqueueCandidates(stable); return; }
       if (!this.canPromptArrival()) { this.clearArrivalPrompt(); return; }
@@ -577,16 +610,25 @@ Page({
       });
       this.setData({ candidates: visible });
       if (!this.data.arrivalCandidate && visible.length) this.showArrivalPrompt(visible[0]);
-    }, e => { this._dwell = null; this.clearArrivalPrompt(); this.setData({ locationNote: e.denied ? this.data.messages.permissionDenied : this.data.messages.locationFailed, locationEnabled: !e.denied, following: e.denied ? false : this.data.following }); if (e.denied) { this._watch = null; this._fix = null; this.setData({ 'map.markers': this.data.map.markers.filter(marker => marker.id !== 0) }); } });
+    }, error => this.locationFailed(error));
     if (this.data.locationEnabled) this._watch = stopWatch; else stopWatch();
   },
-  canDetectArrival() { return (this._visible || config.background) && this.data.locationEnabled && this.data.tourStage === 'navigation' && this.data.route && this.data.visit && this.data.visit.status === 1 && !this.data.loading && !this.data.chatOpen && !this.data.recording && !this.data.transcribing && !this._asking && !this.roomAudioActive() && this._user === ui.userId() && (this._authVersion === undefined || this._authVersion === auth.version()); },
+  locationFailed(error) {
+    this._fix = null;
+    this._dwell = null; this._arrivalPreviousFix = null; this._followCenter = null;
+    this.clearArrivalPrompt();
+    if (this._routeMatcher) this._routeMatcher.reset();
+    this.setData({ locationNote: this.data.messages[error.reason] || driverMessages(this.data.locale)[error.reason] || driverMessages(this.data.locale).driverWaiting,
+      'map.markers': this.data.map.markers.filter(marker => marker.id !== 0) });
+  },
+  canDetectArrival() { return (this._visible || config.background) && this.data.locationEnabled && this.data.tourStage === 'navigation' && this.data.route && this.data.visit && this.data.visit.status === 1 && !this.data.loading && !this.data.chatOpen && !this.data.recording && !this.data.transcribing && !this._asking && (!this.roomAudioActive() || this._fix && this._fix.source === 'driver') && this._user === ui.userId() && (this._authVersion === undefined || this._authVersion === auth.version()); },
   canPromptArrival() { return this.canDetectArrival() && this._visible && !this.data.queueOpen && !this.data.contentOpen; },
-  nearbyCandidates(fix = this._fix) {
+  nearbyCandidates(fix = this._fix, evaluatedFix = undefined, previousFix = this._arrivalPreviousFix) {
     const visit = this.data.visit || {}, now = Date.now();
-    const evaluatedFix = arrivalLocation(fix, this.mapLocation(fix), now);
-    if (!evaluatedFix || this._dwell && now - this._dwell.updatedAt > DEFAULT_APPROACH_POLICY.maxAgeMs) this._dwell = null;
-    return tour.candidates(this.data.stops, this._places || [], evaluatedFix, visit.completedStageIds || [], this._detail && this._detail.coordinateSystem || 1, now, this.data.stops.findIndex(stop => stop.id === visit.currentStageId), visit.visitedStageIds || visit.completedStageIds || [], this._dwell && this._dwell.arrivals ? Array.from(this._dwell.arrivals.keys()) : []);
+    if (!this._routeMatcher) this._routeMatcher = createRouteMatcher({ enabled: config.routeCorrection });
+    const arrivalFix = evaluatedFix === undefined ? this._routeMatcher.arrival(fix, this.data.map.routeLines, now) : evaluatedFix;
+    if (!arrivalFix || this._dwell && now - this._dwell.lastSeenAt > DEFAULT_APPROACH_POLICY.maxAgeMs) this._dwell = null;
+    return tour.candidates(this.data.stops, this._places || [], arrivalFix, visit.completedStageIds || [], this._detail && this._detail.coordinateSystem || 1, now, this.data.stops.findIndex(stop => stop.id === visit.currentStageId), visit.visitedStageIds || visit.completedStageIds || [], this._dwell && this._dwell.arrivals ? Array.from(this._dwell.arrivals.keys()) : [], previousFix);
   },
   clearArrivalPrompt() { clearTimeout(this._arrivalTimer); this._arrivalTimer = null; this.setData({ candidates: [], arrivalCandidate: null, arrivalCountdown: '' }); },
   showArrivalPrompt(candidate) {

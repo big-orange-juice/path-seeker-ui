@@ -149,6 +149,107 @@ export function distanceToBoundaryMeters(geometry: BoundaryGeometry, point: Appr
   return min
 }
 
+/** 计算 WGS84 点到经纬度线段的局部平面距离(米)。 */
+export function distanceToSegmentMeters(point: ApproachPoint, start: BoundaryPoint, end: BoundaryPoint): number {
+  let metersPerDegreeLongitude = METERS_PER_DEGREE_LATITUDE * Math.cos((point.latitude * Math.PI) / 180)
+  if (Math.abs(metersPerDegreeLongitude) < 1e-6) metersPerDegreeLongitude = METERS_PER_DEGREE_LATITUDE
+
+  const px = (point.longitude - start[0]) * metersPerDegreeLongitude
+  const py = (point.latitude - start[1]) * METERS_PER_DEGREE_LATITUDE
+  const bx = (end[0] - start[0]) * metersPerDegreeLongitude
+  const by = (end[1] - start[1]) * METERS_PER_DEGREE_LATITUDE
+  const lengthSquared = bx * bx + by * by
+  const t = lengthSquared < 1e-6 ? 0 : Math.min(1, Math.max(0, (px * bx + py * by) / lengthSquared))
+  const nearestX = t * bx
+  const nearestY = t * by
+  return Math.sqrt((px - nearestX) ** 2 + (py - nearestY) ** 2)
+}
+
+function orientation(first: BoundaryPoint, second: BoundaryPoint, third: BoundaryPoint): number {
+  return (second[0] - first[0]) * (third[1] - first[1]) - (second[1] - first[1]) * (third[0] - first[0])
+}
+
+function onSegment(first: BoundaryPoint, second: BoundaryPoint, point: BoundaryPoint): boolean {
+  return point[0] >= Math.min(first[0], second[0]) - 1e-12 && point[0] <= Math.max(first[0], second[0]) + 1e-12
+    && point[1] >= Math.min(first[1], second[1]) - 1e-12 && point[1] <= Math.max(first[1], second[1]) + 1e-12
+}
+
+function segmentsIntersect(firstStart: BoundaryPoint, firstEnd: BoundaryPoint, secondStart: BoundaryPoint, secondEnd: BoundaryPoint): boolean {
+  const first = orientation(firstStart, firstEnd, secondStart)
+  const second = orientation(firstStart, firstEnd, secondEnd)
+  const third = orientation(secondStart, secondEnd, firstStart)
+  const fourth = orientation(secondStart, secondEnd, firstEnd)
+  if (((first > 1e-12 && second < -1e-12) || (first < -1e-12 && second > 1e-12))
+    && ((third > 1e-12 && fourth < -1e-12) || (third < -1e-12 && fourth > 1e-12))) return true
+  return Math.abs(first) <= 1e-12 && onSegment(firstStart, firstEnd, secondStart)
+    || Math.abs(second) <= 1e-12 && onSegment(firstStart, firstEnd, secondEnd)
+    || Math.abs(third) <= 1e-12 && onSegment(secondStart, secondEnd, firstStart)
+    || Math.abs(fourth) <= 1e-12 && onSegment(secondStart, secondEnd, firstEnd)
+}
+
+function segmentPassesThroughBoundary(geometry: BoundaryGeometry, start: ApproachPoint, end: ApproachPoint): boolean {
+  const startPoint: BoundaryPoint = [start.longitude, start.latitude]
+  const endPoint: BoundaryPoint = [end.longitude, end.latitude]
+  if (boundaryContains(geometry, startPoint) || boundaryContains(geometry, endPoint)) return true
+  const parameters = [0, 1]
+  for (const polygon of boundaryPolygons(geometry)) for (const ring of polygon) {
+    for (let index = 1; index < ring.length; index += 1) {
+      const edgeStart = ring[index - 1]!
+      const edgeEnd = ring[index]!
+      if (!segmentsIntersect(startPoint, endPoint, edgeStart, edgeEnd)) continue
+      const denominator = (end.longitude - start.longitude) * (edgeEnd[1] - edgeStart[1])
+        - (end.latitude - start.latitude) * (edgeEnd[0] - edgeStart[0])
+      const numerator = (edgeStart[0] - start.longitude) * (edgeEnd[1] - edgeStart[1])
+        - (edgeStart[1] - start.latitude) * (edgeEnd[0] - edgeStart[0])
+      if (Math.abs(denominator) > 1e-15) parameters.push(Math.max(0, Math.min(1, numerator / denominator)))
+    }
+  }
+  parameters.sort((first, second) => first - second)
+  const unique = parameters.filter((value, index) => index === 0 || value - parameters[index - 1]! > 1e-10)
+  for (let index = 1; index < unique.length; index += 1) {
+    const fraction = (unique[index - 1]! + unique[index]!) / 2
+    const point: BoundaryPoint = [start.longitude + (end.longitude - start.longitude) * fraction, start.latitude + (end.latitude - start.latitude) * fraction]
+    if (boundaryContains(geometry, point)) return true
+  }
+  return false
+}
+
+function distanceBetweenSegmentsMeters(start: ApproachPoint, end: ApproachPoint, edgeStart: BoundaryPoint, edgeEnd: BoundaryPoint): number {
+  const first: BoundaryPoint = [start.longitude, start.latitude]
+  const second: BoundaryPoint = [end.longitude, end.latitude]
+  if (segmentsIntersect(first, second, edgeStart, edgeEnd)) return 0
+  return Math.min(
+    distanceToSegmentMeters(start, edgeStart, edgeEnd),
+    distanceToSegmentMeters(end, edgeStart, edgeEnd),
+    distanceToSegmentMeters({ longitude: edgeStart[0], latitude: edgeStart[1] }, first, second),
+    distanceToSegmentMeters({ longitude: edgeEnd[0], latitude: edgeEnd[1] }, first, second),
+  )
+}
+
+/** 计算 WGS84 线段到景点范围的最短距离；用于补偿两次定位之间跨过范围的情况。 */
+export function distanceToPlaceRangeSegmentMeters(
+  start: ApproachPoint,
+  end: ApproachPoint,
+  range: PlaceRange | null | undefined,
+  anchor: ApproachPoint | null | undefined,
+): number | null {
+  if (!range || range.type === 'point') {
+    return anchor ? distanceBetweenSegmentsMeters(start, end, [anchor.longitude, anchor.latitude], [anchor.longitude, anchor.latitude]) : null
+  }
+  if (range.type === 'circle') {
+    if (!anchor || !range.radiusMeters) return null
+    return Math.max(0, distanceBetweenSegmentsMeters(start, end, [anchor.longitude, anchor.latitude], [anchor.longitude, anchor.latitude]) - range.radiusMeters)
+  }
+  const geometry = parseBoundary(range.boundaryGeoJson)
+  if (!geometry) return null
+  if (segmentPassesThroughBoundary(geometry, start, end)) return 0
+  let minimum = Number.POSITIVE_INFINITY
+  for (const polygon of boundaryPolygons(geometry)) for (const ring of polygon) {
+    for (let index = 1; index < ring.length; index += 1) minimum = Math.min(minimum, distanceBetweenSegmentsMeters(start, end, ring[index - 1]!, ring[index]!))
+  }
+  return Number.isFinite(minimum) ? minimum : null
+}
+
 /**
  * 计算用户位置到景点范围的距离(米)，语义与后端 CulturalPlaceRangeCalculator 一致：
  * 点 = 到锚点距离；圆 = max(0, 到圆心距离 - 半径)；多边形 = 区域内/边界为 0，外部取到边界最短距离。
@@ -271,19 +372,4 @@ function inRing(ring: BoundaryPoint[], point: BoundaryPoint): boolean {
       && point[0] < ((end[0] - start[0]) * (point[1] - start[1])) / (end[1] - start[1]) + start[0]) inside = !inside
   }
   return inside
-}
-
-function distanceToSegmentMeters(point: ApproachPoint, start: BoundaryPoint, end: BoundaryPoint): number {
-  let metersPerDegreeLongitude = METERS_PER_DEGREE_LATITUDE * Math.cos((point.latitude * Math.PI) / 180)
-  if (Math.abs(metersPerDegreeLongitude) < 1e-6) metersPerDegreeLongitude = METERS_PER_DEGREE_LATITUDE
-
-  const px = (point.longitude - start[0]) * metersPerDegreeLongitude
-  const py = (point.latitude - start[1]) * METERS_PER_DEGREE_LATITUDE
-  const bx = (end[0] - start[0]) * metersPerDegreeLongitude
-  const by = (end[1] - start[1]) * METERS_PER_DEGREE_LATITUDE
-  const lengthSquared = bx * bx + by * by
-  const t = lengthSquared < 1e-6 ? 0 : Math.min(1, Math.max(0, (px * bx + py * by) / lengthSquared))
-  const nearestX = t * bx
-  const nearestY = t * by
-  return Math.sqrt((px - nearestX) ** 2 + (py - nearestY) ** 2)
 }

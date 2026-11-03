@@ -1,63 +1,67 @@
+const http = require('./http');
+const auth = require('./auth');
+const translation = require('./translation-session');
 const { gcj02ToWgs84 } = require('../shared/map-coordinates');
 const { diag } = require('./diag');
-let foreground = true, hiddenAt = null;
-function setForeground(visible) {
-  const now = Date.now();
-  if (foreground === visible) return;
-  diag('location-lifecycle', { at: now, foreground: visible, hiddenMs: !visible || hiddenAt === null ? null : now - hiddenAt });
-  foreground = visible; hiddenAt = visible ? null : now;
-}
-function reportCapabilities() {
-  diag('location-capabilities', {
-    getLocation: typeof my.getLocation === 'function',
-    startLocationUpdateBackground: typeof my.startLocationUpdateBackground === 'function',
-    startContinuousLocation: typeof my.startContinuousLocation === 'function',
-    onLocationChange: typeof my.onLocationChange === 'function'
-  });
-}
-function coordinate(value, limit) {
-  if (value === null || value === undefined || typeof value === 'boolean' || typeof value === 'string' && !value.trim()) return NaN;
-  const number = Number(value);
-  return Number.isFinite(number) && Math.abs(number) <= limit ? number : NaN;
-}
-function precision(result) {
-  for (const value of [result.horizontalAccuracy, result.accuracy]) {
-    if (value === null || value === undefined || typeof value === 'boolean' || typeof value === 'string' && !value.trim()) continue;
-    const number = Number(value);
-    if (Number.isFinite(number) && number >= 0) return number;
-  }
-  return 999;
-}
+const MAX_FIX_AGE_MS = 15000;
+let foreground = true;
+function setForeground(visible) { foreground = visible; }
+function reportCapabilities() { diag('location-capabilities', { source: 'driver', polling: true }); }
 function watch(onFix, onError) {
-  let closed = false, timer = null, lastFixAt = null;
-  const poll = () => {
-    if (closed) return;
-    const requestedAt = Date.now();
-    my.getLocation({ type: 0, cacheTimeout: 0,
-      success(result) {
-        if (closed) return;
-        const gcj = { longitude: coordinate(result.longitude, 180), latitude: coordinate(result.latitude, 90) };
-        const accuracy = precision(result);
-        if (!Number.isFinite(gcj.longitude) || !Number.isFinite(gcj.latitude)) onError(Error('无法获得有效定位'));
-        else {
-          const now = Date.now();
-          diag('location-fix', { at: now, foreground, requestMs: now - requestedAt, intervalMs: lastFixAt === null ? null : now - lastFixAt, hiddenMs: hiddenAt === null ? null : now - hiddenAt, accuracy });
-          lastFixAt = now;
-          onFix(Object.assign(gcj02ToWgs84(gcj), { gcj, accuracy, heading: typeof result.direction === 'number' && result.direction >= 0 && result.direction <= 360 ? result.direction : null, timestamp: now }));
-        }
-      },
-      fail(result) {
-        if (closed) return;
-        const denied = [11, 2001, 2002, 2003, 2004].includes(Number(result.error));
-        diag('location-error', { at: Date.now(), foreground, code: result.error, denied });
-        if (denied) { closed = true; clearTimeout(timer); }
-        onError(Object.assign(Error(denied ? '定位权限未开启，请在支付宝设置中允许后重试' : '暂时无法定位，可手动选择站点'), { denied }));
-      },
-      // 每次请求结束后才安排下一次，避免慢定位产生请求重叠。
-      complete() { if (!closed) timer = setTimeout(poll, 3000); }
-    });
+  let closed = false, roomId = '', generation = 0, timer = null, expiry = null, request = null, lastSample = null;
+  const error = reason => onError(Object.assign(Error('车夫位置暂不可用'), { driver: true, denied: false, reason }));
+  const clear = () => {
+    generation++; clearTimeout(timer); clearTimeout(expiry); timer = null; expiry = null;
+    if (request) request.abort(); request = null; lastSample = null;
   };
-  poll();
-  return () => { closed = true; clearTimeout(timer); };
+  const schedule = delay => {
+    clearTimeout(timer); timer = setTimeout(poll, delay);
+    if (timer && timer.unref) timer.unref();
+  };
+  const poll = async () => {
+    if (closed || !roomId || request) return;
+    const current = generation, userVersion = auth.version(), requestedAt = Date.now();
+    const pending = request = http.request('/TranslationRooms/' + encodeURIComponent(roomId) + '/location', { timeout: 10000 });
+    try {
+      const result = await pending;
+      if (closed || current !== generation || userVersion !== auth.version()) return;
+      const sampledAt = Date.parse(result.sampledAt), serverTime = Date.parse(result.serverTime), now = Date.now();
+      const age = serverTime - sampledAt + now - requestedAt;
+      const valid = result.roomId === roomId && result.coordinateSystem === 'GCJ-02'
+        && typeof result.longitude === 'number' && Number.isFinite(result.longitude) && Math.abs(result.longitude) <= 180
+        && typeof result.latitude === 'number' && Number.isFinite(result.latitude) && Math.abs(result.latitude) <= 90
+        && typeof result.accuracy === 'number' && Number.isFinite(result.accuracy) && result.accuracy > 0 && result.accuracy <= 500;
+      if (result.status !== 'online' || !valid || !Number.isFinite(age) || age < -2000 || age > MAX_FIX_AGE_MS) {
+        clearTimeout(expiry); expiry = null;
+        error(result.status === 'stopped' ? 'driverStopped' : result.status === 'closed' ? 'driverRoomEnded' : 'driverWaiting');
+        return;
+      }
+      if (lastSample !== null && sampledAt <= lastSample) return;
+      lastSample = sampledAt;
+      const gcj = { longitude: result.longitude, latitude: result.latitude };
+      const timestamp = now - Math.max(0, age);
+      clearTimeout(expiry);
+      expiry = setTimeout(() => { if (!closed && current === generation) error('driverWaiting'); }, Math.max(1, MAX_FIX_AGE_MS - Math.max(0, age)));
+      if (expiry && expiry.unref) expiry.unref();
+      diag('location-fix', { source: 'driver', foreground, accuracy: result.accuracy, ageMs: age });
+      onFix(Object.assign(gcj02ToWgs84(gcj), { gcj, accuracy: result.accuracy, heading: null, timestamp, receivedAt: now, timestampSource: 'server', source: 'driver', roomId }));
+    } catch (failure) {
+      if (!closed && current === generation && userVersion === auth.version() && !failure.cancelled) error(failure.status === 403 ? 'driverRoomRequired' : failure.status === 404 ? 'driverUnavailable' : 'driverNetwork');
+    } finally {
+      if (request === pending) request = null;
+      if (!closed && current === generation && roomId) schedule(1000);
+    }
+  };
+  const unsubscribe = translation.subscribe(state => {
+    const room = state.room;
+    const next = room && !room.isHost && !state.disconnected && !['closed', 'draining'].includes(room.status) && typeof room.roomId === 'string' ? room.roomId : '';
+    if (closed || next === roomId && roomId) return;
+    clear(); roomId = next;
+    error(next ? 'driverWaiting' : 'driverRoomRequired');
+    if (next) poll();
+  });
+  const stop = () => { closed = true; clear(); unsubscribe(); };
+  stop.refresh = () => { if (!closed) { clear(); if (roomId) poll(); else error('driverRoomRequired'); } };
+  return stop;
 }
 module.exports = { watch, setForeground, reportCapabilities };

@@ -1,4 +1,5 @@
 const auth = require('../../services/auth');
+const config = require('../../config');
 const storage = require('../../services/storage');
 const rooms = require('../../services/translation-room');
 const session = require('../../services/translation-session');
@@ -9,6 +10,7 @@ Page({
   data: { room: null, canHost: false, permissionPending: true, code: '', languages: ROOM_LANGUAGES, language: 'zh-CN', messages: roomMessages('zh-CN'), languageIndex: 0, sourceIndex: 0, source: '', translated: '', feed: [], chatGroups: [], languageGroups: [], sourceLabel: '', pendingSource: '', detailsOpen: false, showLatest: false, scrollTarget: '', speaking: false, paused: false, busy: false, disconnected: false, notice: '正在确认账号权限…', error: '' },
   onLoad(query = {}) {
     this._visible = true;
+    if (config.driverHostInApp && session.snapshot().room && session.snapshot().room.isHost) session.leave();
     session.prepareEntry(query.lang || storage.read('locale', storage.read('tour-locale', 'zh')));
     this.setData({ code: typeof query.roomCode === 'string' ? query.roomCode : '' });
     this.bindSession();
@@ -27,8 +29,9 @@ Page({
       const roomState = session.snapshot();
       const permission = roomState.room ? { canHost: roomState.room.isHost } : await rooms.api('/host-permission');
       if (!active()) return;
-      this._notice = permission.canHost ? '选择讲话语言，创建或返回讲解房间' : '输入房间码并选择语言，开始收听';
-      this.setData({ canHost: permission.canHost, notice: localizeRoomNotice(roomState.room ? roomState.notice : this._notice, this.data.language) });
+      const canHost = permission.canHost && !config.driverHostInApp;
+      this._notice = canHost ? '选择讲话语言，创建或返回讲解房间' : '输入房间码并选择语言，开始收听';
+      this.setData({ canHost, notice: localizeRoomNotice(roomState.room ? roomState.notice : this._notice, this.data.language) });
     } catch (error) { if (active()) this.setData({ error: localizeRoomNotice(error.message, this.data.language) }); }
     finally { if (active()) { this._permissionTask = null; this.setData({ permissionPending: false }); } }
   },
@@ -109,9 +112,10 @@ Page({
   chooseLanguage(event) { const languageIndex = Number(event.currentTarget.dataset.index); if (ROOM_LANGUAGES[languageIndex]) { this.setData({ languageIndex }); session.setLanguage(ROOM_LANGUAGES[languageIndex].value); } },
   chooseSource(event) { const sourceIndex = Number(event.currentTarget.dataset.index); if (ROOM_LANGUAGES[sourceIndex]) { this.setData({ sourceIndex }); session.setLanguage(ROOM_LANGUAGES[sourceIndex].value); } },
   join() { this.run(async () => { if (!/^\d{8}$/.test(this.data.code)) throw Error('请输入八位房间码'); const userId = auth.current().userId; const room = await rooms.api('/join', { code: this.data.code, targetLanguage: ROOM_LANGUAGES[this.data.languageIndex].value }); if (!auth.current() || auth.current().userId !== userId) throw Error('账号已切换'); if (this._visible) { this.attach(room); this.back(); } }); },
-  create() { this.run(async () => { if (!this.data.canHost) throw Error('当前账号未获车夫授权'); const userId = auth.current().userId; const room = await rooms.api('', { sourceLanguage: ROOM_LANGUAGES[this.data.sourceIndex].value }); if (!auth.current() || auth.current().userId !== userId) throw Error('账号已切换'); if (this._visible) { this.attach(room); this.back(); } }); },
+  create() { this.run(async () => { if (config.driverHostInApp) throw Error('请使用寻迹车夫 APP 创建和管理讲解房间'); if (!this.data.canHost) throw Error('当前账号未获车夫授权'); const userId = auth.current().userId; const room = await rooms.api('', { sourceLanguage: ROOM_LANGUAGES[this.data.sourceIndex].value }); if (!auth.current() || auth.current().userId !== userId) throw Error('账号已切换'); if (this._visible) { this.attach(room); this.back(); } }); },
   attach(room) {
     if (!this._visible) return;
+    if (config.driverHostInApp && room.isHost) throw Error('此账号是房主，请使用寻迹车夫 APP 讲解，游客请使用自己的账号加入');
     session.attach(room, ROOM_LANGUAGES[room.isHost ? this.data.sourceIndex : this.data.languageIndex].value);
   },
   event(event) {
