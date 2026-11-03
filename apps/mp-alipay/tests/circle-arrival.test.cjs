@@ -37,6 +37,7 @@ test('Houhai circle uses distance to the circumference in every direction, inclu
 test('driver GCJ fixes reach a circular place, show the countdown and start narration after stable arrival', async t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
   const h = harness(), page = h.page('tour'); let onFix;
+  page.driverRoomAvailable = () => true;
   h.load('services/location').watch = callback => { onFix = callback; return () => {}; };
   page._rev = 0; page._visible = true; page._user = userId;
   page._places = [place]; page._detail = { coordinateSystem: 1 };
@@ -65,6 +66,7 @@ test('driver GCJ fixes reach a circular place, show the countdown and start narr
 test('reported 35m precision does not cause a point 35m from the center to match a 12.5m circle plus 5m approach', t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
   const h = harness(), page = h.page('tour'); let fix;
+  page.driverRoomAvailable = () => true;
   h.load('services/location').watch = callback => { fix = callback; return () => {}; };
   page._rev = 0; page._visible = true; page._user = userId; page._places = [place]; page._detail = { coordinateSystem: 1 };
   page.setData({ tourStage: 'navigation', route: { id: 'route' }, stops: [stop], visit: { visitId: 'visit', status: 1, currentStageId: null, completedStageIds: [] } });

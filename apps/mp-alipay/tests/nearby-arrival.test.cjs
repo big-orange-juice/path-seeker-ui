@@ -5,6 +5,7 @@ const nearId = '9223372036854775804', farId = '9223372036854775803';
 function setup(t) {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
   const h = harness(), page = h.page('tour');
+  page.driverRoomAvailable = () => true;
   const stops = [
     { id: 'current', name: '当前站', order: 1, longitude: 116, latitude: 39 },
     { id: farId, name: '稍远的景点', order: 2, longitude: 116.383, latitude: 39.9373 },

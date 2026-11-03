@@ -37,9 +37,8 @@ final class DriverMapController {
         map.getUiSettings().setZoomControlsEnabled(false);
         map.getUiSettings().setScaleControlsEnabled(true);
         map.getUiSettings().setCompassEnabled(true);
-        map.getUiSettings().setLogoBottomMargin(DriverUi.dp(activity, 270));
-        map.getUiSettings().setLogoLeftMargin(DriverUi.dp(activity, 20));
-        map.getUiSettings().setScaleControlsPosition(new android.graphics.Point(DriverUi.dp(activity, 140), DriverUi.dp(activity, 290)));
+        map.getUiSettings().setLogoBottomMargin(DriverUi.dp(activity, 12));
+        map.getUiSettings().setLogoLeftMargin(DriverUi.dp(activity, 12));
         arrow = arrow(activity);
         map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition(new LatLng(39.94, 116.38), 16, 45, 0)));
         host.post(() -> map.setPointToCenter(host.getWidth() / 2, Math.round(host.getHeight() * 0.53f)));

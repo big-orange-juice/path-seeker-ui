@@ -5,6 +5,7 @@ const { harness, userId, tick } = require('./harness.cjs');
 function setup(t) {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
   const h = harness(), page = h.page('tour'), audio = h.load('services/audio');
+  page.driverRoomAvailable = () => true;
   const center = { longitude: 116.3856068, latitude: 39.9377928 };
   const stops = ['current', 'bar'].map((id, index) => ({ id, placeId: 'p-' + id, order: index + 1, name: id, ...center,
     images: [], guideNarrations: [{ guideId: 'guide', locale: 'zh', chapters: [{ id: 'c-' + id, audioUrl: '/' + id + '.mp3' }] }] }));

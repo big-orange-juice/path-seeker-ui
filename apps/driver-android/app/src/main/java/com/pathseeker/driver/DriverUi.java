@@ -7,6 +7,7 @@ import android.os.Build;
 import android.view.View;
 import android.view.WindowInsets;
 import android.widget.EditText;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -14,6 +15,17 @@ import java.net.URI;
 
 final class DriverUi {
     static int dp(Activity activity, int value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
+
+    static Button dialogAction(Activity activity, int text, boolean destructive) {
+        Button button = new Button(new android.view.ContextThemeWrapper(activity, R.style.DriverTheme), null, 0, R.style.DriverTextButton);
+        button.setText(text);
+        button.setBackgroundResource(R.drawable.bg_soft);
+        button.setTextColor(activity.getColor(destructive ? R.color.driver_error : R.color.driver_teal));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(activity, 48));
+        params.topMargin = dp(activity, 10);
+        button.setLayoutParams(params);
+        return button;
+    }
 
     static void insets(Activity activity) {
         View root = activity.findViewById(R.id.root);

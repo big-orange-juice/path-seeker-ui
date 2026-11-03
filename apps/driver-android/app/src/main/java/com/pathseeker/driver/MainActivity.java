@@ -161,7 +161,8 @@ public final class MainActivity extends Activity {
         content.setPadding(padding, padding, padding, padding);
         TextView label = new TextView(this);
         label.setText(getString(R.string.room_code_value, code));
-        label.setTextSize(24); label.setGravity(android.view.Gravity.CENTER); content.addView(label);
+        label.setTextSize(24); label.setTextColor(getColor(R.color.driver_ink));
+        label.setTypeface(android.graphics.Typeface.MONOSPACE); label.setGravity(android.view.Gravity.CENTER); content.addView(label);
         String data = store.preferences().getString("roomQr", "");
         if (data.startsWith("data:image/png;base64,")) {
             try {
@@ -279,13 +280,14 @@ public final class MainActivity extends Activity {
             store.preferences().getString("locationStatus", ""), coordinates,
             uploaded == 0 ? getString(R.string.upload_waiting) : getString(R.string.upload_latest, time(uploaded)),
             store.preferences().getString("translationWarning", "")));
-        detail.setTextSize(14); content.addView(detail);
+        detail.setTextSize(14); detail.setTextColor(getColor(R.color.driver_ink));
+        detail.setLineSpacing(DriverUi.dp(this, 4), 1); content.addView(detail);
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle(R.string.trip_title).setView(content).setNegativeButton("关闭", null).create();
-        Button share = new Button(this); share.setText(sharing() ? R.string.stop_sharing_action : R.string.start_sharing_action); share.setEnabled(!busy && !starting && !roomId().isEmpty());
+        Button share = DriverUi.dialogAction(this, sharing() ? R.string.stop_sharing_action : R.string.start_sharing_action, false); share.setEnabled(!busy && !starting && !roomId().isEmpty());
         share.setOnClickListener(view -> { dialog.dismiss(); if (sharing()) stopSharing(); else requestLocation(); }); content.addView(share);
-        Button disconnect = new Button(this); disconnect.setText(R.string.commentary_disconnect); disconnect.setEnabled(DriverCommentaryService.running);
+        Button disconnect = DriverUi.dialogAction(this, R.string.commentary_disconnect, false); disconnect.setEnabled(DriverCommentaryService.running);
         disconnect.setOnClickListener(view -> { stopService(new Intent(this, DriverCommentaryService.class)); dialog.dismiss(); }); content.addView(disconnect);
-        Button end = new Button(this); end.setText(R.string.end_room_action); end.setEnabled(!busy && !starting && !roomId().isEmpty());
+        Button end = DriverUi.dialogAction(this, R.string.end_room_action, true); end.setEnabled(!busy && !starting && !roomId().isEmpty());
         end.setOnClickListener(view -> { dialog.dismiss(); confirmEndRoom(); }); content.addView(end);
         dialog.show();
     }
@@ -362,6 +364,10 @@ public final class MainActivity extends Activity {
         if (!alive || feedback == null) return;
         boolean hasRoom = !roomId().isEmpty();
         boolean shared = sharing();
+        TextView connection = findViewById(R.id.connection_badge);
+        connection.setText(hasRoom ? R.string.room_ready : R.string.room_waiting);
+        connection.setActivated(hasRoom);
+        connection.setTextColor(getColor(hasRoom ? R.color.driver_teal : R.color.driver_muted));
         ((TextView) findViewById(R.id.room_code)).setText(hasRoom ? store.preferences().getString("roomCode", "") : getString(R.string.no_room_code));
         roomAction.setText(hasRoom ? R.string.room_code_action : R.string.create_room_action);
         roomAction.setEnabled(!busy && !starting); settings.setEnabled(!busy && !starting);

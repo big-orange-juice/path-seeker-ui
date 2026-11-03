@@ -1,0 +1,21 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:orientation="horizontal" android:baselineAligned="false">
+    <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1">
+        <FrameLayout android:id="@+id/map_host" android:layout_width="match_parent" android:layout_height="match_parent" />
+        <TextView android:id="@+id/map_message" style="@style/DriverCaption"
+            android:layout_width="match_parent" android:layout_height="wrap_content" android:minHeight="48dp"
+            android:layout_margin="12dp" android:layout_marginEnd="88dp" android:padding="12dp"
+            android:gravity="center_vertical" android:background="@drawable/bg_card" android:text="@string/map_loading"
+            android:maxLines="2" android:clickable="true" android:focusable="true" />
+        <Button android:id="@+id/recenter" style="@style/DriverTextButton"
+            android:layout_width="64dp" android:layout_height="48dp" android:layout_gravity="top|end"
+            android:layout_margin="12dp" android:background="@drawable/bg_card" android:text="@string/recenter_action" />
+    </FrameLayout>
+    <ScrollView android:layout_width="320dp" android:layout_height="match_parent" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+            <include layout="@layout/view_console_room" />
+            <include layout="@layout/view_console_controls" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -296,13 +296,13 @@ public final class DriverCommentaryService extends Service {
     private void terminate(String message) {
         if (destroyed || terminating) return;
         status("stopped", message);
-        terminating = true; sendingSocket = null; stopCapture();
+        terminating = true; sendingSocket = null; stopCapture(); questions.stop();
         stopSelf();
     }
 
     @Override public void onDestroy() {
         destroyed = true; running = false; generation++; sendingSocket = null;
-        handler.removeCallbacksAndMessages(null); stopCapture(); questions.clear();
+        handler.removeCallbacksAndMessages(null); stopCapture(); questions.close();
         if (socket != null) { socket.cancel(); socket = null; }
         client.dispatcher().executorService().shutdown(); client.connectionPool().evictAll();
         if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();

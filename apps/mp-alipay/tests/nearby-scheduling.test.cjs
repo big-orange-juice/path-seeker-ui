@@ -5,6 +5,7 @@ const { harness, tick, userId, session } = require('./harness.cjs');
 function setup(t) {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
   const h = harness(), page = h.page('tour');
+  page.driverRoomAvailable = () => true;
   const stops = ['current', 'bar', 'next'].map((id, index) => ({
     id, placeId: 'place-' + id, name: id, order: index + 1, images: [],
     longitude: 116.38, latitude: 39.94,

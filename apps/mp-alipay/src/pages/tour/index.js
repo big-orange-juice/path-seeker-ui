@@ -7,6 +7,7 @@ const audio = require('../../services/audio');
 const speech = require('../../services/speech');
 const location = require('../../services/location');
 const { createRouteMatcher } = require('../../core/route-location');
+const { progressUpdate } = require('../../core/playback-progress');
 const { diag } = require('../../services/diag');
 const tour = require('../../core/tour');
 const ui = require('../../core/ui');
@@ -80,7 +81,7 @@ Page({
   onShow() {
     this._visible = true;
     this.applyLocale(this.data.locale);
-    if (!this._roomSubscription) this._roomSubscription = translation.subscribe(value => { if (this._visible) { this.setData({ hasTranslationRoom: Boolean(value.room) }); this.startNextSequence(); } });
+    if (!this._roomSubscription) this._roomSubscription = translation.subscribe(() => { if (this._visible) { this.syncRoomPlayback(); this.syncDriverFollowing(); this.startNextSequence(); } });
     if (this._user && (this._user !== ui.userId() || this._authVersion !== undefined && this._authVersion !== auth.version())) { this.reset(); this.initialize(); return; }
     if (this._initializing) return;
     const rememberedLocale = storage.read('locale', '');
@@ -368,14 +369,74 @@ Page({
   toggleContent() { if (this.data.contentOpen) this.closeContent(); else this.openContent(); },
   toggleQueue() { if (this.data.videoItem) return; this.clearArrivalPrompt(); this.setData({ queueOpen: !this.data.queueOpen, contentOpen: false }); },
   closeQueue() { this.setData({ queueOpen: false }); },
-  toggleTracking() { const enabled = !this.data.locationEnabled; this.setData({ autoplay: enabled, following: enabled, ...(enabled ? { mapSkew: 50, mapScale: 18, 'map.includePoints': [] } : {}) }); this.preferences(); this.toggleLocation({ detail: { value: enabled } }); if (enabled) { this._manualBrowse = false; this.startNextSequence(); } },
+  driverRoomAvailable() {
+    const state = translation.snapshot(), room = state.room;
+    return Boolean(room && typeof room.roomId === 'string' && room.roomId && !room.isHost && !state.disconnected && !['closed', 'draining'].includes(room.status));
+  },
+  syncDriverFollowing() {
+    if (this._syncingDriver) return;
+    this._syncingDriver = true;
+    try {
+      const available = this.driverRoomAvailable();
+      const roomState = translation.snapshot();
+      this.setData({ hasTranslationRoom: available });
+      if (!available && this.data.locationEnabled) {
+        this._resumeDriverFollowing = roomState.reconnecting && roomState.following !== false;
+        this.toggleLocation({ detail: { value: false } });
+        this.setData({ locationNote: driverMessages(this.data.locale).driverRoomRequired });
+      }
+      if (available && roomState.following !== false && (this._resumeDriverFollowing || !this.data.locationEnabled && this.data.tourStage === 'navigation' && this.data.visit && this.data.visit.status === 1)) {
+        this._resumeDriverFollowing = false;
+        this.setData({ following: true });
+        this.toggleLocation({ detail: { value: true } });
+      }
+      if (!roomState.reconnecting && !available) this._resumeDriverFollowing = false;
+    } finally { this._syncingDriver = false; }
+  },
+  toggleTracking() {
+    const enabled = !this.data.locationEnabled;
+    translation.setFollowing(enabled);
+    if (enabled && !this.driverRoomAvailable()) {
+      this.toggleLocation({ detail: { value: false } });
+      this.setData({ locationNote: driverMessages(this.data.locale).driverRoomRequired });
+      my.showToast({ content: driverMessages(this.data.locale).driverRoomRequired, type: 'none' });
+      this.translationRoom();
+      return;
+    }
+    this.setData({ autoplay: enabled, following: enabled, ...(enabled ? { mapSkew: 50, mapScale: 18, 'map.includePoints': [] } : {}) });
+    this.preferences(); this.toggleLocation({ detail: { value: enabled } });
+    if (enabled) { this._manualBrowse = false; this.startNextSequence(); }
+  },
   enableNearbyGuidance() {
+    this.setData({ messages: Object.assign({}, this.data.messages, driverMessages(this.data.locale)) });
+    if (!this.driverRoomAvailable()) {
+      this.toggleLocation({ detail: { value: false } });
+      this.setData({ autoplay: true, locationNote: driverMessages(this.data.locale).driverRoomRequired });
+      return;
+    }
+    if (translation.snapshot().following === false) {
+      this.toggleLocation({ detail: { value: false } });
+      return;
+    }
     // 只在开始或恢复游览时默认开启；onShow 沿用当前开关，尊重本次手动关闭。
     this.setData({ autoplay: true, following: true });
     if (!this.data.locationEnabled) this.toggleLocation({ detail: { value: true } });
     else this.watchLocation();
   },
-  roomAudioActive() { const state = translation.snapshot(); return state.speaking || state.audioPlaying || Boolean(state.room && !state.room.isHost && !state.paused && !state.disconnected && state.room.status !== 'closed'); },
+  roomAudioActive() { const state = translation.snapshot(); return state.speaking || state.audioPlaying || Boolean(state.room && !state.room.isHost && !state.paused && (state.audioPending || !state.disconnected && (state.inputDraining || state.translationPending || ['live', 'draining'].includes(state.room.status)))); },
+  syncRoomPlayback() {
+    if (this._syncingRoomPlayback) return;
+    this._syncingRoomPlayback = true;
+    try {
+      if (this.roomAudioActive()) {
+        if (!this._roomResume) this._roomResume = this.capturePlayback();
+        if (audio.snapshot().owner === 'tour') { this.saveCheckpoint(); audio.pause(); }
+      } else if (this._roomResume) {
+        const previous = this._roomResume; this._roomResume = null;
+        this.restorePlayback(previous);
+      }
+    } finally { this._syncingRoomPlayback = false; }
+  },
   showLanguage() { if (this.data.busy || this.data.loading) return; this.clearArrivalPrompt(); this._dwell = null; this.setData({ tourStage: 'language', contentOpen: false, queueOpen: false, candidates: [] }); },
   enterCurrent() { if (!this.data.visit || this.data.visit.status !== 1) return this.startVisit(); this.mutate(() => this.enter(this.data.stopIndex)); },
   async mutate(action) { if (this.data.busy || this.data.loading) return; const rev = this._rev, user = this._user; let succeeded = false; this.setData({ busy: true, error: '' }); try { await action(); succeeded = true; } catch (e) { if (rev === this._rev && user === ui.userId()) ui.error(this, e); } finally { if (rev === this._rev && user === ui.userId()) { this.setData({ busy: false }); this.flushFinished(); if (succeeded) this.startNextSequence(); } } },
@@ -413,11 +474,13 @@ Page({
     await this.mutate(async () => {
       const result = await visits.abandon(this.data.visit, this.data.route);
       if (rev !== this._rev || user !== ui.userId()) return;
+      this._roomResume = null; this._resumeDriverFollowing = false; this._deferredResume = null;
       audio.stop('tour'); this.clearArrivalPrompt(); this._heldVisit = null; this._pendingFinish = ''; this._manualBrowse = false; this._userPaused = false;
       this.setData({ visit: result, browsing: true, playing: false, tourStage: 'overview', contentOpen: false, queueOpen: false, sequence: [], queuedCount: 0 });
       this.showStop(0, true);
       storage.remove(storage.scoped(user, 'checkpoint'));
       storage.remove(storage.scoped(user, 'sequence'));
+      translation.leave();
     });
   },
   chooseGuide(event) { if (this.data.busy || this.data.loading) return; const guideIndex = Number(ui.value(event)); const guide = this.data.guides[guideIndex]; if (!guide) return; this.saveCheckpoint(); audio.stop('tour'); const chapters = tour.sorted(guide.chapters); this.setData({ guideIndex, chapters, canPlayStop: !!(chapters.length || this.data.stop && (this.data.stop.video || (this.data.stop.extraAudios || []).some(item => item && item.url))), playing: false, paused: false, playingStopId: '', hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '' }); storage.write(storage.scoped(this._user, 'guide'), guide.guideId); this.syncContext(); },
@@ -430,15 +493,38 @@ Page({
     const guide = this.data.guides[this.data.guideIndex], state = audio.snapshot();
     getApp().globalData.chatContext = this.data.route ? { routeId: this.data.route.id, stageId: this.data.stop && this.data.stop.id, guideId: guide && guide.guideId, voiceId: guide && guide.providerVoiceId, routeTitle: this.data.route.title, stageName: this.data.stop && this.data.stop.name, playingChapterId: state.owner === 'tour' && state.item && state.item.kind === 'chapter' ? state.item.id : null, playingTimeSeconds: state.owner === 'tour' ? state.time : 0 } : null;
   },
-  saveCheckpoint() {
+  updatePlaybackProgress(state, key, title) {
+    if (key !== this.contextKey() || this._user !== ui.userId()) return;
+    const now = Date.now();
+    const paint = progressUpdate(this._playbackPaint && this._playbackPaint.key === key ? this._playbackPaint : null, state, now);
+    if (paint) {
+      this._playbackPaint = Object.assign({ key }, paint);
+      const values = { playing: state.playing, paused: !!state.item && !state.playing, hasDuration: state.duration > 0,
+        itemTitle: title === undefined ? state.item && state.item.title || '' : title,
+        timeLabel: ui.clock(state.time), durationLabel: ui.clock(state.duration),
+        progress: state.duration ? Math.max(0, Math.min(100, state.time / state.duration * 100)) : 0 };
+      const update = {};
+      Object.keys(values).forEach(name => { if (this.data[name] !== values[name]) update[name] = values[name]; });
+      if (Object.keys(update).length) this.setData(update);
+    }
+    this.saveCheckpoint(!state.playing);
+  },
+  saveCheckpoint(force = true) {
     const state = audio.snapshot(), guide = this.data.guides[this.data.guideIndex];
     if (state.owner !== 'tour' || !state.item || this._extraPlayback || !this.data.visit || this.data.browsing || !guide || this._user !== ui.userId()) return;
-    storage.write(storage.scoped(this._user, 'checkpoint'), { userId: this._user, visitId: this.data.visit.visitId, routeId: this.data.route.id, stageId: this.data.stop.id, guideId: guide.guideId, locale: this.data.locale, skipExtra: this.data.skipExtra, itemId: state.item.id, time: state.time, updatedAt: Date.now() });
+    const now = Date.now(), key = this.contextKey() + '|' + state.generation + '|' + state.item.id;
+    const previous = this._checkpointWrite;
+    if (!force && previous && previous.key === key && now >= previous.at && now - previous.at < 3000 && state.time >= previous.time && state.time - previous.time < 4) return;
+    try {
+      storage.write(storage.scoped(this._user, 'checkpoint'), { userId: this._user, visitId: this.data.visit.visitId, routeId: this.data.route.id, stageId: this.data.stop.id, guideId: guide.guideId, locale: this.data.locale, skipExtra: this.data.skipExtra, itemId: state.item.id, time: state.time, updatedAt: now });
+      this._checkpointWrite = { key, at: now, time: state.time };
+    } catch (error) { diag('checkpoint-save', error.message); }
     this.syncContext();
   },
   playedKey() { return storage.scoped(this._user, 'before:' + (this.data.visit ? this.data.visit.visitId : 'preview')); },
   play(restore = false, replay = false, localCheckpoint = null) {
     if (!this.data.stop || (!this._visible && !config.background) || this._asking || this.roomAudioActive() || this._user !== ui.userId()) return;
+    translation.yieldToTour();
     this._pendingPlayback = null;
     this._deferredResume = null;
     const guide = this.data.guides[this.data.guideIndex];
@@ -454,7 +540,7 @@ Page({
       audio.playQueue('tour', items, {
         video: (item, generation) => { if (!item || key === this.contextKey()) this.updateSequenceVideo(item, generation); },
         videoControl: (command, value) => { const context = my.createVideoContext('tour-interlude-video'); if (command === 'seek') context.seek(value); else context[command](); },
-        change: state => { if (key !== this.contextKey()) return; this.setData({ playing: state.playing, paused: !!state.item && !state.playing, hasDuration: state.duration > 0, itemTitle: state.item && state.item.title || '', timeLabel: ui.clock(state.time), durationLabel: ui.clock(state.duration), progress: state.duration ? Math.min(100, state.time / state.duration * 100) : 0 }); this.saveCheckpoint(); },
+        change: state => this.updatePlaybackProgress(state, key),
         itemEnded: item => { if (key === this.contextKey() && item && item.kind === 'before' && !this.data.browsing) { const played = storage.read(this.playedKey(), []); if (!played.includes(item.id)) storage.write(this.playedKey(), played.concat(item.id)); } },
         error: e => { if (key === this.contextKey()) this.setData({ audioError: e.message }); },
         finished: state => {
@@ -465,17 +551,19 @@ Page({
       }, checkpoint);
     } catch (e) { this.setData({ audioError: e.message }); }
   },
-  togglePlay() { if (this.data.busy || this.data.loading) return; const state = audio.snapshot(); if (state.owner === 'tour' && this.data.playingStopId && this.data.playingStopId !== (this.data.stop && this.data.stop.id)) { this.play(true); return; } if (state.owner === 'tour' && state.playing) { this._userPaused = true; this._resumeFromChat = false; this.saveCheckpoint(); audio.pause(); } else if (state.owner === 'tour' && state.item) { this._userPaused = false; audio.resume('tour'); } else this.play(true); },
+  togglePlay() { if (this.data.busy || this.data.loading || this.roomAudioActive()) return; const state = audio.snapshot(); if (state.owner === 'tour' && this.data.playingStopId && this.data.playingStopId !== (this.data.stop && this.data.stop.id)) { this.play(true); return; } if (state.owner === 'tour' && state.playing) { this._userPaused = true; this._resumeFromChat = false; this.saveCheckpoint(); audio.pause(); } else if (state.owner === 'tour' && state.item) { this._userPaused = false; audio.resume('tour'); } else this.play(true); },
   replay() { if (this.data.busy || this.data.loading) return; storage.remove(storage.scoped(this._user, 'checkpoint')); this.play(false, true); },
   playExtra(event) { if (this.data.busy || this.data.loading || !this.data.stop) return; const item = (this.data.stop.extraAudios || []).find(a => a.id === ui.dataset(event).id); if (!item || !item.url) return; this.saveCheckpoint(); this.playExtraItem({ id: item.id, url: item.url, title: item.title, kind: item.position }); },
   playExtraItem(item, time = 0) {
+    if (!this._visible || this._asking || this.roomAudioActive() || this._user !== ui.userId()) return;
+    translation.yieldToTour();
     const resume = this.capturePlayback();
     if (resume && !resume.extra) this._extraResume = resume;
     const key = this.contextKey(); this._extraPlayback = true; this._playbackItems = [item]; this._userPaused = false; this.setData({ playingStopId: this.data.stop && this.data.stop.id || '', paused: false });
     try { audio.playQueue('tour', [item], {
       video: (video, generation) => { if (!video || key === this.contextKey()) this.updateSequenceVideo(video, generation); },
       videoControl: (command, value) => { const context = my.createVideoContext('tour-interlude-video'); if (command === 'seek') context.seek(value); else context[command](); },
-      change: state => { if (key === this.contextKey()) this.setData({ playing: state.playing, paused: !!state.item && !state.playing, hasDuration: state.duration > 0, itemTitle: item.title || '', timeLabel: ui.clock(state.time), durationLabel: ui.clock(state.duration), progress: state.duration ? state.time / state.duration * 100 : 0 }); },
+      change: state => this.updatePlaybackProgress(state, key, item.title || ''),
       error: e => { if (key === this.contextKey()) this.setData({ audioError: e.message }); },
       finished: () => {
         if (key !== this.contextKey()) return;
@@ -547,10 +635,12 @@ Page({
   playQueued(event) { const item = this.data.sequence.find(s => s.id === ui.dataset(event).id && s.status === 'queued'); if (item) { this._userPaused = false; if (!this.data.busy && this._pendingPlayback && this._pendingPlayback.key === this.contextKey() && item.id === this.data.stop.id) { this._pendingPlayback.automatic = false; this.flushPlayback(); return; } this.mutate(() => this.enter(item.index)); } },
   skipQueued(event) { if (this.data.busy || this.data.loading) return; const item = this.data.sequence.find(s => s.id === ui.dataset(event).id && s.status === 'queued'); if (item) { if (this._pendingPlayback && item.id === (this.data.stop && this.data.stop.id)) { this._pendingPlayback = null; this.setData({ browsing: true }); } this.sequenceStatus(item.id, 'skipped', item.index); this.startNextSequence(); } },
   toggleLocation(event) {
+    this.setData({ messages: Object.assign({}, this.data.messages, driverMessages(this.data.locale)) });
     if (this._routeMatcher) this._routeMatcher.reset();
     this.clearArrivalPrompt();
     this._followCenter = null;
-    const enabled = !!ui.value(event); this.setData({ locationEnabled: enabled, locationNote: enabled ? this.data.messages.locationUnknown : this.data.messages.locationHint }); this._dwell = null; this._arrivalPreviousFix = null; this._arrivalLogged = new Set(); this._dismissedCandidates = new Set();
+    const requested = !!ui.value(event), enabled = requested && this.driverRoomAvailable();
+    this.setData({ locationEnabled: enabled, locationNote: requested && !enabled ? driverMessages(this.data.locale).driverRoomRequired : enabled ? this.data.messages.locationUnknown : this.data.messages.locationHint }); this._dwell = null; this._arrivalPreviousFix = null; this._arrivalLogged = new Set(); this._dismissedCandidates = new Set();
     if (enabled) this.watchLocation(); else { if (this._watch) this._watch(); this._watch = null; this._fix = null; this.setData({ candidates: [], following: false, 'map.markers': this.data.map.markers.filter(marker => marker.id !== 0) }); }
   },
   watchLocation(refresh = false) {
@@ -614,6 +704,12 @@ Page({
     if (this.data.locationEnabled) this._watch = stopWatch; else stopWatch();
   },
   locationFailed(error) {
+    if (error.reason === 'driverRoomRequired') {
+      this.toggleLocation({ detail: { value: false } });
+      if (!translation.snapshot().reconnecting) translation.setFollowing(false);
+      this.setData({ locationNote: driverMessages(this.data.locale).driverRoomRequired });
+      return;
+    }
     this._fix = null;
     this._dwell = null; this._arrivalPreviousFix = null; this._followCenter = null;
     this.clearArrivalPrompt();

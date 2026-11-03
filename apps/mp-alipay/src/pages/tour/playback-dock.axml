@@ -3,7 +3,7 @@
     <button class="dock-room" onTap="translationRoom"><view class="dock-headphones-icon"/><text>{{hasTranslationRoom ? messages.commentaryRoom : messages.liveCommentary}}</text><view a:if="{{hasTranslationRoom}}" class="dock-live-dot"/></button>
     <button class="dock-nearby {{locationEnabled ? 'is-active' : ''}}" onTap="toggleTracking" disabled="{{busy || loading}}" aria-pressed="{{locationEnabled}}" aria-label="{{locationEnabled ? messages.stopLocate : messages.locate}}"><text>{{locationEnabled ? messages.locationReady : messages.locate}}</text><view class="dock-switch"><view/></view></button>
   </view>
-  <view a:if="{{locationEnabled || locationNote === messages.permissionDenied || locationNote === messages.locationFailed}}" class="dock-location-note" role="status">{{locationNote}}</view>
+  <view a:if="{{locationEnabled || locationNote === messages.driverRoomRequired}}" class="dock-location-note" role="status">{{locationNote}}</view>
   <view class="dock-main">
     <button class="dock-play" onTap="togglePlay" disabled="{{busy || loading || !canPlayStop}}" aria-label="{{playing ? messages.pause : paused ? messages.resume : messages.play}}"><view class="{{playing ? 'dock-pause-icon' : 'dock-play-icon'}}"/></button>
     <button class="dock-story" onTap="openContent" aria-label="{{messages.content}}"><view class="dock-caption">{{stopIndex + 1}} / {{stops.length}} · {{playing ? messages.playingNow : messages.content}}</view><view class="dock-story-title">{{stop.name}}</view><view a:if="{{itemTitle}}" class="dock-item-title">{{itemTitle}}</view></button>

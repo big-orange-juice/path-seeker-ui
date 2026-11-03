@@ -114,6 +114,7 @@ test('map follows GCJ coordinates, ignores weak fixes and retains range outlines
 
 test('driver marker updates without camera follow, stays separate from stops and clears when unavailable', () => {
   const h = harness(), page = setupTour(h); let deliver, fail, stopped = 0;
+  page.driverRoomAvailable = () => true;
   h.load('services/location').watch = (onFix, onError) => { deliver = onFix; fail = onError; return () => stopped++; };
   const station = { id: 1, longitude: 116.4, latitude: 39.95 };
   page.setData({ 'map.markers': [station], following: false });

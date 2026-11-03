@@ -5,20 +5,23 @@ import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
-import java.io.ByteArrayOutputStream;
+import android.os.Handler;
+import android.os.Looper;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 final class DriverQuestionPlayer {
-    private final Context context;
     private final SessionStore store;
     private final java.util.function.Consumer<String> status;
     private final LinkedHashMap<String, JSONObject> questions = new LinkedHashMap<>();
-    private final ArrayDeque<byte[]> audio = new ArrayDeque<>();
+    private final ArrayDeque<File> audio = new ArrayDeque<>();
+    private final QuestionAudioPreparation preparation;
     private final AudioManager manager;
     private final AudioAttributes attributes = new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build();
@@ -26,10 +29,14 @@ final class DriverQuestionPlayer {
     private MediaPlayer player;
     private File currentFile;
     private boolean playing;
+    private int generation;
+    private boolean closed;
 
     DriverQuestionPlayer(Context context, SessionStore store, java.util.function.Consumer<String> status) {
-        this.context = context; this.store = store; this.status = status;
+        this.store = store; this.status = status;
         manager = context.getSystemService(AudioManager.class);
+        Handler handler = new Handler(Looper.getMainLooper());
+        preparation = new QuestionAudioPreparation(context.getCacheDir(), command -> handler.post(command));
     }
 
     void accept(JSONObject question) {
@@ -37,8 +44,16 @@ final class DriverQuestionPlayer {
         if (id.isEmpty()) return;
         questions.put(id, question);
         while (questions.size() > 8) questions.remove(questions.keySet().iterator().next());
-        long total = questions.values().stream().mapToLong(value -> value.optJSONArray("audio") == null ? 0 : value.optJSONArray("audio").toString().length()).sum();
-        if (total > 8 * 1024 * 1024) question.remove("audio");
+        long total = 0;
+        for (JSONObject pending : questions.values()) {
+            JSONArray sentences = pending.optJSONArray("audio");
+            if (sentences == null) continue;
+            for (int index = 0; index < sentences.length(); index++) {
+                JSONObject sentence = sentences.optJSONObject(index);
+                if (sentence != null) total += sentence.optString("hex").length();
+            }
+        }
+        if (total > QuestionAudioPreparation.MAX_HEX_CHARACTERS) question.remove("audio");
         publish();
     }
 
@@ -59,60 +74,74 @@ final class DriverQuestionPlayer {
 
     void play() {
         stop();
+        if (closed) return;
         publish();
+        int token = generation;
+        List<String> sentencesToPrepare = new ArrayList<>();
+        LinkedHashMap<JSONObject, JSONArray> selected = new LinkedHashMap<>();
         try {
             for (JSONObject question : questions.values()) {
                 JSONArray sentences = question.optJSONArray("audio");
                 if (sentences == null) continue;
+                selected.put(question, sentences);
                 for (int index = 0; index < sentences.length(); index++) {
                     JSONObject sentence = sentences.getJSONObject(index);
                     if (!"mp3".equals(sentence.optString("format", "mp3"))) continue;
                     String hex = sentence.optString("hex");
-                    if (hex.isEmpty() || hex.length() % 2 != 0 || hex.length() > 8 * 1024 * 1024) continue;
-                    ByteArrayOutputStream bytes = new ByteArrayOutputStream(hex.length() / 2);
-                    for (int offset = 0; offset < hex.length(); offset += 2) {
-                        int high = Character.digit(hex.charAt(offset), 16), low = Character.digit(hex.charAt(offset + 1), 16);
-                        if (high < 0 || low < 0) throw new IllegalArgumentException("提问音频格式异常");
-                        bytes.write((high << 4) | low);
-                    }
-                    audio.add(bytes.toByteArray());
+                    if (hex.isEmpty()) continue;
+                    sentencesToPrepare.add(hex);
+                    if (sentencesToPrepare.size() > QuestionAudioPreparation.MAX_FILES) throw new IllegalArgumentException("提问音频数量异常");
                 }
-                question.remove("audio");
             }
-            if (audio.isEmpty()) { status.accept("没有待收听的提问，可查看提问文字"); publish(); return; }
-            focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(attributes)
-                .setOnAudioFocusChangeListener(change -> { if (change < 0) { stop(); status.accept("提问播放已中断，请继续讲解"); } }).build();
-            if (manager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) throw new IllegalStateException("音频正在被其他应用使用");
-            playing = true; publish(); status.accept("正在收听游客提问，麦克风已暂停");
-            next();
+            if (sentencesToPrepare.isEmpty()) { status.accept("没有待收听的提问，可查看提问文字"); return; }
+            playing = true; publish(); status.accept("正在准备提问音频，麦克风已暂停");
+            preparation.prepare(sentencesToPrepare, new QuestionAudioPreparation.Listener() {
+                @Override public void ready(List<File> files) {
+                    if (closed || token != generation) { preparation.discard(files); return; }
+                    audio.addAll(files);
+                    try {
+                        focus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(attributes)
+                            .setOnAudioFocusChangeListener(change -> { if (token == generation && change < 0) { stop(); status.accept("提问播放已中断，请继续讲解"); } }).build();
+                        if (manager.requestAudioFocus(focus) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) throw new IllegalStateException("音频正在被其他应用使用");
+                        selected.forEach((question, sentences) -> { if (question.optJSONArray("audio") == sentences) question.remove("audio"); });
+                        publish(); status.accept("正在收听游客提问，麦克风已暂停");
+                        next(token);
+                    } catch (Exception failure) { stop(); status.accept("提问播放失败，请查看文字后继续讲解"); }
+                }
+                @Override public void failed(Exception failure) {
+                    if (closed || token != generation) return;
+                    stop(); status.accept("提问音频不可用，请查看文字后继续讲解");
+                }
+            });
         } catch (Exception failure) { stop(); status.accept("提问播放失败，请查看文字后继续讲解"); }
     }
 
-    private void next() {
+    private void next(int token) {
+        if (closed || token != generation) return;
         releasePlayer();
-        byte[] bytes = audio.poll();
-        if (bytes == null) { stop(); status.accept("提问收听完毕，点击麦克风继续讲解"); return; }
+        currentFile = audio.poll();
+        if (currentFile == null) { stop(); status.accept("提问收听完毕，点击麦克风继续讲解"); return; }
         try {
-            currentFile = File.createTempFile("driver-question-", ".mp3", context.getCacheDir());
-            try (FileOutputStream output = new FileOutputStream(currentFile)) { output.write(bytes); }
             player = new MediaPlayer(); player.setAudioAttributes(attributes); player.setDataSource(currentFile.getAbsolutePath());
-            player.setOnPreparedListener(MediaPlayer::start);
-            player.setOnCompletionListener(completed -> next());
-            player.setOnErrorListener((failed, what, extra) -> { stop(); status.accept("提问音频不可用，请查看文字"); return true; });
+            player.setOnPreparedListener(prepared -> { if (!closed && token == generation && prepared == player) prepared.start(); });
+            player.setOnCompletionListener(completed -> { if (token == generation && completed == player) next(token); });
+            player.setOnErrorListener((failed, what, extra) -> { if (token == generation && failed == player) { stop(); status.accept("提问音频不可用，请查看文字"); } return true; });
             player.prepareAsync();
         } catch (Exception failure) { stop(); status.accept("提问音频不可用，请查看文字"); }
     }
 
     private void releasePlayer() {
         if (player != null) { player.release(); player = null; }
-        if (currentFile != null) { currentFile.delete(); currentFile = null; }
+        if (currentFile != null) { preparation.discard(Collections.singletonList(currentFile)); currentFile = null; }
     }
 
     void stop() {
-        audio.clear(); releasePlayer(); playing = false;
+        generation++; preparation.cancel();
+        releasePlayer(); preparation.discard(new ArrayList<>(audio)); audio.clear(); playing = false;
         if (focus != null) { manager.abandonAudioFocusRequest(focus); focus = null; }
         publish();
     }
 
     void clear() { questions.clear(); stop(); }
+    void close() { closed = true; clear(); preparation.close(); }
 }

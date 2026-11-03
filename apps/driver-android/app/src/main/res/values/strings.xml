@@ -1,8 +1,8 @@
 <resources>
     <string name="app_name">寻迹车夫</string>
-    <string name="brand_name">PATH SEEKER · DRIVER</string>
-    <string name="driver_login">车夫登录</string>
-    <string name="login_introduction">登录后创建房间，开始共享行程位置。</string>
+    <string name="brand_name">寻迹 · 车夫端</string>
+    <string name="driver_login">车夫工作台</string>
+    <string name="login_introduction">连接游客，一路好好讲。\n登录后开启房间、共享位置与实时讲解。</string>
     <string name="account_label">账号</string>
     <string name="account_hint">手机号 / 用户名 / 邮箱</string>
     <string name="password_label">密码</string>
@@ -23,7 +23,7 @@
     <string name="recenter_action">定位</string>
     <string name="room_code_value">房间码：%1$s</string>
     <string name="room_qr_description">游客加入房间二维码</string>
-    <string name="no_room_code">尚未开房</string>
+    <string name="no_room_code">等待开启</string>
     <string name="create_room_action">创建房间</string>
     <string name="room_code_action">游客扫码</string>
     <string name="sharing_stopped">位置共享未开启</string>
@@ -41,7 +41,11 @@
     <string name="missing_amap_key">请先保存高德定位 Key</string>
     <string name="start_failed">启动失败：%1$s</string>
     <string name="amap_key_label">高德 Android Key</string>
-    <string name="console_title">实时讲解 · 房间码</string>
+    <string name="console_title">游客房间</string>
+    <string name="console_heading">行程工作台</string>
+    <string name="room_ready">房间已开启</string>
+    <string name="room_waiting">尚未开房</string>
+    <string name="transcript_label">实时转写</string>
     <string name="commentary_idle">创建房间后，点击麦克风开始讲解</string>
     <string name="commentary_start">开始讲解</string>
     <string name="commentary_pause">暂停收音</string>

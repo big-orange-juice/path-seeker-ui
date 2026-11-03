@@ -14,8 +14,8 @@ android {
         applicationId 'com.pathseeker.driver'
         minSdk 26
         targetSdk 35
-        versionCode 3
-        versionName '0.3.0'
+        versionCode 4
+        versionName '0.3.1'
         buildConfigField 'String', 'AMAP_KEY', groovy.json.JsonOutput.toJson(localSettings.getProperty('amap.key', ''))
         manifestPlaceholders = [AMAP_KEY: localSettings.getProperty('amap.key', '')]
     }

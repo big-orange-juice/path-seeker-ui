@@ -35,7 +35,7 @@ test('first tour launch waits for language selection and preserves a linked rout
   const start = p.startVisit(); h.requests[3].ok(visit()); await tick();
   h.requests[4].ok(visit()); await start;
   assert.equal(p.data.tourStage, 'navigation'); assert.equal(p.data.contentOpen, false);
-  assert.equal(p.data.autoplay, true); assert.equal(p.data.locationEnabled, true);
+  assert.equal(p.data.autoplay, true); assert.equal(p.data.locationEnabled, false);
   assert.equal(locationRequests.length, 0);
   p.toggleTracking(); p.onHide(); p.onShow();
   assert.equal(p.data.locationEnabled, false); assert.equal(locationRequests.length, 0);
@@ -56,7 +56,7 @@ test('remembered language opens an empty overview and restored visits open the n
   restored.onLoad({ lang: 'zh', routeId }); await tick(); h.requests[0].ok({ routes: [route()], destinations: [], places: [] }); await tick();
   h.requests[1].ok({ route: route(), stops: [stop()] }); await tick(); h.requests[2].ok(visit()); await tick();
   assert.equal(restored.data.tourStage, 'navigation'); assert.equal(restored.data.contentOpen, false);
-  assert.equal(restored.data.locationEnabled, true); assert.equal(restored.data.autoplay, true);
+  assert.equal(restored.data.locationEnabled, false); assert.equal(restored.data.autoplay, true);
   assert.equal(locationRequests.length, 0);
   restored.onUnload(); page.onUnload();
 });
@@ -173,6 +173,7 @@ test('restored playback sequence reconciles server progress and discards another
 test('重新开启近站可启动已有队列，但不覆盖用户主动暂停', () => {
   for (const paused of [false, true]) {
     const h = harness(), p = tourPage(h, visit());
+    p.driverRoomAvailable = () => true;
     p.setData({ stops: [stop(), stop('next', 2)], browsing: true });
     p._manualBrowse = true; p._userPaused = paused;
     p.sequenceStatus('next', 'queued', 1); p.watchLocation = () => {};
@@ -261,6 +262,7 @@ test('GPS stability shows a three-second prompt while manual browsing keeps curr
 test('enabling nearby stories follows location and starts stable candidates after the prompt expires', async t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
   const h = harness(), p = tourPage(h, visit({ currentStageId: null })); let onFix, stopped = 0;
+  p.driverRoomAvailable = () => true;
   h.load('services/location').watch = callback => { onFix = callback; return () => stopped++; };
   p.showStop(0, true); p.toggleTracking();
   assert.equal(p.data.locationEnabled, true); assert.equal(p.data.autoplay, true); assert.equal(p.data.following, true);
@@ -281,6 +283,7 @@ test('enabling nearby stories follows location and starts stable candidates afte
 
 test('weak driver precision is tolerated briefly, then missing driver coordinates clear arrival state', () => {
   const h = harness(), p = tourPage(h, visit({ currentStageId: null })); let onFix, onError;
+  p.driverRoomAvailable = () => true;
   h.load('services/location').watch = (fix, error) => { onFix = fix; onError = error; return () => {}; };
   p.showStop(0, true); p.toggleTracking();
   const fix = { longitude: 116.383, latitude: 39.937, accuracy: 10, timestamp: Date.now() };

@@ -80,6 +80,7 @@ test('marker and camera use the same corrected point while retaining the origina
 test('returning to the foreground refreshes the driver watch and clears old arrival state', t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() });
   const h = harness(), page = h.page('tour'); let refreshes = 0, watches = 0;
+  page.driverRoomAvailable = () => true;
   h.load('services/location').watch = () => { watches++; const stop = () => {}; stop.refresh = () => refreshes++; return stop; };
   page._visible = true;
   page.setData({ locationEnabled: true });

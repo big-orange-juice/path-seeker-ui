@@ -52,13 +52,13 @@ test('a fresh visit starts at the first stop even when the last preview was Houh
   h.requests[1].ok({ ...fresh, currentStageId: firstId }); await starting; page.onUnload();
 });
 
-test('restoring navigation enables nearby guidance and resumes the current stop by default', async () => {
+test('restoring navigation without a room keeps driver following off and resumes the current stop', async () => {
   const { h, page, route, stops, visit, audio } = setup();
   page.setData({ autoplay: false });
   const selecting = page.selectRoute(routeId, true);
   h.requests[0].ok({ route, stops, coordinateSystem: 1 }); await tick();
   h.requests[1].ok(visit); await selecting;
-  assert.equal(page.data.locationEnabled, true); assert.equal(page.data.autoplay, true);
+  assert.equal(page.data.locationEnabled, false); assert.equal(page.data.autoplay, true);
   assert.equal(audio.snapshot().item.id, 'chapter-' + barId);
   assert.equal(page.data.sequence.find(item => item.id === barId).status, 'playing');
   assert.equal(page.data.contentOpen, false); page.onUnload();
@@ -122,4 +122,30 @@ test('cold launch discards an ended visit queue, while a failed end leaves the a
   reopened.requests[2].ok(null); await tick();
   assert.equal(freshPage.data.tourStage, 'overview'); assert.equal(freshPage.data.stop.id, firstId);
   assert.deepEqual(plain(freshPage.data.sequence), []); freshPage.onUnload();
+});
+
+test('ending a journey clears its room and cancels pending recovery, while a failed end keeps the room', async () => {
+  const { h, page, visit } = setup();
+  const session = h.load('services/translation-session');
+  const sockets = [];
+  h.load('services/translation-room').connect = value => { sockets.push(value); return { close() {}, pause() {} }; };
+  session.attach({ roomId: '9223372036854775801', code: '12345678', status: 'paused', isHost: false }, 'en');
+  const cacheKey = 'path-seeker:alipay:v1:user:' + userId + ':commentary-room';
+  const failed = page.endVisit(); h.confirms[0].success({ confirm: true }); await tick();
+  h.requests[0].reject({ errorMessage: 'offline' }); await failed;
+  assert.equal(h.storage.has(cacheKey), true);
+  session.suspend();
+  const restoring = session.resume(), pending = h.requests[1];
+  const ending = page.endVisit(); h.confirms[1].success({ confirm: true }); await tick();
+  h.requests[2].ok({ ...visit, status: 3 }); await ending;
+  assert.equal(pending.aborted, true);
+  assert.equal(h.storage.has(cacheKey), false);
+  assert.equal(session.snapshot().room, null);
+  pending.ok({ roomId: '9223372036854775801', code: '12345678', status: 'paused', isHost: false });
+  await restoring;
+  h.requests[3].ok({});
+  await session.resume();
+  assert.equal(h.requests.length, 4);
+  assert.equal(sockets.length, 1);
+  page.onUnload();
 });

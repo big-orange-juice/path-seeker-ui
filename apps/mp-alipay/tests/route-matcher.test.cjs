@@ -133,6 +133,7 @@ test('an ambiguous shared crossing stays raw until further movement distinguishe
 function arrivalSetup(t, type = 'circle') {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: baseTime });
   const h = harness(), page = h.page('tour'), anchor = gcj02ToWgs84(point(40, 0));
+  page.driverRoomAvailable = () => true;
   h.load('config').routeCorrection = true;
   const stops = [{ id: 'current', placeId: 'current-place', name: 'current', ...gcj02ToWgs84(point(-200, 0)), images: [], guideNarrations: [] }, { id: 'nearby', placeId: 'nearby-place', name: 'nearby', ...anchor, images: [], guideNarrations: [] }];
   page._rev = 0; page._visible = true; page._user = userId; page._detail = { coordinateSystem: 1 };
