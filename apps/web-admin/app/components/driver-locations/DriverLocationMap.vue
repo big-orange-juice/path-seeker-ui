@@ -12,7 +12,7 @@ const props = defineProps<{
   historyPending: boolean;
   historyError: string;
 }>();
-const emit = defineEmits<{ select: [roomId: string]; retryHistory: [] }>();
+const emit = defineEmits<{ select: [roomId: string]; overview: []; retryHistory: [] }>();
 const selected = computed(() => props.rows.find(row => row.roomId === props.selectedId));
 const hasPosition = computed(() => selected.value?.longitude != null && selected.value.latitude != null);
 const container = useTemplateRef<HTMLDivElement>('container');
@@ -31,6 +31,11 @@ const markers = new Map<string, { marker: any; content: HTMLButtonElement }>();
 function focusSelected() {
   const row = selected.value;
   if (row?.longitude != null && row.latitude != null) map?.setZoomAndCenter(17, [row.longitude, row.latitude]);
+}
+
+function fitAllDrivers() {
+  fitted = !!markers.size;
+  if (fitted) map?.setFitView([...markers.values()].map(entry => entry.marker), false, [55, 55, 55, 55], 17);
 }
 
 function renderHistory() {
@@ -88,16 +93,14 @@ function render() {
   for (const [id, entry] of markers) {
     if (!visible.has(id)) { map.remove(entry.marker); markers.delete(id); }
   }
-  if (!fitted && markers.size) {
-    map.setFitView([...markers.values()].map(entry => entry.marker), false, [55, 55, 55, 55], 17);
-    fitted = true;
-  }
+  if (!fitted && markers.size) fitAllDrivers();
 }
 
 watch(() => props.rows, render);
 watch(() => [props.selectedId, props.focusRequest], () => {
   render();
-  focusSelected();
+  if (props.selectedId) focusSelected();
+  else fitAllDrivers();
 });
 watch([() => props.history, () => selected.value?.roomId], renderHistory);
 onMounted(async () => {
@@ -127,6 +130,7 @@ onBeforeUnmount(() => { alive = false; observer?.disconnect(); map?.destroy(); m
       </div>
       <div class="flex flex-wrap gap-2">
         <Button v-if="historyError" size="sm" variant="outline" :disabled="historyPending" @click="emit('retryHistory')">重试轨迹</Button>
+        <Button size="sm" variant="outline" @click="emit('overview')">总览全部车夫</Button>
         <Button size="sm" variant="outline" :disabled="!hasPosition" @click="focusSelected">聚焦当前位置</Button>
         <Button size="sm" variant="outline" :disabled="!history.length" @click="fitHistory">查看完整轨迹</Button>
       </div>

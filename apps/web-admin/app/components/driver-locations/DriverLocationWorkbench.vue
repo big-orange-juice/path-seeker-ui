@@ -19,6 +19,13 @@ function selectRoom(roomId: string) {
   focusRequest.value += 1;
 }
 
+function showOverview() {
+  selectedId.value = '';
+  keyword.value = '';
+  status.value = '';
+  focusRequest.value += 1;
+}
+
 function refreshAll() {
   void refresh();
   void refreshHistory();
@@ -36,7 +43,7 @@ function refreshAll() {
     <p v-if="error" role="alert" class="text-sm text-destructive">{{ error }}{{ updatedAt ? '；当前显示上次获取的位置。' : '；尚未获取到车夫位置。' }}</p>
     <div class="grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
       <DriverLocationList :rows="filtered" :selected-id="selectedId" :pending="pending" @select="selectRoom" />
-      <DriverLocationMap :rows="filtered" :selected-id="selectedId" :focus-request="focusRequest" :history="points" :history-pending="historyPending" :history-error="historyError" @select="selectRoom" @retry-history="refreshHistory" />
+      <DriverLocationMap :rows="filtered" :selected-id="selectedId" :focus-request="focusRequest" :history="points" :history-pending="historyPending" :history-error="historyError" @select="selectRoom" @overview="showOverview" @retry-history="refreshHistory" />
     </div>
   </div>
 </template>

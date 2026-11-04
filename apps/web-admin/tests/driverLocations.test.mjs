@@ -151,7 +151,28 @@ test('repeated pagination cursors stop with a recoverable error', async () => {
   fixture.dispose()
 })
 
-test('map focuses after SDK loading, refocuses the same room, and preserves viewport during refresh', async () => {
+test('overview clears selection and filters, and allows selecting a driver again', () => {
+  const keyword = vue.shallowRef('车夫')
+  const status = vue.shallowRef('online')
+  const selectedId = vue.shallowRef(roomId)
+  const source = readFileSync(new URL('../app/components/driver-locations/DriverLocationWorkbench.vue', import.meta.url), 'utf8')
+    .split('<script setup lang="ts">')[1].split('</script>')[0]
+  const workbench = compile(`${source}\nexport { showOverview, selectRoom, focusRequest }`, {
+    vue,
+    '@/composables/useDriverLocations': { useDriverLocations: () => ({ keyword, status, selectedId }) },
+    '@/composables/useDriverLocationHistory': { useDriverLocationHistory: () => ({ refresh: () => {} }) },
+  })
+  workbench.showOverview()
+  assert.equal(selectedId.value, '')
+  assert.equal(keyword.value, '')
+  assert.equal(status.value, '')
+  assert.equal(workbench.focusRequest.value, 1)
+  workbench.selectRoom(otherRoomId)
+  assert.equal(selectedId.value, otherRoomId)
+  assert.equal(workbench.focusRequest.value, 2)
+})
+
+test('map focuses after SDK loading, preserves viewport during refresh, and restores all drivers on overview', async () => {
   const mounted = []
   const unmount = []
   const focusCalls = []
@@ -206,10 +227,28 @@ test('map focuses after SDK loading, refocuses the same room, and preserves view
   assert.equal(focusCalls.length, 2)
   assert.equal(fitCalls.length, initialFits)
   assert.equal([...overlays].some(overlay => overlay instanceof Polyline), false)
+  props.rows = [
+    props.rows[0],
+    { ...props.rows[0], roomId: otherRoomId, longitude: 116.38, latitude: 39.94 },
+    { ...props.rows[0], roomId: 'waiting', longitude: null, latitude: null },
+  ]
+  props.selectedId = ''
+  props.focusRequest += 1
+  props.history = []
+  await vue.nextTick()
+  assert.equal(focusCalls.length, 2)
+  assert.equal(fitCalls.length, initialFits + 1)
+  assert.equal(overlays.size, 2)
+  assert.deepEqual(new Set(fitCalls.at(-1)[0]), overlays)
+  assert.equal([...overlays].every(overlay => !overlay.options.content.className.includes('is-selected')), true)
+  props.rows = props.rows.map(row => row.roomId === roomId ? { ...row, longitude: 116.46 } : row)
+  await vue.nextTick()
+  assert.equal(fitCalls.length, initialFits + 1)
   props.selectedId = otherRoomId
   props.history = []
   await vue.nextTick()
-  assert.equal(overlays.size, 1)
+  assert.deepEqual(focusCalls.at(-1), [17, [116.38, 39.94]])
+  assert.equal(overlays.size, 2)
   unmount.forEach(handler => handler())
   scope.stop()
   assert.equal(overlays.size, 0)
