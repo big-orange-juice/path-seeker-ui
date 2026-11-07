@@ -2,8 +2,9 @@ const auth = require('../../services/auth');
 const storage = require('../../services/storage');
 const ui = require('../../core/ui');
 const { authOptions = {} } = require('../../config');
+const invitation = require('../../services/room-invitation');
 Page({
-  onLoad(query = {}) { this._returnAfterPhone = query.phone === '1'; if (this._returnAfterPhone) this.setData({ requirePhoneNumber: true, postcardPhone: true }); },
+  onLoad(query = {}) { this._inviteCode = invitation.read(query); this._returnAfterPhone = query.phone === '1'; if (this._returnAfterPhone) this.setData({ requirePhoneNumber: true, postcardPhone: true }); },
   data: { guestLoginEnabled: authOptions.guestLogin === true, passwordLoginEnabled: authOptions.passwordLogin === true, requirePhoneNumber: authOptions.requirePhoneNumber !== false, register: false, account: '', password: '', username: '', phone: '', email: '', nickname: '', busy: false, error: '', agreed: false },
   onShow() { this._visible = true; },
   onHide() { this._visible = false; },
@@ -20,7 +21,7 @@ Page({
     try {
       await auth.loginAlipay({ requirePhoneNumber: this.data.requirePhoneNumber });
       this.setData({ password: '' });
-      if (this._visible) { if (this._returnAfterPhone && getCurrentPages().length > 1) my.navigateBack(); else my.reLaunch({ url: '/pages/tour/index?view=routes' }); }
+      if (this._visible) this.finishLogin('/pages/tour/index?view=routes');
     } catch (error) { if (this._visible) ui.error(this, error); }
     finally { this.setData({ busy: false }); }
   },
@@ -32,9 +33,10 @@ Page({
     this.setData({ busy: true, error: '' });
     try {
       await auth.login(d.register ? { username: d.username.trim() || null, phone: d.phone.trim() || null, email: d.email.trim() || null, password: d.password, nickname: d.nickname.trim() || null, preferredLang: storage.read('locale', 'zh') } : { account: d.account.trim(), password: d.password }, d.register);
-      this.setData({ password: '' }); if (this._visible) my.reLaunch({ url: '/pages/tour/index?view=routes' });
+      this.setData({ password: '' }); if (this._visible) this.finishLogin('/pages/tour/index?view=routes');
     } catch (e) { if (this._visible) ui.error(this, e); }
     finally { this.setData({ busy: false }); }
   },
-  async guest() { if (authOptions.guestLogin !== true || this.data.busy) return; this.setData({ busy: true, error: '' }); try { await auth.ensure(); if (this._visible) my.reLaunch({ url: '/pages/tour/index' }); } catch (e) { if (this._visible) ui.error(this, e); } finally { this.setData({ busy: false }); } }
+  finishLogin(defaultUrl) { if (this._inviteCode) my.reLaunch({ url: invitation.url(this._inviteCode) }); else if (this._returnAfterPhone && getCurrentPages().length > 1) my.navigateBack(); else my.reLaunch({ url: defaultUrl }); },
+  async guest() { if (authOptions.guestLogin !== true || this.data.busy) return; this.setData({ busy: true, error: '' }); try { await auth.ensure(); if (this._visible) this.finishLogin('/pages/tour/index'); } catch (e) { if (this._visible) ui.error(this, e); } finally { this.setData({ busy: false }); } }
 });

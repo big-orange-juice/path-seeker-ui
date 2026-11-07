@@ -1,8 +1,9 @@
 <resources>
     <string name="app_name">寻迹车夫</string>
     <string name="brand_name">寻迹 · 车夫端</string>
-    <string name="driver_login">车夫工作台</string>
-    <string name="login_introduction">连接游客，一路好好讲。\n登录后开启房间、共享位置与实时讲解。</string>
+    <string name="driver_login">开始今天的讲解</string>
+    <string name="login_introduction">开启讲解房间，与游客分享沿途故事。</string>
+    <string name="login_form_title">账号登录</string>
     <string name="account_label">账号</string>
     <string name="account_hint">手机号 / 用户名 / 邮箱</string>
     <string name="password_label">密码</string>
@@ -23,7 +24,7 @@
     <string name="recenter_action">定位</string>
     <string name="room_code_value">房间码：%1$s</string>
     <string name="room_qr_description">游客加入房间二维码</string>
-    <string name="no_room_code">等待开启</string>
+    <string name="no_room_code">准备出发</string>
     <string name="create_room_action">创建房间</string>
     <string name="room_code_action">游客扫码</string>
     <string name="sharing_stopped">位置共享未开启</string>
@@ -41,10 +42,13 @@
     <string name="missing_amap_key">请先保存高德定位 Key</string>
     <string name="start_failed">启动失败：%1$s</string>
     <string name="amap_key_label">高德 Android Key</string>
-    <string name="console_title">游客房间</string>
+    <string name="console_title">讲解房间</string>
     <string name="console_heading">行程工作台</string>
-    <string name="room_ready">房间已开启</string>
-    <string name="room_waiting">尚未开房</string>
+    <string name="room_ready">可加入</string>
+    <string name="room_waiting">未开房</string>
+    <string name="commentary_badge_idle">待开始</string>
+    <string name="commentary_badge_live">讲解中</string>
+    <string name="commentary_badge_paused">已暂停</string>
     <string name="transcript_label">实时转写</string>
     <string name="commentary_idle">创建房间后，点击麦克风开始讲解</string>
     <string name="commentary_start">开始讲解</string>
@@ -54,7 +58,7 @@
     <string name="commentary_text_waiting">你的讲解会在这里转为文字</string>
     <string name="commentary_mic_consent">开启讲解收音</string>
     <string name="commentary_mic_message">开启后将持续使用麦克风，并把语音发送至当前后台，进行语音识别、翻译及向房间内游客播报。息屏或切换应用后收音继续，通知栏持续显示状态；点击暂停收音或断开讲解即可停止。请向游客说明录音用途。\n\n位置共享独立控制，暂停麦克风不会停止定位。</string>
-    <string name="listeners_waiting">等待游客加入</string>
+    <string name="listeners_waiting">创建房间，邀请游客一起听</string>
     <string name="listeners_count">%1$d 位游客 · %2$s</string>
     <string name="source_language">讲话语言</string>
     <string name="trip_details">行程</string>

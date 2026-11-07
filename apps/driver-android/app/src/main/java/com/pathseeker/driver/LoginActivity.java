@@ -36,7 +36,7 @@ public final class LoginActivity extends Activity {
         account.setText(store.preferences().getString("lastAccount", ""));
         consent.setChecked(store.preferences().getBoolean("mapPrivacyAccepted", false));
         findViewById(R.id.privacy).setOnClickListener(view -> DriverUi.privacy(this, store, () -> consent.setChecked(true)));
-        findViewById(R.id.settings).setOnClickListener(view -> { if (!busy) DriverUi.settings(this, store, () -> showFeedback("连接配置已保存")); });
+        findViewById(R.id.settings).setOnClickListener(view -> { if (!busy) DriverUi.settings(this, store, () -> showFeedback("连接配置已保存", false)); });
         login.setOnClickListener(view -> login());
         password.setOnEditorActionListener((view, action, event) -> {
             if (action == android.view.inputmethod.EditorInfo.IME_ACTION_DONE) { login(); return true; }
@@ -74,7 +74,11 @@ public final class LoginActivity extends Activity {
         });
     }
 
-    private void showFeedback(String value) { feedback.setText(value); feedback.setVisibility(View.VISIBLE); }
+    private void showFeedback(String value) { showFeedback(value, true); }
+    private void showFeedback(String value, boolean error) {
+        feedback.setText(value); feedback.setTextColor(getColor(error ? R.color.driver_error : R.color.driver_teal));
+        feedback.setVisibility(View.VISIBLE);
+    }
     private void enterTrip() { startActivity(new Intent(this, MainActivity.class)); finish(); }
     @Override public void onDestroy() { alive = false; worker.shutdown(); super.onDestroy(); }
 }

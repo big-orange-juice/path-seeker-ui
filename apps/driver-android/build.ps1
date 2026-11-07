@@ -10,11 +10,11 @@ if (!(Test-Path -LiteralPath $gradle) -or !(Test-Path -LiteralPath (Join-Path $e
     throw '请先运行 ./bootstrap.ps1 下载命令行构建工具'
 }
 & (Join-Path $projectRoot 'signing.ps1')
-$tasks = switch ($Variant) {
+$tasks = @(switch ($Variant) {
     'Debug' { @(':app:assembleDebug') }
     'Release' { @(':app:assembleRelease') }
     'Check' { @(':app:lintDebug') }
     'All' { @(':app:assembleDebug', ':app:assembleRelease', ':app:lintDebug') }
-}
+})
 & $gradle -p $projectRoot --no-daemon @tasks
 if ($LASTEXITCODE -ne 0) { throw 'Android 构建或检查失败' }

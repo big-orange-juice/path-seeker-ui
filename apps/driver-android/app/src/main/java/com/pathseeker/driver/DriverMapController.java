@@ -25,11 +25,13 @@ final class DriverMapController {
     private LatLng latest;
     private boolean follow = true;
     private final BitmapDescriptor arrow;
+    private final int accent;
 
     DriverMapController(Activity activity, FrameLayout host, SessionStore store, Bundle saved) throws Exception {
         MapsInitializer.updatePrivacyShow(activity, true, true);
         MapsInitializer.updatePrivacyAgree(activity, true);
         MapsInitializer.setApiKey(store.preferences().getString("amapKey", BuildConfig.AMAP_KEY));
+        accent = activity.getColor(R.color.driver_teal);
         view = new MapView(activity);
         host.addView(view, new FrameLayout.LayoutParams(-1, -1));
         view.onCreate(saved);
@@ -58,7 +60,7 @@ final class DriverMapController {
             marker = map.addMarker(new MarkerOptions().position(position).title("车夫当前位置")
                 .icon(arrow).anchor(0.5f, 0.5f));
             accuracy = map.addCircle(new CircleOptions().center(position).radius(fix.optDouble("accuracy", 10))
-                .fillColor(0x1616786B).strokeColor(0x7716786B).strokeWidth(1));
+                .fillColor((accent & 0x00FFFFFF) | 0x16000000).strokeColor((accent & 0x00FFFFFF) | 0x77000000).strokeWidth(1));
         } else {
             marker.setPosition(position); accuracy.setCenter(position); accuracy.setRadius(fix.optDouble("accuracy", 10));
         }
@@ -75,7 +77,7 @@ final class DriverMapController {
         paint.setColor(android.graphics.Color.WHITE); canvas.drawCircle(24, 24, 23, paint);
         android.graphics.Path path = new android.graphics.Path();
         path.moveTo(24, 7); path.lineTo(39, 37); path.lineTo(24, 30); path.lineTo(9, 37); path.close();
-        paint.setColor(0xFF16786B); canvas.drawPath(path, paint);
+        paint.setColor(activity.getColor(R.color.driver_teal)); canvas.drawPath(path, paint);
         return BitmapDescriptorFactory.fromBitmap(bitmap);
     }
     void clear() {

@@ -1,10 +1,20 @@
 <resources>
-    <color name="driver_background">#F0F4F7</color>
+    <color name="driver_background">#F3F7F7</color>
     <color name="driver_surface">#FFFFFF</color>
-    <color name="driver_ink">#182F40</color>
-    <color name="driver_muted">#607584</color>
-    <color name="driver_teal">#087E83</color>
-    <color name="driver_line">#E0E8ED</color>
-    <color name="driver_error">#AC4039</color>
-    <color name="driver_soft">#EAF4F4</color>
+    <color name="driver_ink">#19383D</color>
+    <color name="driver_muted">#637B7E</color>
+    <color name="driver_teal">#087F78</color>
+    <color name="driver_teal_pressed">#066A64</color>
+    <color name="driver_line">#E2EBEB</color>
+    <color name="driver_error">#B44941</color>
+    <color name="driver_error_soft">#FCF0EE</color>
+    <color name="driver_soft">#E6F3F0</color>
+    <color name="driver_deep">#153F46</color>
+    <color name="driver_deep_pressed">#0E3035</color>
+    <color name="driver_on_dark">#B8D3D3</color>
+    <color name="driver_dark_surface">#2B5359</color>
+    <color name="driver_disabled">#DFE9E8</color>
+    <color name="driver_disabled_ink">#657D7C</color>
+    <color name="driver_ripple">#20087F78</color>
+    <color name="driver_map_surface">#E7EEEB</color>
 </resources>

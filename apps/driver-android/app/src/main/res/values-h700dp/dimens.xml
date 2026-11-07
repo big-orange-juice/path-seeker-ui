@@ -1,0 +1,10 @@
+<resources>
+    <dimen name="console_header_height">64dp</dimen>
+    <dimen name="console_card_padding">18dp</dimen>
+    <dimen name="console_control_padding">16dp</dimen>
+    <dimen name="console_transcript_min_height">44dp</dimen>
+    <dimen name="console_transcript_gap">10dp</dimen>
+    <dimen name="console_meter_gap">12dp</dimen>
+    <dimen name="console_action_gap">14dp</dimen>
+    <dimen name="console_nav_gap">8dp</dimen>
+</resources>

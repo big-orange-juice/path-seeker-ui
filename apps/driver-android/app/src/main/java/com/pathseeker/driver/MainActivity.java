@@ -70,6 +70,7 @@ public final class MainActivity extends Activity {
         if (!DriverCommentaryService.running) store.preferences().edit().putBoolean("commentaryActive", false).putString("commentaryState", "stopped")
             .remove("questionCount").remove("questionText").putBoolean("questionPlaying", false).apply();
         setContentView(R.layout.activity_console);
+        ((View) findViewById(R.id.map_host).getParent()).setClipToOutline(true);
         DriverUi.insets(this);
         feedback = findViewById(R.id.feedback);
         mapMessage = findViewById(R.id.map_message);
@@ -133,7 +134,7 @@ public final class MainActivity extends Activity {
             clearRoom(); throw new Exception("房间已结束，请重新创建房间");
         }
         store.preferences().edit().putString("roomId", room.getString("roomId")).putString("roomCode", room.getString("code"))
-            .putString("roomQr", room.optString("qrImageDataUri")).putString("sourceLanguage", room.optString("sourceLanguage", "zh-CN"))
+            .putString("sourceLanguage", room.optString("sourceLanguage", "zh-CN"))
             .putString("roomSnapshot", room.toString()).putString("roomStatus", status).apply();
     }
 
@@ -160,26 +161,35 @@ public final class MainActivity extends Activity {
         int padding = DriverUi.dp(this, 24);
         content.setPadding(padding, padding, padding, padding);
         TextView label = new TextView(this);
-        label.setText(getString(R.string.room_code_value, code));
-        label.setTextSize(24); label.setTextColor(getColor(R.color.driver_ink));
-        label.setTypeface(android.graphics.Typeface.MONOSPACE); label.setGravity(android.view.Gravity.CENTER); content.addView(label);
-        String data = store.preferences().getString("roomQr", "");
-        if (data.startsWith("data:image/png;base64,")) {
-            try {
-                byte[] bytes = android.util.Base64.decode(data.substring(data.indexOf(',') + 1), android.util.Base64.DEFAULT);
-                android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
-                if (bitmap != null) {
-                    ImageView qr = new ImageView(this);
-                    qr.setContentDescription(getString(R.string.room_qr_description)); qr.setImageBitmap(bitmap);
-                    content.addView(qr, new LinearLayout.LayoutParams(-1, DriverUi.dp(this, 240)));
-                }
-            } catch (IllegalArgumentException ignored) { }
+        label.setText(code); label.setContentDescription(getString(R.string.room_code_value, code));
+        label.setTextSize(32); label.setTextColor(getColor(R.color.driver_ink));
+        label.setLetterSpacing(0.08f);
+        label.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        label.setGravity(android.view.Gravity.CENTER); content.addView(label);
+        TextView hint = new TextView(this);
+        try {
+            com.google.zxing.common.BitMatrix matrix = RoomInvitation.matrix(BuildConfig.ALIPAY_APP_ID, code);
+            int width = matrix.getWidth(), height = matrix.getHeight();
+            int[] pixels = new int[width * height];
+            for (int row = 0; row < height; row++) for (int column = 0; column < width; column++)
+                pixels[row * width + column] = matrix.get(column, row) ? android.graphics.Color.BLACK : android.graphics.Color.WHITE;
+            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(pixels, width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            ImageView qr = new ImageView(this);
+            qr.setContentDescription(getString(R.string.room_qr_description)); qr.setImageBitmap(bitmap);
+            qr.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            content.addView(qr, new LinearLayout.LayoutParams(-1, DriverUi.dp(this, 260)));
+            hint.setText("请使用支付宝扫一扫，加入当前讲解房间");
+        } catch (IllegalArgumentException | com.google.zxing.WriterException failure) {
+            hint.setText("二维码生成失败，请让游客输入房间码加入");
         }
-        new AlertDialog.Builder(this).setTitle("邀请游客加入").setView(content).setNegativeButton("关闭", null)
+        hint.setTextColor(getColor(R.color.driver_muted)); hint.setTextSize(14);
+        hint.setGravity(android.view.Gravity.CENTER); hint.setPadding(0, DriverUi.dp(this, 12), 0, 0);
+        content.addView(hint);
+        DriverUi.show(new AlertDialog.Builder(this).setTitle("邀请游客加入").setView(DriverUi.scroll(this, content)).setNegativeButton("关闭", null)
             .setPositiveButton("复制房间码", (dialog, which) -> {
                 getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("房间码", code));
                 Toast.makeText(this, "房间码已复制", Toast.LENGTH_SHORT).show();
-            }).show();
+            }).create());
     }
 
     private void requestLocation() {
@@ -224,10 +234,10 @@ public final class MainActivity extends Activity {
         if (busy || roomId().isEmpty()) return;
         if ("closed".equals(store.preferences().getString("roomStatus", ""))) { showFeedback("房间已结束，请在行程中结束旧房间后重新创建"); return; }
         if (!store.preferences().getBoolean("microphonePrivacyAccepted", false)) {
-            new AlertDialog.Builder(this).setTitle(R.string.commentary_mic_consent).setMessage(R.string.commentary_mic_message)
+            DriverUi.show(new AlertDialog.Builder(this).setTitle(R.string.commentary_mic_consent).setMessage(R.string.commentary_mic_message)
                 .setNegativeButton("取消", null).setPositiveButton("同意并开启", (dialog, which) -> {
                     store.preferences().edit().putBoolean("microphonePrivacyAccepted", true).apply(); requestMicrophone();
-                }).show(); return;
+                }).create()); return;
         }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, 12); return;
@@ -262,7 +272,7 @@ public final class MainActivity extends Activity {
                     store.preferences().getBoolean("questionPlaying", false) ? DriverCommentaryService.STOP_QUESTIONS : DriverCommentaryService.QUESTIONS));
             });
         }
-        builder.show();
+        DriverUi.show(builder.create());
     }
 
     private void showDetails() {
@@ -282,14 +292,14 @@ public final class MainActivity extends Activity {
             store.preferences().getString("translationWarning", "")));
         detail.setTextSize(14); detail.setTextColor(getColor(R.color.driver_ink));
         detail.setLineSpacing(DriverUi.dp(this, 4), 1); content.addView(detail);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(R.string.trip_title).setView(content).setNegativeButton("关闭", null).create();
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(R.string.trip_title).setView(DriverUi.scroll(this, content)).setNegativeButton("关闭", null).create();
         Button share = DriverUi.dialogAction(this, sharing() ? R.string.stop_sharing_action : R.string.start_sharing_action, false); share.setEnabled(!busy && !starting && !roomId().isEmpty());
         share.setOnClickListener(view -> { dialog.dismiss(); if (sharing()) stopSharing(); else requestLocation(); }); content.addView(share);
         Button disconnect = DriverUi.dialogAction(this, R.string.commentary_disconnect, false); disconnect.setEnabled(DriverCommentaryService.running);
         disconnect.setOnClickListener(view -> { stopService(new Intent(this, DriverCommentaryService.class)); dialog.dismiss(); }); content.addView(disconnect);
         Button end = DriverUi.dialogAction(this, R.string.end_room_action, true); end.setEnabled(!busy && !starting && !roomId().isEmpty());
         end.setOnClickListener(view -> { dialog.dismiss(); confirmEndRoom(); }); content.addView(end);
-        dialog.show();
+        DriverUi.show(dialog);
     }
 
     private void stopSharing() {
@@ -305,12 +315,13 @@ public final class MainActivity extends Activity {
 
     private void confirmEndRoom() {
         if (busy || starting || roomId().isEmpty()) return;
-        new AlertDialog.Builder(this).setTitle("结束当前房间？").setMessage("位置共享将停止，游客将无法继续加入该房间。")
+        AlertDialog confirmation = new AlertDialog.Builder(this).setTitle("结束当前房间？").setMessage("位置共享将停止，游客将无法继续加入该房间。")
             .setNegativeButton("取消", null).setPositiveButton("结束房间", (dialog, which) -> task(() -> {
                 try { api.call("/TranslationRooms/" + roomId() + "/close", "POST", new JSONObject()); }
                 catch (DriverApi.ApiException failure) { if (!unavailable(failure)) throw failure; }
                 clearRoom(); return "房间已结束";
-            }, null)).show();
+            }, null)).create();
+        DriverUi.show(confirmation).getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getColor(R.color.driver_error));
     }
 
     private void clearRoom() {
@@ -327,7 +338,7 @@ public final class MainActivity extends Activity {
 
     private void showSettings() {
         if (busy || starting) return;
-        new AlertDialog.Builder(this).setTitle(R.string.settings_action)
+        DriverUi.show(new AlertDialog.Builder(this).setTitle(R.string.settings_action)
             .setItems(new String[] { "连接设置", "后台运行与电池设置", "讲话语言", "退出登录" }, (dialog, which) -> {
                 if (which == 0) DriverUi.settings(this, store, () -> {
                     if (!store.loggedIn()) DriverUi.openLogin(this);
@@ -340,14 +351,14 @@ public final class MainActivity extends Activity {
                 else if (which == 2) chooseSourceLanguage();
                 else if (sharing() || !roomId().isEmpty()) showFeedback("请先结束当前房间再退出登录");
                 else { store.clear(); DriverUi.openLogin(this); }
-            }).show();
+            }).create());
     }
 
     private void chooseSourceLanguage() {
         if (!roomId().isEmpty()) { showFeedback("请先结束当前房间，再修改讲话语言"); return; }
-        new AlertDialog.Builder(this).setTitle(R.string.source_language).setItems(LANGUAGE_LABELS, (dialog, which) -> {
+        DriverUi.show(new AlertDialog.Builder(this).setTitle(R.string.source_language).setItems(LANGUAGE_LABELS, (dialog, which) -> {
             store.preferences().edit().putString("sourceLanguage", LANGUAGES[which]).apply(); render();
-        }).show();
+        }).create());
     }
 
     private String sourceLabel() {
@@ -367,24 +378,34 @@ public final class MainActivity extends Activity {
         TextView connection = findViewById(R.id.connection_badge);
         connection.setText(hasRoom ? R.string.room_ready : R.string.room_waiting);
         connection.setActivated(hasRoom);
-        connection.setTextColor(getColor(hasRoom ? R.color.driver_teal : R.color.driver_muted));
+        connection.setTextColor(getColor(hasRoom ? R.color.driver_teal : R.color.driver_on_dark));
         ((TextView) findViewById(R.id.room_code)).setText(hasRoom ? store.preferences().getString("roomCode", "") : getString(R.string.no_room_code));
         roomAction.setText(hasRoom ? R.string.room_code_action : R.string.create_room_action);
+        roomAction.setCompoundDrawablesRelativeWithIntrinsicBounds(hasRoom ? R.drawable.ic_qr : 0, 0, 0, 0);
+        roomAction.setCompoundDrawablePadding(DriverUi.dp(this, 6));
         roomAction.setEnabled(!busy && !starting); settings.setEnabled(!busy && !starting);
         String state = store.preferences().getString("commentaryState", "stopped");
         boolean active = store.preferences().getBoolean("commentaryActive", false);
         boolean pending = "connecting".equals(state) || "reconnecting".equals(state) || "starting".equals(state) || "pausing".equals(state);
         microphoneAction.setText(pending ? R.string.operation_pending : active ? R.string.commentary_pause : "paused".equals(state) ? R.string.commentary_continue : R.string.commentary_start);
         microphoneAction.setActivated(active); microphoneAction.setEnabled(!busy && !pending && hasRoom);
+        microphoneAction.setCompoundDrawablesRelativeWithIntrinsicBounds(active ? R.drawable.ic_pause : R.drawable.ic_microphone, 0, 0, 0);
+        microphoneAction.setCompoundDrawableTintList(getColorStateList(R.color.driver_primary_text));
+        TextView commentaryBadge = findViewById(R.id.commentary_badge);
+        commentaryBadge.setText(pending ? R.string.operation_pending : active ? R.string.commentary_badge_live
+            : "paused".equals(state) ? R.string.commentary_badge_paused : R.string.commentary_badge_idle);
+        commentaryBadge.setActivated(active);
+        commentaryBadge.setTextColor(getColor(active ? R.color.driver_teal : R.color.driver_muted));
         ((TextView) findViewById(R.id.commentary_state)).setText(hasRoom
             ? store.preferences().getString("commentaryStatus", getString(R.string.commentary_idle)) : getString(R.string.commentary_idle));
         String source = store.preferences().getString("commentaryText", "");
         ((TextView) findViewById(R.id.commentary_text)).setText(source.isEmpty() ? getString(R.string.commentary_text_waiting) : source);
+        ((TextView) findViewById(R.id.commentary_text)).setTextColor(getColor(source.isEmpty() ? R.color.driver_muted : R.color.driver_ink));
         int count = store.preferences().getInt("questionCount", 0);
         questionsAction.setText(count == 0 ? getString(R.string.questions_action) : getString(R.string.questions_count, count));
         int listeners = 0;
         try { listeners = new JSONObject(store.preferences().getString("roomSnapshot", "")).optInt("listenerCount"); } catch (Exception ignored) { }
-        ((TextView) findViewById(R.id.listener_count)).setText(getString(R.string.listeners_count, listeners, sourceLabel()));
+        ((TextView) findViewById(R.id.listener_count)).setText(hasRoom ? getString(R.string.listeners_count, listeners, sourceLabel()) : getString(R.string.listeners_waiting));
         microphoneLevel.setProgress(store.preferences().getInt("microphoneLevel", 0));
         if (map == null) mapMessage.setText(store.preferences().getBoolean("mapPrivacyAccepted", false) ? R.string.map_failed : R.string.map_consent);
         else mapMessage.setText(R.string.map_waiting);
@@ -403,7 +424,11 @@ public final class MainActivity extends Activity {
         } catch (Exception ignored) { }
     }
 
-    private void showFeedback(String message) { feedback.setText(message); feedback.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE); }
+    private void showFeedback(String message) { showFeedback(message, true); }
+    private void showFeedback(String message, boolean error) {
+        feedback.setText(message); feedback.setTextColor(getColor(error ? R.color.driver_error : R.color.driver_teal));
+        feedback.setVisibility(message.isEmpty() ? View.GONE : View.VISIBLE);
+    }
     private interface Work { String run() throws Exception; }
     private void task(Work work, Runnable success) {
         if (busy || !alive) return;
@@ -411,7 +436,7 @@ public final class MainActivity extends Activity {
         worker.execute(() -> {
             try {
                 String message = work.run();
-                runOnUiThread(() -> { if (alive) { busy = false; render(); showFeedback(message); if (success != null) success.run(); } });
+                runOnUiThread(() -> { if (alive) { busy = false; render(); showFeedback(message, false); if (success != null) success.run(); } });
             } catch (Exception failure) {
                 runOnUiThread(() -> { if (alive) { busy = false; render(); showFeedback(failure.getMessage() == null ? "操作失败，请稍后重试" : failure.getMessage()); } });
             }
