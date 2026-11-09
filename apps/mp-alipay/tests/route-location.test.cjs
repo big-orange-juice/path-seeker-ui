@@ -62,6 +62,7 @@ test('unmatched and excessive corrections retain the original arrival position',
 
 test('marker and camera use the same corrected point while retaining the original measurement', () => {
   const h = harness(), page = h.page('tour'), fix = fixAt();
+  page._user = h.auth.current().userId;
   h.load('config').routeCorrection = true;
   let deliver;
   h.load('services/location').watch = callback => { deliver = callback; return () => {}; };

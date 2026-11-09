@@ -25,34 +25,34 @@ const zhCN = {
 }
 
 export type RoomMessages = { [Key in keyof typeof zhCN]: string }
-export type RoomLocale = 'zh-CN' | 'zh-TW' | 'en' | 'ja' | 'ko' | 'fr' | 'de' | 'es'
+export type RoomLocale = 'zh-CN' | 'en' | 'ru' | 'es' | 'fr' | 'ja' | 'ko' | 'yue'
 
 const messages: Record<RoomLocale, RoomMessages> = {
   'zh-CN': zhCN,
-  'zh-TW': {
-    echoHint: '請遊客戴耳機收聽，避免外放譯音再次被錄入。', echoPaused: '本機正在使用麥克風，譯音已暫停以避免回聲；字幕繼續更新。',
-    back: '返回導覽', backConnected: '返回導覽，保持房間連線', manageAccount: '切換 / 管理帳號', login: '登入車夫帳號',
-    title: '即時講解', intro: '聽車夫講述，用熟悉的語言遊覽', chatTitle: '講解群聊', listeners: '{count} 人收聽', host: '我是房主', liveTranslation: '即時翻譯',
-    ended: '講解已結束', live: '正在講解', waiting: '等待講解', roomCode: '房間碼', more: '查看房間碼、成員和房間操作',
-    reconnect: '重新連線房間', listenAgain: '重新收聽', start: '開始講解', micOn: '正在講解 · 麥克風已開啟', resume: '開啟 / 恢復聲音', pause: '暫停收聽',
-    details: '房間詳情', closeDetails: '關閉房間詳情', invite: '分享房間碼，邀請遊客加入', currentCode: '目前房間碼', qr: '講解房間 QR Code',
-    members: '群組成員與收聽語言', noMembers: '分享房間碼，邀請第一位遊客加入。', guest: '遊客', people: '{count} 人',
-    changeLanguage: '更換收聽語言', end: '結束講解，播完剩餘語音', closeRoom: '立即關閉房間', leaveHost: '離開講解台', leave: '退出房間',
-    chatLog: '房間聊天記錄', entered: '已進入講解房間 · 譯文和語音會在這裡同步', hostEmpty: '準備開始一段新的講解', guestEmpty: '和大家一起，聽見沿途的故事',
-    hostHint: '點選下方「開始講解」，原聲和各語言譯文會像聊天訊息一樣出現。', guestHint: '等待車夫開始講解，譯音將自動播放。',
+  yue: {
+    echoHint: '請遊客戴耳機收聽，避免譯音再次畀咪高峰收錄。', echoPaused: '呢部機正使用咪高峰，譯音已暫停以免回音；字幕會繼續更新。',
+    back: '返回導覽', backConnected: '返回導覽，保持房間連線', manageAccount: '切換／管理帳戶', login: '登入車夫帳戶',
+    title: '即時講解', intro: '聽車夫講故事，用熟悉嘅語言遊覽', chatTitle: '講解群組', listeners: '{count} 人收聽', host: '我係房主', liveTranslation: '即時翻譯',
+    ended: '講解已結束', live: '講解中', waiting: '等候講解', roomCode: '房間碼', more: '睇房間碼、成員同房間操作',
+    reconnect: '重新連線房間', listenAgain: '重新收聽', start: '開始講解', micOn: '講解中 · 咪高峰已開', resume: '開啟／繼續收聽', pause: '暫停收聽',
+    details: '房間詳情', closeDetails: '關閉房間詳情', invite: '分享房間碼，邀請遊客加入', currentCode: '目前房間碼', qr: '講解房間二維碼',
+    members: '成員同收聽語言', noMembers: '分享房間碼，邀請第一位遊客加入。', guest: '遊客', people: '{count} 人',
+    changeLanguage: '更改收聽語言', end: '結束講解，播埋剩低嘅語音', closeRoom: '即刻關閉房間', leaveHost: '離開講解台', leave: '離開房間',
+    chatLog: '房間聊天記錄', entered: '已加入講解房間 · 譯文同語音會喺呢度同步', hostEmpty: '準備開始新一段講解', guestEmpty: '一齊聽沿途嘅故事',
+    hostHint: '撳下面「開始講解」，原聲同各種語言嘅譯文就會以訊息顯示。', guestHint: '等車夫開始講解，譯音會自動播放。',
     segment: '第 {number} 段講解', me: '我', guide: '車夫講解', original: '{language}原聲', assistant: '譯音助手',
-    translating: '正在翻譯…', translationUnavailable: '本段翻譯暫不可用', noTranslation: '本段未傳回譯文', segmentUnavailable: '本段暫不可用，等待下一段講解', preparing: '正在準備譯文…', latest: '回到最新訊息',
-    joinTitle: '加入講解房間', joinHint: '輸入車夫分享的房間碼，收聽即時翻譯', codePlaceholder: '輸入 8 位房間碼', codeAria: '八位房間碼',
-    listenLanguage: '收聽語言', connecting: '正在連線…', join: '加入並開始收聽', listenHint: '從下一段完整講解開始收聽，建議佩戴耳機。',
-    hostTitle: '車夫講解台', hostIntro: '建立房間後，將房間碼分享給遊客', speakLanguage: '講話語言', create: '建立或返回講解房間', scan: '掃碼填寫房間碼', invalidQr: '請掃描講解房間 QR Code',
-    checking: '正在確認帳號權限…', hostReady: '選擇講話語言，建立或返回講解房間', touristReady: '輸入房間碼並選擇語言，開始收聽', joined: '已加入，等待下一段講解',
-    muted: '收聽已暫停', blocked: '瀏覽器已暫停聲音，請點選恢復收聽', playing: '正在播放譯音', received: '本段譯音已接收，等待下一段講解', waitingAudio: '等待下一段譯音',
-    noAudio: '本段只收到譯文，未收到語音，請等待下一段講解', playbackFailed: '譯音播放失敗，請恢復聲音後等待下一段講解', unavailableAudio: '本段語音不可用，請閱讀字幕',
-    pausedHost: '車夫暫時離線，講解暫停', draining: '講解即將結束，正在接收剩餘語音', closed: '房間已關閉', endedPlaying: '講解已結束，剩餘語音將繼續播放',
-    disconnected: '連線已中斷，請重新連線房間；舊語音不會重播', networkError: '連線失敗，請檢查網路後重試', operationFailed: '操作失敗，請重試',
-    created: '房間已建立，點選開始講解開啟麥克風', languageChanged: '目前語音已停止，請選擇語言並重新收聽', otherAudio: '其他內容正在播放，回到房間可恢復收聽', suspended: '講解已暫停，請返回房間重新連線',
-    invalidCode: '請輸入八位房間碼', notHost: '目前帳號未獲車夫授權', loginRequired: '請先登入', accountChanged: '帳號或房間已切換，請重試', needRoom: '請先返回講解房間',
-    invalidRoom: '房間碼無效或房間已結束，請重新加入', roomFull: '房間人數已滿，請稍後重試', languageLimit: '每個房間最多同時收聽三種語言', recognitionFailed: '本段辨識失敗，請車夫重複講解', microphoneInterrupted: '講解輸入已中斷，請重新連線麥克風', sourceLocked: '現有房間的講話語言不可更改，請先結束目前房間',
+    translating: '翻譯中…', translationUnavailable: '呢段翻譯暫時用唔到', noTranslation: '呢段未收到譯文', segmentUnavailable: '呢段暫時用唔到，請等下一段', preparing: '準備譯文中…', latest: '睇最新訊息',
+    joinTitle: '加入講解房間', joinHint: '輸入車夫分享嘅房間碼，收聽即時翻譯', codePlaceholder: '輸入 8 位房間碼', codeAria: '八位房間碼',
+    listenLanguage: '收聽語言', connecting: '連線中…', join: '加入並開始收聽', listenHint: '由下一段完整講解開始收聽，建議戴耳機。',
+    hostTitle: '車夫講解台', hostIntro: '開房後，將房間碼分享畀遊客', speakLanguage: '講嘢語言', create: '開房或返回講解房間', scan: '掃碼填寫房間碼', invalidQr: '請掃描講解房間二維碼',
+    checking: '確認帳戶權限中…', hostReady: '揀講嘢語言，開房或返回講解房間', touristReady: '輸入房間碼同揀語言，開始收聽', joined: '已加入，等候下一段講解',
+    muted: '收聽已暫停', blocked: '瀏覽器暫停咗聲音，請撳繼續收聽', playing: '播放譯音中', received: '已收到呢段譯音，等候下一段', waitingAudio: '等候下一段譯音',
+    noAudio: '呢段只收到譯文，未收到語音，請等下一段', playbackFailed: '譯音播放失敗，請開返聲音再等下一段', unavailableAudio: '呢段語音用唔到，請睇字幕',
+    pausedHost: '車夫暫時離線，講解暫停', draining: '講解就快結束，接收剩低嘅語音中', closed: '房間已關閉', endedPlaying: '講解已結束，剩低嘅語音會繼續播',
+    disconnected: '連線已斷開，請重新連線；舊語音唔會重播', networkError: '連線失敗，請檢查網絡再試', operationFailed: '操作失敗，請再試',
+    created: '房間已開，撳開始講解開啟咪高峰', languageChanged: '語音已停止，請揀語言再重新收聽', otherAudio: '其他內容播放緊，返房間可繼續收聽', suspended: '講解已暫停，請返房間重新連線',
+    invalidCode: '請輸入八位房間碼', notHost: '呢個帳戶未獲車夫授權', loginRequired: '請先登入', accountChanged: '帳戶或房間已切換，請再試', needRoom: '請先返講解房間',
+    invalidRoom: '房間碼無效或房間已結束，請重新加入', roomFull: '房間已滿，請遲啲再試', languageLimit: '每間房最多同時收聽三種語言', recognitionFailed: '呢段辨識失敗，請車夫再講一次', microphoneInterrupted: '講解輸入中斷，請重新連接咪高峰', sourceLocked: '現有房間嘅講嘢語言改唔到，請先結束呢間房',
   },
   en: {
     echoHint: 'Ask visitors to use headphones so translated audio is not picked up by the microphone.', echoPaused: 'A microphone is active in this browser. Translated audio is paused to prevent echo; subtitles continue.',
@@ -154,30 +154,30 @@ const messages: Record<RoomLocale, RoomMessages> = {
     invalidCode: 'Saisissez un code de salon à 8 chiffres', notHost: 'Ce compte n’est pas autorisé à animer un salon', loginRequired: 'Veuillez d’abord vous connecter', accountChanged: 'Le compte ou le salon a changé. Veuillez réessayer.', needRoom: 'Veuillez d’abord revenir au salon de visite',
     invalidRoom: 'Code invalide ou salon terminé. Veuillez rejoindre à nouveau.', roomFull: 'Le salon est complet. Veuillez réessayer plus tard.', languageLimit: 'Un salon permet jusqu’à trois langues d’écoute simultanées.', recognitionFailed: 'Reconnaissance vocale impossible. Demandez au guide de répéter cet extrait.', microphoneInterrupted: 'Entrée audio interrompue. Reconnectez le micro.', sourceLocked: 'Terminez le salon actuel avant de changer la langue parlée.',
   },
-  de: {
-    echoHint: 'Besucher sollten Kopfhörer verwenden, damit das Mikrofon die Übersetzung nicht erneut aufnimmt.', echoPaused: 'In diesem Browser ist ein Mikrofon aktiv. Audio pausiert zur Echovermeidung; Untertitel werden weiter aktualisiert.',
-    back: 'Zurück zur Navigation', backConnected: 'Zur Navigation, verbunden bleiben', manageAccount: 'Konto wechseln / verwalten', login: 'Guide anmelden',
-    title: 'Live-Kommentar', intro: 'Erleben Sie die Führung in Ihrer Sprache', chatTitle: 'Führungschat', listeners: '{count} hören zu', host: 'Gastgeber', liveTranslation: 'Live-Übersetzung',
-    ended: 'Kommentar beendet', live: 'Kommentar läuft', waiting: 'Warten auf den Kommentar', roomCode: 'Raumcode', more: 'Raumcode, Teilnehmer und Aktionen',
-    reconnect: 'Raum erneut verbinden', listenAgain: 'Zum Zuhören neu verbinden', start: 'Kommentar starten', micOn: 'Live · Mikrofon an', resume: 'Ton aktivieren / fortsetzen', pause: 'Zuhören pausieren',
-    details: 'Raumdetails', closeDetails: 'Raumdetails schließen', invite: 'Raumcode teilen und Besucher einladen', currentCode: 'Aktueller Raumcode', qr: 'QR-Code des Führungsraums',
-    members: 'Teilnehmer und Hörsprachen', noMembers: 'Teilen Sie den Code und laden Sie den ersten Besucher ein.', guest: 'Besucher', people: '{count} Personen',
-    changeLanguage: 'Hörsprache ändern', end: 'Nach den übrigen Audios beenden', closeRoom: 'Raum sofort schließen', leaveHost: 'Guide-Ansicht verlassen', leave: 'Raum verlassen',
-    chatLog: 'Chatverlauf des Raums', entered: 'Sie sind im Raum · Übersetzungen und Audio erscheinen hier', hostEmpty: 'Bereit für einen neuen Kommentar', guestEmpty: 'Entdecken Sie gemeinsam die Geschichten unterwegs',
-    hostHint: 'Tippen Sie unten auf „Kommentar starten“. Originaltext und Übersetzungen erscheinen als Nachrichten.', guestHint: 'Warten auf den Guide. Übersetztes Audio wird automatisch abgespielt.',
-    segment: 'Kommentar {number}', me: 'Ich', guide: 'Guide', original: 'Original · {language}', assistant: 'Übersetzungsassistent',
-    translating: 'Wird übersetzt…', translationUnavailable: 'Übersetzung für diesen Abschnitt nicht verfügbar', noTranslation: 'Keine Übersetzung empfangen', segmentUnavailable: 'Abschnitt nicht verfügbar. Warten auf den nächsten.', preparing: 'Übersetzung wird vorbereitet…', latest: 'Neueste Nachrichten',
-    joinTitle: 'Führungsraum beitreten', joinHint: 'Code des Guides eingeben und Live-Übersetzung hören', codePlaceholder: '8-stelligen Raumcode eingeben', codeAria: 'Achtstelliger Raumcode',
-    listenLanguage: 'Hörsprache', connecting: 'Verbindung wird hergestellt…', join: 'Beitreten und zuhören', listenHint: 'Die Wiedergabe beginnt beim nächsten vollständigen Abschnitt. Kopfhörer empfohlen.',
-    hostTitle: 'Guide-Ansicht', hostIntro: 'Raum erstellen und den Code mit Besuchern teilen', speakLanguage: 'Gesprochene Sprache', create: 'Raum erstellen / zurückkehren', scan: 'Raumcode scannen', invalidQr: 'Bitte den QR-Code eines Führungsraums scannen',
-    checking: 'Kontoberechtigungen werden geprüft…', hostReady: 'Sprache wählen und einen Raum erstellen oder zurückkehren', touristReady: 'Raumcode eingeben und Hörsprache wählen', joined: 'Beigetreten. Warten auf den nächsten Kommentar.',
-    muted: 'Zuhören pausiert', blocked: 'Der Browser hat den Ton pausiert. Zum Fortsetzen tippen.', playing: 'Übersetztes Audio wird abgespielt', received: 'Audio empfangen. Warten auf den nächsten Abschnitt.', waitingAudio: 'Warten auf den nächsten Audioabschnitt',
-    noAudio: 'Nur Text empfangen. Warten auf den nächsten Audioabschnitt.', playbackFailed: 'Audiowiedergabe fehlgeschlagen. Ton aktivieren und nächsten Abschnitt abwarten.', unavailableAudio: 'Audio nicht verfügbar. Bitte lesen Sie die Untertitel.',
-    pausedHost: 'Der Guide ist offline. Kommentar pausiert.', draining: 'Kommentar endet. Verbleibendes Audio wird empfangen.', closed: 'Raum geschlossen', endedPlaying: 'Kommentar beendet. Verbleibendes Audio läuft weiter.',
-    disconnected: 'Verbindung getrennt. Erneut verbinden; früheres Audio wird nicht wiederholt.', networkError: 'Verbindung fehlgeschlagen. Netzwerk prüfen und erneut versuchen.', operationFailed: 'Aktion fehlgeschlagen. Bitte erneut versuchen.',
-    created: 'Raum erstellt. Starten Sie den Kommentar, um das Mikrofon einzuschalten.', languageChanged: 'Audio gestoppt. Sprache wählen und erneut verbinden.', otherAudio: 'Anderes Audio läuft. Zum Fortsetzen zum Raum zurückkehren.', suspended: 'Kommentar pausiert. Zum erneuten Verbinden zum Raum zurückkehren.',
-    invalidCode: 'Bitte einen 8-stelligen Raumcode eingeben', notHost: 'Dieses Konto hat keine Gastgeberberechtigung', loginRequired: 'Bitte zuerst anmelden', accountChanged: 'Konto oder Raum geändert. Bitte erneut versuchen.', needRoom: 'Bitte zuerst zum Führungsraum zurückkehren',
-    invalidRoom: 'Ungültiger Raumcode oder Raum beendet. Bitte erneut beitreten.', roomFull: 'Der Raum ist voll. Bitte später erneut versuchen.', languageLimit: 'Ein Raum unterstützt bis zu drei Hörsprachen gleichzeitig.', recognitionFailed: 'Spracherkennung fehlgeschlagen. Bitten Sie den Guide, den Abschnitt zu wiederholen.', microphoneInterrupted: 'Spracheingabe unterbrochen. Bitte das Mikrofon erneut verbinden.', sourceLocked: 'Beenden Sie den aktuellen Raum, bevor Sie die gesprochene Sprache ändern.',
+  ru: {
+    echoHint: 'Попросите гостей использовать наушники, чтобы перевод не попадал в микрофон.', echoPaused: 'Микрофон используется. Перевод приостановлен во избежание эха; субтитры обновляются.',
+    back: 'К навигации', backConnected: 'К навигации, сохранив подключение', manageAccount: 'Сменить / управлять аккаунтом', login: 'Вход для водителя',
+    title: 'Живой комментарий', intro: 'Слушайте водителя на своём языке', chatTitle: 'Чат экскурсии', listeners: 'Слушают: {count}', host: 'Ведущий', liveTranslation: 'Перевод в реальном времени',
+    ended: 'Комментарий завершён', live: 'Комментарий в эфире', waiting: 'Ожидание комментария', roomCode: 'Код комнаты', more: 'Код комнаты, участники и действия',
+    reconnect: 'Подключиться заново', listenAgain: 'Слушать снова', start: 'Начать комментарий', micOn: 'В эфире · Микрофон включён', resume: 'Включить / продолжить звук', pause: 'Приостановить прослушивание',
+    details: 'Сведения о комнате', closeDetails: 'Закрыть сведения', invite: 'Поделитесь кодом комнаты с гостями', currentCode: 'Код текущей комнаты', qr: 'QR-код комнаты',
+    members: 'Участники и языки', noMembers: 'Поделитесь кодом, чтобы пригласить первого гостя.', guest: 'Гость', people: '{count} чел.',
+    changeLanguage: 'Сменить язык', end: 'Завершить после оставшегося аудио', closeRoom: 'Закрыть комнату сейчас', leaveHost: 'Выйти из панели ведущего', leave: 'Выйти из комнаты',
+    chatLog: 'История чата', entered: 'Вы в комнате · Здесь появятся переводы и аудио', hostEmpty: 'Всё готово к новому комментарию', guestEmpty: 'Откройте истории по пути',
+    hostHint: 'Нажмите «Начать комментарий». Оригинал и переводы появятся в чате.', guestHint: 'Ожидаем водителя. Перевод будет воспроизводиться автоматически.',
+    segment: 'Комментарий {number}', me: 'Я', guide: 'Водитель', original: 'Оригинал · {language}', assistant: 'Помощник перевода',
+    translating: 'Переводим…', translationUnavailable: 'Перевод этого фрагмента недоступен', noTranslation: 'Перевод не получен', segmentUnavailable: 'Фрагмент недоступен. Ожидаем следующий.', preparing: 'Подготовка перевода…', latest: 'Последние сообщения',
+    joinTitle: 'Войти в комнату экскурсии', joinHint: 'Введите код водителя для прослушивания перевода', codePlaceholder: 'Код комнаты из 8 цифр', codeAria: 'Восьмизначный код комнаты',
+    listenLanguage: 'Язык прослушивания', connecting: 'Подключаемся…', join: 'Войти и слушать', listenHint: 'Прослушивание начнётся со следующего полного фрагмента. Рекомендуем наушники.',
+    hostTitle: 'Панель водителя', hostIntro: 'Создайте комнату и поделитесь кодом с гостями', speakLanguage: 'Язык речи', create: 'Создать / вернуться в комнату', scan: 'Сканировать код комнаты', invalidQr: 'Отсканируйте QR-код комнаты экскурсии',
+    checking: 'Проверка прав аккаунта…', hostReady: 'Выберите язык речи и создайте комнату или вернитесь в неё', touristReady: 'Введите код комнаты и выберите язык', joined: 'Вы присоединились. Ожидаем следующий комментарий.',
+    muted: 'Прослушивание приостановлено', blocked: 'Браузер остановил звук. Нажмите, чтобы продолжить.', playing: 'Воспроизводится перевод', received: 'Аудио получено. Ожидаем следующий фрагмент.', waitingAudio: 'Ожидаем следующее аудио',
+    noAudio: 'Получен только текст. Ожидаем следующее аудио.', playbackFailed: 'Ошибка воспроизведения. Включите звук и дождитесь следующего фрагмента.', unavailableAudio: 'Аудио недоступно. Читайте субтитры.',
+    pausedHost: 'Водитель не в сети. Комментарий приостановлен.', draining: 'Комментарий завершается. Получаем оставшееся аудио.', closed: 'Комната закрыта', endedPlaying: 'Комментарий завершён. Оставшееся аудио продолжит воспроизводиться.',
+    disconnected: 'Соединение прервано. Подключитесь заново; старое аудио не повторяется.', networkError: 'Ошибка подключения. Проверьте сеть и повторите попытку.', operationFailed: 'Не удалось выполнить действие. Повторите попытку.',
+    created: 'Комната создана. Начните комментарий, чтобы включить микрофон.', languageChanged: 'Аудио остановлено. Выберите язык и подключитесь заново.', otherAudio: 'Играет другое аудио. Вернитесь в комнату для продолжения.', suspended: 'Комментарий приостановлен. Вернитесь в комнату для подключения.',
+    invalidCode: 'Введите восьмизначный код комнаты', notHost: 'Аккаунт не имеет прав водителя', loginRequired: 'Сначала войдите', accountChanged: 'Аккаунт или комната изменились. Повторите попытку.', needRoom: 'Сначала вернитесь в комнату экскурсии',
+    invalidRoom: 'Неверный код или комната закрыта. Войдите заново.', roomFull: 'Комната заполнена. Попробуйте позже.', languageLimit: 'В комнате можно слушать до трёх языков одновременно.', recognitionFailed: 'Не удалось распознать речь. Попросите водителя повторить.', microphoneInterrupted: 'Ввод речи прерван. Подключите микрофон заново.', sourceLocked: 'Чтобы изменить язык речи, сначала завершите текущую комнату.',
   },
   es: {
     echoHint: 'Pide a los visitantes que usen auriculares para evitar que el micrófono vuelva a captar la traducción.', echoPaused: 'Hay un micrófono activo en este navegador. El audio se pausa para evitar el eco; los subtítulos continúan.',
@@ -208,7 +208,7 @@ const messages: Record<RoomLocale, RoomMessages> = {
 
 export function roomLocale(language: string | null | undefined): RoomLocale {
   const normalized = (language || '').replace(/_/g, '-').toLowerCase()
-  if (/^zh-(tw|hk|hant)(-|$)/.test(normalized)) return 'zh-TW'
+  if (/^(yue|zh-yue)(-|$)/.test(normalized) || normalized === 'zh-hk') return 'yue'
   const base = normalized.split('-')[0]
   return base === 'zh' ? 'zh-CN' : Object.prototype.hasOwnProperty.call(messages, base) ? base as RoomLocale : 'zh-CN'
 }

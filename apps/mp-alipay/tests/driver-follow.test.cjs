@@ -14,6 +14,7 @@ function setup(t, live = true) {
   const page = h.page('tour'), center = { longitude: 116.4, latitude: 39.9 };
   page._rev = 0; page._visible = true; page._user = userId; page._places = []; page._detail = { coordinateSystem: 1 };
   page.setData({ tourStage: 'navigation', route: { id: 'route' }, stops: [{ id: stageId, name: '景点', ...center, images: [], guideNarrations: [] }], visit: { visitId: 'visit', status: 1, currentStageId: null, completedStageIds: [] } });
+  page._driverPositionKey = roomId + ':visit';
   page.showStop(0, true); page.toggleTracking();
   const gcj = h.load('shared/map-coordinates').wgs84ToGcj02(center);
   const deliver = async (values = {}) => {

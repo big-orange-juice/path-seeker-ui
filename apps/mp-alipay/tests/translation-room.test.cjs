@@ -136,7 +136,7 @@ test('question stream retains string identities, ignores subscriber language and
   assert.equal(feed.playable('9223372036854775803'), null);
   assert.equal(new DataView(questionWav([new ArrayBuffer(9600)])).getUint32(24, true), 16000);
   assert.throws(() => questionWav([new ArrayBuffer(100)]), /invalid_recording/);
-  assert.equal(new Set(['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'fr', 'de', 'es'].map(language => questionMessages(language).talk)).size, 8);
+  assert.equal(new Set(['zh-CN', 'en', 'ru', 'es', 'fr', 'ja', 'ko', 'yue'].map(language => questionMessages(language).talk)).size, 8);
 });
 
 test('host pauses through the existing socket, waits for server acknowledgement and resumes recording', async () => {
@@ -493,10 +493,10 @@ test('Alipay room selection localizes chat, playback, native title and errors ac
   page.bindSession();
   let reopened;
   try {
-    page.chooseLanguage({ currentTarget: { dataset: { index: 2 } } });
+    page.chooseLanguage({ currentTarget: { dataset: { index: 1 } } });
     assert.equal(page.data.language, 'en');
     assert.equal(page.data.messages.joinTitle, 'Join a commentary room');
-    assert.equal(page.data.languageIndex, 2);
+    assert.equal(page.data.languageIndex, 1);
     assert.equal(titles.at(-1), 'Live commentary');
     const room = { roomId: '42', isHost: false, code: '12345678', sourceLanguage: 'zh-CN', listenerCount: 2 };
     page.attach(room); handlers.Open();
@@ -515,11 +515,11 @@ test('Alipay room selection localizes chat, playback, native title and errors ac
     page.onHide();
     reopened = fixture.page('translation-room'); reopened._visible = true; reopened.bindSession();
     assert.equal(reopened.data.language, 'en');
-    assert.equal(reopened.data.languageIndex, 2);
+    assert.equal(reopened.data.languageIndex, 1);
     assert.equal(reopened.data.chatGroups[0].source, '这里是银锭桥。');
     emit({ type: 'subscription.changed', targetLanguage: 'ja', payload: { room } });
     assert.equal(reopened.data.language, 'ja');
-    assert.equal(reopened.data.languageIndex, 3);
+    assert.equal(reopened.data.languageIndex, 5);
     assert.equal(reopened.data.messages.pause, '聴取を一時停止');
     assert.equal(reopened.data.chatGroups[0].translations[0].displayText, 'This is Yinding Bridge.');
     emit({ ...base, sequence: 2, targetLanguage: 'ja', type: 'language.error', payload: { message: '本段翻译中断，请等待下一段讲解' } });
@@ -554,7 +554,7 @@ test('Alipay navigation passes its selected language into a new room and preserv
   const roomPage = fixture.page('translation-room');
   roomPage._visible = true; roomPage.bindSession();
   try {
-    assert.equal(roomPage.data.languageIndex, 2);
+    assert.equal(roomPage.data.languageIndex, 1);
     assert.equal(roomPage.data.messages.joinTitle, 'Join a commentary room');
     session.attach({ roomId: '42', isHost: false }, 'ja'); handlers.Open();
     tourPage.setData({ locale: 'fr' });

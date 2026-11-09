@@ -48,6 +48,7 @@ export const ASK_PERSIST_KEY = "path-seeker:h5-client:ask"
 
 /** 站点快捷问答上下文（以附件形式挂在输入区，可取消） */
 export interface AskStageContext {
+  locale?: import('@path-seeker/ts-shared').TourLocale
   routeId: string
   stageId: string
   /** 仅 UI 展示；发送仍用 routeId */
@@ -446,7 +447,7 @@ export const useAskStore = defineStore("ask", () => {
       setInteractionMode("text")
       return false
     }
-    voiceInputActive.value = voiceRecognition.start()
+    voiceInputActive.value = voiceRecognition.start({ lang: stageContext.value?.locale || 'zh' })
     if (!voiceInputActive.value) {
       audioFocus.release()
       errorMessage.value = voiceRecognition.error.value || "无法开启收音，请重试。"
@@ -610,6 +611,7 @@ export const useAskStore = defineStore("ask", () => {
       return
     }
     stageContext.value = {
+      locale: context.locale,
       routeId: String(context.routeId || "").trim(),
       stageId: String(context.stageId || "").trim(),
       routeTitle: String(context.routeTitle || "").trim() || undefined,

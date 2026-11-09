@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, shallowRef } from 'vue'
-import { TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
+import { matchesTourSpeechLanguage, TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
 import type { ClientStopExtraAudio, ClientTourStop, TourNarrationChapter } from '@/types/clientCatalog'
 import { resolveFileSeekTarget, resolveSentenceSeek, splitSentences } from '@/utils/tourSeek'
 import { playbackFocus } from '@/utils/playbackFocus'
@@ -449,7 +449,7 @@ export function useTourSpeech(onNarrationEnd: () => void, onStandaloneEnd: () =>
       if (begun || !valid() || status.value !== 'playing') return
       begun = true
       clearWait()
-      const voice = synthesis.getVoices().find(item => item.lang.toLowerCase().split(/[-_]/)[0] === locale)
+      const voice = synthesis.getVoices().find(item => matchesTourSpeechLanguage(item.lang, locale))
       if (!voice) { failNarration('voiceMissing'); return }
       utterance = new SpeechSynthesisUtterance(sentence)
       utterance.voice = voice

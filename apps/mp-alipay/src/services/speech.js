@@ -1,5 +1,7 @@
 const http = require('./http');
 const auth = require('./auth');
+const storage = require('./storage');
+const { isTourLocale } = require('../shared/tour');
 function fileCall(method, params) {
   return new Promise((resolve, reject) => {
     if (!my.getFileSystemManager) { reject(Error('当前支付宝版本不支持文件处理，请更新客户端')); return; }
@@ -38,8 +40,9 @@ function recordingError(result) {
   return Object.assign(Error(Number(result.error) === 7 ? '录音太短，请点击麦克风说至少一秒后再结束' : denied ? '麦克风权限未开启，请开启权限后再次点击麦克风' : result.errorMessage || result.message || '录音失败，请使用文字提问'), { denied });
 }
 function asciiBytes(text) { return Array.from(text).map(c => c.charCodeAt(0)); }
-function multipartWav(buffer, boundary) {
-  const head = asciiBytes('--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="question.wav"\r\nContent-Type: audio/wav\r\n\r\n');
+function multipartWav(buffer, boundary, language = '') {
+  const field = isTourLocale(language) ? '--' + boundary + '\r\nContent-Disposition: form-data; name="language"\r\n\r\n' + language + '\r\n' : '';
+  const head = asciiBytes(field + '--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="question.wav"\r\nContent-Type: audio/wav\r\n\r\n');
   const tail = asciiBytes('\r\n--' + boundary + '--\r\n');
   const wav = new Uint8Array(buffer);
   if (wav.length > 10 * 1024 * 1024) throw Error('录音过大，请缩短问题');
@@ -49,13 +52,14 @@ function multipartWav(buffer, boundary) {
   return body.buffer;
 }
 async function transcribe(filePath, active = () => true) {
+  const language = storage.read('locale', 'zh');
   const user = (await auth.ensure()).userId;
   const result = await fileCall('readFile', { filePath });
   if (!active()) throw Error('录音已取消');
   if (!auth.current() || auth.current().userId !== user) throw Error('账号已切换');
   const boundary = 'PathSeeker' + Date.now();
   // 临时录音扩展名是 .audio，手工写 multipart 的 MIME，避免后端把 WAV 当普通文件拒绝。
-  return http.post('/ExhibitChat/transcribe', multipartWav(result.data, boundary), { headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary }, timeout: 120000 });
+  return http.post('/ExhibitChat/transcribe', multipartWav(result.data, boundary, language), { headers: { 'Content-Type': 'multipart/form-data; boundary=' + boundary }, timeout: 120000 });
 }
 let recorderOwner = null;
 function recorder(onState, onResult, onError, options = {}) {

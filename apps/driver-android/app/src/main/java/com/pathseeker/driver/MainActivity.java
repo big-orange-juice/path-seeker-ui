@@ -49,8 +49,6 @@ public final class MainActivity extends Activity {
     private boolean pendingMicrophone;
     private boolean refreshing;
     private long refreshedAt;
-    private static final String[] LANGUAGES = { "zh-CN", "zh-TW", "en", "ja", "ko", "fr", "de", "es" };
-    private static final String[] LANGUAGE_LABELS = { "中文", "繁體中文", "English", "日本語", "한국어", "Français", "Deutsch", "Español" };
     private final SharedPreferences.OnSharedPreferenceChangeListener changed = (preferences, name) -> runOnUiThread(() -> {
         if (!alive || microphoneLevel == null) return;
         if ("microphoneLevel".equals(name)) microphoneLevel.setProgress(preferences.getInt("microphoneLevel", 0));
@@ -114,7 +112,7 @@ public final class MainActivity extends Activity {
 
     private void createRoom() {
         task(() -> {
-            saveRoom(api.call("/TranslationRooms", "POST", new JSONObject().put("sourceLanguage", store.preferences().getString("sourceLanguage", "zh-CN"))));
+            saveRoom(api.call("/TranslationRooms", "POST", new JSONObject().put("sourceLanguage", DriverLanguages.normalize(store.preferences().getString("sourceLanguage", "zh-CN")))));
             return "房间已创建，可以开始共享位置";
         }, () -> { showQr(); requestLocation(); });
     }
@@ -356,15 +354,13 @@ public final class MainActivity extends Activity {
 
     private void chooseSourceLanguage() {
         if (!roomId().isEmpty()) { showFeedback("请先结束当前房间，再修改讲话语言"); return; }
-        DriverUi.show(new AlertDialog.Builder(this).setTitle(R.string.source_language).setItems(LANGUAGE_LABELS, (dialog, which) -> {
-            store.preferences().edit().putString("sourceLanguage", LANGUAGES[which]).apply(); render();
+        DriverUi.show(new AlertDialog.Builder(this).setTitle(R.string.source_language).setItems(DriverLanguages.LABELS, (dialog, which) -> {
+            store.preferences().edit().putString("sourceLanguage", DriverLanguages.CODES[which]).apply(); render();
         }).create());
     }
 
     private String sourceLabel() {
-        String language = store.preferences().getString("sourceLanguage", "zh-CN");
-        for (int index = 0; index < LANGUAGES.length; index++) if (LANGUAGES[index].equals(language)) return LANGUAGE_LABELS[index];
-        return language;
+        return DriverLanguages.label(store.preferences().getString("sourceLanguage", "zh-CN"));
     }
 
     private String roomId() { return store.preferences().getString("roomId", ""); }

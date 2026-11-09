@@ -1,5 +1,5 @@
 import { onBeforeUnmount, shallowRef } from 'vue'
-import { TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
+import { matchesTourSpeechLanguage, TOUR_LANGUAGES, type TourLocale } from '@path-seeker/ts-shared'
 
 export function useTourPreviewPlayback(onEnd: () => void) {
   const playing = shallowRef(false)
@@ -28,7 +28,7 @@ export function useTourPreviewPlayback(onEnd: () => void) {
 
   function speak(text: string, token: number) {
     const synthesis = window.speechSynthesis
-    const voice = synthesis?.getVoices().find(item => item.lang.toLowerCase().split(/[-_]/)[0] === language)
+    const voice = synthesis?.getVoices().find(item => matchesTourSpeechLanguage(item.lang, language))
     if (!synthesis || !voice || !text) { stop(); error.value = '设备未提供该语言语音，可继续阅读讲解。'; return }
     utterance = new SpeechSynthesisUtterance(text)
     utterance.voice = voice

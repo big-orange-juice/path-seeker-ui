@@ -329,6 +329,7 @@ function setAskContext() {
   if (!route || !stop) return
   const guideVoice = resolveTourVoiceContext(journey.narration.value, journey.stops.value[0]?.guideNarrations?.find(item => item.locale === journey.locale.value) ?? null)
   askStore.setStageContext({
+    locale: journey.locale.value,
     routeId: route.id,
     stageId: stop.id,
     routeTitle: route.title || '',

@@ -11,6 +11,20 @@ test('manual WAV multipart preserves every byte and declares file MIME and filen
   assert.throws(() => speech.multipartWav(new ArrayBuffer(10 * 1024 * 1024 + 1), 'b'), /过大/);
   assert.throws(() => speech.multipartWav(new ArrayBuffer(12), 'b'), /WAV/);
 });
+test('Korean and Cantonese recordings send their language alongside unchanged WAV bytes', async () => {
+  for (const language of ['ko', 'yue']) {
+    const h = harness(), speech = h.load('services/speech');
+    h.load('services/storage').write('locale', language);
+    const transcription = speech.transcribe('/question.audio');
+    await tick();
+    const body = Buffer.from(h.requests[0].options.data);
+    assert.ok(body.includes(Buffer.from('name="language"\r\n\r\n' + language + '\r\n')));
+    assert.ok(body.includes(h.wav));
+    h.requests[0].ok({ text: 'Question' });
+    assert.equal((await transcription).text, 'Question');
+  }
+});
+
 test('destroy before delayed recorder start still stops microphone and cleans cancelled temp file', async () => {
   const h = harness(), speech = h.load('services/speech'); let result = false;
   const r = speech.recorder(() => {}, () => result = true, () => {}); r.start(); r.destroy();

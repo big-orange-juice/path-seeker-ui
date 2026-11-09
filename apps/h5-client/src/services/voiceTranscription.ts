@@ -6,9 +6,10 @@ export interface VoiceTranscriptionResult {
   text: string
 }
 
-export async function transcribeVoiceAudio(blob: Blob, signal: AbortSignal): Promise<string> {
+export async function transcribeVoiceAudio(blob: Blob, signal: AbortSignal, language = 'zh'): Promise<string> {
   const form = new FormData()
   form.append('file', blob, 'utterance.wav')
+  form.append('language', language)
   const headers: Record<string, string> = { Accept: 'application/json' }
   const token = getAccessToken()
   if (token) headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`

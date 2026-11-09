@@ -1,6 +1,7 @@
 <view a:if="{{stop}}" class="tour-playback-dock">
   <view class="dock-modes">
     <button class="dock-room" onTap="translationRoom"><view class="dock-headphones-icon"/><text>{{hasTranslationRoom ? messages.commentaryRoom : messages.liveCommentary}}</text><view a:if="{{hasTranslationRoom}}" class="dock-live-dot"/></button>
+    <button class="dock-now" onTap="returnToNow" disabled="{{busy || loading || !locationEnabled}}" aria-label="{{messages.returnToNow}}"><text>{{messages.returnToNow}}</text></button>
     <button class="dock-nearby {{locationEnabled ? 'is-active' : ''}}" onTap="toggleTracking" disabled="{{busy || loading}}" aria-pressed="{{locationEnabled}}" aria-label="{{locationEnabled ? messages.stopLocate : messages.locate}}"><text>{{locationEnabled ? messages.locationReady : messages.locate}}</text><view class="dock-switch"><view/></view></button>
   </view>
   <view a:if="{{locationEnabled || locationNote === messages.driverRoomRequired}}" class="dock-location-note" role="status">{{locationNote}}</view>

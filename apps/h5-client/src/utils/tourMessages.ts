@@ -25,6 +25,8 @@ const extraMessages: Partial<Record<TourLocale, Partial<Record<keyof typeof zh, 
 }
 
 const arrivalMessages = {
+  ko: { nearbyStop: '가까운 명소', arrived: '도착한 곳', approaching: '가까워지는 곳', enterStop: '이 명소로 이동', keepNarration: '현재 해설 계속 듣기', metresShort: 'm', overlappingStops: '주변에 여러 명소가 있습니다' },
+  yue: { nearbyStop: '附近景點', arrived: '已到達', approaching: '就快到', enterStop: '進入呢個景點', keepNarration: '繼續聽而家嘅講解', metresShort: '米', overlappingStops: '附近有幾個景點' },
   zh: { nearbyStop: '附近站点', arrived: '已到达', approaching: '接近', enterStop: '进入该站', keepNarration: '继续当前', metresShort: '米', overlappingStops: '附近有多个景点' },
   en: { nearbyStop: 'Nearby stop', arrived: 'Arrived at', approaching: 'Approaching', enterStop: 'Enter this stop', keepNarration: 'Keep the current one', metresShort: 'm', overlappingStops: 'Several stops nearby' },
   ru: { nearbyStop: 'Остановка рядом', arrived: 'Вы прибыли:', approaching: 'Рядом:', enterStop: 'Перейти к остановке', keepNarration: 'Оставить текущую', metresShort: 'м', overlappingStops: 'Рядом несколько остановок' },
@@ -34,6 +36,8 @@ const arrivalMessages = {
 }
 
 const voiceMessages = {
+  ko: { voiceHint: '눌러 녹음하고 질문 열기', voiceReleaseHint: '다시 눌러 녹음을 마치고 전송', voiceCancel: '녹음 취소', voiceFinishing: '음성 인식 중…', voiceUnsupported: '음성 입력을 사용할 수 없습니다. 질문을 눌러 입력해 주세요.' },
+  yue: { voiceHint: '撳一下錄音同開啟提問', voiceReleaseHint: '再撳一下結束並傳送', voiceCancel: '取消錄音', voiceFinishing: '辨識中…', voiceUnsupported: '而家用唔到語音輸入，請撳提問輸入文字' },
   zh: { voiceHint: '点击收音并打开问一问', voiceReleaseHint: '再次点击结束并发送', voiceCancel: '取消收音', voiceFinishing: '正在识别…', voiceUnsupported: '当前浏览器不支持语音识别，请点击问一问使用文字输入' },
   en: { voiceHint: 'Tap to record and open Ask', voiceReleaseHint: 'Tap again to stop and send', voiceCancel: 'Cancel recording', voiceFinishing: 'Recognizing…', voiceUnsupported: 'Voice input is unavailable. Tap Ask to type.' },
   ru: { voiceHint: 'Нажмите, чтобы начать запись и открыть чат', voiceReleaseHint: 'Нажмите ещё раз, чтобы остановить и отправить', voiceCancel: 'Отменить запись', voiceFinishing: 'Распознавание…', voiceUnsupported: 'Голосовой ввод недоступен. Нажмите «Спросить», чтобы ввести текст.' },
@@ -43,6 +47,8 @@ const voiceMessages = {
 }
 
 const experienceMessages: Record<TourLocale, Partial<Record<keyof typeof zh, string>>> = {
+  ko: {},
+  yue: {},
   zh: { currentLocation: '我的位置', queueAutoPlay: '自动播放下一景点' },
   en: { currentLocation: 'Your location', queueAutoPlay: 'Auto-play the next stop', showRoute: 'Show route', hideRoute: 'Hide route', locationReady: 'Nearby guidance is on', locationOff: 'Nearby guidance is off', locationWeak: 'Waiting for a more accurate location' },
   ru: { currentLocation: 'Вы здесь', queueAutoPlay: 'Автовоспроизведение следующей остановки', showRoute: 'Показать маршрут', hideRoute: 'Скрыть маршрут', locationReady: 'Подсказки рядом включены', locationOff: 'Подсказки рядом выключены', locationWeak: 'Ожидание более точной геопозиции' },
@@ -52,6 +58,8 @@ const experienceMessages: Record<TourLocale, Partial<Record<keyof typeof zh, str
 }
 
 const navigationMessages = {
+  ko: { liveCommentary: '실시간 해설', commentaryRoom: '방', login: '로그인', account: '계정', manageAccount: '계정 관리', accountLogin: '계정으로 로그인' },
+  yue: { liveCommentary: '即時講解', commentaryRoom: '房間', login: '登入', account: '帳戶', manageAccount: '管理而家嘅帳戶', accountLogin: '帳戶登入' },
   zh: { liveCommentary: '实时讲解', commentaryRoom: '房间', login: '登录', account: '账号', manageAccount: '管理当前账号', accountLogin: '账号登录' },
   en: { liveCommentary: 'Live commentary', commentaryRoom: 'Room', login: 'Sign in', account: 'Account', manageAccount: 'Manage account', accountLogin: 'Sign in to your account' },
   ru: { liveCommentary: 'Живой комментарий', commentaryRoom: 'Комната', login: 'Войти', account: 'Аккаунт', manageAccount: 'Управление аккаунтом', accountLogin: 'Войти в аккаунт' },
@@ -61,6 +69,18 @@ const navigationMessages = {
 } satisfies Record<TourLocale, Record<'liveCommentary' | 'commentaryRoom' | 'login' | 'account' | 'manageAccount' | 'accountLogin', string>>
 
 const tourInterfaceMessages = {
+  ko: {
+    noMatchingRoutes: '일치하는 코스가 없습니다. 다른 검색어를 입력해 주세요.',
+    tourTitle: 'Path Seeker · 여행', cityTour: '도시 여행', allDestinations: '모든 목적지', map2dHint: '이 지도는 3D 건물을 지원하지 않습니다',
+    switchJourney: '여행 변경', switchJourneyConfirm: '「{title}」 여행을 마치고 새 여행을 시작할까요?', endJourneyConfirm: '완료한 명소 기록을 보관하고 여행을 마칠까요?',
+    locationHint: '위치를 켜면 가까운 명소를 볼 수 있습니다. 재생을 눌러 해설을 들어 보세요.', locationAccuracy: '위치 켜짐 · 정확도 약 {accuracy}m', confirm: '확인', cancel: '취소',
+  },
+  yue: {
+    noMatchingRoutes: '搵唔到符合嘅路線，試下其他關鍵字',
+    tourTitle: '尋迹 · 漫遊', cityTour: '城市漫遊', allDestinations: '全部目的地', map2dHint: '呢個地圖唔支援立體建築',
+    switchJourney: '切換行程', switchJourneyConfirm: '結束「{title}」再開始新行程？', endJourneyConfirm: '結束呢次行程並保留已完成嘅景點記錄？',
+    locationHint: '開啟定位可以睇附近景點，撳播放聽講解', locationAccuracy: '定位已開 · 精度約 {accuracy} 米', confirm: '確認', cancel: '取消',
+  },
   zh: {
     noMatchingRoutes: '没有匹配的路线，请更换关键词',
     tourTitle: '寻迹 · 漫游', cityTour: '城市漫游', allDestinations: '全部目的地', map2dHint: '当前地图引擎不支持立体建筑',
@@ -102,6 +122,30 @@ const tourInterfaceMessages = {
 export type TourMessages = Record<keyof typeof zh | keyof typeof arrivalMessages.zh | keyof typeof navigationMessages.zh | keyof typeof tourInterfaceMessages.zh, string>
 
 const messages: Record<TourLocale, Partial<Record<keyof typeof zh, string>>> = {
+  ko: {
+    previousImage: '이전 사진', nextImage: '다음 사진', skipVideo: '동영상 건너뛰기', videoFullscreen: '전체 화면 재생', videoFullscreenUnavailable: '전체 화면을 열 수 없습니다. 동영상 플레이어의 전체 화면 버튼을 눌러 주세요.',
+    currentLocation: '내 위치', chooseLanguage: '해설 언어 선택', routes: '여행 코스 선택', routeHint: '가이드마다 다른 베이징의 이야기를 만나 보세요.', search: '코스, 가이드, 명소 검색', start: '여행 시작', startHint: '위치를 켜고 길 위의 이야기를 들어 보세요', back: '지도로 돌아가기', end: '여행 마치기',
+    play: '해설 재생', pause: '일시 중지', resume: '계속 듣기', content: '내용 보기', close: '접기', next: '다음 명소', complete: '이 명소 완료', locate: '근처 해설 켜기', stopLocate: '위치 끄기', locationFailed: '위치를 사용할 수 없습니다. 명소를 직접 선택할 수 있습니다.', permissionDenied: '위치 권한이 없습니다. 브라우저 설정에서 허용한 후 다시 시도해 주세요.', enterFullscreen: '전체 화면', exitFullscreen: '전체 화면 종료', loading: '불러오는 중…', retry: '다시 시도',
+    noRoutes: '이 언어로 공개된 코스가 없습니다', noNarration: '이 명소에는 해당 언어 해설이 없습니다', voiceMissing: '기기에 이 언어의 음성이 없습니다. 해설을 읽어 주세요.', playbackFailed: '해설을 재생할 수 없습니다. 다시 시도하거나 내용을 읽어 주세요.', minutes: '분', stops: '곳', finished: '여행 완료', ask: '질문하기',
+    routeUnavailable: '코스가 없거나 해당 언어 버전이 공개되지 않았습니다. 다시 선택해 주세요.', loadFailed: '불러오지 못했습니다. 다시 시도해 주세요.', startFailed: '여행을 시작하지 못했습니다. 다시 시도해 주세요.', saveFailed: '진행 상황을 저장하지 못했습니다. 다시 시도해 주세요.', video: '동영상 보기', guide: '가이드', noMap: '지도를 사용할 수 없습니다. 코스 선택과 해설 재생은 가능합니다.', changeLanguage: '언어 변경',
+    zoomIn: '지도 확대', zoomOut: '지도 축소', overview: '전체 코스', follow: '내 위치 따라가기', unfollow: '따라가기 종료', routeTools: '코스 도구', showRoute: '코스 표시', hideRoute: '코스 숨기기', locationReady: '근처 해설이 켜졌습니다', locationOff: '근처 해설이 꺼졌습니다', locationWeak: '더 정확한 위치를 기다리는 중',
+    voiceAsk: '음성으로 질문', voiceStop: '음성 입력 종료', voiceHint: '눌러 녹음하고 질문 열기', voiceReleaseHint: '다시 눌러 녹음을 마치고 전송', voiceCancel: '녹음 취소', voiceFinishing: '음성 인식 중…', voiceUnsupported: '음성 입력을 사용할 수 없습니다. 질문을 눌러 입력해 주세요.',
+    extraAudio: '추가 음성', beforeAudio: '해설 전', afterAudio: '해설 후', skipExtraAudio: '추가 음성 건너뛰기', replayStop: '이 명소 처음부터 재생', playingNow: '재생 중', approximateResume: '시스템 음성은 문장 단위로 재개되어 위치가 정확하지 않을 수 있습니다', autoplayBlocked: '브라우저가 자동 재생을 차단했습니다', continuePlayback: '계속 재생', extraAudioFailed: '추가 음성을 재생하지 못해 건너뛰었습니다: ', locationUnknown: '위치가 부정확해 접근 알림을 사용할 수 없습니다. 명소를 직접 선택해 주세요.', secondsShort: '초',
+    prevStop: '이전 명소', nextStop: '다음 명소', rewind15: '−15초', forward15: '+15초', enterStopPlay: '이 명소 재생', drawerNotPlaying: '다른 명소 재생 중: ', browsingNoProgress: '둘러보는 중 · 진행 상황은 그대로입니다', playbackProgress: '재생 진행', seekAtStart: '이 구간의 시작입니다', seekAtEnd: '이 구간의 끝입니다', nearbyAutoPlayHint: '다음 명소에 가까워지면 자동으로 재생됩니다', sequentialAutoHint: '위치를 사용할 수 없어 재생 후 다음 명소로 이동합니다', voiceFellBack: '선택한 음성을 사용할 수 없어 기본 음성으로 재생합니다',
+    queueTitle: '재생 대기 목록', queuePending: '개 대기 중', queueHint: '가까운 명소를 거리순으로 추가하고 차례로 재생합니다', queueAutoPlay: '다음 명소 자동 재생', queueOn: '켜짐', queueOff: '일시 중지됨', queueLockContent: '현재 내용 고정', queueUnlockContent: '자동 내용 전환 허용', queuePlaying: '재생 중', queueCompleted: '완료', queueSkipped: '건너뜀', queueQueued: '대기 중', queueEmpty: '대기 중인 명소가 없습니다', queuePlay: '지금 재생', queueSkip: '건너뛰기',
+  } satisfies Record<keyof typeof zh, string>,
+  yue: {
+    previousImage: '上一張相', nextImage: '下一張相', skipVideo: '跳過影片', videoFullscreen: '全螢幕播放', videoFullscreenUnavailable: '暫時開唔到全螢幕，請用播放器嘅全螢幕按鈕再試',
+    currentLocation: '我嘅位置', chooseLanguage: '揀講解語言', routes: '揀呢一程', routeHint: '跟唔同導遊，聽唔同嘅北京故事。', search: '搜尋路線、導遊或景點', start: '開始行程', startHint: '開啟定位，沿途聽講解', back: '返回地圖', end: '結束行程',
+    play: '播放講解', pause: '暫停', resume: '繼續聽', content: '睇內容', close: '收起', next: '下一站睇', complete: '完成呢一站', locate: '開啟附近講解', stopLocate: '關閉定位', locationFailed: '定位用唔到，仍可手動揀景點', permissionDenied: '未獲定位權限，請喺瀏覽器設定允許後再試', enterFullscreen: '進入全螢幕', exitFullscreen: '離開全螢幕', loading: '載入中…', retry: '再試',
+    noRoutes: '暫時未有呢種語言嘅已發佈路線', noNarration: '呢個景點暫時未有呢種語言嘅講解', voiceMissing: '裝置未安裝呢種語言嘅語音，可以繼續睇講解', playbackFailed: '播唔到講解，請再試或睇正文', minutes: '分鐘', stops: '站', finished: '行程已完成', ask: '問一問',
+    routeUnavailable: '掃碼路線唔存在或未發佈呢種語言版本，請重新揀', loadFailed: '載入失敗，請再試', startFailed: '開始行程失敗，請再試', saveFailed: '儲存進度失敗，請再試', video: '睇影片', guide: '導遊', noMap: '地圖暫時用唔到，仍可揀路線同播講解', changeLanguage: '切換語言',
+    zoomIn: '放大地圖', zoomOut: '縮細地圖', overview: '睇晒成條路線', follow: '跟住視角', unfollow: '停止跟隨', routeTools: '路線工具', showRoute: '顯示路線', hideRoute: '隱藏路線', locationReady: '附近講解已開', locationOff: '附近講解已關', locationWeak: '等候更準確嘅位置',
+    voiceAsk: '語音提問', voiceStop: '結束語音', voiceHint: '撳一下錄音同開啟提問', voiceReleaseHint: '再撳一下結束並傳送', voiceCancel: '取消錄音', voiceFinishing: '辨識中…', voiceUnsupported: '而家用唔到語音輸入，請撳提問輸入文字',
+    extraAudio: '額外音頻', beforeAudio: '講解之前', afterAudio: '講解之後', skipExtraAudio: '跳過額外音頻', replayStop: '由頭播呢一站', playingNow: '播放中', approximateResume: '系統語音逐句繼續播，位置係大約嘅', autoplayBlocked: '瀏覽器阻止咗自動播放', continuePlayback: '繼續播放', extraAudioFailed: '額外音頻播唔到，已跳過：', locationUnknown: '定位唔夠準，暫時用唔到接近提示，可以手動揀景點', secondsShort: '秒',
+    prevStop: '上一個景點', nextStop: '下一個景點', rewind15: '−15 秒', forward15: '+15 秒', enterStopPlay: '播放呢個景點', drawerNotPlaying: '播放緊其他景點：', browsingNoProgress: '瀏覽中，未切換行程進度', playbackProgress: '播放進度', seekAtStart: '已到呢段開頭', seekAtEnd: '已到呢段結尾', nearbyAutoPlayHint: '行近下一站就會自動播', sequentialAutoHint: '定位用唔到，播完會自動去下一站', voiceFellBack: '呢個音色用唔到，已用預設音色',
+    queueTitle: '播放次序', queuePending: '個等緊播', queueHint: '附近景點會按距離加入，再順序播', queueAutoPlay: '自動播下一個景點', queueOn: '已開', queueOff: '已暫停', queueLockContent: '固定而家嘅內容', queueUnlockContent: '允許自動切換內容', queuePlaying: '播放中', queueCompleted: '已完成', queueSkipped: '已跳過', queueQueued: '等緊播', queueEmpty: '暫時冇景點等緊播', queuePlay: '即刻播', queueSkip: '跳過',
+  } satisfies Record<keyof typeof zh, string>,
   zh,
   en: { chooseLanguage: 'Choose your language', routes: 'Choose your journey', routeHint: 'A different guide, a different side of Beijing.', search: 'Search routes, guides or stops', start: 'Start journey', startHint: 'Enable location for stories along the way', back: 'Back to map', end: 'End journey', play: 'Play narration', pause: 'Pause', resume: 'Resume', content: 'View story', close: 'Close', next: 'Up next', complete: 'Complete this stop', locate: 'Enable nearby stories', stopLocate: 'Stop location', locationFailed: 'Location unavailable. Select a stop manually.', permissionDenied: 'Location permission is denied. Allow it in your browser settings and retry.', loading: 'Loading…', retry: 'Retry', noRoutes: 'No published routes in this language', noNarration: 'No narration in this language for this stop', voiceMissing: 'This language voice is unavailable. You can read the story.', playbackFailed: 'Unable to play. Retry or read the story.', minutes: 'min', stops: 'stops', finished: 'Journey completed', ask: 'Ask', routeUnavailable: 'This route or language version is unavailable. Choose another route.', loadFailed: 'Unable to load. Please retry.', startFailed: 'Unable to start. Please retry.', saveFailed: 'Progress could not be saved. Please retry.', video: 'Watch video', guide: 'Guide', noMap: 'Map unavailable. You can select routes and play stories.', changeLanguage: 'Change language', zoomIn: 'Zoom in', zoomOut: 'Zoom out', overview: 'Route overview', follow: 'Follow view', unfollow: 'Stop following', voiceAsk: 'Ask by voice', voiceStop: 'Stop listening', voiceHint: 'Tap and speak', voiceUnsupported: 'Voice input is not supported in this browser; switched to typing.', extraAudio: 'Extra audio', beforeAudio: 'Before the story', afterAudio: 'After the story', skipExtraAudio: 'Skip extra audio', replayStop: 'Replay this stop', playingNow: 'Now playing', approximateResume: 'System voice resumes sentence by sentence, so the position is approximate', autoplayBlocked: 'The browser blocked autoplay', continuePlayback: 'Continue playing', extraAudioFailed: 'Extra audio failed and was skipped: ', locationUnknown: 'Location is not accurate enough, so nearby prompts are unavailable; you can still pick a stop manually', secondsShort: 's' },
   ru: { chooseLanguage: 'Выберите язык', routes: 'Выберите маршрут', routeHint: 'У каждого гида — свой Пекин.', search: 'Маршруты, гиды и остановки', start: 'Начать прогулку', startHint: 'Включите геолокацию для рассказов по пути', back: 'К карте', end: 'Завершить прогулку', play: 'Слушать рассказ', pause: 'Пауза', resume: 'Продолжить', content: 'Открыть рассказ', close: 'Закрыть', next: 'Далее', complete: 'Завершить остановку', locate: 'Рассказы поблизости', stopLocate: 'Отключить геолокацию', locationFailed: 'Геолокация недоступна. Выберите остановку вручную.', permissionDenied: 'Доступ к геолокации запрещён. Разрешите его в настройках браузера и повторите.', loading: 'Загрузка…', retry: 'Повторить', noRoutes: 'Нет опубликованных маршрутов на этом языке', noNarration: 'Нет рассказа на этом языке', voiceMissing: 'Голос для этого языка недоступен. Можно прочитать рассказ.', playbackFailed: 'Не удалось воспроизвести. Повторите или прочитайте рассказ.', minutes: 'мин', stops: 'остановок', finished: 'Прогулка завершена', ask: 'Спросить', routeUnavailable: 'Маршрут или языковая версия недоступны. Выберите другой маршрут.', loadFailed: 'Не удалось загрузить. Повторите.', startFailed: 'Не удалось начать. Повторите.', saveFailed: 'Не удалось сохранить. Повторите.', video: 'Смотреть видео', guide: 'Гид', noMap: 'Карта недоступна. Можно выбирать маршруты и слушать рассказы.', changeLanguage: 'Сменить язык', zoomIn: 'Приблизить', zoomOut: 'Отдалить', overview: 'Весь маршрут', follow: 'Режим слежения', unfollow: 'Выйти из слежения', voiceAsk: 'Спросить голосом', voiceStop: 'Остановить', voiceHint: 'Нажмите и говорите', voiceUnsupported: 'Голосовой ввод недоступен в этом браузере; переключено на текст.', extraAudio: 'Дополнительное аудио', beforeAudio: 'Перед рассказом', afterAudio: 'После рассказа', skipExtraAudio: 'Пропускать дополнительное аудио', replayStop: 'Повторить остановку', playingNow: 'Сейчас играет', approximateResume: 'Системный голос продолжает по предложениям, позиция приблизительная', autoplayBlocked: 'Браузер заблокировал автовоспроизведение', continuePlayback: 'Продолжить воспроизведение', extraAudioFailed: 'Дополнительное аудио не воспроизвелось и пропущено: ', locationUnknown: 'Точность геолокации недостаточна, подсказки о приближении недоступны; остановку можно выбрать вручную', secondsShort: 'с' },

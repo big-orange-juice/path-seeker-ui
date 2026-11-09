@@ -2,6 +2,71 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { harness, tick, session, userId } = require('./harness.cjs');
 
+test('Alipay navigation and room selectors share all eight languages', () => {
+  const h = harness(), { locales } = h.load('config');
+  const expected = ['zh', 'en', 'ru', 'es', 'fr', 'ja', 'ko', 'yue'];
+  assert.deepEqual(Array.from(locales, language => language.value), expected);
+  assert.deepEqual(Array.from(h.load('shared/translation-room').ROOM_LANGUAGES, language => language.value === 'zh-CN' ? 'zh' : language.value), expected);
+  for (const locale of ['ko', 'yue']) {
+    const baseline = h.load('core/driver-messages')('zh');
+    const dictionary = h.load('core/driver-messages')(locale);
+    assert.deepEqual(Object.keys(dictionary).sort(), Object.keys(baseline).sort());
+    assert.notEqual(dictionary.driverRoomRequired, baseline.driverRoomRequired);
+    assert.notEqual(h.load('core/arrival-messages')(locale).locationNetwork, h.load('core/arrival-messages')('zh').locationNetwork);
+  }
+});
+
+test('language gate selects Korean and Cantonese and retains each choice on reopening', async () => {
+  for (const locale of ['ko', 'yue']) {
+    const h = harness(), page = h.page('tour');
+    page.onLoad(); await tick();
+    assert.equal(page.data.tourStage, 'language');
+    const index = page.data.locales.findIndex(language => language.value === locale);
+    assert.ok(index >= 0);
+    const selecting = page.chooseLanguage({ currentTarget: { dataset: { index } } }); await tick();
+    assert.equal(h.requests[0].options.data.locale, locale);
+    h.requests[0].ok({ routes: [], destinations: [], places: [] }); await selecting;
+    assert.equal(page.data.locale, locale);
+    assert.equal(page.data.localeIndex, index);
+    assert.equal(page.data.tourStage, 'overview');
+    assert.equal(h.load('services/storage').read('tour-locale'), locale);
+    page.onUnload();
+    const reopened = h.page('tour'); reopened.onLoad(); await tick();
+    assert.equal(h.requests[1].options.data.locale, locale);
+    h.requests[1].ok({ routes: [], destinations: [], places: [] }); await tick();
+    assert.equal(reopened.data.locale, locale);
+    assert.equal(reopened.data.tourStage, 'overview');
+    reopened.onUnload();
+  }
+});
+
+test('empty Korean and Cantonese catalogs can return to language selection and load Chinese routes', async () => {
+  for (const locale of ['ko', 'yue']) {
+    const h = harness(), page = h.page('tour');
+    h.load('services/storage').write('locale', locale);
+    page.onLoad(); await tick();
+    h.requests[0].ok({ routes: [], destinations: [], places: [] }); await tick();
+    assert.equal(page.data.tourStage, 'overview');
+    assert.equal(page.data.loading, false);
+    assert.equal(page.data.busy, false);
+    page.showLanguage();
+    assert.equal(page.data.tourStage, 'language');
+    const index = page.data.locales.findIndex(language => language.value === 'zh');
+    const switching = page.chooseLanguage({ currentTarget: { dataset: { index } } }); await tick();
+    assert.equal(h.requests[1].options.data.locale, 'zh');
+    const route = { id: 'chinese-route', locale: 'zh', title: '中文路线' };
+    h.requests[1].ok({ routes: [route], destinations: [], places: [] }); await tick();
+    h.requests[2].ok({ route, stops: [] }); await tick();
+    h.requests[3].ok(null); await switching;
+    assert.equal(page.data.locale, 'zh');
+    assert.equal(page.data.tourStage, 'overview');
+    assert.equal(page.data.route.id, route.id);
+    assert.equal(page.data.routes.length, 1);
+    assert.equal(h.load('services/storage').read('locale'), 'zh');
+    page.onUnload();
+  }
+});
+
 test('navigation startup waits for password login instead of returning the old guest', async () => {
   const h = harness();
   const login = h.auth.login({ account: 'host', password: 'secret' });
@@ -159,7 +224,7 @@ test('logout invalidates both a pending formal login and navigation waiting for 
 });
 
 test('all eight room languages localize direct-entry permissions, title, playback and failures', async () => {
-  for (const language of ['zh-CN', 'zh-TW', 'en', 'ja', 'ko', 'fr', 'de', 'es']) {
+  for (const language of ['zh-CN', 'en', 'ru', 'es', 'fr', 'ja', 'ko', 'yue']) {
     const h = harness(), titles = [];
     h.my.setNavigationBar = value => titles.push(value.title);
     h.load('services/storage').write('locale', language);
@@ -183,7 +248,7 @@ test('all eight room languages localize direct-entry permissions, title, playbac
 });
 
 test('all navigation languages update native title, location hints and confirmation labels', async () => {
-  for (const locale of ['zh', 'en', 'ru', 'es', 'fr', 'ja']) {
+  for (const locale of ['zh', 'en', 'ru', 'es', 'fr', 'ja', 'ko', 'yue']) {
     const h = harness(), page = h.page('tour'), titles = [];
     h.my.setNavigationBar = value => titles.push(value.title);
     page.applyLocale(locale);

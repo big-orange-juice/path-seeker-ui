@@ -9,9 +9,5 @@ module.exports = {
   diagnostics: true,
   authOptions: { guestLogin: false, passwordLogin: false, requirePhoneNumber: true },
   voiceId: 'male-qn-qingse',
-  locales: [
-    { value: 'zh', label: '中文' }, { value: 'en', label: 'English' },
-    { value: 'ru', label: 'Русский' }, { value: 'es', label: 'Español' },
-    { value: 'fr', label: 'Français' }, { value: 'ja', label: '日本語' }
-  ]
+  locales: require('./shared/tour').TOUR_LANGUAGES
 };

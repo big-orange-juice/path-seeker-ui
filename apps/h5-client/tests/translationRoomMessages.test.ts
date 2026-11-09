@@ -3,6 +3,37 @@ import assert from 'node:assert/strict'
 import { ROOM_LANGUAGES, RoomTextFeed } from '../../../packages/ts-shared/src/translation-room.ts'
 import { formatRoomMessage, localizeRoomNotice, roomLocale, roomMessages } from '../../../packages/ts-shared/src/translation-room-messages.ts'
 import { tourMessages } from '../src/utils/tourMessages.ts'
+import { isTourLocale, matchesTourSpeechLanguage, TOUR_LANGUAGES } from '../../../packages/ts-shared/src/tour.ts'
+
+test('tour and room selectors expose the same eight languages in the same order', () => {
+  const expected = ['zh', 'en', 'ru', 'es', 'fr', 'ja', 'ko', 'yue']
+  assert.deepEqual(TOUR_LANGUAGES.map(language => language.value), expected)
+  assert.deepEqual(ROOM_LANGUAGES.map(language => language.value === 'zh-CN' ? 'zh' : language.value), expected)
+  assert.deepEqual(ROOM_LANGUAGES.map(language => language.label), TOUR_LANGUAGES.map(language => language.label))
+  assert.equal(isTourLocale('de'), false)
+  assert.equal(isTourLocale('zh-TW'), false)
+  for (const language of ['ko', 'yue'] as const) {
+    const dictionary = tourMessages(language), baseline = tourMessages('zh')
+    assert.deepEqual(Object.keys(dictionary).sort(), Object.keys(baseline).sort())
+    for (const key of Object.keys(baseline) as (keyof typeof baseline)[]) {
+      assert.ok(dictionary[key].trim(), `${language}.${key}`)
+      assert.deepEqual(dictionary[key].match(/\{\w+\}/g), baseline[key].match(/\{\w+\}/g), `${language}.${key}`)
+    }
+  }
+})
+
+test('speech selection distinguishes Cantonese voices from Mandarin voices', () => {
+  for (const voice of ['zh-HK', 'yue-HK', 'yue', 'zh-yue', 'ZH_hk']) {
+    assert.equal(matchesTourSpeechLanguage(voice, 'yue'), true)
+    assert.equal(matchesTourSpeechLanguage(voice, 'zh'), false)
+  }
+  for (const voice of ['zh-CN', 'zh-TW', 'zh-Hans']) {
+    assert.equal(matchesTourSpeechLanguage(voice, 'yue'), false)
+    assert.equal(matchesTourSpeechLanguage(voice, 'zh'), true)
+  }
+  assert.equal(matchesTourSpeechLanguage('ko-KR', 'ko'), true)
+  assert.equal(matchesTourSpeechLanguage('en-US', 'ko'), false)
+})
 
 test('every supported room language has complete messages and matching interpolation parameters', () => {
   const baseline = roomMessages('zh-CN')
@@ -20,7 +51,9 @@ test('every supported room language has complete messages and matching interpola
 
 test('locale aliases normalize and unknown locale safely falls back to Chinese', () => {
   for (const language of ['en-US', 'EN_us']) assert.equal(roomLocale(language), 'en')
-  for (const language of ['zh-Hant', 'zh-HK', 'zh_TW']) assert.equal(roomLocale(language), 'zh-TW')
+  for (const language of ['yue', 'yue-HK', 'zh-yue', 'zh-HK']) assert.equal(roomLocale(language), 'yue')
+  for (const language of ['ru-RU', 'RU_ru']) assert.equal(roomLocale(language), 'ru')
+  for (const language of ['zh-Hant', 'zh_TW', 'de']) assert.equal(roomLocale(language), 'zh-CN')
   for (const language of ['zh', 'zh-Hans', 'unsupported', 'constructor', 'toString', '']) assert.equal(roomLocale(language), 'zh-CN')
 })
 
@@ -53,11 +86,11 @@ test('display localization leaves actual speech, translations and stored error d
 
 test('navigation room entry and account labels follow every supported tour language', () => {
   const baseline = tourMessages('zh')
-  for (const language of ['en', 'ru', 'es', 'fr', 'ja'] as const) {
+  for (const language of ['en', 'ru', 'es', 'fr', 'ja', 'ko', 'yue'] as const) {
     const dictionary = tourMessages(language)
     for (const key of ['liveCommentary', 'commentaryRoom', 'login', 'account', 'manageAccount', 'accountLogin', 'tourTitle', 'cityTour', 'allDestinations', 'map2dHint', 'switchJourney', 'switchJourneyConfirm', 'endJourneyConfirm', 'locationHint', 'locationAccuracy', 'confirm', 'cancel'] as const) {
       assert.ok(dictionary[key].trim())
-      assert.notEqual(dictionary[key], baseline[key], `${language}.${key}`)
+      if (language !== 'yue') assert.notEqual(dictionary[key], baseline[key], `${language}.${key}`)
       assert.deepEqual(dictionary[key].match(/\{\w+\}/g), baseline[key].match(/\{\w+\}/g), `${language}.${key}`)
     }
   }

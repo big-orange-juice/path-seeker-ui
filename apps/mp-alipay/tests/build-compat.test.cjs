@@ -55,3 +55,37 @@ test('packaged page templates inline local AXML and ACSS dependencies', () => {
   assert.match(tourAcss, /\.language-gate/);
   assert.doesNotMatch(tourAcss, /@import\s+["'][^"']+["']/);
 });
+
+test('packaged language gate renders the configured languages in a scrollable list', () => {
+  const template = fs.readFileSync(path.resolve(__dirname, '../dist/pages/tour/index.axml'), 'utf8');
+  assert.match(template, /<scroll-view\b[^>]*class="language-gate"[^>]*scroll-y="true"/);
+  const languageButtons = [...template.matchAll(/<button\b[^>]*onTap="chooseLanguage"[^>]*>([\s\S]*?)<\/button>/g)];
+  assert.equal(languageButtons.length, 1);
+  assert.match(languageButtons[0][0], /a:for="\{\{locales\}\}"/);
+  assert.match(languageButtons[0][0], /a:key="value"/);
+  assert.match(languageButtons[0][0], /data-index="\{\{index\}\}"/);
+  assert.match(languageButtons[0][1], /\{\{item.label\}\}/);
+});
+
+test('empty catalog exposes language recovery without mounting the native map or empty route scroller', () => {
+  const template = fs.readFileSync(path.resolve(__dirname, '../dist/pages/tour/index.axml'), 'utf8');
+  const visible = (tag, state) => {
+    const expression = tag.match(/a:if="\{\{(.*?)\}\}"/);
+    return !expression || !!vm.runInNewContext(expression[1], state);
+  };
+  const tagWithClass = name => template.match(new RegExp('<[\\w-]+\\b[^>]*class="' + name + '"[^>]*>'))[0];
+  const map = template.match(/<map\b[^>]*>/)[0];
+  const emptyState = { tourStage: 'overview', route: null, routes: [], stops: [], loading: false };
+  assert.equal(visible(map, emptyState), false);
+  assert.equal(visible(tagWithClass('route-deck'), emptyState), false);
+  assert.equal(visible(tagWithClass('start-area'), emptyState), false);
+  assert.equal(visible(tagWithClass('empty-routes'), emptyState), true);
+  assert.match(tagWithClass('empty-language-button'), /onTap="showLanguage"/);
+  assert.equal(visible(tagWithClass('language-gate'), emptyState), false);
+  assert.equal(visible(tagWithClass('language-gate'), { ...emptyState, tourStage: 'language' }), true);
+  const populated = { ...emptyState, route: {}, routes: [{}], stops: [{}] };
+  assert.equal(visible(map, populated), true);
+  assert.equal(visible(tagWithClass('route-deck'), populated), true);
+  assert.equal(visible(tagWithClass('start-area'), populated), true);
+  assert.equal(visible(tagWithClass('empty-routes'), populated), false);
+});

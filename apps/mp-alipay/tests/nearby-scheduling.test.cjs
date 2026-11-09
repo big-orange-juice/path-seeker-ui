@@ -19,7 +19,7 @@ function setup(t) {
   let deliver;
   h.load('services/location').watch = callback => { deliver = callback; return () => {}; };
   page.toggleTracking();
-  const fix = () => deliver({ longitude: 116.38, latitude: 39.94, accuracy: 10, timestamp: Date.now() });
+  const fix = (values = {}) => deliver({ longitude: 116.38, latitude: 39.94, accuracy: 10, timestamp: Date.now(), ...values });
   return { h, page, fix, audio: h.load('services/audio') };
 }
 
@@ -82,13 +82,16 @@ test('a pending automatic playback intent cannot start from route overview', asy
   page.onUnload();
 });
 
-test('starting with guidance already enabled flushes the first stop once the request settles', async t => {
-  const { h, page, audio } = setup(t);
+test('starting with guidance already enabled waits for the driver position before playing', async t => {
+  const { h, page, audio, fix } = setup(t);
+  h.load('services/translation-session').snapshot = () => ({ room: { roomId: 'room', isHost: false, status: 'paused' }, paused: true });
   page.setData({ tourStage: 'overview', visit: null });
   const starting = page.startVisit();
   const visit = { visitId: 'new', routeId: 'route', status: 1, completedStageIds: [] };
-  h.requests[0].ok(visit); await tick();
-  h.requests[1].ok({ ...visit, currentStageId: 'current' }); await starting;
+  h.requests[0].ok(visit); await starting;
+  assert.equal(h.requests.length, 1); assert.equal(audio.snapshot().item, null);
+  fix({ source: 'driver', roomId: 'room' });
+  h.requests[1].ok({ ...visit, currentStageId: 'current' }); await tick();
   assert.equal(audio.snapshot().playing, true); assert.equal(audio.snapshot().item.id, 'chapter-current');
   page.onUnload();
 });

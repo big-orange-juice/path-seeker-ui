@@ -68,8 +68,8 @@ function setup(context: any) {
     if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator)
     else Reflect.deleteProperty(globalThis, 'navigator')
   })
-  const record = async () => {
-    assert.equal(voice.start(), true)
+  const record = async (language?: string) => {
+    assert.equal(voice.start({ lang: language }), true)
     await tick()
     assert.equal(voice.listening.value, true)
     nodes.at(-1).port.onmessage({ data: new Float32Array(48000).fill(0.5) })
@@ -77,6 +77,16 @@ function setup(context: any) {
   return { voice, record, contexts, streams, nodes, requests,
     media: (value: typeof media) => { media = value }, response: (value: typeof response) => { response = value } }
 }
+
+test('韩语和粤语录音携带独立语言参数，录音开始后切换语言不改变本次识别', async context => {
+  const { voice, record, requests } = setup(context)
+  for (const language of ['ko', 'yue']) {
+    await record(language)
+    assert.equal(voice.start({ lang: 'zh' }), false)
+    await voice.stop()
+    assert.equal((requests.at(-1)!.options.body as FormData).get('language'), language)
+  }
+})
 
 test('三个入口共享唯一控制器，结束收音只上传一次，WAV 为16k单声道16位PCM', async context => {
   const fixture = setup(context)

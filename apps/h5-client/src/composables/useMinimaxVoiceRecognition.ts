@@ -24,6 +24,7 @@ const events: Array<{ elapsedMs: number; event: string }> = []
 let startedAt = 0
 
 interface CaptureSession {
+  language: string
   context: AudioContext
   stream: MediaStream | null
   source: MediaStreamAudioSourceNode | null
@@ -125,7 +126,7 @@ async function finishUpload(session: CaptureSession) {
     const blob = encodeWav(merged, session.context.sampleRate)
     session.samples = []
     trace('upload-start')
-    const text = await transcribeVoiceAudio(blob, session.controller.signal)
+    const text = await transcribeVoiceAudio(blob, session.controller.signal, session.language)
     // 取消后可以立刻开始新一轮；迟到的旧请求不得覆盖结果或结束新录音。
     if (current !== session) return
     finalText.value = text
@@ -184,7 +185,7 @@ async function initialize(session: CaptureSession, resumed: Promise<void>) {
   }
 }
 
-function start() {
+function start(options?: { lang?: string }) {
   if (!supported.value || busy.value) return false
   finalText.value = ''
   interimText.value = ''
@@ -199,6 +200,7 @@ function start() {
     let resolve!: (text: string) => void
     completion = new Promise<string>(done => { resolve = done })
     const session: CaptureSession = {
+      language: options?.lang || 'zh',
       context, stream: null, source: null, node: null, mute: null, samples: [], sampleCount: 0,
       stopped: false, controller: new AbortController(), completion, resolve, startTimer: undefined,
     }

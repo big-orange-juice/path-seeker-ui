@@ -217,6 +217,7 @@ test('翻译房间解除占用时重试已有近站队列，问答开启期间�
   const h = harness(), p = tourPage(h, visit()), room = h.load('services/translation-session');
   let state = { room: { roomId: '9223372036854775802', isHost: false, status: 'live' }, paused: false, disconnected: false }, publish;
   room.snapshot = () => state; room.subscribe = callback => { publish = callback; callback(state); return () => {}; };
+  p._driverPositionKey = state.room.roomId + ':' + p.data.visit.visitId;
   p.watchLocation = () => {};
   p.setData({ stops: [stop(), stop('next', 2)], autoplay: true, browsing: true });
   p.enqueueCandidates([{ id: 'next', index: 1, distance: 3, order: 2 }]); p.onShow();
