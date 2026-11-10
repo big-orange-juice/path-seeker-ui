@@ -26,7 +26,8 @@ public final class RoomInvitationTest {
             Map<String, String> target = parameters(scheme.getRawQuery());
             assert target.get("appId").equals(appId);
             assert target.get("page").equals("pages/translation-room/index");
-            assert parameters(target.get("query")).equals(Map.of("roomCode", code, "autoJoin", "1"));
+            assert parameters(target.get("query")).equals(Map.of("roomCode", code, "autoJoin", "1",
+                "routeCode", "OUT-610000000000000001-20261030102158"));
             BitMatrix matrix = RoomInvitation.matrix(appId, code);
             int width = matrix.getWidth(), height = matrix.getHeight();
             int[] pixels = new int[width * height];

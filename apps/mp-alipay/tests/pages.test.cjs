@@ -75,6 +75,45 @@ test('route list entry defaults to Chinese and stays on the list even with an ac
   page.onUnload();
 });
 
+test('a linked route family selects the requested language ahead of a remembered unrelated route', async () => {
+  const h = harness(), page = h.page('tour');
+  h.load('services/storage').write(h.load('services/storage').scoped(userId, 'route'), 'other-route');
+  h.app.globalData.selectedRoute = 'other-route';
+  page.onLoad({ view: 'routes', routeCode: 'city', lang: 'en' }); await tick();
+  assert.equal(h.requests[0].options.data.locale, 'en');
+  const english = { ...route(), id: '9223372036854775802', locale: 'en' };
+  h.requests[0].ok({ routes: [{ ...english, id: 'other-route', familyCode: 'other' }, route(), english], destinations: [], places: [] }); await tick();
+  assert.match(h.requests[1].options.url, /routeId=9223372036854775802&locale=en$/);
+  h.requests[1].ok({ route: english, stops: [] }); await tick(); h.requests[2].ok(null); await tick();
+  assert.equal(page.data.route.id, english.id);
+  assert.equal(page.data.locale, 'en'); assert.equal(page.data.tourStage, 'overview');
+  page.onUnload();
+});
+
+test('the fixed APP route code selects the Chinese route when no language has been chosen', async () => {
+  const h = harness(), page = h.page('tour');
+  const familyCode = 'OUT-610000000000000001-20261030102158';
+  page.onLoad({ view: 'routes', routeCode: familyCode }); await tick();
+  assert.equal(h.requests[0].options.data.locale, 'zh');
+  const chinese = { ...route(), familyCode };
+  h.requests[0].ok({ routes: [{ ...route(), id: 'other-route' }, chinese], destinations: [], places: [] }); await tick();
+  assert.match(h.requests[1].options.url, new RegExp('routeId=' + routeId + '&locale=zh$'));
+  h.requests[1].ok({ route: chinese, stops: [] }); await tick(); h.requests[2].ok(null); await tick();
+  assert.equal(page.data.route.id, routeId); assert.equal(page.data.locale, 'zh');
+  page.onUnload();
+});
+
+test('an unavailable linked route or language never silently opens the first unrelated route', async () => {
+  for (const link of [{ routeCode: 'missing', lang: 'en' }, { routeCode: 'city', lang: 'en' }, { routeId: 'missing', lang: 'en' }]) {
+    const h = harness(), page = h.page('tour');
+    page.onLoad({ view: 'routes', ...link }); await tick();
+    h.requests[0].ok({ routes: [route(), { ...route(), id: 'other-route', familyCode: 'other', locale: 'en' }], destinations: [], places: [] }); await tick();
+    assert.equal(h.requests.length, 1); assert.equal(page.data.route, null);
+    assert.equal(page.data.error, page.data.messages.routeUnavailable);
+    page.onUnload();
+  }
+});
+
 test('my page returns to the route list even when opened without a previous page', () => {
   const h = harness(), navigations = [], page = h.page('me');
   h.my.reLaunch = options => navigations.push(options.url);

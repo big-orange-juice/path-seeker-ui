@@ -29,7 +29,7 @@ function setup({ live = false } = {}) {
   return { h, page, state, stops, visit, fix, deliver(index = 3, overrides = {}) { onLocation(fix(index, overrides)); } };
 }
 
-test('back to now skips passed stops and an interrupted preview, then starts Yinding Bridge from the beginning', async () => {
+test('back to now clears the old queue and interrupted preview, then starts Yinding Bridge from the beginning', async () => {
   const { h, page, visit, fix } = setup();
   page.sequenceStatus(stageIds[0], 'completed', 0);
   page.sequenceStatus(stageIds[1], 'queued', 1);
@@ -46,7 +46,7 @@ test('back to now skips passed stops and an interrupted preview, then starts Yin
   assert.equal(page.data.driverAligning, false);
   assert.equal(page._manualBrowse, false);
   assert.equal(page._roomResume, null);
-  assert.deepEqual(plain(page.data.sequence.map(item => item.status)), ['completed', 'skipped', 'skipped', 'queued', 'queued']);
+  assert.deepEqual(plain(page.data.sequence.map(item => ({ id: item.id, status: item.status }))), [{ id: stageIds[3], status: 'queued' }]);
   assert.equal(h.requests.length, 1);
   assert.equal(h.requests[0].options.data.stageId, stageIds[3]);
   assert.equal(h.requests[0].options.data.action, 'start');
@@ -58,7 +58,7 @@ test('back to now skips passed stops and an interrupted preview, then starts Yin
   assert.deepEqual(plain(page.data.visit.completedStageIds), [stageIds[0]]);
   const storage = h.load('services/storage');
   const saved = storage.read(storage.scoped(userId, 'sequence'));
-  assert.equal(saved.items.find(item => item.id === stageIds[1]).status, 'skipped');
+  assert.deepEqual(plain(saved.items.map(item => item.id)), [stageIds[3]]);
   page.onUnload();
 });
 
@@ -112,11 +112,14 @@ test('stale or inaccurate positions and positions away from stops never start th
     assert.equal(page.data.driverAligning, true);
     assert.equal(h.requests.length, 0);
     assert.equal(h.audioContexts.length, 0);
-    assert.equal(page.data.sequence[0].status, 'queued');
+    assert.equal(page.data.sequence.length, 0);
+    assert.equal(page.data.queuedCount, 0);
+    const storage = h.load('services/storage');
+    assert.deepEqual(plain(storage.read(storage.scoped(userId, 'sequence')).items), []);
     deliver();
     assert.equal(page.data.driverAligning, false);
     assert.equal(page.data.stop.id, stageIds[3]);
-    assert.equal(page.data.sequence[0].status, 'skipped');
+    assert.deepEqual(plain(page.data.sequence.map(item => item.id)), [stageIds[3]]);
     page.onUnload();
   }
 });

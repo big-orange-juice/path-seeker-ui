@@ -4,7 +4,7 @@ const ui = require('../../core/ui');
 const { authOptions = {} } = require('../../config');
 const invitation = require('../../services/room-invitation');
 Page({
-  onLoad(query = {}) { this._inviteCode = invitation.read(query); this._returnAfterPhone = query.phone === '1'; if (this._returnAfterPhone) this.setData({ requirePhoneNumber: true, postcardPhone: true }); },
+  onLoad(query = {}) { this._invitation = invitation.entry(query); if (this._invitation) this.setData({ guestLoginEnabled: false }); this._returnAfterPhone = query.phone === '1'; if (this._returnAfterPhone) this.setData({ requirePhoneNumber: true, postcardPhone: true }); },
   data: { guestLoginEnabled: authOptions.guestLogin === true, passwordLoginEnabled: authOptions.passwordLogin === true, requirePhoneNumber: authOptions.requirePhoneNumber !== false, register: false, account: '', password: '', username: '', phone: '', email: '', nickname: '', busy: false, error: '', agreed: false },
   onShow() { this._visible = true; },
   onHide() { this._visible = false; },
@@ -37,6 +37,6 @@ Page({
     } catch (e) { if (this._visible) ui.error(this, e); }
     finally { this.setData({ busy: false }); }
   },
-  finishLogin(defaultUrl) { if (this._inviteCode) my.reLaunch({ url: invitation.url(this._inviteCode) }); else if (this._returnAfterPhone && getCurrentPages().length > 1) my.navigateBack(); else my.reLaunch({ url: defaultUrl }); },
-  async guest() { if (authOptions.guestLogin !== true || this.data.busy) return; this.setData({ busy: true, error: '' }); try { await auth.ensure(); if (this._visible) this.finishLogin('/pages/tour/index'); } catch (e) { if (this._visible) ui.error(this, e); } finally { this.setData({ busy: false }); } }
+  finishLogin(defaultUrl) { if (this._invitation) my.reLaunch({ url: invitation.url(this._invitation.roomCode, this._invitation) }); else if (this._returnAfterPhone && getCurrentPages().length > 1) my.navigateBack(); else my.reLaunch({ url: defaultUrl }); },
+  async guest() { if (this._invitation || authOptions.guestLogin !== true || this.data.busy) return; this.setData({ busy: true, error: '' }); try { await auth.ensure(); if (this._visible) this.finishLogin('/pages/tour/index'); } catch (e) { if (this._visible) ui.error(this, e); } finally { this.setData({ busy: false }); } }
 });

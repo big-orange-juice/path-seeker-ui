@@ -11,12 +11,14 @@ import java.io.UnsupportedEncodingException;
 import java.util.EnumMap;
 
 final class RoomInvitation {
+    static final String ROUTE_CODE = "OUT-610000000000000001-20261030102158";
+
     static String url(String appId, String code) {
         if (appId == null || !appId.matches("[0-9]{16}")) throw new IllegalArgumentException("支付宝小程序 AppID 未配置");
         if (code == null || !code.matches("[0-9]{8}")) throw new IllegalArgumentException("房间码无效，请重新打开房间");
         String scheme = "alipays://platformapi/startapp?appId=" + appId
             + "&page=" + encode("pages/translation-room/index")
-            + "&query=" + encode("roomCode=" + code + "&autoJoin=1");
+            + "&query=" + encode("roomCode=" + code + "&autoJoin=1&routeCode=" + encode(ROUTE_CODE));
         return "https://ds.alipay.com/?scheme=" + encode(scheme);
     }
 

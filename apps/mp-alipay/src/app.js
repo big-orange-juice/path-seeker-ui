@@ -6,16 +6,19 @@ const location = require('./services/location');
 const invitation = require('./services/room-invitation');
 App({
   globalData: { chatContext: null, selectedRoute: '', foreground: true },
-  onLaunch() { this._coldStart = true; auth.restore(); location.reportCapabilities(); },
+  onLaunch(options = {}) { this._coldStart = true; this.globalData.roomInvitation = invitation.entry(options.query); auth.restore(); location.reportCapabilities(); },
   onShow(options = {}) {
     const coldStart = this._coldStart; this._coldStart = false;
     this.globalData.foreground = true; location.setForeground(true);
-    const code = invitation.read(options.query);
-    const newInvitation = code && this._lastInviteCode !== code;
-    this._lastInviteCode = code;
+    const entry = invitation.entry(options.query);
+    const code = entry && entry.roomCode;
+    const invitationUrl = entry && invitation.url(code, entry);
+    if (coldStart && entry) this.globalData.roomInvitation = entry;
+    const newInvitation = entry && this._lastInvitationUrl !== invitationUrl;
+    this._lastInvitationUrl = invitationUrl;
     if (code) {
       if (translation.snapshot().room && translation.snapshot().room.code === code) translation.resume();
-      else if (!coldStart && newInvitation) my.reLaunch({ url: invitation.url(code) });
+      if (!coldStart && newInvitation) my.reLaunch({ url: invitationUrl });
     } else translation.resume();
   },
   onHide() { this.globalData.foreground = false; location.setForeground(false); this.globalData.backgroundAudio = audio.snapshot(); translation.suspend(); if (this.globalData.cancelVoiceInput) this.globalData.cancelVoiceInput(); if (!config.background) audio.pause(); }

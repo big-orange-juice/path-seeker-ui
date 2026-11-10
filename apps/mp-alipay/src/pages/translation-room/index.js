@@ -11,11 +11,15 @@ Page({
   data: { room: null, canHost: false, permissionPending: true, code: '', languages: ROOM_LANGUAGES, language: 'zh-CN', messages: roomMessages('zh-CN'), languageIndex: 0, sourceIndex: 0, source: '', translated: '', feed: [], chatGroups: [], languageGroups: [], sourceLabel: '', pendingSource: '', detailsOpen: false, showLatest: false, scrollTarget: '', speaking: false, paused: false, busy: false, disconnected: false, notice: '正在确认账号权限…', error: '' },
   onLoad(query = {}) {
     this._visible = true;
-    this._inviteCode = invitation.read(query);
+    const app = getApp();
+    const launchInvitation = app.globalData.roomInvitation;
+    app.globalData.roomInvitation = null;
+    this._invitation = invitation.entry(query) || (query.roomCode === undefined ? launchInvitation : null);
+    this._inviteCode = this._invitation ? this._invitation.roomCode : '';
     if (this._inviteCode && session.snapshot().room && session.snapshot().room.code !== this._inviteCode) session.leave();
     if (config.driverHostInApp && session.snapshot().room && session.snapshot().room.isHost) session.leave();
-    session.prepareEntry(query.lang || storage.read('locale', storage.read('tour-locale', 'zh')));
-    this.setData({ code: typeof query.roomCode === 'string' ? query.roomCode : '' });
+    session.prepareEntry(this._invitation && this._invitation.lang || query.lang || storage.read('locale', storage.read('tour-locale', 'zh')));
+    this.setData({ code: this._inviteCode || (typeof query.roomCode === 'string' ? query.roomCode : '') });
     this.bindSession();
     this.loadPermission();
   },
@@ -25,13 +29,12 @@ Page({
     this.setData({ permissionPending: true, canHost: false, error: '' });
     const active = () => this._visible && this._permissionTask === task && this._permissionVersion === auth.version();
     try {
-      await auth.ensure();
-      if (!this._visible || this._permissionTask !== task) return;
-      if (this._inviteCode && auth.current().isGuest && config.authOptions.guestLogin !== true) {
-        this._permissionVersion = auth.version();
-        my.navigateTo({ url: '/pages/auth/index?roomCode=' + encodeURIComponent(this._inviteCode) + '&autoJoin=1' });
+      if (this._invitation && (!auth.current() || auth.current().isGuest)) {
+        my.reLaunch({ url: invitation.authUrl(this._invitation) });
         return;
       }
+      await auth.ensure();
+      if (!this._visible || this._permissionTask !== task) return;
       this._permissionVersion = auth.version();
       this._user = auth.current().userId;
       const roomState = session.snapshot();
@@ -44,9 +47,9 @@ Page({
     finally {
       if (active()) {
         this._permissionTask = null; this.setData({ permissionPending: false });
-        if (this._inviteCode && !this.data.error && !(auth.current().isGuest && config.authOptions.guestLogin !== true)) {
+        if (this._inviteCode && !this.data.error && auth.current() && !auth.current().isGuest) {
           this._inviteCode = '';
-          this.join({ stay: true });
+          this.join();
         }
       }
     }
@@ -115,7 +118,7 @@ Page({
     });
   },
   back() { my.navigateBack({ fail: () => my.reLaunch({ url: '/pages/tour/index' }) }); },
-  scan() { my.scan({ type: 'qr', success: result => { const code = invitation.scan(result.code); if (code) my.reLaunch({ url: invitation.url(code) }); else this.setData({ error: this.data.messages.invalidQr }); } }); },
+  scan() { my.scan({ type: 'qr', success: result => { const entry = invitation.scanEntry(result.code); if (entry) my.reLaunch({ url: invitation.url(entry.roomCode, entry) }); else this.setData({ error: this.data.messages.invalidQr }); } }); },
   onHide() { session.cancelQuestion(); this._visible = false; this._permissionTask = null; if (this._unsubscribe) this._unsubscribe(); this._unsubscribe = null; },
   onUnload() { this.onHide(); },
   async run(action) {
@@ -127,7 +130,7 @@ Page({
   inputCode(event) { this.setData({ code: event.detail.value }); },
   chooseLanguage(event) { const languageIndex = Number(event.currentTarget.dataset.index); if (ROOM_LANGUAGES[languageIndex]) { this.setData({ languageIndex }); session.setLanguage(ROOM_LANGUAGES[languageIndex].value); } },
   chooseSource(event) { const sourceIndex = Number(event.currentTarget.dataset.index); if (ROOM_LANGUAGES[sourceIndex]) { this.setData({ sourceIndex }); session.setLanguage(ROOM_LANGUAGES[sourceIndex].value); } },
-  join(options = {}) { return this.run(async () => { if (!/^\d{8}$/.test(this.data.code)) throw Error('请输入八位房间码'); const userId = auth.current().userId, version = auth.version(); const room = await rooms.api('/join', { code: this.data.code, targetLanguage: ROOM_LANGUAGES[this.data.languageIndex].value }); if (!auth.current() || auth.current().userId !== userId || auth.version() !== version) throw Error('账号已切换'); if (this._visible) { this.attach(room); if (!options.stay) this.back(); } }); },
+  join(options = {}) { return this.run(async () => { if (this._invitation && (!auth.current() || auth.current().isGuest)) { my.reLaunch({ url: invitation.authUrl(this._invitation) }); return; } if (!/^\d{8}$/.test(this.data.code)) throw Error('请输入八位房间码'); const userId = auth.current().userId, version = auth.version(); const room = await rooms.api('/join', { code: this.data.code, targetLanguage: ROOM_LANGUAGES[this.data.languageIndex].value }); if (!auth.current() || auth.current().userId !== userId || auth.version() !== version) throw Error('账号已切换'); if (this._visible) { this.attach(room); if (this._invitation) my.reLaunch({ url: invitation.destination(this._invitation, this.data.language) }); else if (!options.stay) this.back(); } }); },
   create() { this.run(async () => { if (config.driverHostInApp) throw Error('请使用寻迹车夫 APP 创建和管理讲解房间'); if (!this.data.canHost) throw Error('当前账号未获车夫授权'); const userId = auth.current().userId; const room = await rooms.api('', { sourceLanguage: ROOM_LANGUAGES[this.data.sourceIndex].value }); if (!auth.current() || auth.current().userId !== userId) throw Error('账号已切换'); if (this._visible) { this.attach(room); this.back(); } }); },
   attach(room) {
     if (!this._visible) return;
