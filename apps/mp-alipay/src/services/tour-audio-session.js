@@ -30,7 +30,7 @@ function api(owner, endpoint, options = {}) {
   result.abort = () => { aborted = true; if (activeRequest) activeRequest.abort(); };
   return result;
 }
-function snapshot() { return { active: active(), creating: !!pending, sessionId: session && session.id || '', roomId: session && session.options.roomId || pending && pending.options.roomId || '', state: session && session.state || null, pausedIntent: !!(session && session.pausedIntent), heldIntent: !!(session && session.heldIntent), stalled: !!(session && session.stalled), error: playbackFailure || failure }; }
+function snapshot() { const owner = session || pending; return { active: active(), creating: !!pending, sessionId: session && session.id || '', roomId: owner && owner.options.roomId || '', state: session && session.state || null, pausedIntent: !!(owner && owner.pausedIntent), heldIntent: !!(owner && owner.heldIntent), stalled: !!(session && session.stalled), error: playbackFailure || owner && owner.controlFailure && owner.controlFailure.message || failure }; }
 function diagnostics() {
   const value = snapshot(), state = value.state, playback = audio.snapshot();
   return { version: 'tour-audio-recovery-20261111', capturedAt: new Date().toISOString(),
@@ -53,6 +53,11 @@ function captureIntent() {
   return () => !!owner && current(owner) && owner.intent === intent;
 }
 function revoke(owner) { return api(owner, path(owner.id), { method: 'DELETE' }).catch(() => {}); }
+function invalidSession(owner, error) {
+  if (!owns(owner) || !(error.status === 404 || error.code === 10004)) return false;
+  stop('讲解连接已失效，请点击重试重新连接');
+  return true;
+}
 function schedule() {
   clearTimeout(timer); timer = null;
   if (!foreground || !session) return;
@@ -66,7 +71,7 @@ function accept(owner, value) {
   failure = value.error || '';
   checkProgress(owner);
   audio.updateLive({ title: value.itemTitle || '寻迹 · 城市漫游' });
-  if (['closed', 'ended', 'expired'].includes(value.status)) { publish(); if (owns(owner)) stop(); return false; }
+  if (['closed', 'ended', 'expired'].includes(value.status)) { publish(); if (owns(owner)) stop(value.error || ''); return false; }
   publish(); return true;
 }
 function mediaUrl(value) {
@@ -94,7 +99,7 @@ function play(owner) {
       } else if (!value.nativeControl) lastNativeControl = '';
       publish();
     },
-    error(error) { if (owns(owner) && !owner.reconnecting) { playbackFailure = error.message; diag('tour-audio-error', diagnostics()); publish(); } },
+    error(error) { if (owns(owner) && (!owner.reconnecting || audio.snapshot().generation !== owner.reconnectingGeneration)) { playbackFailure = error.message; diag('tour-audio-error', diagnostics()); publish(); } },
     interrupted() { if (owns(owner) && !owner.heldIntent) control('hold').catch(() => {}); }
   }, { paused: owner.pausedIntent || owner.heldIntent });
   owner.playbackGeneration = audio.snapshot().generation;
@@ -159,11 +164,11 @@ function recordIntent(owner, command) {
   if (command === 'resume') owner.pausedIntent = false;
   if (command === 'hold') owner.heldIntent = true;
   if (command === 'release') owner.heldIntent = false;
-  const selecting = ['select', 'preview', 'replay'].includes(command);
+  const selecting = ['select', 'preview', 'replay', 'realign'].includes(command);
   if (selecting) { owner.pausedIntent = false; owner.heldIntent = false; }
   if (selecting || previous !== owner.pausedIntent + ':' + owner.heldIntent) owner.intent++;
   const playback = audio.snapshot();
-  if (['pause', 'hold'].includes(command) && playback.live && playback.item && playback.item.id === owner.id) audio.pause();
+  if (['pause', 'hold'].includes(command) && playback.live && playback.item && playback.item.id === owner.id && !(command === 'pause' && playback.nativePaused)) audio.pause();
 }
 function control(command, values = {}, expectedSessionId = '') {
   const owner = session || pending;
@@ -178,15 +183,16 @@ function control(command, values = {}, expectedSessionId = '') {
     if (command === 'ack' && (owner.reconnecting || audio.snapshot().generation !== playbackGeneration || owner.state.streamId !== input.streamId)) throw cancelled();
     let state;
     try { state = await api(owner, path(owner.id) + '/control', { method: 'POST', data: input }); }
-    catch (error) { throw owns(owner) ? error : cancelled(); }
+    catch (error) { if (invalidSession(owner, error)) throw error; throw owns(owner) ? error : cancelled(); }
     if (!owns(owner)) throw cancelled();
+    if (owner.controlFailure && (owner.controlFailure.command === command || !['ack', 'preferences'].includes(command))) owner.controlFailure = null;
     accept(owner, state);
-    if (!owns(owner) || ['select', 'preview', 'replay', 'hold'].includes(command) && owner.intent !== intent) throw cancelled();
+    if (!owns(owner) || ['select', 'preview', 'replay', 'realign', 'hold'].includes(command) && owner.intent !== intent) throw cancelled();
     return owner.state;
   };
   const result = owner.controls.catch(() => {}).then(run);
   owner.controls = result;
-  result.catch(error => { if (owns(owner) && !error.cancelled) { failure = error.message; publish(); } });
+  result.catch(error => { if (current(owner) && !error.cancelled) { owner.controlFailure = { command, message: error.message }; publish(); } });
   return result;
 }
 async function refresh() {
@@ -205,7 +211,7 @@ async function refresh() {
       if (validId(state.streamId)) await control('ack', { mediaTimeSeconds: playback.time, streamId: state.streamId });
     }
     return state;
-  } catch (error) { if (owns(owner) && !error.cancelled) { failure = error.message; publish(); } throw error; }
+  } catch (error) { if (!invalidSession(owner, error) && owns(owner) && !error.cancelled) { failure = error.message; publish(); } throw error; }
   finally { if (request === pendingRequest) request = null; schedule(); }
 }
 function setForeground(value) { foreground = !!value; if (session) session.progressAt = Date.now(); if (foreground) refresh().catch(() => {}); else { clearTimeout(timer); timer = null; } }
@@ -243,15 +249,16 @@ async function release(expectedSessionId = '') {
 function reconnect(owner) {
   owner.reconnectIntent = owner.intent;
   if (owner.reconnecting) return owner.reconnecting;
+  owner.reconnectingGeneration = audio.snapshot().generation;
   owner.reconnecting = (async () => {
     try { await control('reconnect'); if (owns(owner) && owner.intent === owner.reconnectIntent && !owner.pausedIntent && !owner.heldIntent) play(owner); }
     finally { owner.reconnecting = null; }
   })();
   return owner.reconnecting;
 }
-function stop() {
+function stop(error = '') {
   const owner = session;
-  generation++; session = null; pending = null; failure = ''; playbackFailure = ''; lastAckAt = 0; lastNativeControl = '';
+  generation++; session = null; pending = null; failure = error; playbackFailure = ''; lastAckAt = 0; lastNativeControl = '';
   clearTimeout(timer); timer = null;
   if (request) request.abort(); request = null;
   const playback = audio.snapshot();

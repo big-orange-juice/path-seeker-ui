@@ -92,7 +92,7 @@ Page({
       roomMuted: !!translation.snapshot().paused,
       paused: !!this._userPaused, lockContent: !!(this.data.lockContent || this._visible && (this.data.contentOpen || this.data.queueOpen)) };
   },
-  async ensureServerAudio(startStageId = '') {
+  async ensureServerAudio(startStageId = '', requireIntent = false) {
     if (!this.serverAudioEnabled()) return null;
     if (!this._serverSubscription) this._serverSubscription = tourAudio.subscribe(value => this.applyServerAudio(value));
     const key = this.data.visit.visitId + ':' + this.data.route.id, user = this._user, rev = this._rev;
@@ -103,7 +103,7 @@ Page({
     try {
       const operation = tourAudio.start(options), intended = tourAudio.captureIntent();
       const state = await operation;
-      if (!current() || !state || tourAudio.snapshot().sessionId !== state.sessionId || startStageId && !intended()) throw Object.assign(Error('讲解会话已变更'), { cancelled: true });
+      if (!current() || !state || tourAudio.snapshot().sessionId !== state.sessionId || (startStageId || requireIntent) && !intended()) throw Object.assign(Error('讲解会话已变更'), { cancelled: true });
       this._serverFailedKey = ''; this._pendingPlayback = null; this._pendingFinish = '';
       this.clearArrivalPrompt(); this._dwell = null; this._driverAlignment = null;
       this.setData({ driverAligning: false });
@@ -148,6 +148,13 @@ Page({
       itemTitle: state.itemTitle || '', audioError: value.error || state.error || '', driverAligning: false,
       ...(state.stageId && !this._manualBrowse ? { selectionMode: 'formal', browsing: false } : {}),
       ...(nextVisit.status !== 1 ? { tourStage: 'overview', contentOpen: false, queueOpen: false } : {}) });
+    if (playback.owner === 'tour-extra') this.updateServerExtraProgress(playback);
+  },
+  updateServerExtraProgress(playback) {
+    if (playback.owner !== 'tour-extra' || !playback.item || !this._serverExtraRequest || !this._serverExtraRequest.started) return;
+    this.setData({ playing: playback.playing, paused: !playback.playing, playingStopId: this.data.stop && this.data.stop.id || '',
+      itemTitle: playback.item.title || '', timeLabel: ui.clock(playback.time), durationLabel: ui.clock(playback.duration),
+      hasDuration: playback.duration > 0, progress: playback.duration > 0 ? Math.max(0, Math.min(100, playback.time / playback.duration * 100)) : 0 });
   },
   serverAudioCommand(command, values = {}) {
     return tourAudio.control(command, values).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); return null; });
@@ -556,9 +563,10 @@ Page({
   },
   returnToNow() {
     if (this.serverAudioEnabled() || tourAudio.active()) {
+      if (this.data.busy || this.data.loading || this._asking) return;
       this._manualBrowse = false; this._userPaused = false;
       this.setData({ contentOpen: false, queueOpen: false, lockContent: false, autoplay: true, following: true, locationEnabled: true });
-      this.ensureServerAudio().then(state => state && tourAudio.control('realign', {}, state.sessionId)).catch(() => {});
+      this.ensureServerAudio('', true).then(state => state && tourAudio.control('realign', {}, state.sessionId)).then(state => state && tourAudio.setPaused(false, state.sessionId)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
       return;
     }
     if (this.data.driverAligning || this.data.busy || this.data.loading || !this.data.locationEnabled || !this.prepareDriverAlignment(true)) return;
@@ -763,7 +771,7 @@ Page({
       this._serverExtraRequest = null;
       if (this._manualBrowse) {
         const stageId = this.data.stop.id;
-        this.ensureServerAudio().then(state => state && tourAudio.control('preview', { stageId }, state.sessionId)).then(state => state && tourAudio.setPaused(false, state.sessionId)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
+        this.ensureServerAudio('', true).then(state => state && tourAudio.control('preview', { stageId }, state.sessionId)).then(state => state && tourAudio.setPaused(false, state.sessionId)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
         return;
       }
       this._manualBrowse = false; this._userPaused = false;
@@ -801,6 +809,11 @@ Page({
   },
   togglePlay() {
     if (this.data.busy || this.data.loading) return;
+    const playback = audio.snapshot();
+    if (tourAudio.active() && playback.owner === 'tour-extra' && playback.item) {
+      if (playback.playing) audio.pause(); else if (!this._asking) audio.resume('tour-extra');
+      return;
+    }
     if (tourAudio.active()) {
       if (this.data.playing && !this.data.audioError && this.data.playingStopId === (this.data.stop && this.data.stop.id)) {
         tourAudio.setPaused(true).catch(error => this.setData({ audioError: error.message }));
@@ -829,6 +842,7 @@ Page({
         let released = false;
         const release = () => { if (released || !current()) return; released = true; tourAudio.release(state.sessionId).catch(error => { if (!error.cancelled && current()) this.setData({ audioError: error.message }); }); };
         audio.playQueue('tour-extra', [item], {
+          change: playback => { if (current()) this.updateServerExtraProgress(playback); },
           video: (video, generation) => this.updateSequenceVideo(video, generation),
           videoControl: (command, value) => { const context = my.createVideoContext('tour-interlude-video'); if (command === 'seek') context.seek(value); else context[command](); },
           finished: release,
@@ -855,9 +869,9 @@ Page({
       }
     }, { time }); } catch (e) { this.setData({ audioError: e.message }); }
   },
-  seek(event) { const state = audio.snapshot(); if (this.data.playingStopId !== (this.data.stop && this.data.stop.id)) return; if (tourAudio.active()) { const current = tourAudio.snapshot().state; this.serverAudioCommand('seek', { seconds: current.itemDurationSeconds * Number(ui.value(event)) / 100 }); return; } audio.seek(state.duration * Number(ui.value(event)) / 100, 'tour'); },
-  backAudio() { if (this.data.playingStopId !== (this.data.stop && this.data.stop.id)) return; if (tourAudio.active()) { this.serverAudioCommand('seek', { seconds: Math.max(0, tourAudio.snapshot().state.itemTimeSeconds - 15) }); return; } audio.seek(audio.snapshot().time - 15, 'tour'); },
-  forwardAudio() { if (this.data.playingStopId !== (this.data.stop && this.data.stop.id)) return; if (tourAudio.active()) { this.serverAudioCommand('seek', { seconds: tourAudio.snapshot().state.itemTimeSeconds + 15 }); return; } audio.seek(audio.snapshot().time + 15, 'tour'); },
+  seek(event) { const state = audio.snapshot(); if (this.data.playingStopId !== (this.data.stop && this.data.stop.id)) return; if (state.owner === 'tour-extra') { audio.seek(state.duration * Number(ui.value(event)) / 100, 'tour-extra'); return; } if (tourAudio.active()) { const current = tourAudio.snapshot().state; if (current) this.serverAudioCommand('seek', { seconds: current.itemDurationSeconds * Number(ui.value(event)) / 100 }); return; } audio.seek(state.duration * Number(ui.value(event)) / 100, 'tour'); },
+  backAudio() { if (this.data.playingStopId !== (this.data.stop && this.data.stop.id)) return; const playback = audio.snapshot(); if (playback.owner === 'tour-extra') { audio.seek(playback.time - 15, 'tour-extra'); return; } if (tourAudio.active()) { const current = tourAudio.snapshot().state; if (current) this.serverAudioCommand('seek', { seconds: Math.max(0, current.itemTimeSeconds - 15) }); return; } audio.seek(playback.time - 15, 'tour'); },
+  forwardAudio() { if (this.data.playingStopId !== (this.data.stop && this.data.stop.id)) return; const playback = audio.snapshot(); if (playback.owner === 'tour-extra') { audio.seek(playback.time + 15, 'tour-extra'); return; } if (tourAudio.active()) { const current = tourAudio.snapshot().state; if (current) this.serverAudioCommand('seek', { seconds: current.itemTimeSeconds + 15 }); return; } audio.seek(playback.time + 15, 'tour'); },
   capturePlayback() { if (tourAudio.active()) return null; const state = audio.snapshot(); const background = getApp().globalData.backgroundAudio; const wasPlaying = state.playing || state.requested || getApp().globalData.foreground === false && background && background.owner === 'tour' && background.generation === state.generation && background.playing; return state.owner === 'tour' && state.item && wasPlaying && !this._userPaused ? { key: this.contextKey(), userId: this._user, generation: state.generation, index: state.index, time: state.time, items: this._playbackItems, extra: this._extraPlayback } : null; },
   restorePlayback(snapshot) {
     if (tourAudio.active()) { if (!this._asking && !this.data.chatOpen && !this._userPaused) tourAudio.release().catch(() => {}); return true; }

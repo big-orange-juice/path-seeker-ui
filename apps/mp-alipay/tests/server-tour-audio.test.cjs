@@ -569,3 +569,129 @@ test('queued creation controls are cancelled on leave and never delivered to a r
   assert.ok(!fixture.requests.some(request => /session-2\/control$/.test(request.options.url)));
   assert.equal(fixture.load('services/audio').snapshot().playing, true);
 });
+
+test('a preview awaiting creation cannot cancel a newer question hold', async context => {
+  const { fixture, page, service, state } = setup(context);
+  page._manualBrowse = true;
+  page.play(); page.ask();
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  fixture.requests[1].ok({ ...state(), held: true }); await tick();
+  assert.equal(fixture.requests.length, 2);
+  assert.equal(service.snapshot().heldIntent, true);
+});
+
+test('a missing server session is discarded and retry creates a fresh session', async context => {
+  const { fixture, page, service, start } = setup(context);
+  await start();
+  const refresh = service.refresh();
+  fixture.requests[1].options.success({ status: 404, data: { code: 10004, message: '讲解会话不存在，请重新开始' } });
+  await assert.rejects(refresh);
+  assert.equal(service.active(), false);
+  assert.match(page.data.audioError, /重新|失效/);
+  page.retryAudio(); await tick();
+  assert.equal(fixture.requests.filter(request => request.options.method === 'POST' && /TourAudioSessions$/.test(request.options.url)).length, 2);
+});
+
+test('a failed resume remains visible after polling a healthy server until a control retry succeeds', async context => {
+  const { fixture, service, start, reply } = setup(context);
+  await start();
+  const resumed = service.setPaused(false); await tick();
+  fixture.requests[1].reject({ errorMessage: '恢复操作网络失败' }); await assert.rejects(resumed);
+  const refresh = service.refresh(); reply(fixture.requests[2]); await refresh;
+  assert.match(service.snapshot().error, /恢复操作网络失败/);
+  const retried = service.setPaused(false); await tick();
+  reply(fixture.requests[3]); await retried;
+  assert.equal(service.snapshot().error, '');
+});
+
+test('a synchronous decoder failure from the replacement source is not hidden as an old reconnect error', async context => {
+  const { fixture, manager, service, start, reply } = setup(context);
+  await start(); fixture.load('services/audio').pause();
+  const resumed = service.setPaused(false); await tick();
+  reply(fixture.requests[1]); await tick();
+  manager.play = () => manager.emit('Error', { errorMessage: '新连接解码失败' });
+  reply(fixture.requests[2], { status: 'disconnected' }); await resumed;
+  assert.equal(fixture.load('services/audio').snapshot().failed, true);
+  assert.match(service.snapshot().error, /新连接解码失败/);
+});
+
+test('returning to the driver position resumes a paused native media player', async context => {
+  const { fixture, page, service, start, reply } = setup(context);
+  await start();
+  const paused = service.setPaused(true); await tick();
+  reply(fixture.requests[1], { paused: true }); await paused;
+  page.returnToNow(); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'realign');
+  reply(fixture.requests[2], { paused: false, held: false }); await tick();
+  assert.equal(fixture.requests[3]?.options.data.command, 'resume');
+  reply(fixture.requests[3]); await tick();
+  assert.equal(fixture.requests[4].options.data.command, 'reconnect');
+  reply(fixture.requests[4], { status: 'disconnected' }); await tick();
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+});
+
+test('the lock-screen pause button retains the native resume path', async context => {
+  const { fixture, manager, service, start, reply } = setup(context);
+  await start(); manager.emit('Pause'); await tick();
+  assert.equal(fixture.requests[1].options.data.command, 'pause');
+  reply(fixture.requests[1], { paused: true }); await tick();
+  assert.equal(fixture.load('services/audio').snapshot().nativePaused, true);
+  manager.emit('Play'); await tick();
+  assert.equal(fixture.requests[2]?.options.data.command, 'resume');
+  reply(fixture.requests[2], { paused: false }); await tick();
+  reply(fixture.requests[3], { status: 'disconnected' }); await tick();
+  assert.equal(service.snapshot().pausedIntent, false);
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+});
+
+test('a delayed realign response cannot resume narration over a newer question', async context => {
+  const { fixture, page, service, start, reply } = setup(context);
+  await start(); page.returnToNow(); await tick();
+  assert.equal(fixture.requests[1].options.data.command, 'realign');
+  page.ask();
+  reply(fixture.requests[1], { held: false, paused: false }); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'hold');
+  reply(fixture.requests[2], { held: true }); await tick();
+  assert.equal(service.snapshot().heldIntent, true);
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+  assert.equal(fixture.requests.length, 3);
+});
+
+test('extra playback has its own progress, pause and seek without releasing the held narration', async context => {
+  const { fixture, page, service, start, reply } = setup(context);
+  await start();
+  page.playExtraItem({ id: 'extra', url: '/extra.mp3', title: '补充音频', kind: 'after' }); await tick();
+  reply(fixture.requests[1], { held: true, itemTitle: '路线', itemDurationSeconds: 200 }); await tick();
+  const extra = fixture.audioContexts.at(-1);
+  extra.currentTime = 9; extra.emit('TimeUpdate');
+  assert.equal(page.data.playing, true);
+  assert.equal(page.data.itemTitle, '补充音频');
+  const refresh = service.refresh(); reply(fixture.requests[2]); await refresh;
+  assert.equal(page.data.timeLabel, '0:09');
+  page.seek({ detail: { value: 50 } });
+  assert.equal(extra.currentTime, 30);
+  page.togglePlay();
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+  page.togglePlay();
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+  assert.equal(service.snapshot().heldIntent, true);
+  assert.equal(fixture.requests.length, 3);
+});
+
+test('video pause and resume retain the extra owner instead of restarting narration', async context => {
+  const { fixture, page, service, start, reply } = setup(context);
+  await start();
+  const calls = [];
+  fixture.my.createVideoContext = () => ({ pause() { calls.push('pause'); }, play() { calls.push('play'); } });
+  page.playExtraItem({ id: 'video', url: '/video.mp4', kind: 'interlude-video' }); await tick();
+  reply(fixture.requests[1], { held: true }); await tick();
+  const playback = fixture.load('services/audio').snapshot();
+  const event = { currentTarget: { dataset: { id: 'video', generation: playback.generation } } };
+  page.videoPlay(event); page.videoPause(event);
+  assert.equal(page.data.paused, true);
+  page.togglePlay();
+  assert.ok(calls.includes('play'));
+  assert.equal(service.snapshot().heldIntent, true);
+  assert.equal(fixture.requests.length, 2);
+});

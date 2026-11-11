@@ -24,9 +24,9 @@
 
 ## 验证
 
-新增测试人为延迟请求和解码结果，改变完成顺序；不是只检查函数是否被调用。前端增加 18 个测试场景，另扩展旧讲话轮次测试；后端两个新增竞态测试在修复前均失败，修复后通过。
+新增测试人为延迟请求和解码结果，改变完成顺序；不是只检查函数是否被调用。前端增加 19 个测试场景，另扩展旧讲话轮次测试；后端两个新增竞态测试在修复前均失败，修复后通过。
 
-完整小程序测试输出：`outputs/alipay-field-validation/audio-race-audit-tests.log`。
+完整小程序回归 **437 项通过、0 失败、0 跳过**，构建通过。测试输出：`outputs/alipay-field-validation/audio-race-audit-tests.log`。
 
 后端相关回归：28 项通过、0 失败、0 跳过，包含真实 FFmpeg 编解码、媒体重连、路由音频编排、进度确认、房间媒体订阅及连续 HTTP 播放。结果位于后端 `outputs/alipay-formal-validation/tour-audio-race-audit.trx`。
 

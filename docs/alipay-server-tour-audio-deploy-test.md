@@ -1,6 +1,6 @@
 # 支付宝正式持续讲解：部署与验收
 
-> 2026-11-11 后续竞态复查同时修改了 WebAPI 和小程序：请重新发布两端，Nginx、FFmpeg 配置及数据库不需变更。新增乱序测试、服务端修复和发布顺序见 [竞态审计与复测](alipay-tour-audio-race-audit-2026-11-11.md)；前一轮无声问题见 [无声回归修复与复测](alipay-tour-audio-silent-recovery-2026-11-11.md)。实际 Android / iPhone 出声及锁屏切站仍须真机确认。
+> 2026-11-11 最新逻辑复查再次修改了 WebAPI 和小程序：请重新发布两端，Nginx、FFmpeg 配置及数据库不需变更。最新小程序 445 项、后端音频相关 36 项测试全部通过，详见 [逻辑复查与修复](alipay-tour-audio-logic-audit-2026-11-11.md)。前两轮见 [竞态审计与复测](alipay-tour-audio-race-audit-2026-11-11.md)、[无声回归修复与复测](alipay-tour-audio-silent-recovery-2026-11-11.md)。实际 Android / iPhone 出声及锁屏切站仍须真机确认。
 
 本次已实现正式业务链路：司机 APP 定位 → WebAPI 到站判断 → 真实路线音频队列 → 游客媒体会话 → 支付宝后台播放器。同一条 MP3 响应在节点之间继续发送静音，新节点由服务器插入；游客锁屏期间不需要小程序 JS、WebSocket、心跳或播放结束回调来切换节点。
 
@@ -169,7 +169,7 @@ sudo journalctl -u cultural-tourism-api --since "30 minutes ago" --no-pager
 
 ## 5. 自动化验证与回退
 
-本地验证：小程序 407 项通过；后端相关测试 128 项通过、1 项数据库环境用例跳过；最后的恢复缓冲修复另有 11 项针对性复测通过；正式 HTTP 连续媒体测试通过。具体范围与报告见 [本轮验证记录](alipay-server-tour-audio-validation-2026-11-11.md)。
+最新逻辑复查：小程序构建及 445 项测试通过；后端音频相关 36 项测试通过，无失败、无跳过，包含实际 FFmpeg 媒体测试。详见 [逻辑复查与修复](alipay-tour-audio-logic-audit-2026-11-11.md)。首次接入时的更广范围验证另见 [初次验证记录](alipay-server-tour-audio-validation-2026-11-11.md)，其中的历史统计不代表本轮重新运行了所有后端测试。
 
 后端正式测试：`CulturalTourismSystem.ApiTests/TourAudioSessionTests.cs`；小程序正式测试：`apps/mp-alipay/tests/server-tour-audio.test.cjs`。
 
