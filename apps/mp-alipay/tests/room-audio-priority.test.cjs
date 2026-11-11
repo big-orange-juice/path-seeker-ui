@@ -103,6 +103,8 @@ test('an old input-drained event cannot release a newer paused input round', con
   segment('room.paused', {}, 1, '3');
   segment('room.input.drained', {}, 1, '2');
   assert.equal(page.roomAudioActive(), true);
+  segment('room.input.drained', { epochId: '2' }, 1, '3');
+  assert.equal(page.roomAudioActive(), true);
   segment('room.input.drained', {}, 1, '3');
   assert.equal(page.roomAudioActive(), false);
 });

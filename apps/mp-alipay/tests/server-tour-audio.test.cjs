@@ -345,3 +345,227 @@ test('confirmed final progress reaches the page before the ended media session i
   assert.equal(service.active(), false);
   assert.equal(fixture.load('services/audio').snapshot().playing, false);
 });
+
+test('a late resume response cannot undo a more recent explicit pause', async context => {
+  const { fixture, service, start, reply } = setup(context);
+  await start();
+  const resumed = service.setPaused(false); await tick();
+  const paused = service.setPaused(true);
+  reply(fixture.requests[1], { paused: false }); await resumed; await tick();
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+  reply(fixture.requests[2], { paused: true }); await paused;
+  assert.equal(fixture.load('services/audio').snapshot().requested, false);
+});
+
+test('holding for a question during reconnect prevents the old reconnect from reclaiming audio', async context => {
+  const { fixture, service, start, reply, assignments } = setup(context);
+  await start();
+  fixture.load('services/audio').pause();
+  const resumed = service.setPaused(false); await tick();
+  reply(fixture.requests[1]); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'reconnect');
+  const held = service.control('hold');
+  fixture.load('services/audio').playQueue('chat', [{ id: 'answer', url: '/answer.mp3' }]);
+  reply(fixture.requests[2], { status: 'disconnected' }); await resumed; await tick();
+  assert.equal(assignments(), 1);
+  assert.equal(fixture.load('services/audio').snapshot().owner, 'chat');
+  reply(fixture.requests[3], { held: true }); await held;
+});
+
+test('a pre-reconnect status response cannot acknowledge time from the replacement player', async context => {
+  const { fixture, manager, service, start, reply, state } = setup(context);
+  await start();
+  const refresh = service.refresh(), oldState = { ...state() };
+  fixture.load('services/audio').pause();
+  const resumed = service.setPaused(false); await tick();
+  reply(fixture.requests[2]); await tick();
+  reply(fixture.requests[3], { status: 'disconnected' }); await resumed;
+  manager.currentTime = 12;
+  fixture.requests[1].ok(oldState); await tick();
+  assert.equal(fixture.requests.length, 4);
+  await refresh;
+});
+
+test('switching rooms during a select response cannot send the old play continuation to the new session', async context => {
+  const { fixture, page, service, start, reply, state } = setup(context);
+  await start();
+  page.play(); await tick();
+  const selected = fixture.requests[1];
+  assert.equal(selected.options.data.command, 'select');
+  const next = service.start({ ...page.serverAudioOptions(), roomId: 'another-room' });
+  fixture.requests.find(request => request.options.method === 'POST' && /TourAudioSessions$/.test(request.options.url) && request.options.data.roomId === 'another-room')
+    .ok({ sessionId: 'session-2', mediaUrl: '/TourAudioSessions/session-2/media.mp3?ticket=new-secret', state: { ...state(), sessionId: 'session-2' } });
+  await next;
+  reply(selected, { stageId: stageIds[0] }); await tick();
+  assert.equal(service.snapshot().sessionId, 'session-2');
+  assert.ok(!fixture.requests.some(request => /session-2\/control$/.test(request.options.url)));
+});
+
+test('an immediate room closure cannot recreate the closing room during teardown callbacks', async context => {
+  const { fixture, page, service, translation, start } = setup(context, true);
+  await start();
+  const unsubscribe = translation.subscribe(() => page.startNextSequence()); context.after(unsubscribe);
+  translation.event({ type: 'room.closed', roomId, payload: { mode: 'immediate' } }); await tick();
+  assert.equal(translation.snapshot().room.status, 'closed');
+  assert.equal(service.active(), false);
+  assert.equal(fixture.requests.filter(request => request.options.method === 'POST' && /TourAudioSessions$/.test(request.options.url)).length, 1);
+});
+
+test('switching real rooms publishes the new room before teardown can start another media session', async context => {
+  const { fixture, page, service, translation, start } = setup(context, true);
+  await start();
+  const unsubscribe = translation.subscribe(() => page.startNextSequence()); context.after(unsubscribe);
+  translation.attach({ roomId: 'another-room', status: 'paused', isHost: false }, 'zh'); await tick();
+  const creations = fixture.requests.filter(request => request.options.method === 'POST' && /TourAudioSessions$/.test(request.options.url));
+  assert.equal(creations.length, 2);
+  assert.equal(creations[1].options.data.roomId, 'another-room');
+  assert.equal(service.snapshot().roomId, 'another-room');
+});
+
+test('overlapping session creation waits for the old create to settle before submitting the replacement', async context => {
+  const { fixture, page, service, state } = setup(context);
+  const previous = service.start(page.serverAudioOptions()).catch(error => error);
+  const next = service.start({ ...page.serverAudioOptions(), roomId: 'another-room' });
+  assert.equal(fixture.requests.length, 1);
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=old', state: state() });
+  assert.equal((await previous).cancelled, true); await tick();
+  const replacement = fixture.requests.find(request => request.options.data && request.options.data.roomId === 'another-room');
+  replacement.ok({ sessionId: 'session-2', mediaUrl: '/TourAudioSessions/session-2/media.mp3?ticket=new', state: { ...state(), sessionId: 'session-2' } });
+  await next;
+  assert.equal(service.snapshot().sessionId, 'session-2');
+});
+
+test('preferences changed during creation reach that session after creation completes', async context => {
+  const { fixture, page, service, state } = setup(context);
+  page.startNextSequence();
+  const preferences = service.control('preferences', { following: false, autoplay: false });
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(fixture.requests[1]?.options.data.command, 'preferences');
+  fixture.requests[1].ok(state()); await preferences;
+});
+
+test('holding during creation prevents source autoplay before the hold request finishes', async context => {
+  const { fixture, page, service, state } = setup(context);
+  page.startNextSequence();
+  const held = service.control('hold');
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+  assert.equal(fixture.requests[1]?.options.data.command, 'hold');
+  fixture.requests[1].ok({ ...state(), held: true }); await held;
+});
+
+test('a delayed extra-audio hold cannot start the extra after opening a question', async context => {
+  const { fixture, page, start, reply } = setup(context);
+  await start();
+  page.playExtraItem({ id: 'extra', url: '/extra.mp3', kind: 'after' }); await tick();
+  page.ask();
+  reply(fixture.requests[1], { held: true }); await tick();
+  assert.notEqual(fixture.load('services/audio').snapshot().owner, 'tour-extra');
+  if (fixture.requests[2]) reply(fixture.requests[2], { held: true });
+});
+
+test('language selection cannot recreate a media session in the room being left', async context => {
+  const { fixture, page, service, translation, start } = setup(context, true);
+  await start();
+  const unsubscribe = translation.subscribe(() => page.startNextSequence()); context.after(unsubscribe);
+  const changed = translation.changeLanguage(); await tick();
+  assert.equal(service.active(), false);
+  assert.equal(fixture.requests.filter(request => request.options.method === 'POST' && /TourAudioSessions$/.test(request.options.url)).length, 1);
+  fixture.requests.find(request => /\/leave$/.test(request.options.url)).ok({}); await changed;
+});
+
+test('switching session immediately after play is requested cannot select the old node in the replacement', async context => {
+  const { fixture, page, service, start, state } = setup(context);
+  await start();
+  page.play();
+  const next = service.start({ ...page.serverAudioOptions(), roomId: 'another-room' });
+  const replacement = fixture.requests.find(request => request.options.data && request.options.data.roomId === 'another-room');
+  replacement.ok({ sessionId: 'session-2', mediaUrl: '/TourAudioSessions/session-2/media.mp3?ticket=new', state: { ...state(), sessionId: 'session-2' } });
+  await next; await tick();
+  assert.ok(!fixture.requests.some(request => /session-2\/control$/.test(request.options.url)));
+});
+
+test('a manual play awaiting creation cannot clear a newer question hold', async context => {
+  const { fixture, page, service, state } = setup(context);
+  page.play();
+  page.ask();
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(fixture.requests[1].options.data.command, 'hold');
+  fixture.requests[1].ok({ ...state(), held: true }); await tick();
+  assert.equal(fixture.requests.length, 2);
+  assert.equal(service.snapshot().heldIntent, true);
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+});
+
+test('hiding extra playback releases its session without waiting for an inner-player ended callback', async context => {
+  const { fixture, page, start, reply } = setup(context);
+  await start();
+  page.playExtraItem({ id: 'extra', url: '/extra.mp3', kind: 'after' }); await tick();
+  reply(fixture.requests[1], { held: true }); await tick();
+  page.onHide(); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'release');
+  reply(fixture.requests[2], { held: false }); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'preferences');
+  reply(fixture.requests[3]); await tick();
+  assert.equal(fixture.requests[4].options.data.command, 'reconnect');
+  reply(fixture.requests[4], { status: 'disconnected' }); await tick();
+  assert.equal(fixture.load('services/audio').snapshot().live, true);
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+});
+
+test('an extra-audio error followed by finished releases the session only once', async context => {
+  const { fixture, page, start, reply } = setup(context);
+  await start();
+  page.playExtraItem({ id: 'extra', url: '/extra.mp3', kind: 'after' }); await tick();
+  reply(fixture.requests[1], { held: true }); await tick();
+  fixture.audioContexts.at(-1).emit('Error', { errorMessage: 'failed extra' }); await tick();
+  reply(fixture.requests[2], { held: false }); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'reconnect');
+  reply(fixture.requests[3], { status: 'disconnected' }); await tick();
+  assert.equal(fixture.requests.filter(request => request.options.data?.command === 'release').length, 1);
+});
+
+test('a reentrant subscriber awaiting the same creation receives the actual creation promise', async context => {
+  const { fixture, page, service, state } = setup(context);
+  let nested;
+  const unsubscribe = service.subscribe(value => { if (value.creating && !nested) nested = service.start(page.serverAudioOptions()); });
+  const operation = service.start(page.serverAudioOptions());
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  assert.equal((await nested).sessionId, 'session-1'); await operation;
+  unsubscribe();
+  assert.equal(fixture.requests.length, 1);
+});
+
+test('progress acknowledgement resumes only after the replacement stream id is observed', async context => {
+  const { fixture, manager, service, start, reply } = setup(context);
+  await start();
+  fixture.load('services/audio').pause();
+  const resumed = service.setPaused(false); await tick();
+  reply(fixture.requests[1]); await tick();
+  reply(fixture.requests[2], { status: 'disconnected' }); await resumed;
+  manager.currentTime = 4;
+  const refresh = service.refresh();
+  reply(fixture.requests[3], { status: 'streaming', streamId: 'stream-2' }); await tick();
+  assert.equal(fixture.requests[4].options.data.command, 'ack');
+  assert.equal(fixture.requests[4].options.data.streamId, 'stream-2');
+  assert.equal(fixture.requests[4].options.data.mediaTimeSeconds, 4);
+  reply(fixture.requests[4]); await refresh;
+});
+
+test('queued creation controls are cancelled on leave and never delivered to a replacement', async context => {
+  const { fixture, page, service, state } = setup(context);
+  const previous = service.start(page.serverAudioOptions()).catch(error => error);
+  const held = service.control('hold').catch(error => error);
+  service.stop();
+  const next = service.start({ ...page.serverAudioOptions(), roomId: 'another-room' });
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=old', state: state() });
+  await previous; assert.equal((await held).cancelled, true); await tick();
+  fixture.requests.find(request => request.options.data?.roomId === 'another-room')
+    .ok({ sessionId: 'session-2', mediaUrl: '/TourAudioSessions/session-2/media.mp3?ticket=new', state: { ...state(), sessionId: 'session-2' } });
+  await next; await tick();
+  assert.ok(!fixture.requests.some(request => /session-2\/control$/.test(request.options.url)));
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+});

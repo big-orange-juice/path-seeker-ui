@@ -132,21 +132,26 @@ function event(message) {
   if (message.type === 'language.error' || message.type === 'audio.error' || message.type === 'segment.error') values.error = payload.message || '本段语音不可用，请阅读字幕';
   if (message.type === 'audio.error' || message.type === 'language.error') values.audioError = values.error;
   if (message.type === 'room.paused') { values.inputDraining = true; values.notice = payload.reason === 'host_paused' ? '等待讲解' : '车夫暂时离线，讲解暂停'; values.room = Object.assign({}, state.room, { status: 'paused' }); }
-  if (message.type === 'room.input.drained' && (!message.epochId || !state.room || !state.room.epochId || message.epochId === state.room.epochId)) values.inputDraining = false;
+  const drainedEpoch = typeof payload.epochId === 'string' ? payload.epochId : message.epochId;
+  if (message.type === 'room.input.drained' && (!drainedEpoch || !state.room || !state.room.epochId || drainedEpoch === state.room.epochId)) values.inputDraining = false;
   if (message.type === 'room.started') { values.inputDraining = false; values.notice = '讲解中'; values.room = Object.assign({}, state.room, { status: 'live', epochId: message.epochId || (state.room || {}).epochId }); }
   if (message.type === 'room.draining') { questions.reset(false); values.room = Object.assign({}, state.room, { status: 'draining' }); values.notice = '讲解即将结束，正在接收剩余语音'; }
-  if (message.type === 'room.closed') { if (payload.mode === 'immediate') tourAudio.stop(); forget(); questions.reset(false); values.reconnecting = false; values.inputDraining = false; values.translationPending = false; pendingTranslations.clear(); values.room = Object.assign({}, state.room, { status: 'closed' }); values.speaking = false; values.notice = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'; }
+  if (message.type === 'room.closed') { state = Object.assign({}, state, { room: Object.assign({}, state.room, { status: 'closed' }) }); if (payload.mode === 'immediate') tourAudio.stop(); forget(); questions.reset(false); values.reconnecting = false; values.inputDraining = false; values.translationPending = false; pendingTranslations.clear(); values.room = state.room; values.speaking = false; values.notice = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'; }
   if (message.type === 'room.draining') forget();
   update(values);
   if (['subscription.ready', 'subscription.changed', 'room.snapshot'].includes(message.type)) remember();
 }
 function attach(room, language, restored = null) {
-  if (tourAudio.active() && (!tourAudio.activeForRoom(room.roomId) || room.isHost)) tourAudio.stop();
-  disconnect(true);
   const session = auth.current();
   if (!session) throw Error('请先登录');
   const selectedLanguage = roomLocale(language || (room.isHost ? room.sourceLanguage : '') || state.language);
-  if (!state.room || state.room.roomId !== room.roomId) { questions.reset(); feed.clear(); state = empty(selectedLanguage); }
+  const changedRoom = !state.room || state.room.roomId !== room.roomId;
+  if (changedRoom || room.isHost || selectedLanguage !== state.language) {
+    state = empty(selectedLanguage);
+    tourAudio.stop();
+  }
+  disconnect(true);
+  if (changedRoom) { questions.reset(); feed.clear(); state = empty(selectedLanguage); }
   userId = session.userId;
   userVersion = auth.version();
   foreground = true;
@@ -195,10 +200,10 @@ async function end(immediate) {
   if (immediate) update({ room: Object.assign({}, state.room, { status: 'closed' }), disconnected: true, notice: '房间已关闭' });
 }
 async function changeLanguage() {
-  tourAudio.stop();
-  disconnect(); feed.clear();
-  update({ feed: [], translated: '', notice: '当前语音已停止，请选择语言并重新收听' });
-  if (state.room && !state.room.isHost) await rooms.api('/' + state.room.roomId + '/leave', {}).catch(() => {});
+  const previous = state.room;
+  reset(true);
+  update({ notice: '当前语音已停止，请选择语言并重新收听' });
+  if (previous && !previous.isHost) await rooms.api('/' + previous.roomId + '/leave', {}).catch(() => {});
 }
 async function leave() {
   const previous = state.room;

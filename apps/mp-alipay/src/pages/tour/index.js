@@ -96,16 +96,20 @@ Page({
     if (!this.serverAudioEnabled()) return null;
     if (!this._serverSubscription) this._serverSubscription = tourAudio.subscribe(value => this.applyServerAudio(value));
     const key = this.data.visit.visitId + ':' + this.data.route.id, user = this._user, rev = this._rev;
+    const options = this.serverAudioOptions(startStageId), accountVersion = auth.version();
+    const current = () => user === this._user && user === ui.userId() && rev === this._rev && accountVersion === auth.version()
+      && this.serverAudioEnabled() && ['roomId', 'visitId', 'routeId', 'guideId', 'language'].every(name => this.serverAudioOptions()[name] === options[name]);
     this._serverFailedKey = key;
     try {
-      const state = await tourAudio.start(this.serverAudioOptions(startStageId));
-      if (user !== this._user || user !== ui.userId() || rev !== this._rev) return null;
+      const operation = tourAudio.start(options), intended = tourAudio.captureIntent();
+      const state = await operation;
+      if (!current() || !state || tourAudio.snapshot().sessionId !== state.sessionId || startStageId && !intended()) throw Object.assign(Error('讲解会话已变更'), { cancelled: true });
       this._serverFailedKey = ''; this._pendingPlayback = null; this._pendingFinish = '';
       this.clearArrivalPrompt(); this._dwell = null; this._driverAlignment = null;
       this.setData({ driverAligning: false });
-      if (startStageId && state && (state.stageId !== startStageId || (state.queue || []).some(item => item.stageId === startStageId && ['emitted', 'failed', 'skipped', 'completed'].includes(item.status)))) return await tourAudio.control('select', { stageId: startStageId });
+      if (startStageId && (state.stageId !== startStageId || (state.queue || []).some(item => item.stageId === startStageId && ['emitted', 'failed', 'skipped', 'completed'].includes(item.status)))) return await tourAudio.control('select', { stageId: startStageId }, state.sessionId);
       return state;
-    } catch (error) { if (!error.cancelled && user === this._user && rev === this._rev) { this._serverFailedKey = key; this.setData({ audioError: error.message }); } throw error; }
+    } catch (error) { if (!error.cancelled && current()) { this._serverFailedKey = key; this.setData({ audioError: error.message }); } throw error; }
   },
   applyServerAudio(value) {
     if (this._user !== ui.userId() || this._authVersion !== undefined && this._authVersion !== auth.version()) return;
@@ -115,6 +119,7 @@ Page({
       this._pendingPlayback = null; this._pendingFinish = ''; this._playbackPaint = null;
       this._roomResume = null; this._askResume = null; this._backgroundResume = null; this._deferredResume = null;
       this._extraResume = null; this._extraReturn = null; this._extraPlayback = false;
+      this._serverExtraRequest = null;
       this.setData({ playing: false, paused: false, playingStopId: '', hasDuration: false, itemTitle: '',
         timeLabel: '0:00', durationLabel: '0:00', progress: 0, audioError: value.error || '', sequence: [], queuedCount: 0, videoItem: null });
     }
@@ -134,10 +139,10 @@ Page({
         statusLabel: item.status === 'emitted' ? labels[0] : item.status === 'failed' ? labels[1] : '' };
     }).filter(Boolean);
     const time = Number(state.itemTimeSeconds) || 0, duration = Number(state.itemDurationSeconds) || 0;
-    this._userPaused = !!state.paused || !!(owns && playback.nativePaused);
+    this._userPaused = value.pausedIntent || !!(owns && playback.nativePaused);
     this.setData({ visit: nextVisit, sequence, queuedCount: sequence.filter(item => item.status === 'queued').length,
-      playing: !!(owns && playback.playing && !value.stalled && !state.paused && !state.held && (state.itemId || state.roomAudioPlaying)),
-      paused: !!state.paused || !!state.held || !!(owns && playback.nativePaused), playingStopId: state.stageId || '',
+      playing: !!(owns && playback.playing && !value.stalled && !value.pausedIntent && !value.heldIntent && (state.itemId || state.roomAudioPlaying)),
+      paused: value.pausedIntent || value.heldIntent || !!(owns && playback.nativePaused), playingStopId: state.stageId || '',
       timeLabel: ui.clock(time), durationLabel: ui.clock(duration), hasDuration: duration > 0,
       progress: duration > 0 ? Math.max(0, Math.min(100, time / duration * 100)) : 0,
       itemTitle: state.itemTitle || '', audioError: value.error || state.error || '', driverAligning: false,
@@ -198,6 +203,9 @@ Page({
     this.flushFinished(); this.startNextSequence();
   },
   onHide() {
+    const extraRequest = this._serverExtraRequest;
+    this._serverExtraRequest = null;
+    if (extraRequest && extraRequest.started && extraRequest.sessionId) tourAudio.release(extraRequest.sessionId).catch(() => {});
     tourAudio.setForeground(false);
     if (!config.background) { if (this._roomSubscription) this._roomSubscription(); this._roomSubscription = null; }
     this._backgroundResume = this.capturePlayback();
@@ -446,8 +454,8 @@ Page({
       this._manualBrowse = false;
       this.showStop(index, false, true);
       this.setData({ tourStage: 'navigation', contentOpen: play && !automatic, queueOpen: false });
-      await this.ensureServerAudio(stop.id);
-      if (play) await tourAudio.setPaused(false);
+      const state = await this.ensureServerAudio(stop.id);
+      if (play && state) await tourAudio.setPaused(false, state.sessionId);
       this.syncServerPreferences();
       return;
     }
@@ -550,7 +558,7 @@ Page({
     if (this.serverAudioEnabled() || tourAudio.active()) {
       this._manualBrowse = false; this._userPaused = false;
       this.setData({ contentOpen: false, queueOpen: false, lockContent: false, autoplay: true, following: true, locationEnabled: true });
-      this.ensureServerAudio().then(() => this.serverAudioCommand('realign')).catch(() => {});
+      this.ensureServerAudio().then(state => state && tourAudio.control('realign', {}, state.sessionId)).catch(() => {});
       return;
     }
     if (this.data.driverAligning || this.data.busy || this.data.loading || !this.data.locationEnabled || !this.prepareDriverAlignment(true)) return;
@@ -751,14 +759,16 @@ Page({
   playedKey() { return storage.scoped(this._user, 'before:' + (this.data.visit ? this.data.visit.visitId : 'preview')); },
   play(restore = false, replay = false, localCheckpoint = null) {
     if ((this.serverAudioEnabled() || tourAudio.active()) && this.data.stop) {
+      if (this._asking) return;
+      this._serverExtraRequest = null;
       if (this._manualBrowse) {
         const stageId = this.data.stop.id;
-        this.ensureServerAudio().then(() => tourAudio.control('preview', { stageId })).then(() => tourAudio.setPaused(false)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
+        this.ensureServerAudio().then(state => state && tourAudio.control('preview', { stageId }, state.sessionId)).then(state => state && tourAudio.setPaused(false, state.sessionId)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
         return;
       }
       this._manualBrowse = false; this._userPaused = false;
       const stageId = this.data.stop.id;
-      this.ensureServerAudio(stageId).then(() => replay ? tourAudio.control('replay', { stageId }) : null).then(() => tourAudio.setPaused(false)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
+      this.ensureServerAudio(stageId).then(state => replay && state ? tourAudio.control('replay', { stageId }, state.sessionId) : state).then(state => state && tourAudio.setPaused(false, state.sessionId)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
       return;
     }
     if (!this.data.stop || (!this._visible && !config.background) || this._asking || this.roomAudioActive() || this._user !== ui.userId()) return;
@@ -808,13 +818,21 @@ Page({
   playExtra(event) { if (this.data.busy || this.data.loading || !this.data.stop) return; const item = (this.data.stop.extraAudios || []).find(a => a.id === ui.dataset(event).id); if (!item || !item.url) return; this.saveCheckpoint(); this.playExtraItem({ id: item.id, url: item.url, title: item.title, kind: item.position }); },
   playExtraItem(item, time = 0) {
     if (tourAudio.active()) {
+      const request = this._serverExtraRequest = {}, key = this.contextKey();
       this.serverAudioCommand('hold').then(state => {
-        if (!state || !tourAudio.active()) return;
+        const current = () => state && state.sessionId === tourAudio.snapshot().sessionId && request === this._serverExtraRequest && key === this.contextKey() && !this._asking;
+        if (!current() || !this._visible) {
+          if (state && state.sessionId === tourAudio.snapshot().sessionId && !this._serverExtraRequest && !this._asking) tourAudio.release(state.sessionId).catch(() => {});
+          return;
+        }
+        request.started = true; request.sessionId = state.sessionId;
+        let released = false;
+        const release = () => { if (released || !current()) return; released = true; tourAudio.release(state.sessionId).catch(error => { if (!error.cancelled && current()) this.setData({ audioError: error.message }); }); };
         audio.playQueue('tour-extra', [item], {
           video: (video, generation) => this.updateSequenceVideo(video, generation),
           videoControl: (command, value) => { const context = my.createVideoContext('tour-interlude-video'); if (command === 'seek') context.seek(value); else context[command](); },
-          finished: () => tourAudio.release().catch(error => this.setData({ audioError: error.message })),
-          error: error => { this.setData({ audioError: error.message }); tourAudio.release().catch(() => {}); }
+          finished: release,
+          error: error => { if (current()) { this.setData({ audioError: error.message }); release(); } }
         }, { time });
       });
       return;
