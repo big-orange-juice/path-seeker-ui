@@ -105,10 +105,20 @@ Page({
       this.setData({ driverAligning: false });
       if (startStageId && state && (state.stageId !== startStageId || (state.queue || []).some(item => item.stageId === startStageId && ['emitted', 'failed', 'skipped', 'completed'].includes(item.status)))) return await tourAudio.control('select', { stageId: startStageId });
       return state;
-    } catch (error) { if (!error.cancelled && user === this._user && rev === this._rev) this.setData({ audioError: error.message }); throw error; }
+    } catch (error) { if (!error.cancelled && user === this._user && rev === this._rev) { this._serverFailedKey = key; this.setData({ audioError: error.message }); } throw error; }
   },
   applyServerAudio(value) {
     if (this._user !== ui.userId() || this._authVersion !== undefined && this._authVersion !== auth.version()) return;
+    if (!value.active && this._serverSession) {
+      this._serverSession = false; this._userPaused = false;
+      if (!value.error) this._serverFailedKey = '';
+      this._pendingPlayback = null; this._pendingFinish = ''; this._playbackPaint = null;
+      this._roomResume = null; this._askResume = null; this._backgroundResume = null; this._deferredResume = null;
+      this._extraResume = null; this._extraReturn = null; this._extraPlayback = false;
+      this.setData({ playing: false, paused: false, playingStopId: '', hasDuration: false, itemTitle: '',
+        timeLabel: '0:00', durationLabel: '0:00', progress: 0, audioError: value.error || '', sequence: [], queuedCount: 0, videoItem: null });
+    }
+    if (value.active) this._serverSession = true;
     const state = value.state, visit = this.data.visit, route = this.data.route;
     if (!state || !visit || !route || state.visitId !== visit.visitId || state.routeId !== route.id) { if (value.error) this.setData({ audioError: value.error }); return; }
     const playback = audio.snapshot(), owns = playback.live && playback.item && playback.item.id === state.sessionId;
@@ -126,7 +136,7 @@ Page({
     const time = Number(state.itemTimeSeconds) || 0, duration = Number(state.itemDurationSeconds) || 0;
     this._userPaused = !!state.paused || !!(owns && playback.nativePaused);
     this.setData({ visit: nextVisit, sequence, queuedCount: sequence.filter(item => item.status === 'queued').length,
-      playing: !!(owns && playback.playing && !state.paused && !state.held && (state.itemId || state.roomAudioPlaying)),
+      playing: !!(owns && playback.playing && !value.stalled && !state.paused && !state.held && (state.itemId || state.roomAudioPlaying)),
       paused: !!state.paused || !!state.held || !!(owns && playback.nativePaused), playingStopId: state.stageId || '',
       timeLabel: ui.clock(time), durationLabel: ui.clock(duration), hasDuration: duration > 0,
       progress: duration > 0 ? Math.max(0, Math.min(100, time / duration * 100)) : 0,
@@ -136,6 +146,14 @@ Page({
   },
   serverAudioCommand(command, values = {}) {
     return tourAudio.control(command, values).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); return null; });
+  },
+  retryAudio() { if (!this.data.busy && !this.data.loading) this.play(true); },
+  copyAudioReport() {
+    const report = tourAudio.diagnostics(), info = my.getSystemInfoSync();
+    report.device = { platform: info.platform, system: info.system, model: info.model, version: info.version, SDKVersion: info.SDKVersion };
+    report.routeId = this.data.route && this.data.route.id || '';
+    report.selectedStageId = this.data.stop && this.data.stop.id || '';
+    my.setClipboard({ text: JSON.stringify(report, null, 2), success: () => my.showToast({ content: '已复制诊断记录，不含登录凭证和音频地址', type: 'none' }) });
   },
   syncServerPreferences() {
     if (!this.serverAudioEnabled() || !tourAudio.active()) return;
@@ -429,6 +447,7 @@ Page({
       this.showStop(index, false, true);
       this.setData({ tourStage: 'navigation', contentOpen: play && !automatic, queueOpen: false });
       await this.ensureServerAudio(stop.id);
+      if (play) await tourAudio.setPaused(false);
       this.syncServerPreferences();
       return;
     }
@@ -734,11 +753,12 @@ Page({
     if ((this.serverAudioEnabled() || tourAudio.active()) && this.data.stop) {
       if (this._manualBrowse) {
         const stageId = this.data.stop.id;
-        this.ensureServerAudio().then(() => this.serverAudioCommand('preview', { stageId })).catch(error => this.setData({ audioError: error.message }));
+        this.ensureServerAudio().then(() => tourAudio.control('preview', { stageId })).then(() => tourAudio.setPaused(false)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
         return;
       }
       this._manualBrowse = false; this._userPaused = false;
-      this.ensureServerAudio(this.data.stop.id).then(() => replay ? this.serverAudioCommand('replay', { stageId: this.data.stop.id }) : tourAudio.setPaused(false)).catch(error => this.setData({ audioError: error.message }));
+      const stageId = this.data.stop.id;
+      this.ensureServerAudio(stageId).then(() => replay ? tourAudio.control('replay', { stageId }) : null).then(() => tourAudio.setPaused(false)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
       return;
     }
     if (!this.data.stop || (!this._visible && !config.background) || this._asking || this.roomAudioActive() || this._user !== ui.userId()) return;
@@ -769,7 +789,21 @@ Page({
       }, checkpoint);
     } catch (e) { this.setData({ audioError: e.message }); }
   },
-  togglePlay() { if (this.data.busy || this.data.loading) return; if (tourAudio.active()) { tourAudio.setPaused(!this.data.paused && audio.snapshot().playing).catch(error => this.setData({ audioError: error.message })); return; } if (this.roomAudioActive()) return; const state = audio.snapshot(); if (state.owner === 'tour' && this.data.playingStopId && this.data.playingStopId !== (this.data.stop && this.data.stop.id)) { this.play(true); return; } if (state.owner === 'tour' && state.playing) { this._userPaused = true; this._resumeFromChat = false; this.saveCheckpoint(); audio.pause(); } else if (state.owner === 'tour' && state.item) { this._userPaused = false; audio.resume('tour'); } else this.play(true); },
+  togglePlay() {
+    if (this.data.busy || this.data.loading) return;
+    if (tourAudio.active()) {
+      if (this.data.playing && !this.data.audioError && this.data.playingStopId === (this.data.stop && this.data.stop.id)) {
+        tourAudio.setPaused(true).catch(error => this.setData({ audioError: error.message }));
+      } else this.play(true);
+      return;
+    }
+    if (this.roomAudioActive()) return;
+    const state = audio.snapshot();
+    if (state.owner === 'tour' && this.data.playingStopId && this.data.playingStopId !== (this.data.stop && this.data.stop.id)) { this.play(true); return; }
+    if (state.owner === 'tour' && state.playing) { this._userPaused = true; this._resumeFromChat = false; this.saveCheckpoint(); audio.pause(); }
+    else if (state.owner === 'tour' && state.item) { this._userPaused = false; audio.resume('tour'); }
+    else this.play(true);
+  },
   replay() { if (this.data.busy || this.data.loading) return; storage.remove(storage.scoped(this._user, 'checkpoint')); this.play(false, true); },
   playExtra(event) { if (this.data.busy || this.data.loading || !this.data.stop) return; const item = (this.data.stop.extraAudios || []).find(a => a.id === ui.dataset(event).id); if (!item || !item.url) return; this.saveCheckpoint(); this.playExtraItem({ id: item.id, url: item.url, title: item.title, kind: item.position }); },
   playExtraItem(item, time = 0) {

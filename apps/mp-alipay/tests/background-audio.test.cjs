@@ -107,3 +107,21 @@ test('switching owners removes singleton listeners and rejects its delayed contr
   assert.equal(fixture.audioContexts.length, 1);
   audio.stop();
 });
+
+test('a delayed stop from a replaced source cannot pause the new native playback', () => {
+  const { manager, audio } = setup();
+  const stops = [];
+  manager.stop = () => stops.push(() => manager.emit('Stop'));
+  audio.playLive('tour', { id: 'session', url: 'https://media.test/live.mp3' });
+  audio.stop('tour');
+  audio.playQueue('tour', [{ id: 'chapter', url: 'https://media.test/chapter.mp3' }]);
+  manager.paused = false;
+  stops.forEach(stop => stop());
+  assert.equal(audio.snapshot().playing, true);
+  assert.equal(audio.snapshot().nativePaused, false);
+  manager.paused = true;
+  manager.emit('Pause');
+  assert.equal(audio.snapshot().playing, false);
+  assert.equal(audio.snapshot().nativePaused, true);
+  audio.stop();
+});

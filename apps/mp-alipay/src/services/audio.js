@@ -57,6 +57,7 @@ function create(token) {
   };
   const stopped = () => {
     if (!valid()) return;
+    if (useBackground && !paused && active.paused === false) return;
     if (!paused) { paused = true; pauseRequested = true; nativePaused = true; nativeControl = 'pause'; }
     playing = false; notify();
   };
@@ -81,7 +82,7 @@ function create(token) {
     playing = false;
     const extra = isExtra(queue[index]);
     failed = !extra;
-    if (hooks.error) hooks.error(Error(error.errorMessage || '音频播放失败，可重试或阅读讲解'));
+    if (hooks.error) hooks.error(Error(error && (error.errorMessage || error.errMsg || error.message) || '音频播放失败，可重试或阅读讲解'));
     if (!valid()) return;
     if (extra) { index++; next(token); return; }
     notify();

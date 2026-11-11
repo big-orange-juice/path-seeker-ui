@@ -89,13 +89,17 @@ function disconnect(preserveRecovery = false) {
   if (!preserveRecovery) forget();
   cancelRecovery();
   version++;
-  questions.reset(false);
   const previous = connection; connection = null;
+  questions.reset(false);
   if (previous) previous.close(true);
   pendingTranslations.clear();
   if (state.room) update({ disconnected: true, reconnecting: !!desired, speaking: false, audioPlaying: false, audioPending: false, inputDraining: false, translationPending: false });
 }
-function reset(preserveLanguage = false) { disconnect(); questions.reset(); feed.clear(); userId = ''; state = empty(preserveLanguage ? state.language : 'zh-CN'); update({}); }
+function reset(preserveLanguage = false) {
+  state = empty(preserveLanguage ? state.language : 'zh-CN');
+  tourAudio.stop();
+  disconnect(); questions.reset(); feed.clear(); userId = ''; update({});
+}
 auth.subscribe(session => { if (userId && (!session || session.userId !== userId || userVersion !== auth.version())) reset(true); });
 function event(message) {
   if (message.roomId && state.room && message.roomId !== state.room.roomId) return;
@@ -198,7 +202,6 @@ async function changeLanguage() {
 }
 async function leave() {
   const previous = state.room;
-  tourAudio.stop();
   reset(true);
   if (previous && !previous.isHost) await rooms.api('/' + previous.roomId + '/leave', {}).catch(() => {});
 }
