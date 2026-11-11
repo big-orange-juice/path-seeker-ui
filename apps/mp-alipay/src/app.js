@@ -21,5 +21,5 @@ App({
       if (!coldStart && newInvitation) my.reLaunch({ url: invitationUrl });
     } else translation.resume();
   },
-  onHide() { this.globalData.foreground = false; location.setForeground(false); this.globalData.backgroundAudio = audio.snapshot(); translation.suspend(); if (this.globalData.cancelVoiceInput) this.globalData.cancelVoiceInput(); if (!config.background) audio.pause(); }
+  onHide() { this.globalData.foreground = false; location.setForeground(false); this.globalData.backgroundAudio = audio.snapshot(); translation.suspend({ preserveConnection: config.background }); if (this.globalData.cancelVoiceInput) this.globalData.cancelVoiceInput(); if (!config.background) audio.pause(); }
 });

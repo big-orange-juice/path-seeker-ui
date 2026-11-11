@@ -1,0 +1,27 @@
+<scroll-view scroll-y="true" class="full-page"><view class="page">
+  <view class="eyebrow">PATH SEEKER · 真机验证</view>
+  <view class="title">锁屏后，听到新声音。</view>
+  <view class="subtitle">先退出讲解房间并结束音频播放。开始后按电源键锁屏，验证期间保持本页面，不要返回或退出小程序。</view>
+  <view a:if="{{error}}" class="error">{{error}}</view>
+  <view class="card stack">
+    <picker range="{{labels}}" value="{{modeIndex}}" disabled="{{active || busy}}" onChange="mode"><view class="mode">{{labels[modeIndex]}} ▾</view></picker>
+    <button class="primary" onTap="start" disabled="{{active || busy}}">{{busy ? '正在准备音频…' : '开始本轮验证'}}</button>
+    <button a:if="{{active || busy}}" onTap="stop">结束本轮</button>
+    <view a:if="{{notice}}" class="muted">{{notice}}</view>
+  </view>
+  <view a:if="{{sessionId}}" class="card stack">
+    <view>手机播放器：{{playing ? '播放中' : '未播放 / 已暂停'}} · {{playerSeconds}} 秒</view>
+    <view class="muted">服务器：{{serverStatus}} · 媒体 {{mediaSeconds}} 秒 · 已发送 {{sentBytes}} 字节</view>
+    <button onTap="copyControl" disabled="{{!active}}">复制另一设备控制链接</button>
+    <button onTap="refresh">刷新服务器记录</button>
+    <button onTap="copyReport">复制诊断记录</button>
+    <view class="muted">控制链接仅用于本轮验证，请只提供给测试人员。服务器发送、播放器回调都不代表实际出声，请记录锁屏手机真正听到的声音。</view>
+    <view class="events">{{eventsText}}</view>
+  </view>
+  <view class="card stack"><view>测试顺序</view>
+    <view class="muted">1. 有限文件：听到一声后锁屏，第 10 秒两声、第 20 秒三声。</view>
+    <view class="muted">2. 手动触发：复制链接到电脑，锁屏后等待至少一分钟，再在电脑上随机点声音 1、2、3。静音五分钟后再试，并保持锁屏至第十五分钟再次触发。</view>
+    <view class="muted">3. 定时触发：服务器在第 1、5、15 分钟自动发声，全程保持锁屏。持续模式每轮最多 20 分钟。</view>
+    <view class="muted">出现中断后先保存记录，再结束本轮。不会自动重连或切换音频，以免影响判断。</view>
+  </view>
+</view></scroll-view>

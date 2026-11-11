@@ -6,4 +6,5 @@
   <view class="card"><view class="section">我的旅程</view><button class="link-row" onTap="backToRoutes">返回路线列表 <text>›</text></button><button class="link-row" onTap="postcards">电子明信片与旅行册 <text>›</text></button></view>
   <view class="card"><view class="section">偏好设置</view><picker range="{{locales}}" range-key="label" value="{{localeIndex}}" onChange="locale"><view class="link-row">讲解语言 <text>{{locales[localeIndex].label}} ▾</text></view></picker><view class="subtitle">问答音色</view><input class="field" value="{{voiceId}}" data-field="voiceId" onInput="input" placeholder="填写音色 ID，留空跟随当前讲解员" maxlength="256"/><button class="save" onTap="saveVoice">保存音色</button></view>
   <view class="card"><button class="link-row" onTap="privacy">隐私说明与权限 <text>›</text></button><button class="link-row" onTap="clearHistory">清除本机漫游记录 <text>›</text></button></view>
+  <view a:if="{{audioContinuityProbe}}" class="card"><button class="link-row" onTap="audioProbe">锁屏音频验证 <text>›</text></button></view>
 </view></scroll-view>

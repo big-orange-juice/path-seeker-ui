@@ -1,5 +1,6 @@
 const auth = require('./auth');
 const rooms = require('./translation-room');
+const tourAudio = require('./tour-audio-session');
 const recovery = require('./room-recovery');
 const { createQuestions } = require('./room-questions');
 const { RoomTextFeed } = require('../shared/translation-room');
@@ -10,6 +11,12 @@ const empty = (language = 'zh-CN') => ({ language, room: null, source: '', trans
 let state = empty(), connection = null, userId = '', userVersion = 0, version = 0;
 let foreground = true, desired = null, retryTimer = null, retryCount = 0, pendingJoin = null, recoveryEnabled = false;
 const pendingTranslations = new Set();
+function usesDoubaoTranslation(source, target) {
+  const normalize = value => typeof value === 'string' ? /^zh/i.test(value) ? 'zh' : value : '';
+  const from = normalize(source), to = normalize(target);
+  return !!from && !!to && from !== 'yue' && to !== 'yue' && from !== to
+    && (['zh', 'en'].includes(from) || ['zh', 'en'].includes(to));
+}
 function remember() {
   if (!recoveryEnabled) return;
   const saved = recovery.write(state.room, state.language, state.paused, state.following);
@@ -29,6 +36,7 @@ function scheduleRecovery() {
 }
 async function resume(immediate = true) {
   foreground = true;
+  if (connection && connection.refresh) connection.refresh();
   if (connection || pendingJoin) return;
   if (!desired) desired = recovery.read();
   const session = auth.current(), saved = desired;
@@ -101,7 +109,11 @@ function event(message) {
   }
   if (message.type === 'room.snapshot' || message.type === 'room.members.changed') { values.room = payload; values.inputDraining = !!payload.inputDraining; }
   const segment = (message.epochId || '') + ':' + (message.sequence || 0);
-  if (message.type === 'transcript.final') { values.source = payload.text || ''; pendingTranslations.add(segment); }
+  if (message.type === 'transcript.final') {
+    values.source = payload.text || '';
+    // 仅豆包支持的翻译方向使用独立译文序号；同语种、粤语等回退任务仍从原文开始等待。
+    if (payload.provider !== 'doubao' || !usesDoubaoTranslation(state.room && state.room.sourceLanguage, state.language)) pendingTranslations.add(segment);
+  }
   if (message.type === 'translation.committed') pendingTranslations.add(segment);
   if (message.type === 'translation.final' || message.type === 'language.error') pendingTranslations.delete(segment);
   values.translationPending = pendingTranslations.size > 0;
@@ -119,12 +131,13 @@ function event(message) {
   if (message.type === 'room.input.drained' && (!message.epochId || !state.room || !state.room.epochId || message.epochId === state.room.epochId)) values.inputDraining = false;
   if (message.type === 'room.started') { values.inputDraining = false; values.notice = '讲解中'; values.room = Object.assign({}, state.room, { status: 'live', epochId: message.epochId || (state.room || {}).epochId }); }
   if (message.type === 'room.draining') { questions.reset(false); values.room = Object.assign({}, state.room, { status: 'draining' }); values.notice = '讲解即将结束，正在接收剩余语音'; }
-  if (message.type === 'room.closed') { forget(); questions.reset(false); values.reconnecting = false; values.inputDraining = false; values.translationPending = false; pendingTranslations.clear(); values.room = Object.assign({}, state.room, { status: 'closed' }); values.speaking = false; values.notice = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'; }
+  if (message.type === 'room.closed') { tourAudio.stop(); forget(); questions.reset(false); values.reconnecting = false; values.inputDraining = false; values.translationPending = false; pendingTranslations.clear(); values.room = Object.assign({}, state.room, { status: 'closed' }); values.speaking = false; values.notice = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'; }
   if (message.type === 'room.draining') forget();
   update(values);
   if (['subscription.ready', 'subscription.changed', 'room.snapshot'].includes(message.type)) remember();
 }
 function attach(room, language, restored = null) {
+  if (tourAudio.active() && (!tourAudio.activeForRoom(room.roomId) || room.isHost)) tourAudio.stop();
   disconnect(true);
   const session = auth.current();
   if (!session) throw Error('请先登录');
@@ -178,16 +191,27 @@ async function end(immediate) {
   if (immediate) update({ room: Object.assign({}, state.room, { status: 'closed' }), disconnected: true, notice: '房间已关闭' });
 }
 async function changeLanguage() {
+  tourAudio.stop();
   disconnect(); feed.clear();
   update({ feed: [], translated: '', notice: '当前语音已停止，请选择语言并重新收听' });
   if (state.room && !state.room.isHost) await rooms.api('/' + state.room.roomId + '/leave', {}).catch(() => {});
 }
 async function leave() {
   const previous = state.room;
+  tourAudio.stop();
   reset(true);
   if (previous && !previous.isHost) await rooms.api('/' + previous.roomId + '/leave', {}).catch(() => {});
 }
-function suspend() { foreground = false; if (state.room) { remember(); disconnect(true); update({ notice: '讲解已暂停，返回前台将恢复连接' }); } }
+function suspend({ preserveConnection = false } = {}) {
+  foreground = false;
+  if (!state.room) return;
+  remember();
+  cancelRecovery();
+  questions.stop(true);
+  if (preserveConnection && connection && !state.disconnected && !state.room.isHost) return;
+  disconnect(true);
+  update({ notice: '讲解已暂停，返回前台将恢复连接' });
+}
 function setFollowing(value) { if (state.following === !!value) return; update({ following: !!value }); remember(); }
 function yieldToTour() { if (connection) connection.yieldToTour(); }
 module.exports = { snapshot, subscribe, attach, event, prepareEntry, setLanguage, disconnect, startSpeaking, togglePause, end, changeLanguage, leave, suspend, resume, setFollowing, yieldToTour,

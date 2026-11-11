@@ -3,9 +3,9 @@ const http = require('../../services/http');
 const storage = require('../../services/storage');
 const audio = require('../../services/audio');
 const ui = require('../../core/ui');
-const { locales } = require('../../config');
+const { locales, audioContinuityProbe } = require('../../config');
 Page({
-  data: { user: {}, profile: {}, loading: false, busy: false, editing: false, nickname: '', country: '', localeIndex: 0, locales, voiceId: '', error: '' },
+  data: { user: {}, profile: {}, loading: false, busy: false, editing: false, nickname: '', country: '', localeIndex: 0, locales, voiceId: '', error: '', audioContinuityProbe },
   onShow() { this._visible = true; this.load(); },
   onHide() { this._visible = false; this._seq = (this._seq || 0) + 1; this.setData({ busy: false }); },
   async load() {
@@ -24,6 +24,7 @@ Page({
   backToRoutes() { my.reLaunch({ url: '/pages/tour/index?view=routes' }); },
   postcards() { my.navigateTo({ url: '/pages/postcards/index' }); },
   privacy() { my.navigateTo({ url: '/pages/privacy/index' }); },
+  audioProbe() { if (audioContinuityProbe) my.navigateTo({ url: '/pages/audio-probe/index' }); },
   edit() { this.setData({ editing: !this.data.editing }); },
   input(event) { const field = ui.dataset(event).field; if (['nickname', 'country', 'voiceId'].includes(field)) this.setData({ [field]: ui.value(event) }); },
   locale(event) { const index = Number(ui.value(event)); if (!locales[index]) return; storage.write('locale', locales[index].value); storage.write('tour-locale', locales[index].value); this.setData({ localeIndex: index }); },

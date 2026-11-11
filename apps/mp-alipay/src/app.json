@@ -7,9 +7,9 @@
     "pages/postcards/index",
     "pages/auth/index",
     "pages/records/index",
-    "pages/privacy/index"
+    "pages/privacy/index",
+    "pages/audio-probe/index"
   ],
-  "requiredBackgroundModes": ["audio"],
   "window": {
     "defaultTitle": "寻迹 · 城市漫游",
     "titleBarColor": "#f8faf9",

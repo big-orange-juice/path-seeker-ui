@@ -33,6 +33,55 @@ test('background fixes queue an arrival only after a fresh stable dwell and gaps
   page.onUnload();
 });
 
+test('hidden navigation handles room playback release and unload removes the retained subscription', t => {
+  const { h, page } = setup(t);
+  const listeners = new Set();
+  h.load('services/translation-session').subscribe = listener => { listeners.add(listener); return () => listeners.delete(listener); };
+  let synchronized = 0, scheduled = 0;
+  page.syncDriverFollowing = () => {};
+  page.syncRoomPlayback = () => synchronized++;
+  page.flushFinished = () => {};
+  page.startNextSequence = () => scheduled++;
+  page.onShow(); page.onHide();
+  synchronized = 0; scheduled = 0;
+  listeners.forEach(listener => listener());
+  assert.equal(synchronized, 1);
+  assert.equal(scheduled, 1);
+  page.onUnload();
+  assert.equal(listeners.size, 0);
+});
+
+test('hidden narration resumes at its saved position after room playback releases the audio owner', t => {
+  const { h, page, audio } = setup(t);
+  page.play(); h.audioContexts[0].currentTime = 19; page.onHide();
+  let roomBusy = true;
+  h.load('services/translation-session').snapshot = () => ({ audioPlaying: roomBusy });
+  page.syncRoomPlayback();
+  audio.playQueue('translation-room', [{ id: 'room', url: '/room.mp3' }]);
+  roomBusy = false; audio.stop('translation-room'); page.syncRoomPlayback();
+  assert.equal(page._visible, false);
+  assert.equal(audio.snapshot().owner, 'tour');
+  assert.equal(audio.snapshot().item.id, 'c-current');
+  assert.equal(audio.snapshot().playing, true);
+  h.audioContexts.at(-1).emit('CanPlay');
+  assert.equal(audio.snapshot().time, 19);
+  page.onUnload();
+});
+
+for (const mode of ['video', 'disabled']) {
+  test('hidden recovery waits for the foreground: ' + mode, t => {
+    const { h, page, audio, stops } = setup(t);
+    if (mode === 'video') { stops[0].guideNarrations = []; stops[0].video = '/current.mp4'; page.showStop(0, false); }
+    page.play();
+    const checkpoint = page.capturePlayback();
+    page.onHide();
+    if (mode === 'disabled') { h.load('config').background = false; audio.pause(); }
+    assert.equal(page.restorePlayback(checkpoint), false);
+    assert.equal(audio.snapshot().playing, false);
+    page.onUnload();
+  });
+}
+
 test('a 30m circle enters at 35m and retains its countdown through jitter up to the 45m release boundary', t => {
   const { page, fix } = setup(t); page.setData({ autoplay: false });
   fix(34); t.mock.timers.tick(2000); fix(38);

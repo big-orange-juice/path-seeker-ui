@@ -1,9 +1,12 @@
 // 按 owner 排他使用；每段重建上下文，迟到的旧段事件不可推进新队列。
+const config = require('../config');
 let context = null, owner = '', queue = [], index = 0, hooks = {}, generation = 0, failed = false, playing = false;
+let backgroundContext = false, contextVersion = 0, nativePaused = false, nativeControl = '';
 let accepting = false, finished = false, paused = false, prepared = null;
 let video = null;
 let pauseRequested = false;
 let completedItemIds = [];
+let livePlayback = false;
 const isExtra = item => item && ['before', 'after', 'interlude-audio', 'interlude-video'].includes(item.kind);
 const listeners = {};
 function discardPrepared() {
@@ -14,7 +17,7 @@ function discardPrepared() {
 }
 function prepareNext(token) {
   const item = queue[index + 1];
-  if (token !== generation || !context || !item || item.kind === 'interlude-video' || !item.url || prepared) return;
+  if (token !== generation || !context || livePlayback || backgroundContext || !item || item.kind === 'interlude-video' || !item.url || prepared) return;
   let warm;
   try {
     warm = my.createInnerAudioContext();
@@ -26,33 +29,47 @@ function prepareNext(token) {
   } catch (_) { if (prepared && prepared.context === warm) discardPrepared(); }
 }
 function dispose() {
+  contextVersion++;
   const old = context; context = null;
   if (!old) return;
   Object.keys(listeners).forEach(name => { if (old['off' + name]) old['off' + name](listeners[name]); });
-  old.stop(); old.destroy();
+  old.stop(); if (!backgroundContext) old.destroy();
+  backgroundContext = false;
 }
 function create(token) {
-  if (!my.createInnerAudioContext) throw Error('当前支付宝版本不支持音频，请更新客户端');
-  const warm = prepared && prepared.item === queue[index] ? prepared : null;
+  const useBackground = config.background && config.backgroundAudio && ['tour', 'audio-probe'].includes(owner) && /^https:\/\//i.test(queue[index].url) && typeof my.getBackgroundAudioManager === 'function';
+  if (!useBackground && !my.createInnerAudioContext) throw Error('当前支付宝版本不支持音频，请更新客户端');
+  const warm = !useBackground && prepared && prepared.item === queue[index] ? prepared : null;
   if (warm) { prepared = null; warm.context.offError(warm.error); }
   else discardPrepared();
-  context = warm ? warm.context : my.createInnerAudioContext();
+  context = useBackground ? my.getBackgroundAudioManager() : warm ? warm.context : my.createInnerAudioContext();
+  backgroundContext = useBackground;
   const active = context;
-  const valid = () => token === generation && active === context;
-  context.autoplay = false;
-  context.obeyMuteSwitch = false;
-  // 息屏/切后台继续播放；需 app.json 声明 requiredBackgroundModes: ["audio"]。
-  try { context.supportBackgroundPlay = true; } catch (_) {}
-  listeners.Play = () => { if (valid()) { if (paused) { active.pause(); return; } playing = true; notify(); } };
-  listeners.Pause = () => { if (valid()) { playing = false; notify(); } };
-  listeners.Stop = () => { if (valid()) { playing = false; notify(); } };
+  const revision = ++contextVersion;
+  const valid = () => token === generation && active === context && revision === contextVersion;
+  if (useBackground) { context.title = queue[index].title || '寻迹 · 城市漫游'; context.singer = ''; context.startTime = pendingSeek || 0; }
+  else { context.autoplay = false; context.obeyMuteSwitch = false; }
+  listeners.Play = () => {
+    if (!valid()) return;
+    if (paused && !nativePaused) { active.pause(); return; }
+    if (nativePaused) { paused = false; pauseRequested = false; nativePaused = false; nativeControl = 'play'; }
+    playing = true; notify();
+  };
+  const stopped = () => {
+    if (!valid()) return;
+    if (!paused) { paused = true; pauseRequested = true; nativePaused = true; nativeControl = 'pause'; }
+    playing = false; notify();
+  };
+  listeners.Pause = stopped;
+  listeners.Stop = stopped;
   listeners.TimeUpdate = () => { if (valid()) notify(); };
   listeners.CanPlay = () => {
     if (valid() && pendingSeek !== null) { active.seek(pendingSeek); pendingSeek = null; }
   };
   listeners.Ended = () => {
-    if (!valid() || failed) return;
+    if (!valid() || failed || paused) return;
     playing = false;
+    if (livePlayback) { failed = true; if (hooks.error) hooks.error(Error('持续讲解连接已结束，请重新连接')); notify(); return; }
     completedItemIds.push(queue[index].id);
     if (hooks.itemEnded) hooks.itemEnded(queue[index]);
     if (!valid()) return;
@@ -74,7 +91,7 @@ function create(token) {
 }
 let pendingSeek = null;
 function snapshot() {
-  return { owner, playing, requested: !!queue[index] && !paused && !failed, index, item: queue[index] || null, time: video ? video.time : pendingSeek !== null ? pendingSeek : context ? context.currentTime || 0 : 0, duration: video ? video.duration : context ? context.duration || 0 : 0, failed, generation };
+  return { owner, playing, requested: !!queue[index] && !paused && !failed, nativePaused, nativeControl, live: livePlayback, index, item: queue[index] || null, time: video ? video.time : pendingSeek !== null ? pendingSeek : context ? context.currentTime || 0 : 0, duration: video ? video.duration : context ? context.duration || 0 : 0, failed, generation };
 }
 function notify() { if (hooks.change) hooks.change(snapshot()); }
 function next(token) {
@@ -104,7 +121,8 @@ function next(token) {
     hooks.video(Object.assign({}, item, { startTime: video.time, paused }), token); notify(); return;
   }
   create(token);
-  if (context.src !== item.url) context.src = item.url;
+  if (backgroundContext || context.src !== item.url) context.src = item.url;
+  if (paused) context.pause();
   if (!paused) context.play();
   prepareNext(token);
   notify();
@@ -117,11 +135,23 @@ function playQueue(nextOwner, items, nextHooks = {}, checkpoint = {}) {
   pendingSeek = checkpoint.time > 0 ? checkpoint.time : null;
   next(generation);
 }
-function pause() { paused = true; pauseRequested = true; if (context) context.pause(); if (video && hooks.videoControl) hooks.videoControl('pause'); playing = false; notify(); }
+function playLive(nextOwner, item, nextHooks = {}, options = {}) {
+  stop();
+  owner = nextOwner; queue = [Object.assign({}, item, { kind: 'live' })]; hooks = nextHooks;
+  livePlayback = true; paused = !!options.paused; pauseRequested = paused;
+  next(generation);
+}
+function updateLive(item) {
+  if (!livePlayback || !queue[index]) return;
+  queue[index] = Object.assign({}, queue[index], item);
+  if (backgroundContext && context && item.title) context.title = item.title;
+}
+function pause() { paused = true; pauseRequested = true; nativePaused = false; nativeControl = ''; if (context) context.pause(); if (video && hooks.videoControl) hooks.videoControl('pause'); playing = false; notify(); }
 function resume(expectedOwner) {
   if (owner !== expectedOwner) return;
   paused = false;
   pauseRequested = false;
+  nativePaused = false; nativeControl = '';
   if (!queue[index]) return;
   if (video) { if (hooks.videoControl) hooks.videoControl('play'); return; }
   if (failed || !context) { failed = false; next(generation); } else context.play();
@@ -132,13 +162,14 @@ function stop(expectedOwner) {
   generation++;
   if (video && hooks.video) hooks.video(null, generation);
   video = null;
-  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false; paused = false; pauseRequested = false; completedItemIds = [];
+  hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false; paused = false; pauseRequested = false; nativePaused = false; nativeControl = ''; completedItemIds = []; livePlayback = false;
   discardPrepared();
   dispose();
   queue = []; index = 0; owner = ''; failed = false;
   if (interrupted) interrupted();
 }
 function seek(seconds, expectedOwner) {
+  if (livePlayback) return;
   if (video && owner === expectedOwner) { video.time = Math.max(0, seconds); if (hooks.videoControl) hooks.videoControl('seek', video.time); notify(); return; }
   if (context && owner === expectedOwner) context.seek(Math.max(0, Math.min(seconds, context.duration || seconds)));
 }
@@ -176,4 +207,4 @@ function finishStream(token) {
   accepting = false;
   if (index >= queue.length) next(token);
 }
-module.exports = { playQueue, pause, resume, stop, seek, snapshot, destroy, beginStream, appendStream, finishStream, videoEvent };
+module.exports = { playQueue, playLive, updateLive, pause, resume, stop, seek, snapshot, destroy, beginStream, appendStream, finishStream, videoEvent };

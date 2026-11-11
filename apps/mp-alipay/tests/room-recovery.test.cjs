@@ -165,16 +165,76 @@ test('handshake timeout and missing business pong both lead to guest recovery', 
   assert.equal(session.snapshot().disconnected, false);
 });
 
-test('app lifecycle restores the cached connection on show', async context => {
+test('app lifecycle preserves the live connection in background mode', async context => {
   const { fixture, session, join, ready, sockets } = setup(context);
   join();
   vm.runInNewContext(fs.readFileSync(path.resolve(__dirname, '../dist/app.js'), 'utf8'), {
     require: name => fixture.load(name.replace(/^\.\//, '')), App: definition => Object.assign(fixture.app, definition)
   });
   fixture.app.onHide(); fixture.app.onShow(); fixture.app.onShow();
-  assert.equal(fixture.requests.length, 1);
-  fixture.requests[0].ok(room); await tick(); ready();
-  assert.equal(sockets.length, 2); assert.equal(session.snapshot().disconnected, false);
+  assert.equal(fixture.requests.length, 0);
+  assert.equal(sockets.length, 1);
+  assert.equal(session.snapshot().disconnected, false);
+  assert.equal(session.snapshot().reconnecting, false);
+});
+
+test('explicit session suspend still disconnects when background retention is not requested', context => {
+  const { fixture, session, join, sockets } = setup(context);
+  join();
+  session.suspend();
+  assert.equal(sockets.length, 1);
+  assert.equal(session.snapshot().disconnected, true);
+  assert.equal(fixture.storage.has(cacheKey), true);
+});
+
+test('background retention keeps driver polling alive and a background disconnect waits for foreground recovery', async context => {
+  const { fixture, session, handlers, join, ready, sockets } = setup(context);
+  join();
+  const fixes = [];
+  const stop = fixture.load('services/location').watch(fix => fixes.push(fix), () => {});
+  context.after(stop);
+  const result = () => ({ roomId: room.roomId, status: 'online', coordinateSystem: 'GCJ-02', longitude: 116.4, latitude: 39.9, accuracy: 8, sampledAt: new Date(Date.now()).toISOString(), serverTime: new Date(Date.now()).toISOString() });
+  session.suspend({ preserveConnection: true });
+  assert.equal(fixture.requests[0].aborted, false);
+  fixture.requests[0].ok(result()); await tick();
+  context.mock.timers.tick(1000);
+  fixture.requests[1].ok(result()); await tick();
+  assert.equal(fixes.length, 2);
+  handlers.Error();
+  context.mock.timers.tick(60000); await tick();
+  assert.equal(fixture.requests.length, 2);
+  assert.equal(session.snapshot().disconnected, true);
+  const recovery = session.resume();
+  assert.match(fixture.requests[2].options.url, /join$/);
+  fixture.requests[2].ok(room); await recovery; ready();
+  assert.equal(sockets.length, 2);
+  assert.equal(session.snapshot().disconnected, false);
+});
+
+test('hiding during a pending rejoin cancels it even when background retention is enabled', async context => {
+  const { fixture, session, join, sockets } = setup(context);
+  join(); session.suspend();
+  const recovery = session.resume(), request = fixture.requests[0];
+  session.suspend({ preserveConnection: true });
+  assert.equal(request.aborted, true);
+  request.ok(room); await recovery;
+  assert.equal(sockets.length, 1);
+  assert.equal(session.snapshot().disconnected, true);
+});
+
+test('foreground resume replaces a retained socket that has missed its business pong deadline', async context => {
+  const { fixture, session, join, ready, sockets } = setup(context);
+  join(); session.suspend({ preserveConnection: true });
+  const beforeSleep = Date.now;
+  Date.now = () => beforeSleep() + 60000;
+  try {
+    const recovery = session.resume();
+    assert.equal(fixture.requests.length, 1);
+    assert.match(fixture.requests[0].options.url, /join$/);
+    fixture.requests[0].ok(room); await recovery; ready();
+    assert.equal(sockets.length, 2);
+    assert.equal(session.snapshot().disconnected, false);
+  } finally { Date.now = beforeSleep; }
 });
 
 test('expired and malformed cached identities cannot start recovery', async context => {

@@ -3,6 +3,7 @@ const auth = require('./auth');
 const config = require('../config');
 const speech = require('./speech');
 const audio = require('./audio');
+const tourAudio = require('./tour-audio-session');
 const { wavPcm, base64 } = require('../core/room-pcm');
 const { RoomEventCursor } = require('../shared/translation-room');
 const api = (path, data) => data === undefined ? http.request('/TranslationRooms' + path) : http.post('/TranslationRooms' + path, data);
@@ -20,6 +21,7 @@ function connect(room, hooks) {
   const paths = [];
   function publishPlayback() {
     if (!hooks.playback) return;
+    if (tourAudio.activeForRoom(room.roomId)) { hooks.playback({ playing: false, pending: false }); return; }
     const value = audio.snapshot(), ownsAudio = value.owner === 'translation-room' && value.generation === token;
     hooks.playback({ playing: ownsAudio && value.playing,
       pending: !paused && !guestCapture && (receivingAudio || !yielded && (!!hex || pendingWrites > 0 || ownsAudio && !!value.item)) });
@@ -36,12 +38,12 @@ function connect(room, hooks) {
   };
   let token = null;
   const active = () => !closed && socketOwner === owner && auth.current() && auth.current().userId === session.userId;
-  if (!room.isHost) {
+  if (!room.isHost && !tourAudio.activeForRoom(room.roomId)) {
     if (audio.snapshot().owner) yielded = true;
     else token = audio.beginStream('translation-room', playbackHooks);
   }
   function claimAudio() {
-    if (!active() || room.isHost || paused || guestCapture) return;
+    if (!active() || room.isHost || paused || guestCapture || tourAudio.activeForRoom(room.roomId)) return;
     const current = audio.snapshot();
     if (current.owner === 'translation-room' && current.generation === token) return;
     if (!yielded && current.owner) return;
@@ -53,6 +55,7 @@ function connect(room, hooks) {
     my.sendSocketMessage({ data: binary ? base64(data) : JSON.stringify(data), isBuffer: binary, success: resolve, fail: () => reject(Error('讲解上传失败，请重新连接')) });
   });
   function flushAudio() {
+    if (tourAudio.activeForRoom(room.roomId)) { hex = ''; return; }
     if (!hex) return;
     const sentence = { hex, format }, index = fileIndex++; hex = '';
     pendingWrites++; publishPlayback();
@@ -78,8 +81,8 @@ function connect(room, hooks) {
       if (event.type === 'pong') lastPong = Date.now();
       if (event.type === 'subscription.ready' || event.type === 'room.snapshot') clearTimeout(readyTimer);
       if (event.type === 'input.paused' && pauseAck) { pauseAck.resolve(); pauseAck = null; }
-      if (event.type === 'audio.started') { hex = ''; receivingAudio = true; format = payload.format || 'mp3'; if (!guestCapture) awaitSegment = false; publishPlayback(); claimAudio(); }
-      if (event.type === 'audio.delta' && !room.isHost && !guestCapture && !awaitSegment) {
+      if (event.type === 'audio.started') { hex = ''; receivingAudio = !tourAudio.activeForRoom(room.roomId); format = payload.format || 'mp3'; if (!guestCapture) awaitSegment = false; publishPlayback(); claimAudio(); }
+      if (event.type === 'audio.delta' && !room.isHost && !guestCapture && !awaitSegment && !tourAudio.activeForRoom(room.roomId)) {
         if (payload.encoding && payload.encoding !== 'hex' || payload.audio && !/^(?:[0-9a-fA-F]{2})*$/.test(payload.audio)) throw Error('语音格式无效');
         hex += payload.audio || ''; format = payload.format || format;
         if (hex.length > 16 * 1024 * 1024) throw Error('语音积压过多，请重新收听');
@@ -185,6 +188,11 @@ function connect(room, hooks) {
   }
   return {
     close, startRecording,
+    refresh() {
+      if (!active() || room.isHost) return;
+      if (Date.now() - lastPong > 45000) onError();
+      else if (opened) send({ type: 'ping' }).catch(onError);
+    },
     yieldToTour() {
       if (room.isHost || paused || guestCapture || receivingAudio || hex || pendingWrites) return;
       const current = audio.snapshot();
@@ -204,10 +212,11 @@ function connect(room, hooks) {
     muteForQuestion(value) {
       guestCapture = value; awaitSegment = true; hex = '';
       if (value) { audio.stop('translation-room'); speech.cleanup(paths.splice(0)); }
-      else if (active() && !room.isHost && !audio.snapshot().owner) { token = audio.beginStream('translation-room', playbackHooks); if (paused) audio.pause(); }
+      else if (active() && !room.isHost && !audio.snapshot().owner && !tourAudio.activeForRoom(room.roomId)) { token = audio.beginStream('translation-room', playbackHooks); if (paused) audio.pause(); }
     },
     pause(value) {
       paused = value;
+      if (tourAudio.activeForRoom(room.roomId)) { publishPlayback(); return; }
       if (value) { if (audio.snapshot().owner === 'translation-room') audio.pause(); }
       else if (audio.snapshot().owner !== 'translation-room') { hex = ''; yielded = false; speech.cleanup(paths.splice(0)); token = audio.beginStream('translation-room', playbackHooks); }
       else audio.resume('translation-room');
