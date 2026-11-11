@@ -131,7 +131,7 @@ function event(message) {
   if (message.type === 'room.input.drained' && (!message.epochId || !state.room || !state.room.epochId || message.epochId === state.room.epochId)) values.inputDraining = false;
   if (message.type === 'room.started') { values.inputDraining = false; values.notice = '讲解中'; values.room = Object.assign({}, state.room, { status: 'live', epochId: message.epochId || (state.room || {}).epochId }); }
   if (message.type === 'room.draining') { questions.reset(false); values.room = Object.assign({}, state.room, { status: 'draining' }); values.notice = '讲解即将结束，正在接收剩余语音'; }
-  if (message.type === 'room.closed') { tourAudio.stop(); forget(); questions.reset(false); values.reconnecting = false; values.inputDraining = false; values.translationPending = false; pendingTranslations.clear(); values.room = Object.assign({}, state.room, { status: 'closed' }); values.speaking = false; values.notice = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'; }
+  if (message.type === 'room.closed') { if (payload.mode === 'immediate') tourAudio.stop(); forget(); questions.reset(false); values.reconnecting = false; values.inputDraining = false; values.translationPending = false; pendingTranslations.clear(); values.room = Object.assign({}, state.room, { status: 'closed' }); values.speaking = false; values.notice = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'; }
   if (message.type === 'room.draining') forget();
   update(values);
   if (['subscription.ready', 'subscription.changed', 'room.snapshot'].includes(message.type)) remember();

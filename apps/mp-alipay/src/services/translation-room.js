@@ -211,12 +211,16 @@ function connect(room, hooks) {
     },
     muteForQuestion(value) {
       guestCapture = value; awaitSegment = true; hex = '';
+      if (tourAudio.activeForRoom(room.roomId)) {
+        if (value) { audio.pause(); tourAudio.control('hold').catch(error => { if (hooks.error) hooks.error(error); }); }
+        else tourAudio.release().catch(error => { if (hooks.error) hooks.error(error); });
+      }
       if (value) { audio.stop('translation-room'); speech.cleanup(paths.splice(0)); }
       else if (active() && !room.isHost && !audio.snapshot().owner && !tourAudio.activeForRoom(room.roomId)) { token = audio.beginStream('translation-room', playbackHooks); if (paused) audio.pause(); }
     },
     pause(value) {
       paused = value;
-      if (tourAudio.activeForRoom(room.roomId)) { publishPlayback(); return; }
+      if (tourAudio.activeForRoom(room.roomId)) { tourAudio.control('room-mute', { roomMuted: value }).catch(error => { if (hooks.error) hooks.error(error); }); publishPlayback(); return; }
       if (value) { if (audio.snapshot().owner === 'translation-room') audio.pause(); }
       else if (audio.snapshot().owner !== 'translation-room') { hex = ''; yielded = false; speech.cleanup(paths.splice(0)); token = audio.beginStream('translation-room', playbackHooks); }
       else audio.resume('translation-room');

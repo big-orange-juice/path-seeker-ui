@@ -1,6 +1,6 @@
 # Path Seeker 支付宝原生小程序发布流程
 
-锁屏音频验证使用现有 WebAPI 和当前小程序，具体部署与验收见 [锁屏音频验证部署与测试](../../docs/alipay-audio-probe-deploy-test.md)。本轮请保持 `serverTourAudio=false`，通过“我的 → 锁屏音频验证”完成双端真实锁屏测试。
+正式持续讲解使用现有 WebAPI 的 `/TourAudioSessions`，本轮 `serverTourAudio=true`。需同时发布后端、小程序并更新 Nginx；具体配置和双端现场步骤见 [正式持续讲解部署与验收](../../docs/alipay-server-tour-audio-deploy-test.md)。正式验收从正常游览页开始，独立验证页仅用于排障。
 
 适用于首次发布、后续版本更新和线上故障回退。本文按当前 `apps/mp-alipay` 工程编写，支付宝官方流程核对日期为 **2026-10-15**；控制台按钮名称和可用操作以当前账号、版本状态及平台界面为准。
 

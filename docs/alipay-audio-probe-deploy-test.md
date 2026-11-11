@@ -4,7 +4,7 @@
 
 本次已将验证功能接入现有 .NET WebAPI 和支付宝小程序。无需另建 Node 服务、数据库表、域名或购买音频服务；WebAPI 所在服务器需要 FFmpeg。
 
-**交付边界：这是完整可部署的锁屏媒体能力验证入口，还不是正式的景点到站自动讲解。** 正式导览的 `serverTourAudio` 保持 `false`，`/TourAudioSessions` 业务控制器和完整服务端到站编排尚未完成。Android 和 iPhone 仍须按本说明分别实测；单元测试、HTTP 收到字节、播放器回调都不能替代锁屏实际出声。
+**实施更新：正式 `/TourAudioSessions` 业务控制器、到站判断、真实讲解编排和游览入口现已实现。** 正式发布保持 `serverTourAudio=true`，以 [正式持续讲解部署与验收](alipay-server-tour-audio-deploy-test.md) 为准。本文继续描述独立探针；Android 和 iPhone 都需要实际锁屏出声验收。
 
 ## 1. 本次功能与原理
 
@@ -135,7 +135,7 @@ pnpm --filter @path-seeker/mp-alipay build
 background: true,
 backgroundAudio: true,
 audioContinuityProbe: true,
-serverTourAudio: false
+serverTourAudio: true
 ```
 
 确认支付宝后台已配置当前 HTTPS 域名的请求/音频相关合法域名要求。使用体验版在真实支付宝里测试，关闭开发者调试和 USB 调试连接；模拟器、电脑浏览器能播都不能判定手机通过。若提示当前客户端不支持后台音频 API，不会退回前台播放器冒充通过。
@@ -212,8 +212,8 @@ Linux 使用 `AUDIO_PROBE_FFMPEG=/usr/bin/ffmpeg dotnet test ...`。不设置该
 
 ## 8. 关闭及后续正式接入
 
-验证完后将 `AudioContinuityProbe__Enabled=false` 并重启 WebAPI，前端 `audioContinuityProbe=false` 后重新构建可隐藏入口。不要打开尚未完成的 `serverTourAudio`。
+验证完后将 `AudioContinuityProbe__Enabled=false` 并重启 WebAPI，前端 `audioContinuityProbe=false` 后重新构建可隐藏入口。正式讲解由独立的 `TourAudio:Enabled` 与 `serverTourAudio` 开关控制。
 
-媒体验证两端通过后，正式链路还需要：司机 APP 锁屏持续上传位置 → 服务端按真实坐标做范围判断和节点去重/排队 → 将实际讲解或翻译音频编排进游客当前流 → 完成暂停、离房、网络中断恢复、实例路由和游览进度同步。司机位置未持续上传时，仅把范围判断搬到服务器也不能生成新的到站事件。
+正式链路已实现司机位置判断、节点去重/排队、真实音频编排、暂停和离房、前台断线恢复与进度同步；当前采用单实例部署。司机 APP 必须持续提供有效位置，游客只需支付宝。完整部署和正式业务测试按新文档执行。
 
 当前没有真机结果，不能标记“游客只用支付宝，Android 和 iPhone 息屏持续自动到站讲解”已验收。

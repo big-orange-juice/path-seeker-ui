@@ -13,7 +13,21 @@ const activeForRoom = roomId => !!(session && session.options.roomId === roomId 
 const path = id => '/TourAudioSessions/' + encodeURIComponent(id);
 const cancelled = () => Object.assign(Error('讲解会话已变更'), { cancelled: true });
 function api(owner, endpoint, options = {}) {
-  return http.request(endpoint, Object.assign({}, options, { public: true, headers: { Authorization: 'Bearer ' + owner.token } }));
+  let activeRequest, aborted = false;
+  const result = (async () => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (aborted) throw cancelled();
+      if (owner.userId === currentUser() && owner.authVersion === auth.version()) owner.token = auth.current().accessToken;
+      activeRequest = http.request(endpoint, Object.assign({}, options, { public: true, headers: { Authorization: 'Bearer ' + owner.token } }));
+      try { return await activeRequest; }
+      catch (error) {
+        if (attempt || !(error.status === 401 || error.code === 10002) || owner.userId !== currentUser() || owner.authVersion !== auth.version()) throw error;
+        await auth.refresh();
+      }
+    }
+  })();
+  result.abort = () => { aborted = true; if (activeRequest) activeRequest.abort(); };
+  return result;
 }
 function snapshot() { return { active: active(), creating: !!pending, sessionId: session && session.id || '', roomId: session && session.options.roomId || pending && pending.options.roomId || '', state: session && session.state || null, error: failure }; }
 function publish() { const value = snapshot(); listeners.forEach(listener => listener(value)); }
@@ -32,7 +46,7 @@ function accept(owner, value) {
   owner.state = value;
   failure = value.error || '';
   audio.updateLive({ title: value.itemTitle || '寻迹 · 城市漫游' });
-  if (['closed', 'ended', 'expired'].includes(value.status)) { stop(); return false; }
+  if (['closed', 'ended', 'expired'].includes(value.status)) { publish(); stop(); return false; }
   publish(); return true;
 }
 function mediaUrl(value) {
@@ -44,12 +58,12 @@ function mediaUrl(value) {
 function play(owner) {
   if (!owns(owner)) return;
   lastNativeControl = '';
-  audio.playLive('tour', { id: owner.id, url: owner.url, title: owner.state && owner.state.itemTitle || '寻迹 · 城市漫游' }, {
+  audio.playLive('tour', { id: owner.id, url: owner.url + '&connection=' + Date.now(), title: owner.state && owner.state.itemTitle || '寻迹 · 城市漫游' }, {
     change(value) {
       if (!owns(owner)) return;
       if (value.nativeControl && value.nativeControl !== lastNativeControl) {
         lastNativeControl = value.nativeControl;
-        control(value.nativeControl === 'pause' ? 'pause' : 'resume').catch(() => {});
+        (value.nativeControl === 'pause' ? control('pause') : setPaused(false)).catch(() => {});
       } else if (!value.nativeControl) lastNativeControl = '';
       publish();
     },
@@ -80,6 +94,7 @@ async function start(options) {
       play(owner); publish(); schedule();
       return owner.state;
     } catch (error) {
+      if (session === owner) { stop(); failure = error.message; publish(); }
       if (owner.id && session !== owner) revoke(owner);
       if (pending === owner) { pending = null; failure = error.message; publish(); }
       throw error;
@@ -121,9 +136,15 @@ function setForeground(value) { foreground = !!value; if (foreground) refresh().
 async function setPaused(value) {
   if (!session) return;
   if (value) audio.pause();
-  else if (audio.snapshot().live && audio.snapshot().item && audio.snapshot().item.id === session.id) audio.resume('tour');
-  else { session.state = Object.assign({}, session.state, { paused: false }); play(session); }
-  return control(value ? 'pause' : 'resume');
+  const owner = session;
+  const wasPaused = !!(owner.state && owner.state.paused) || !audio.snapshot().playing;
+  const state = await control(value ? 'pause' : 'resume');
+  if (!value && owns(owner)) {
+    const playback = audio.snapshot();
+    if (!wasPaused && playback.live && playback.item && playback.item.id === owner.id && !playback.failed && state.status !== 'disconnected') audio.resume('tour');
+    else { await control('reconnect'); if (owns(owner)) play(owner); }
+  }
+  return state;
 }
 async function release() {
   const owner = session;
@@ -131,8 +152,8 @@ async function release() {
   const state = await control('release');
   if (!owns(owner) || state && state.paused) return;
   const playback = audio.snapshot();
-  if (playback.live && playback.item && playback.item.id === owner.id) { if (!playback.nativePaused) audio.resume('tour'); }
-  else play(owner);
+  if (playback.playing && playback.live && playback.item && playback.item.id === owner.id && !playback.failed && state.status !== 'disconnected') { if (!playback.nativePaused) audio.resume('tour'); }
+  else { await control('reconnect'); if (owns(owner)) play(owner); }
 }
 function stop() {
   const owner = session;
@@ -141,6 +162,7 @@ function stop() {
   if (request) request.abort(); request = null;
   const playback = audio.snapshot();
   if (playback.live && owner && playback.item && playback.item.id === owner.id) audio.stop('tour');
+  if (owner && playback.owner === 'tour-extra') audio.stop('tour-extra');
   publish();
   return owner ? revoke(owner) : Promise.resolve();
 }

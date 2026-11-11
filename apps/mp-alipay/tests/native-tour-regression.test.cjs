@@ -4,6 +4,7 @@ const { harness, tick, userId } = require('./harness.cjs');
 
 function setup(context) {
   const fixture = harness();
+  fixture.load('config').serverTourAudio = false;
   const manager = fixture.my.createInnerAudioContext();
   fixture.audioContexts.length = 0;
   delete manager.destroy;

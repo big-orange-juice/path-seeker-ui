@@ -4,7 +4,7 @@ module.exports = {
   // 息屏或切到后台时保持导览定位与讲解播放；关闭后恢复“离开页面即暂停”。
   background: true,
   backgroundAudio: true,
-  serverTourAudio: false,
+  serverTourAudio: true,
   audioContinuityProbe: true,
   routeCorrection: false,
   driverHostInApp: true,
