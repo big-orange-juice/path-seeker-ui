@@ -7,6 +7,7 @@ let video = null;
 let pauseRequested = false;
 let completedItemIds = [];
 let livePlayback = false;
+let lastError = null, failureTime = 0;
 const isExtra = item => item && ['before', 'after', 'interlude-audio', 'interlude-video'].includes(item.kind);
 const listeners = {};
 function discardPrepared() {
@@ -46,6 +47,7 @@ function create(token) {
   backgroundContext = useBackground;
   const active = context;
   const revision = ++contextVersion;
+  let progressTime = null;
   const valid = () => token === generation && active === context && revision === contextVersion;
   if (useBackground) { context.title = queue[index].title || '寻迹 · 城市漫游'; context.singer = ''; context.startTime = pendingSeek || 0; }
   else { context.autoplay = false; context.obeyMuteSwitch = false; }
@@ -53,6 +55,7 @@ function create(token) {
     if (!valid()) return;
     if (paused && !nativePaused) { active.pause(); return; }
     if (nativePaused) { paused = false; pauseRequested = false; nativePaused = false; nativeControl = 'play'; }
+    if (failed) { playing = false; notify(); return; }
     playing = true; notify();
   };
   const stopped = () => {
@@ -63,7 +66,14 @@ function create(token) {
   };
   listeners.Pause = stopped;
   listeners.Stop = stopped;
-  listeners.TimeUpdate = () => { if (valid()) notify(); };
+  listeners.TimeUpdate = () => {
+    if (!valid()) return;
+    const time = Number(active.currentTime), finite = Number.isFinite(time);
+    const advancing = finite && progressTime !== null && time > progressTime + .1;
+    if (!paused && active.paused !== true && (failed ? finite && time > failureTime + .1 : advancing && active.paused === false)) { failed = false; playing = true; }
+    if (finite && (progressTime === null || playing || paused || active.paused === true || time < progressTime)) progressTime = time;
+    notify();
+  };
   listeners.CanPlay = () => {
     if (valid() && pendingSeek !== null) { active.seek(pendingSeek); pendingSeek = null; }
   };
@@ -82,6 +92,8 @@ function create(token) {
     playing = false;
     const extra = isExtra(queue[index]);
     failed = !extra;
+    failureTime = Number(active.currentTime) || 0;
+    lastError = { code: error && (error.error || error.errorCode || error.errCode) || '', message: error && (error.errorMessage || error.errMsg || error.message) || '音频播放失败', at: new Date().toISOString() };
     if (hooks.error) hooks.error(Error(error && (error.errorMessage || error.errMsg || error.message) || '音频播放失败，可重试或阅读讲解'));
     if (!valid()) return;
     if (extra) { index++; next(token); return; }
@@ -92,7 +104,7 @@ function create(token) {
 }
 let pendingSeek = null;
 function snapshot() {
-  return { owner, playing, requested: !!queue[index] && !paused && !failed, nativePaused, nativeControl, live: livePlayback, index, item: queue[index] || null, time: video ? video.time : pendingSeek !== null ? pendingSeek : context ? context.currentTime || 0 : 0, duration: video ? video.duration : context ? context.duration || 0 : 0, failed, generation };
+  return { owner, playing: playing && !failed, requested: !!queue[index] && !paused && !failed, nativePaused, nativeControl, live: livePlayback, index, item: queue[index] || null, time: video ? video.time : pendingSeek !== null ? pendingSeek : context ? context.currentTime || 0 : 0, duration: video ? video.duration : context ? context.duration || 0 : 0, failed, generation, lastError };
 }
 function notify() { if (hooks.change) hooks.change(snapshot()); }
 function next(token) {
@@ -124,7 +136,7 @@ function next(token) {
   create(token);
   if (backgroundContext || context.src !== item.url) context.src = item.url;
   if (paused) context.pause();
-  if (!paused) context.play();
+  if (!paused && !backgroundContext) context.play();
   prepareNext(token);
   notify();
 }
@@ -166,7 +178,7 @@ function stop(expectedOwner) {
   hooks = {}; playing = false; pendingSeek = null; accepting = false; finished = false; paused = false; pauseRequested = false; nativePaused = false; nativeControl = ''; completedItemIds = []; livePlayback = false;
   discardPrepared();
   dispose();
-  queue = []; index = 0; owner = ''; failed = false;
+  queue = []; index = 0; owner = ''; failed = false; lastError = null; failureTime = 0;
   if (interrupted) interrupted();
 }
 function seek(seconds, expectedOwner) {

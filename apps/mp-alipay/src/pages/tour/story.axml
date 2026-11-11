@@ -8,7 +8,8 @@
     <view a:if="{{stop.images.length > 1}}" class="story-image-navigation"><button size="mini" onTap="previousImage" disabled="{{!imageIndex}}" aria-label="{{messages.previousImage}}">‹</button><text>{{(imageIndex || 0) + 1}} / {{stop.images.length}}</text><button size="mini" onTap="nextImage" disabled="{{imageIndex >= stop.images.length - 1}}" aria-label="{{messages.nextImage}}">›</button></view>
     <view a:if="{{stop.images[imageIndex || 0].caption}}" class="story-image-caption">{{stop.images[imageIndex || 0].caption}}</view>
   </view>
-  <view class="story-controls">
+  <view a:if="{{driverManaged}}" class="follow-story" catchTap="ignorePlaybackTap"><view class="follow-wave {{playing ? 'is-playing' : ''}}"><view/><view/><view/><view/><view/></view><view><text>{{followStatus || '跟随中 · 到站自动讲解'}}</text><view class="follow-help">内容可浏览，手动播放请先关闭跟随车夫</view></view></view>
+  <view a:else class="story-controls">
     <button class="primary grow" onTap="togglePlay" disabled="{{busy || loading || !canPlayStop}}">{{playingStopId && playingStopId !== stop.id ? messages.enterStopPlay : playing ? messages.pause : paused ? messages.resume : messages.play}}</button>
     <button onTap="replay" disabled="{{busy || loading || !canPlayStop || playingStopId && playingStopId !== stop.id}}">{{messages.replayStop}}</button>
     <view class="seek-controls">
@@ -19,10 +20,10 @@
   </view>
   <view a:if="{{hasDuration}}" class="playback-status"><text>{{messages.playbackProgress}}：{{timeLabel}} / {{durationLabel}}</text></view>
   <view a:if="{{itemTitle}}" class="playback-status"><text>{{messages.playingNow}}：{{itemTitle}}</text></view>
-  <slider value="{{progress}}" min="0" max="100" activeColor="#183e43" onChange="seek" disabled="{{busy || loading || !playingStopId || playingStopId !== stop.id}}" />
+  <slider a:if="{{!driverManaged}}" value="{{progress}}" min="0" max="100" activeColor="#183e43" onChange="seek" disabled="{{busy || loading || !playingStopId || playingStopId !== stop.id}}" />
   <view a:if="{{audioError}}" class="error">{{audioError}}</view>
   <view a:if="{{stop.arrivalNote}}" class="arrival-note">{{stop.arrivalNote}}</view>
   <view a:for="{{chapters}}" a:key="id" class="chapter"><view a:if="{{item.title}}" class="section">{{item.title}}</view><text class="story">{{item.text}}</text></view>
   <view a:if="{{!chapters.length}}" class="empty">{{messages.noNarration}}</view>
-  <button a:if="{{stop.video}}" class="story-video-button" onTap="playStopVideo" disabled="{{busy || loading}}">▶ {{messages.video}}</button>
+  <button a:if="{{stop.video}}" class="story-video-button" onTap="playStopVideo" disabled="{{driverManaged || busy || loading}}">▶ {{messages.video}}</button>
 </view>

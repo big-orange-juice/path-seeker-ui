@@ -89,3 +89,19 @@ test('a WGS84 segment crossing a point range matches when both endpoint samples 
   assert.equal(result[0].source, 'segment');
   assert.ok(distanceToPlaceRangeSegmentMeters(previous, current, null, center) < 0.01);
 });
+
+test('client arrival contract retains crossing segments up to 15 seconds and ignores nonpositive stop radii', () => {
+  const tour = harness().load('core/tour'), now = Date.now();
+  for (const seconds of [7, 12, 15]) {
+    const previous = { ...destination(-55), accuracy: 10, timestamp: now - seconds * 1000 };
+    const current = { ...destination(55), accuracy: 10, timestamp: now };
+    const result = tour.candidates([{ ...stop, triggerRadiusMeters: 20 }], [], current, [], 1, now, -1, [], [], previous);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].source, 'segment');
+  }
+  for (const radius of [0, -1]) {
+    const fix = { ...destination(30), accuracy: 10, timestamp: now };
+    assert.equal(tour.candidates([{ ...stop, triggerRadiusMeters: radius }], [], fix, [], 1, now).length, 1);
+    assert.equal(tour.candidates([{ ...stop, triggerRadiusMeters: radius }], [{ ...place, range: { type: 'point', proximityDistanceMeters: 0 } }], fix, [], 1, now).length, 0);
+  }
+});

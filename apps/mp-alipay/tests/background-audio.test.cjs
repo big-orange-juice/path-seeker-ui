@@ -125,3 +125,61 @@ test('a delayed stop from a replaced source cannot pause the new native playback
   assert.equal(audio.snapshot().nativePaused, true);
   audio.stop();
 });
+
+test('a play callback after an error is not proof of recovery until media time advances', () => {
+  const { manager, audio } = setup();
+  audio.playLive('tour', { id: 'session', url: 'https://media.test/live.mp3' });
+  manager.currentTime = 142.397;
+  manager.emit('Error', { error: 1004, errorMessage: 'decoder failed' });
+  manager.emit('Play');
+  assert.equal(audio.snapshot().failed, true);
+  assert.equal(audio.snapshot().playing, false);
+  assert.equal(audio.snapshot().lastError.code, 1004);
+  manager.emit('TimeUpdate');
+  assert.equal(audio.snapshot().failed, true);
+  manager.currentTime = 143;
+  manager.emit('TimeUpdate');
+  assert.equal(audio.snapshot().failed, false);
+  assert.equal(audio.snapshot().playing, true);
+  audio.stop();
+});
+
+test('assigning a native background source does not submit a second play request', () => {
+  const { manager, audio } = setup();
+  let plays = 0;
+  manager.play = () => { plays++; manager.emit('Play'); };
+  audio.playLive('tour', { id: 'session', url: 'https://media.test/live.mp3' });
+  assert.equal(plays, 1);
+  assert.equal(audio.snapshot().playing, true);
+  audio.stop();
+});
+
+test('native time progress repairs a missing play callback without overriding pause intent', () => {
+  const { manager, audio } = setup();
+  manager.play = () => { manager.paused = false; };
+  audio.playLive('tour', { id: 'session', url: 'https://media.test/live.mp3' });
+  assert.equal(audio.snapshot().playing, false);
+  manager.currentTime = 8; manager.emit('TimeUpdate');
+  assert.equal(audio.snapshot().playing, false);
+  manager.currentTime = 8.3; manager.emit('TimeUpdate');
+  assert.equal(audio.snapshot().playing, true);
+  audio.pause();
+  manager.paused = false;
+  manager.currentTime = 8.6; manager.emit('TimeUpdate');
+  assert.equal(audio.snapshot().playing, false);
+  assert.equal(audio.snapshot().requested, false);
+  audio.stop();
+});
+
+test('time notifications with a stationary clock or native pause do not claim playback', () => {
+  const { manager, audio } = setup();
+  manager.play = () => { manager.paused = false; };
+  audio.playLive('tour', { id: 'session', url: 'https://media.test/live.mp3' });
+  manager.currentTime = 8;
+  manager.emit('TimeUpdate'); manager.emit('TimeUpdate');
+  assert.equal(audio.snapshot().playing, false);
+  manager.paused = true;
+  manager.currentTime = 8.3; manager.emit('TimeUpdate');
+  assert.equal(audio.snapshot().playing, false);
+  audio.stop();
+});

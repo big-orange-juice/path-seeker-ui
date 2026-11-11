@@ -61,6 +61,8 @@ function build() {
   fs.writeFileSync(path.join(out, 'shared/tourMessages.js'), compile(fs.readFileSync(messages, 'utf8'), messages));
   const markedEntry = require.resolve('marked', { paths: [root] });
   fs.writeFileSync(path.join(out, 'shared/marked.js'), compile(fs.readFileSync(path.join(path.dirname(markedEntry), 'marked.umd.js'), 'utf8'), 'marked.js'));
+  require('esbuild').buildSync({ entryPoints: [path.join(__dirname, 'rxjs-entry.mjs')], bundle: true, format: 'cjs',
+    platform: 'neutral', mainFields: ['module', 'main'], target: 'es2017', minify: true, outfile: path.join(out, 'shared/rxjs.js') });
   const app = JSON.parse(fs.readFileSync(path.join(out, 'app.json'), 'utf8'));
   for (const page of app.pages) for (const ext of ['js', 'json', 'axml', 'acss']) {
     if (!fs.existsSync(path.join(out, page + '.' + ext))) throw Error('缺少页面文件: ' + page + '.' + ext);

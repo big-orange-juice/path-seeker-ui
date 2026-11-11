@@ -4,18 +4,19 @@ const { harness, tick, userId, plain } = require('./harness.cjs');
 
 const roomId = '9223372036854775806', routeId = '9223372036854775805', visitId = '9223372036854775804';
 const stageIds = ['9223372036854775803', '9223372036854775802'];
-function setup(context, realRoom = false) {
+function setup(context, realRoom = false, following = false) {
   const fixture = harness(), manager = fixture.my.createInnerAudioContext();
   fixture.audioContexts.length = 0;
   let assignments = 0;
   Object.defineProperty(manager, 'src', { set(value) { this.url = value; this.currentTime = 0; assignments++; this.play(); } });
   fixture.my.getBackgroundAudioManager = () => manager;
   fixture.load('config').diagnostics = false;
-  const room = { room: { roomId, status: 'paused', isHost: false }, following: true, disconnected: false };
+  const room = { room: { roomId, status: 'paused', isHost: false }, following, disconnected: false };
   const translation = fixture.load('services/translation-session');
   if (realRoom) {
     fixture.load('services/translation-room').connect = () => ({ close() {}, yieldToTour() {} });
     translation.attach(room.room, 'zh');
+    translation.setFollowing(following);
   } else translation.snapshot = () => room;
   fixture.load('services/location').watch = () => () => {};
   const page = fixture.page('tour');
@@ -33,7 +34,7 @@ function setup(context, realRoom = false) {
     page.startNextSequence();
     assert.match(fixture.requests[0].options.url, /TourAudioSessions$/);
     assert.deepEqual(plain(fixture.requests[0].options.data), { roomId, routeId, visitId, guideId: '9223372036854775801',
-      startStageId: null, language: 'zh', skipExtra: false, autoplay: true, following: true, roomMuted: false, paused: false, lockContent: false });
+      startStageId: null, language: 'zh', skipExtra: false, autoplay: true, following, roomMuted: false, paused: false, lockContent: false });
     fixture.requests[0].ok({ sessionId: state.sessionId, mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state });
     await tick();
   }
@@ -108,9 +109,11 @@ test('manual node selection uses the session control instead of the old visit en
   assert.equal(control.options.data.stageId, stageIds[1]);
   reply(control, { stageId: stageIds[1] }); await tick();
   assert.equal(fixture.requests[2].options.data.command, 'resume');
-  reply(fixture.requests[2]); await pending; await tick();
+  reply(fixture.requests[2]); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'reconnect');
+  reply(fixture.requests[3], { status: 'disconnected' }); await pending; await tick();
   assert.ok(fixture.requests.every(request => !/RouteVisit/.test(request.options.url)));
-  reply(fixture.requests[3]);
+  reply(fixture.requests[4]);
 });
 
 test('question holds server progression and closing it reconnects without buffered silence', async context => {
@@ -225,17 +228,25 @@ test('an intentionally paused or hidden player does not produce a stall failure'
 });
 
 test('playback diagnostics identify server and native state without exposing media or login credentials', async context => {
-  const { fixture, manager, page, start } = setup(context);
+  const { fixture, manager, page, service, start, reply } = setup(context);
   await start();
+  const refreshed = service.refresh();
+  reply(fixture.requests[1], { schedulerStatus: 'room-priority', arrival: { status: 'weak-accuracy', rejectedSamples: { 'weak-accuracy': 3 } },
+    stageTimings: [{ stageId: stageIds[0], arrivedAt: '2026-11-11T09:29:00Z', audioStartedAt: null }] });
+  await refreshed;
   fixture.my.setClipboard = options => { fixture.clipboard = options.text; };
   manager.emit('Error', { errorMessage: 'https://test/media.mp3?ticket=secret Authorization: Bearer access' });
   page.copyAudioReport();
   const report = JSON.parse(fixture.clipboard);
-  assert.equal(report.version, 'tour-audio-recovery-20261111');
+  assert.equal(report.version, 'tour-audio-player-state-20261111');
   assert.equal(report.sessionId, 'session-1');
   assert.equal(report.player.failed, true);
   assert.equal(report.selectedStageId, stageIds[0]);
   assert.equal(report.hasPlaybackError, true);
+  assert.equal(report.server.schedulerStatus, 'room-priority');
+  assert.equal(report.server.arrival.rejectedSamples['weak-accuracy'], 3);
+  assert.equal(report.server.stageTimings[0].stageId, stageIds[0]);
+  assert.equal(report.server.stageTimings[0].audioStartedAt, null);
   assert.ok(!/ticket|secret|Bearer|access|https:/.test(fixture.clipboard));
 });
 
@@ -694,4 +705,248 @@ test('video pause and resume retain the extra owner instead of restarting narrat
   assert.ok(calls.includes('play'));
   assert.equal(service.snapshot().heldIntent, true);
   assert.equal(fixture.requests.length, 2);
+});
+
+test('hiding after an extra was interrupted by a question cannot release the question hold', async context => {
+  const { fixture, page, service, start, reply } = setup(context);
+  await start();
+  page.playExtraItem({ id: 'extra', url: '/extra.mp3', kind: 'after' }); await tick();
+  reply(fixture.requests[1], { held: true }); await tick();
+  page.ask(); await tick();
+  reply(fixture.requests[2], { held: true }); await tick();
+  page.onHide(); await tick();
+  assert.equal(service.snapshot().heldIntent, true);
+  assert.ok(!fixture.requests.some(request => request.options.data?.command === 'release'));
+});
+
+test('rapid node choices during creation preserve the last selected node', async context => {
+  const { fixture, page, service, state, reply } = setup(context);
+  page.play(); page.browseBy(1);
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(fixture.requests[1]?.options.data.command, 'preview');
+  assert.equal(fixture.requests[1].options.data.stageId, stageIds[1]);
+  reply(fixture.requests[1], { stageId: stageIds[1] }); await tick();
+  reply(fixture.requests[2]); await tick();
+  assert.equal(service.snapshot().state.stageId, stageIds[1]);
+  assert.equal(page.data.stop.id, stageIds[1]);
+});
+
+test('an extra completion after returning to now cannot override a newer pause', async context => {
+  const { fixture, page, service, start, reply } = setup(context);
+  await start();
+  page.playExtraItem({ id: 'extra', url: '/extra.mp3', kind: 'after' }); await tick();
+  reply(fixture.requests[1], { held: true }); await tick();
+  const extra = fixture.audioContexts.at(-1);
+  page.returnToNow(); await tick();
+  const paused = service.setPaused(true); await tick();
+  extra.emit('Ended'); await tick();
+  reply(fixture.requests[2], { held: false, paused: false }); await tick();
+  reply(fixture.requests[3], { paused: true }); await paused; await tick();
+  assert.equal(service.snapshot().pausedIntent, true);
+  assert.ok(!fixture.requests.some(request => request.options.data?.command === 'release'));
+});
+
+test('retrying a failed release clears the server hold before resuming the native player', async context => {
+  const { fixture, service, start, reply } = setup(context);
+  await start();
+  const held = service.control('hold'); await tick();
+  reply(fixture.requests[1], { held: true }); await held;
+  const resumed = service.setPaused(false); await tick();
+  fixture.requests[2].reject({ errorMessage: '解除挂起失败' }); await assert.rejects(resumed);
+  const retried = service.setPaused(false); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'release');
+  reply(fixture.requests[3], { held: false }); await tick();
+  assert.equal(fixture.requests[4].options.data.command, 'resume');
+  reply(fixture.requests[4]); await tick();
+  reply(fixture.requests[5], { status: 'disconnected' }); await retried;
+  assert.equal(service.snapshot().state.held, false);
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+  assert.equal(service.snapshot().error, '');
+});
+
+test('room updates cannot create a playing tour session over an already open question', async context => {
+  const { fixture, page, service, state } = setup(context);
+  page.ask(); page.startNextSequence(); await tick();
+  assert.equal(service.active(), false);
+  assert.equal(fixture.requests.length, 0);
+  page.closeChat(); await tick();
+  assert.equal(fixture.requests[0].options.method, 'POST');
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(service.active(), true);
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+});
+
+for (const phase of ['creating', 'playing']) {
+  for (const first of ['pause', 'resume', 'hold', 'release']) {
+    for (const second of ['pause', 'resume', 'hold', 'release']) {
+      for (const third of ['pause', 'resume', 'hold', 'release']) {
+        const commands = [first, second, third];
+        test(`overlapping controls while ${phase}: ${commands.join(' then ')}`, async context => {
+          const { fixture, page, service, start, state, reply } = setup(context);
+          if (phase === 'playing') await start(); else page.startNextSequence();
+          let paused = false, held = false, settled = 0;
+          const errors = [];
+          for (const command of commands) {
+            if (command === 'pause') paused = true;
+            if (command === 'hold') held = true;
+            if (command === 'release') held = false;
+            if (command === 'resume') { paused = false; held = false; }
+            const operation = command === 'pause' || command === 'resume' ? service.setPaused(command === 'pause')
+              : command === 'release' ? service.release() : service.control('hold');
+            operation.then(() => { settled++; }, error => { settled++; if (!error.cancelled) errors.push(error); });
+          }
+          if (phase === 'creating') fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+          const answered = new Set();
+          for (let attempt = 0; attempt < 16 && settled < commands.length; attempt++) {
+            await tick();
+            const request = fixture.requests.find(value => /\/control$/.test(value.options.url) && !answered.has(value));
+            if (!request) continue;
+            answered.add(request);
+            const command = request.options.data.command;
+            reply(request, command === 'pause' ? { paused: true } : command === 'resume' ? { paused: false }
+              : command === 'hold' ? { held: true } : command === 'release' ? { held: false } : { status: 'disconnected' });
+          }
+          await tick();
+          assert.deepEqual(errors, []);
+          assert.equal(settled, commands.length, 'every control must settle');
+          assert.equal(service.snapshot().pausedIntent, paused);
+          assert.equal(service.snapshot().heldIntent, held);
+          assert.equal(service.snapshot().state.paused, paused);
+          assert.equal(service.snapshot().state.held, held);
+          assert.equal(fixture.load('services/audio').snapshot().playing, !paused && !held);
+        });
+      }
+    }
+  }
+}
+
+test('following driver blocks manual audio controls and browsing cannot select a different stream node', async context => {
+  const { fixture, page, service, start, reply, assignments } = setup(context, false, true);
+  await start();
+  assert.equal(page.data.driverManaged, true);
+  page.togglePlay(); page.replay(); page.previous(); page.next();
+  page.seek({ detail: { value: 50 } }); page.backAudio(); page.forwardAudio();
+  page.playExtraItem({ id: 'extra', url: '/extra.mp3', kind: 'after' });
+  await page.enter(1); await tick();
+  assert.equal(fixture.requests.length, 1);
+  assert.equal(service.active(), true);
+  assert.equal(fixture.load('services/audio').snapshot().live, true);
+  page.openContent(); await tick();
+  assert.equal(page.data.contentOpen, true);
+  assert.equal(page.data.stop.id, stageIds[1]);
+  assert.equal(fixture.requests[1].options.data.lockContent, false);
+  reply(fixture.requests[1], { stageId: stageIds[0], itemId: 'chapter0', itemTitle: '第一站' }); await tick();
+  assert.equal(page.data.stop.id, stageIds[1]);
+  assert.equal(page.data.playingStopId, stageIds[0]);
+  assert.equal(page.data.contentOpen, true);
+  assert.equal(assignments(), 1);
+  page.closeContent(); await tick();
+  assert.equal(page.data.contentOpen, false);
+  assert.equal(page.data.stop.id, stageIds[0]);
+  assert.equal(page._manualBrowse, false);
+  assert.equal(fixture.requests[2].options.data.command, 'preferences');
+  assert.equal(fixture.requests[2].options.data.lockContent, false);
+  reply(fixture.requests[2]); await tick();
+  assert.equal(assignments(), 1);
+  assert.ok(!fixture.requests.some(request => ['select', 'preview', 'realign', 'reconnect'].includes(request.options.data?.command)));
+});
+
+test('turning following off restores manual playback of the browsed content without leaving the room', async context => {
+  const { fixture, page, translation, start, reply, assignments } = setup(context, true, true);
+  await start();
+  await page.enter(1);
+  page.openContent(); await tick();
+  reply(fixture.requests[1]); await tick();
+  page.toggleTracking(); await tick();
+  assert.equal(translation.snapshot().following, false);
+  assert.equal(page.data.driverManaged, false);
+  assert.equal(page.data.contentOpen, true);
+  assert.equal(fixture.requests[2].options.data.following, false);
+  reply(fixture.requests[2]); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'preferences');
+  assert.equal(fixture.requests[3].options.data.following, false);
+  reply(fixture.requests[3]); await tick();
+  page.syncDriverFollowing();
+  assert.equal(page.data.locationEnabled, false);
+  page.togglePlay(); await tick();
+  assert.equal(fixture.requests[4].options.data.command, 'preview');
+  assert.equal(fixture.requests[4].options.data.stageId, stageIds[1]);
+  reply(fixture.requests[4], { stageId: stageIds[1] }); await tick();
+  assert.equal(fixture.requests[5].options.data.command, 'resume');
+  reply(fixture.requests[5]); await tick();
+  assert.equal(fixture.requests[6].options.data.command, 'reconnect');
+  reply(fixture.requests[6], { status: 'disconnected' }); await tick();
+  assert.equal(assignments(), 2);
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+  assert.equal(translation.snapshot().room.roomId, roomId);
+});
+
+test('following recovery preserves the session guide after browsing a node with a different guide', async context => {
+  const { fixture, manager, page, service, start, reply, assignments } = setup(context, false, true);
+  await start();
+  page.data.stops[1].guideNarrations[0].guideId = '9223372036854775800';
+  await page.enter(1);
+  assert.equal(page.data.guides[0].guideId, '9223372036854775800');
+  assert.equal(page.serverAudioOptions().guideId, '9223372036854775801');
+  manager.emit('Error', { error: 1004, errorMessage: 'decoder failed' });
+  page.retryAudio(); await tick();
+  assert.equal(fixture.requests[1].options.data.command, 'resume');
+  reply(fixture.requests[1]); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'reconnect');
+  reply(fixture.requests[2], { status: 'disconnected' }); await tick();
+  assert.equal(service.snapshot().sessionId, 'session-1');
+  assert.equal(page.data.stop.id, stageIds[1]);
+  assert.equal(assignments(), 2);
+  assert.equal(fixture.requests.filter(request => /TourAudioSessions$/.test(request.options.url)).length, 1);
+});
+
+test('audible node uses the native media clock instead of the server production clock', async context => {
+  const { fixture, manager, page, service, start, reply } = setup(context, false, true);
+  await start(); manager.currentTime = 142.397;
+  const refresh = service.refresh();
+  reply(fixture.requests[1], { mediaTimeSeconds: 165.2, stageId: stageIds[1], itemId: 'chapter1', itemTimeSeconds: 2.32,
+    timeline: [{ start: 100, end: 162.88, kind: 'route', stageId: stageIds[0], itemId: 'chapter0', title: '第一站', itemStart: 0, duration: 62.88 },
+      { start: 162.88, end: 165.2, kind: 'route', stageId: stageIds[1], itemId: 'chapter1', title: '第二站', itemStart: 0, duration: 81.48 }] });
+  await tick(); reply(fixture.requests[2]); await refresh;
+  assert.equal(page.data.stop.id, stageIds[0]);
+  assert.equal(page.data.itemTitle, '第一站');
+  assert.equal(page.data.timeLabel, '0:42');
+  assert.equal(page.data.audioLag, 23);
+  manager.currentTime = 164; manager.emit('TimeUpdate');
+  assert.equal(page.data.stop.id, stageIds[1]);
+  assert.equal(page.data.itemTitle, '第二站');
+});
+
+for (const following of [false, true]) {
+  test(`native time progress repairs page playback state with following=${following} when Play is missing`, async context => {
+    const { manager, page, start, state } = setup(context, false, following);
+    manager.play = () => { manager.paused = false; };
+    Object.assign(state(), { stageId: stageIds[0], itemId: 'chapter0', mediaTimeSeconds: 15,
+      timeline: [{ start: 0, end: 15, kind: 'route', stageId: stageIds[0], itemId: 'chapter0', title: '什刹海体校', itemStart: 0, duration: 88 }] });
+    await start();
+    manager.currentTime = 8; manager.emit('TimeUpdate');
+    assert.equal(page.data.timeLabel, '0:08');
+    assert.equal(page.data.playing, false);
+    manager.currentTime = 8.3; manager.emit('TimeUpdate');
+    assert.equal(page.data.playing, true);
+    assert.equal(page.data.playingStopId, stageIds[0]);
+    assert.equal(page.data.durationLabel, '1:28');
+    assert.equal(page.data.driverManaged, following);
+    if (following) assert.equal(page.data.followStatus, '正在自动讲解');
+  });
+}
+
+test('following driver recovers a failed native source through one serialized reconnect', async context => {
+  const { fixture, manager, service, start, reply, assignments } = setup(context, false, true);
+  await start(); manager.emit('Error', { error: 1004, errorMessage: 'decoder failed' }); manager.emit('Play');
+  const refresh = service.refresh(); reply(fixture.requests[1]); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'resume');
+  reply(fixture.requests[2]); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'reconnect');
+  reply(fixture.requests[3], { status: 'disconnected' }); await refresh;
+  assert.equal(assignments(), 2);
+  assert.equal(fixture.load('services/audio').snapshot().failed, false);
+  assert.equal(service.snapshot().recovering, false);
 });

@@ -3,6 +3,8 @@ const http = require('./http');
 const audio = require('./audio');
 const config = require('../config');
 const { diag } = require('./diag');
+const { createCommandQueue } = require('./audio-command-queue');
+const { audibleAt } = require('./tour-audio-timeline');
 let session = null, pending = null, creation = null, generation = 0, foreground = true, timer = null, request = null;
 let lastNativeControl = '', lastAckAt = 0, failure = '', playbackFailure = '';
 const listeners = new Set();
@@ -30,16 +32,25 @@ function api(owner, endpoint, options = {}) {
   result.abort = () => { aborted = true; if (activeRequest) activeRequest.abort(); };
   return result;
 }
-function snapshot() { const owner = session || pending; return { active: active(), creating: !!pending, sessionId: session && session.id || '', roomId: owner && owner.options.roomId || '', state: session && session.state || null, pausedIntent: !!(owner && owner.pausedIntent), heldIntent: !!(owner && owner.heldIntent), stalled: !!(session && session.stalled), error: playbackFailure || owner && owner.controlFailure && owner.controlFailure.message || failure }; }
+function snapshot() { const owner = session || pending, state = session && session.state || null, playback = audio.snapshot(); return { active: active(), creating: !!pending, sessionId: session && session.id || '', roomId: owner && owner.options.roomId || '', state,
+  context: owner ? { visitId: owner.options.visitId, routeId: owner.options.routeId, guideId: owner.options.guideId, language: owner.options.language } : null,
+  audible: audibleAt(state, playback, !!session && !session.reconnecting && state.streamId !== session.previousStreamId),
+  recovering: !!(session && session.recovering), lagSeconds: state && playback.live ? Math.max(0, state.mediaTimeSeconds - playback.time) : 0,
+  pausedIntent: !!(owner && owner.pausedIntent), heldIntent: !!(owner && owner.heldIntent), stalled: !!(session && session.stalled), error: playbackFailure || owner && owner.controlFailure && owner.controlFailure.message || failure }; }
 function diagnostics() {
   const value = snapshot(), state = value.state, playback = audio.snapshot();
-  return { version: 'tour-audio-recovery-20261111', capturedAt: new Date().toISOString(),
+  return { version: 'tour-audio-player-state-20261111', capturedAt: new Date().toISOString(),
     active: value.active, creating: value.creating, foreground, sessionId: value.sessionId, roomId: value.roomId,
     stalled: value.stalled, hasPlaybackError: !!playbackFailure,
+    lagSeconds: value.lagSeconds, audible: value.audible, recovering: value.recovering,
+    recoveryAttempts: session && session.recoveryAttempts || 0,
+    nativeError: playback.lastError ? { code: playback.lastError.code, at: playback.lastError.at, message: String(playback.lastError.message).replace(/https?:\/\/[^\s]+/g, '[media-url]').replace(/(?:Authorization:\s*)?Bearer\s+\S+/gi, '[credential]').slice(0, 240) } : null,
     server: state ? { status: state.status, streamId: state.streamId, stageId: state.stageId, itemId: state.itemId,
       paused: state.paused, held: state.held, roomAudioPlaying: state.roomAudioPlaying,
       sentBytes: state.sentBytes, mediaTimeSeconds: state.mediaTimeSeconds, driverSampledAt: state.driverSampledAt,
       itemTimeSeconds: state.itemTimeSeconds, itemDurationSeconds: state.itemDurationSeconds, hasError: !!state.error,
+      schedulerStatus: state.schedulerStatus || '', arrival: state.arrival || null, stageTimings: state.stageTimings || [],
+      completedStageIds: state.visit && state.visit.completedStageIds || [],
       queue: (state.queue || []).slice(-12).map(item => ({ stageId: item.stageId, status: item.status })) } : null,
     player: { owner: playback.owner, live: playback.live, playing: playback.playing, requested: playback.requested,
       failed: playback.failed, nativePaused: playback.nativePaused, nativeControl: playback.nativeControl, time: playback.time, duration: playback.duration } };
@@ -70,7 +81,7 @@ function accept(owner, value) {
   owner.state = value;
   failure = value.error || '';
   checkProgress(owner);
-  audio.updateLive({ title: value.itemTitle || '寻迹 · 城市漫游' });
+  audio.updateLive({ title: snapshot().audible && snapshot().audible.title || '寻迹 · 城市漫游' });
   if (['closed', 'ended', 'expired'].includes(value.status)) { publish(); if (owns(owner)) stop(value.error || ''); return false; }
   publish(); return true;
 }
@@ -92,7 +103,10 @@ function play(owner) {
   audio.playLive('tour', { id: owner.id, url: owner.url + '&connection=' + Date.now() + '-' + owner.connectionVersion, title: owner.state && owner.state.itemTitle || '寻迹 · 城市漫游' }, {
     change(value) {
       if (!owns(owner)) return;
+      if (value.playing && !value.failed && value.time > 0 && !owner.stalled) playbackFailure = '';
       checkProgress(owner);
+      const audible = snapshot().audible;
+      if (audible && audible.title) audio.updateLive({ title: audible.title });
       if (value.nativeControl && value.nativeControl !== lastNativeControl) {
         lastNativeControl = value.nativeControl;
         (value.nativeControl === 'pause' ? control('pause') : setPaused(false)).catch(() => {});
@@ -128,7 +142,7 @@ async function start(options) {
   const account = auth.current();
   if (!account) throw Error('请先登录');
   const owner = { generation, userId: account.userId, authVersion: auth.version(), token: account.accessToken, options: Object.assign({}, options), key,
-    intent: 0, pausedIntent: !!options.paused, heldIntent: false, controls: Promise.resolve() };
+    intent: 0, pausedIntent: !!options.paused, heldIntent: false, controls: createCommandQueue(cancelled) };
   const previousCreation = creation;
   pending = owner; failure = '';
   owner.promise = (async () => {
@@ -187,11 +201,12 @@ function control(command, values = {}, expectedSessionId = '') {
     if (!owns(owner)) throw cancelled();
     if (owner.controlFailure && (owner.controlFailure.command === command || !['ack', 'preferences'].includes(command))) owner.controlFailure = null;
     accept(owner, state);
+    if (['select', 'preview', 'replay', 'realign', 'seek'].includes(command)) owner.needsReconnect = true;
+    if (command === 'preferences') Object.assign(owner.options, values);
     if (!owns(owner) || ['select', 'preview', 'replay', 'realign', 'hold'].includes(command) && owner.intent !== intent) throw cancelled();
     return owner.state;
   };
-  const result = owner.controls.catch(() => {}).then(run);
-  owner.controls = result;
+  const result = owner.controls.enqueue(run);
   result.catch(error => { if (current(owner) && !error.cancelled) { owner.controlFailure = { command, message: error.message }; publish(); } });
   return result;
 }
@@ -204,6 +219,13 @@ async function refresh() {
     const state = await pendingRequest;
     if (!accept(owner, state)) return owns(owner) ? owner.state : null;
     const playback = audio.snapshot(), now = Date.now();
+    if (foreground && owner.options.following && !owner.pausedIntent && !owner.heldIntent && !playback.nativePaused && !owner.recovering
+      && (playback.failed || owner.stalled || state.status === 'disconnected') && (owner.recoveryAttempts || 0) < 3 && now >= (owner.nextRecoveryAt || 0)) {
+      owner.recoveryAttempts = (owner.recoveryAttempts || 0) + 1; owner.nextRecoveryAt = now + 10000 * owner.recoveryAttempts;
+      owner.recovering = true; publish();
+      try { await setPaused(false, owner.id); } finally { owner.recovering = false; if (owns(owner)) publish(); }
+      return owner.state;
+    }
     if (owns(owner) && foreground && !owner.reconnecting && state.status === 'streaming' && state.streamId !== owner.previousStreamId
       && playback.generation === playbackGeneration && playback.generation === owner.playbackGeneration
       && playback.live && playback.item && playback.item.id === owner.id && !playback.failed && now - lastAckAt >= 2000 && Number.isFinite(playback.time) && playback.time > 0) {
@@ -220,7 +242,7 @@ async function setPaused(value, expectedSessionId = '') {
   if (expectedSessionId && (!owner || owner.id !== expectedSessionId)) throw cancelled();
   if (!owner || !current(owner)) return;
   const wasPaused = !!(owner.state && owner.state.paused) || !audio.snapshot().playing;
-  if (!value && owner.heldIntent) {
+  if (!value && (owner.heldIntent || owner.state && owner.state.held)) {
     const released = control('release'), releaseIntent = owner.intent;
     await released;
     if (!owns(owner) || owner.intent !== releaseIntent) return;
@@ -230,7 +252,7 @@ async function setPaused(value, expectedSessionId = '') {
   const state = await controlled;
   if (!value && owns(owner) && owner.intent === intent && !owner.pausedIntent && !owner.heldIntent) {
     const playback = audio.snapshot();
-    if (!wasPaused && !owner.stalled && playback.live && playback.item && playback.item.id === owner.id && !playback.failed && state.status !== 'disconnected') audio.resume('tour');
+    if (!wasPaused && !owner.needsReconnect && !owner.stalled && playback.live && playback.item && playback.item.id === owner.id && !playback.failed && state.status !== 'disconnected') audio.resume('tour');
     else await reconnect(owner);
   }
   return state;
@@ -251,13 +273,15 @@ function reconnect(owner) {
   if (owner.reconnecting) return owner.reconnecting;
   owner.reconnectingGeneration = audio.snapshot().generation;
   owner.reconnecting = (async () => {
-    try { await control('reconnect'); if (owns(owner) && owner.intent === owner.reconnectIntent && !owner.pausedIntent && !owner.heldIntent) play(owner); }
+    try { await control('reconnect'); if (owns(owner) && owner.intent === owner.reconnectIntent && !owner.pausedIntent && !owner.heldIntent) { owner.needsReconnect = false; play(owner); } }
     finally { owner.reconnecting = null; }
   })();
   return owner.reconnecting;
 }
 function stop(error = '') {
   const owner = session;
+  if (session) session.controls.close();
+  if (pending) pending.controls.close();
   generation++; session = null; pending = null; failure = error; playbackFailure = ''; lastAckAt = 0; lastNativeControl = '';
   clearTimeout(timer); timer = null;
   if (request) request.abort(); request = null;
