@@ -4,7 +4,7 @@ const { harness, tick, userId, plain } = require('./harness.cjs');
 
 const roomId = '9223372036854775806', routeId = '9223372036854775805', visitId = '9223372036854775804';
 const stageIds = ['9223372036854775803', '9223372036854775802'];
-function setup(context, realRoom = false, following = false) {
+function setup(context, realRoom = false, following = false, realLocation = false) {
   const fixture = harness(), manager = fixture.my.createInnerAudioContext();
   fixture.audioContexts.length = 0;
   let assignments = 0;
@@ -16,20 +16,22 @@ function setup(context, realRoom = false, following = false) {
   if (realRoom) {
     fixture.load('services/translation-room').connect = () => ({ close() {}, yieldToTour() {} });
     translation.attach(room.room, 'zh');
+    if (realLocation) translation.event({ type: 'subscription.ready', payload: { room: room.room } });
     translation.setFollowing(following);
   } else translation.snapshot = () => room;
-  fixture.load('services/location').watch = () => () => {};
+  if (!realLocation) fixture.load('services/location').watch = () => () => {};
   const page = fixture.page('tour');
   const visit = { visitId, routeId, status: 1, currentStageId: null, visitedStageIds: [], completedStageIds: [] };
   const stops = stageIds.map((id, index) => ({ id, name: '节点' + index, order: index, images: [], extraAudios: [],
     guideNarrations: [{ guideId: '9223372036854775801', locale: 'zh', chapters: [{ id: 'chapter' + index, audioUrl: 'https://media.test/' + index + '.mp3' }] }] }));
   page._rev = 0; page._user = userId; page._visible = true; page._places = [];
+  if (realLocation) page._routeMatcher = fixture.load('core/route-location').createRouteMatcher({ enabled: false });
   page.setData({ route: { id: routeId }, stops, visit, tourStage: 'navigation', autoplay: true, locationEnabled: true });
   page.showStop(0, true);
   let state = { sessionId: 'session-1', streamId: 'stream-1', revision: 1, status: 'streaming', visitId, routeId,
     stageId: null, paused: false, held: false, queue: [], visit, itemTimeSeconds: 0, itemDurationSeconds: 2 };
   const service = fixture.load('services/tour-audio-session');
-  context.after(() => { service.stop(); if (page._serverSubscription) page._serverSubscription(); });
+  context.after(() => { if (page._watch) page._watch(); service.stop(); if (page._serverSubscription) page._serverSubscription(); });
   async function start() {
     page.startNextSequence();
     assert.match(fixture.requests[0].options.url, /TourAudioSessions$/);
@@ -75,6 +77,49 @@ test('hiding and losing the visitor websocket preserve the media session and fol
   assert.equal(assignments(), 1);
   assert.equal(fixture.requests.length, 1);
   assert.equal(fixture.load('services/audio').snapshot().playing, true);
+});
+
+test('the real location watcher preserves following and the stream when the hidden visitor websocket disconnects', async context => {
+  const { fixture, page, service, translation, start, assignments } = setup(context, true, true, true);
+  await start();
+  page.watchLocation();
+  const pendingFix = fixture.requests.at(-1);
+  assert.match(pendingFix.options.url, /\/location$/);
+  const unsubscribe = translation.subscribe(() => page.syncDriverFollowing());
+  context.after(unsubscribe);
+  page.onHide();
+  await tick();
+  const controlsBeforeDisconnect = fixture.requests.filter(request => /\/control$/.test(request.options.url)).length;
+  translation.disconnect(true);
+  await tick();
+  assert.equal(pendingFix.aborted, false);
+  assert.equal(page.data.locationEnabled, true);
+  assert.equal(page.data.autoplay, true);
+  assert.equal(translation.snapshot().following, true);
+  pendingFix.ok({ roomId, status: 'online', coordinateSystem: 'GCJ-02', longitude: 116.4, latitude: 39.9,
+    accuracy: 8, sampledAt: new Date().toISOString(), serverTime: new Date().toISOString() });
+  await tick();
+  assert.equal(page._fix.roomId, roomId);
+  assert.equal(service.activeForRoom(roomId), true);
+  assert.equal(assignments(), 1);
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+  const controls = fixture.requests.filter(request => /\/control$/.test(request.options.url));
+  assert.equal(controls.length, controlsBeforeDisconnect);
+  assert.ok(controls.every(request => request.options.data.following !== false));
+  assert.ok(fixture.requests.every(request => !/RouteVisit/.test(request.options.url)));
+});
+
+test('a location authorization failure still disables following with an active media session', async context => {
+  const { fixture, page, translation, start } = setup(context, true, true, true);
+  await start();
+  page.watchLocation();
+  fixture.requests.at(-1).ok({}, 403);
+  await tick();
+  assert.equal(page.data.locationEnabled, false);
+  assert.equal(page.data.autoplay, false);
+  assert.equal(translation.snapshot().following, false);
+  const control = fixture.requests.find(request => /\/control$/.test(request.options.url));
+  assert.equal(control.options.data.following, false);
 });
 
 test('screen off removes the temporary panel lock while keeping explicit lock preference', async context => {
@@ -232,13 +277,14 @@ test('playback diagnostics identify server and native state without exposing med
   await start();
   const refreshed = service.refresh();
   reply(fixture.requests[1], { schedulerStatus: 'room-priority', arrival: { status: 'weak-accuracy', rejectedSamples: { 'weak-accuracy': 3 } },
+    transport: { maximumWriteMilliseconds: 2400, events: [{ streamId: 'stream-1', kind: 'write-backpressure', reason: 'write-or-flush-exceeded-2s' }] },
     stageTimings: [{ stageId: stageIds[0], arrivedAt: '2026-11-11T09:29:00Z', audioStartedAt: null }] });
   await refreshed;
   fixture.my.setClipboard = options => { fixture.clipboard = options.text; };
   manager.emit('Error', { errorMessage: 'https://test/media.mp3?ticket=secret Authorization: Bearer access' });
   page.copyAudioReport();
   const report = JSON.parse(fixture.clipboard);
-  assert.equal(report.version, 'tour-audio-player-state-20261111');
+  assert.equal(report.version, 'tour-audio-follow-lifecycle-20261112');
   assert.equal(report.sessionId, 'session-1');
   assert.equal(report.player.failed, true);
   assert.equal(report.selectedStageId, stageIds[0]);
@@ -247,7 +293,43 @@ test('playback diagnostics identify server and native state without exposing med
   assert.equal(report.server.arrival.rejectedSamples['weak-accuracy'], 3);
   assert.equal(report.server.stageTimings[0].stageId, stageIds[0]);
   assert.equal(report.server.stageTimings[0].audioStartedAt, null);
+  assert.equal(report.server.transport.maximumWriteMilliseconds, 2400);
+  assert.equal(report.server.transport.events[0].kind, 'write-backpressure');
   assert.ok(!/ticket|secret|Bearer|access|https:/.test(fixture.clipboard));
+});
+
+test('foreground diagnostics preserve native playback before refresh or recovery replaces its evidence', async context => {
+  const { fixture, manager, service, start, reply, assignments } = setup(context);
+  await start();
+  manager.currentTime = 12;
+  service.setForeground(false);
+  manager.currentTime = 12.4;
+  service.setForeground(true);
+  const records = plain(service.diagnostics().lifecycle);
+  assert.equal(records[0].event, 'background');
+  assert.equal(records[0].playerTime, 12);
+  assert.equal(records[1].event, 'foreground-before-refresh');
+  assert.equal(records[1].playerTime, 12.4);
+  assert.equal(records[1].streamId, 'stream-1');
+  assert.equal(assignments(), 1);
+  reply(fixture.requests[1], { mediaTimeSeconds: 80 }); await tick();
+  assert.equal(service.diagnostics().lifecycle[1].lastKnownServerMediaSeconds, 0);
+  assert.equal(service.diagnostics().server.mediaTimeSeconds, 80);
+  assert.ok(!/ticket|secret|Bearer|https:/.test(JSON.stringify(service.diagnostics().lifecycle)));
+});
+
+test('lifecycle evidence is bounded and repeated foreground values do not duplicate transitions', async context => {
+  const { fixture, service, start, reply } = setup(context);
+  await start();
+  for (let index = 0; index < 8; index++) {
+    service.setForeground(false); service.setForeground(false);
+    service.setForeground(true);
+    reply(fixture.requests[fixture.requests.length - 1]); await tick();
+  }
+  assert.equal(service.diagnostics().lifecycle.length, 12);
+  assert.equal(service.diagnostics().lifecycle.at(-1).event, 'foreground-before-refresh');
+  service.stop();
+  assert.deepEqual(plain(service.diagnostics().lifecycle), []);
 });
 
 test('manual resume releases a held session before reconnecting and never holds it again', async context => {

@@ -39,21 +39,32 @@ function snapshot() { const owner = session || pending, state = session && sessi
   pausedIntent: !!(owner && owner.pausedIntent), heldIntent: !!(owner && owner.heldIntent), stalled: !!(session && session.stalled), error: playbackFailure || owner && owner.controlFailure && owner.controlFailure.message || failure }; }
 function diagnostics() {
   const value = snapshot(), state = value.state, playback = audio.snapshot();
-  return { version: 'tour-audio-player-state-20261111', capturedAt: new Date().toISOString(),
+  return { version: 'tour-audio-follow-lifecycle-20261112', capturedAt: new Date().toISOString(),
     active: value.active, creating: value.creating, foreground, sessionId: value.sessionId, roomId: value.roomId,
     stalled: value.stalled, hasPlaybackError: !!playbackFailure,
     lagSeconds: value.lagSeconds, audible: value.audible, recovering: value.recovering,
     recoveryAttempts: session && session.recoveryAttempts || 0,
+    lifecycle: session && session.lifecycle ? session.lifecycle.slice() : [],
     nativeError: playback.lastError ? { code: playback.lastError.code, at: playback.lastError.at, message: String(playback.lastError.message).replace(/https?:\/\/[^\s]+/g, '[media-url]').replace(/(?:Authorization:\s*)?Bearer\s+\S+/gi, '[credential]').slice(0, 240) } : null,
     server: state ? { status: state.status, streamId: state.streamId, stageId: state.stageId, itemId: state.itemId,
       paused: state.paused, held: state.held, roomAudioPlaying: state.roomAudioPlaying,
       sentBytes: state.sentBytes, mediaTimeSeconds: state.mediaTimeSeconds, driverSampledAt: state.driverSampledAt,
       itemTimeSeconds: state.itemTimeSeconds, itemDurationSeconds: state.itemDurationSeconds, hasError: !!state.error,
       schedulerStatus: state.schedulerStatus || '', arrival: state.arrival || null, stageTimings: state.stageTimings || [],
+      transport: state.transport || null,
       completedStageIds: state.visit && state.visit.completedStageIds || [],
       queue: (state.queue || []).slice(-12).map(item => ({ stageId: item.stageId, status: item.status })) } : null,
     player: { owner: playback.owner, live: playback.live, playing: playback.playing, requested: playback.requested,
       failed: playback.failed, nativePaused: playback.nativePaused, nativeControl: playback.nativeControl, time: playback.time, duration: playback.duration } };
+}
+function recordLifecycle(owner, event) {
+  const playback = audio.snapshot(), state = owner.state;
+  if (!owner.lifecycle) owner.lifecycle = [];
+  owner.lifecycle.push({ event, at: new Date().toISOString(), streamId: state && state.streamId || '',
+    lastKnownServerStatus: state && state.status || '', lastKnownServerMediaSeconds: state && state.mediaTimeSeconds || 0,
+    playerTime: playback.time, playing: playback.playing, failed: playback.failed, nativePaused: playback.nativePaused,
+    pausedIntent: !!owner.pausedIntent, heldIntent: !!owner.heldIntent });
+  if (owner.lifecycle.length > 12) owner.lifecycle.shift();
 }
 function publish() { const value = snapshot(); listeners.forEach(listener => listener(value)); }
 function subscribe(listener) { listeners.add(listener); listener(snapshot()); return () => listeners.delete(listener); }
@@ -221,6 +232,7 @@ async function refresh() {
     const playback = audio.snapshot(), now = Date.now();
     if (foreground && owner.options.following && !owner.pausedIntent && !owner.heldIntent && !playback.nativePaused && !owner.recovering
       && (playback.failed || owner.stalled || state.status === 'disconnected') && (owner.recoveryAttempts || 0) < 3 && now >= (owner.nextRecoveryAt || 0)) {
+      recordLifecycle(owner, 'foreground-recovery');
       owner.recoveryAttempts = (owner.recoveryAttempts || 0) + 1; owner.nextRecoveryAt = now + 10000 * owner.recoveryAttempts;
       owner.recovering = true; publish();
       try { await setPaused(false, owner.id); } finally { owner.recovering = false; if (owns(owner)) publish(); }
@@ -236,7 +248,13 @@ async function refresh() {
   } catch (error) { if (!invalidSession(owner, error) && owns(owner) && !error.cancelled) { failure = error.message; publish(); } throw error; }
   finally { if (request === pendingRequest) request = null; schedule(); }
 }
-function setForeground(value) { foreground = !!value; if (session) session.progressAt = Date.now(); if (foreground) refresh().catch(() => {}); else { clearTimeout(timer); timer = null; } }
+function setForeground(value) {
+  const next = !!value;
+  if (session && foreground !== next) recordLifecycle(session, next ? 'foreground-before-refresh' : 'background');
+  foreground = next;
+  if (session) session.progressAt = Date.now();
+  if (foreground) refresh().catch(() => {}); else { clearTimeout(timer); timer = null; }
+}
 async function setPaused(value, expectedSessionId = '') {
   const owner = session || pending;
   if (expectedSessionId && (!owner || owner.id !== expectedSessionId)) throw cancelled();

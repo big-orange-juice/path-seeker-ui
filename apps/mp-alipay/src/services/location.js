@@ -1,6 +1,7 @@
 const http = require('./http');
 const auth = require('./auth');
 const translation = require('./translation-session');
+const tourAudio = require('./tour-audio-session');
 const { gcj02ToWgs84 } = require('../shared/map-coordinates');
 const { diag } = require('./diag');
 const MAX_FIX_AGE_MS = 15000;
@@ -54,7 +55,7 @@ function watch(onFix, onError) {
   };
   const unsubscribe = translation.subscribe(state => {
     const room = state.room;
-    const next = room && !room.isHost && !state.disconnected && !['closed', 'draining'].includes(room.status) && typeof room.roomId === 'string' ? room.roomId : '';
+    const next = room && !room.isHost && (!state.disconnected || tourAudio.activeForRoom(room.roomId)) && !['closed', 'draining'].includes(room.status) && typeof room.roomId === 'string' ? room.roomId : '';
     if (closed || next === roomId && roomId) return;
     clear(); roomId = next;
     error(next ? 'driverWaiting' : 'driverRoomRequired');

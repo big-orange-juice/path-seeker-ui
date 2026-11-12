@@ -59,3 +59,27 @@ test('foreground refresh discards an in-flight response and fetches a fresh room
   old.ok(result()); fixture.h.requests[1].ok(result()); await tick();
   assert.equal(fixture.fixes.length, 1); fixture.stop();
 });
+
+test('active media keeps HTTP location polling through websocket loss but does not preserve a closed room', async t => {
+  const fixture = setup(t);
+  fixture.h.load('services/tour-audio-session').activeForRoom = id => id === roomId;
+  fixture.update({ room: { roomId, isHost: false, status: 'live' }, disconnected: true });
+  assert.equal(fixture.h.requests[0].aborted, false);
+  fixture.h.requests[0].ok(result()); await tick();
+  t.mock.timers.tick(1000);
+  assert.equal(fixture.h.requests.length, 2);
+  assert.equal(fixture.errors.some(error => error.reason === 'driverRoomRequired'), false);
+  fixture.update({ room: { roomId, isHost: false, status: 'closed' }, disconnected: true });
+  assert.equal(fixture.h.requests[1].aborted, true);
+  assert.equal(fixture.errors.at(-1).reason, 'driverRoomRequired');
+  fixture.stop();
+});
+
+test('media for a different room cannot preserve a disconnected location watcher', t => {
+  const fixture = setup(t);
+  fixture.h.load('services/tour-audio-session').activeForRoom = id => id === 'another-room';
+  fixture.update({ room: { roomId, isHost: false, status: 'live' }, disconnected: true });
+  assert.equal(fixture.h.requests[0].aborted, true);
+  assert.equal(fixture.errors.at(-1).reason, 'driverRoomRequired');
+  fixture.stop();
+});

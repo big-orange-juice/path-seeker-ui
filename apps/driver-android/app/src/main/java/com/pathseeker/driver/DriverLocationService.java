@@ -11,6 +11,7 @@ import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
 import java.time.Instant;
@@ -24,10 +25,12 @@ public final class DriverLocationService extends Service {
     static volatile boolean running;
     private static final String CHANNEL = "driver_location";
     private static final long LOCATION_INTERVAL_MS = 1500;
+    private static final long WAKE_LOCK_TIMEOUT_MS = TimeUnit.HOURS.toMillis(3);
     private final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor();
     private SessionStore store;
     private DriverApi api;
     private AMapLocationClient client;
+    private PowerManager.WakeLock wakeLock;
     private String roomId = "";
     private volatile JSONObject latest;
     private volatile boolean stopping;
@@ -85,6 +88,7 @@ public final class DriverLocationService extends Service {
                     store.preferences().edit().putString("lastFix", latest.toString()).apply();
                 } catch (Exception failure) { status("定位数据异常"); }
             });
+            acquireWakeLock();
             client.enableBackgroundLocation(102, notification("正在后台获取位置"));
             client.startLocation();
             store.preferences().edit().putBoolean("sharing", true).apply();
@@ -138,9 +142,22 @@ public final class DriverLocationService extends Service {
         stopSharing();
     }
 
+    private synchronized void acquireWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) return;
+        wakeLock = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, getPackageName() + ":location");
+        wakeLock.setReferenceCounted(false);
+        wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS);
+    }
+
+    private synchronized void releaseWakeLock() {
+        if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        wakeLock = null;
+    }
+
     private void stopSharing() {
         if (stopping) return;
         stopping = true;
+        releaseWakeLock();
         latest = null;
         if (client != null) { client.stopLocation(); client.disableBackgroundLocation(true); client.onDestroy(); client = null; }
         store.preferences().edit().putBoolean("sharing", false).apply();
@@ -155,6 +172,7 @@ public final class DriverLocationService extends Service {
     @Override public void onDestroy() {
         running = false;
         stopping = true;
+        releaseWakeLock();
         if (client != null) { client.stopLocation(); client.disableBackgroundLocation(true); client.onDestroy(); }
         store.preferences().edit().putBoolean("sharing", false).apply();
         worker.shutdownNow();

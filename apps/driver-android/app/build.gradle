@@ -14,8 +14,8 @@ android {
         applicationId 'com.pathseeker.driver'
         minSdk 26
         targetSdk 35
-        versionCode 7
-        versionName '0.3.4'
+        versionCode 8
+        versionName '0.3.5'
         buildConfigField 'String', 'AMAP_KEY', groovy.json.JsonOutput.toJson(localSettings.getProperty('amap.key', ''))
         buildConfigField 'String', 'ALIPAY_APP_ID', groovy.json.JsonOutput.toJson(localSettings.getProperty('alipay.appId', '2021007110628321'))
         manifestPlaceholders = [AMAP_KEY: localSettings.getProperty('amap.key', '')]
