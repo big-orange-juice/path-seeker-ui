@@ -1,6 +1,7 @@
 const auth = require('./auth');
 const rooms = require('./translation-room');
 const tourAudio = require('./tour-audio-session');
+const interruption = require('./audio-interruption');
 const recovery = require('./room-recovery');
 const { createQuestions } = require('./room-questions');
 const { RoomTextFeed } = require('../shared/translation-room');
@@ -28,6 +29,17 @@ function cancelRecovery() {
   if (previous && previous.abort) previous.abort();
 }
 function forget() { recoveryEnabled = false; desired = null; retryCount = 0; cancelRecovery(); recovery.remove(userId || (auth.current() || {}).userId); }
+function finishRoom(room = state.room) {
+  const previous = connection; connection = null; version++;
+  state = Object.assign({}, state, { room: Object.assign({}, room, { status: 'closed' }), following: false,
+    disconnected: true, reconnecting: false, speaking: false, audioPlaying: false, audioPending: false,
+    inputDraining: false, translationPending: false, audioError: '', error: '', notice: '车夫已解散房间' });
+  forget(); pendingTranslations.clear();
+  if (previous) previous.close(true);
+  tourAudio.stop();
+  questions.reset(false);
+  update({});
+}
 function scheduleRecovery() {
   if (!foreground || !desired || retryTimer || pendingJoin) return;
   const delay = Math.min(30000, 1000 * Math.pow(2, Math.min(retryCount++, 5)));
@@ -57,18 +69,28 @@ async function resume(immediate = true) {
     if (pendingJoin !== request || current !== version || accountVersion !== auth.version() || !foreground || !desired || desired.roomId !== saved.roomId) return;
     pendingJoin = null;
     if (!room || room.roomId !== saved.roomId || room.isHost || ['closed', 'draining'].includes(room.status)) {
-      forget(); update({ reconnecting: false, disconnected: true, notice: '原讲解房间已结束，请重新加入' }); return;
+      finishRoom(state.room || { roomId: saved.roomId, code: saved.code, isHost: false }); return;
     }
     attach(room, desired.language, desired);
   } catch (error) {
     if (pendingJoin !== request || current !== version || accountVersion !== auth.version() || error.cancelled) return;
     pendingJoin = null;
-    if ([400, 401, 403, 404].includes(error.status)) {
+    if (error.status === 400 && ['房间码无效或房间已结束', '房间已结束或服务已重启，请重新加入', '房间已结束，不能继续加入或输入'].includes(error.message)) {
+      finishRoom(state.room || { roomId: saved.roomId, code: saved.code, isHost: false });
+    } else if ([400, 401, 403, 404].includes(error.status)) {
       forget(); update({ reconnecting: false, disconnected: true, error: error.message });
     } else {
       update({ reconnecting: true, disconnected: true, notice: '连接中断，正在重连；这段时间的讲话不会补传' }); scheduleRecovery();
     }
   }
+}
+async function recoverRoom(roomId) {
+  if (!state.room || state.room.roomId !== roomId || state.room.isHost || ['closed', 'draining'].includes(state.room.status)) return;
+  if (pendingJoin) { await pendingJoin.catch(() => {}); return; }
+  remember();
+  if (!desired) return;
+  disconnect(true);
+  await resume();
 }
 function snapshot() {
   const messages = roomMessages(state.language);
@@ -136,7 +158,8 @@ function event(message) {
   if (message.type === 'room.input.drained' && (!drainedEpoch || !state.room || !state.room.epochId || drainedEpoch === state.room.epochId)) values.inputDraining = false;
   if (message.type === 'room.started') { values.inputDraining = false; values.notice = '讲解中'; values.room = Object.assign({}, state.room, { status: 'live', epochId: message.epochId || (state.room || {}).epochId }); }
   if (message.type === 'room.draining') { questions.reset(false); values.room = Object.assign({}, state.room, { status: 'draining' }); values.notice = '讲解即将结束，正在接收剩余语音'; }
-  if (message.type === 'room.closed') { state = Object.assign({}, state, { room: Object.assign({}, state.room, { status: 'closed' }) }); if (payload.mode === 'immediate') tourAudio.stop(); forget(); questions.reset(false); values.reconnecting = false; values.inputDraining = false; values.translationPending = false; pendingTranslations.clear(); values.room = state.room; values.speaking = false; values.notice = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'; }
+  if (message.type === 'room.closed' && payload.mode === 'immediate') { finishRoom(); return; }
+  if (message.type === 'room.closed') { state = Object.assign({}, state, { room: Object.assign({}, state.room, { status: 'closed' }) }); forget(); questions.reset(false); values.reconnecting = false; values.following = false; values.error = ''; values.audioError = ''; values.inputDraining = false; values.translationPending = false; pendingTranslations.clear(); values.room = state.room; values.speaking = false; values.notice = '讲解已结束，剩余语音将继续播放'; }
   if (message.type === 'room.draining') forget();
   update(values);
   if (['subscription.ready', 'subscription.changed', 'room.snapshot'].includes(message.type)) remember();
@@ -187,6 +210,7 @@ async function startSpeaking() {
 }
 function togglePause() {
   if (!connection || !state.room || state.room.isHost) return;
+  if (!interruption.resumeManually()) return;
   const paused = state.audioError ? false : !state.paused;
   connection.pause(paused); update({ paused, audioError: '' }); remember();
 }
@@ -213,6 +237,7 @@ async function leave() {
 function suspend({ preserveConnection = false } = {}) {
   foreground = false;
   if (!state.room) return;
+  if (state.room.status === 'closed') return;
   remember();
   cancelRecovery();
   questions.stop(true);
@@ -222,5 +247,13 @@ function suspend({ preserveConnection = false } = {}) {
 }
 function setFollowing(value) { if (state.following === !!value) return; update({ following: !!value }); remember(); }
 function yieldToTour() { if (connection) connection.yieldToTour(); }
-module.exports = { snapshot, subscribe, attach, event, prepareEntry, setLanguage, disconnect, startSpeaking, togglePause, end, changeLanguage, leave, suspend, resume, setFollowing, yieldToTour,
+interruption.subscribe((value, event) => {
+  if (event !== 'begin' || !state.room || state.room.isHost || state.room.status === 'closed') return;
+  questions.stop(true);
+  const continuous = tourAudio.activeForRoom(state.room.roomId);
+  if (!continuous && connection) connection.pause(true);
+  update({ paused: continuous ? state.paused : true, audioPlaying: false, audioPending: false, notice: '其他内容正在播放，回到房间可恢复收听' });
+  remember();
+});
+module.exports = { snapshot, subscribe, attach, event, prepareEntry, setLanguage, disconnect, startSpeaking, togglePause, end, changeLanguage, leave, suspend, resume, recoverRoom, setFollowing, yieldToTour,
   startQuestion: questions.start, stopQuestion: () => questions.stop(), cancelQuestion: () => questions.stop(true), listenQuestions: questions.listen, stopQuestions: questions.stopPlayback };

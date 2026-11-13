@@ -18,7 +18,7 @@
       <block a:else><button size="mini" class="header-button" onTap="backToOverview" disabled="{{busy || loading}}">‹ {{messages.back}}</button><text class="header-route grow">{{route.title}}</text><button size="mini" class="header-button" onTap="endVisit" disabled="{{busy || loading || !visit}}">{{messages.end}}</button></block>
       <button size="mini" class="header-button" onTap="me">我的</button>
     </view>
-    <view a:if="{{error || audioError || loading}}" class="tour-notices"><view a:if="{{error}}" class="error">{{error}}<button size="mini" onTap="retry">{{messages.retry}}</button></view><view a:if="{{audioError}}" class="error">{{audioError}}<button size="mini" onTap="retryAudio">{{messages.retry}}</button><button size="mini" onTap="copyAudioReport">复制诊断记录</button><button size="mini" onTap="openContent">{{messages.content}}</button></view><view a:if="{{loading}}" class="notice">{{messages.loading}}</view></view>
+    <view a:if="{{error || audioError || loading || roomNotice}}" class="tour-notices"><view a:if="{{roomNotice}}" class="notice" role="status">{{roomNotice}}</view><view a:if="{{error}}" class="error">{{error}}<button size="mini" onTap="retry">{{messages.retry}}</button></view><view a:if="{{audioError}}" class="error">{{audioError}}<button size="mini" onTap="retryAudio">{{messages.retry}}</button><button size="mini" onTap="copyAudioReport">复制诊断记录</button><button size="mini" onTap="openContent">{{messages.content}}</button></view><view a:if="{{loading}}" class="notice">{{messages.loading}}</view></view>
     <block a:if="{{tourStage == 'overview'}}">
       <view class="overview-heading"><view class="overview-title">{{messages.routes}}</view><view class="muted">{{messages.routeHint}}</view><input class="route-search" placeholder="{{messages.search}}" value="{{search}}" onInput="search" /></view>
       <view a:if="{{routes.length && route && stops.length}}" class="start-area"><button class="start-ride" disabled="{{busy || loading}}" onTap="startVisit"><text class="start-icon">♫</text><text>{{visit && visit.status === 1 ? messages.resume : messages.start}}</text><text>→</text></button><view class="start-hint">{{messages.startHint}}</view></view>
@@ -30,7 +30,22 @@
         <view class="navigation-map-space">
           <scroll-view class="map-tools-scroll" scroll-y="true" show-scrollbar="false">
             <view class="map-tools-center">
-              <view class="map-tools" aria-label="{{messages.routeTools}}"><button size="mini" class="tool-button" onTap="openContent" aria-label="{{messages.content}}">☷</button><button size="mini" class="tool-button" onTap="toggleQueue" aria-label="{{messages.queueTitle}}">{{sequence.length}}</button><button size="mini" class="tool-button {{showRoute ? 'active' : ''}}" onTap="toggleRoute" aria-label="{{showRoute ? messages.hideRoute : messages.showRoute}}"><view class="tool-icon route-icon"><view /></view></button><view class="tool-divider" /><button size="mini" class="tool-button" onTap="zoomOut" aria-label="{{messages.zoomOut}}"><text class="tool-glyph">−</text></button><button size="mini" class="tool-button" onTap="overview" aria-label="{{messages.overview}}"><view class="tool-icon focus-icon"><view /></view></button><button size="mini" class="tool-button {{following ? 'active' : ''}}" onTap="toggleFollow" disabled="{{!locationEnabled}}" aria-label="{{following ? messages.unfollow : messages.follow}}"><view class="tool-icon nav-icon"><view /></view></button><button size="mini" class="tool-button" onTap="zoomIn" aria-label="{{messages.zoomIn}}"><text class="tool-glyph">＋</text></button><button size="mini" class="tool-button" onTap="focusNavigationMap" aria-label="3D"><text>3D</text></button><view class="tool-divider" /><button size="mini" class="tool-button tool-ask" onTap="ask" aria-label="{{messages.ask}}"><view class="tool-icon chat-icon"><view /></view></button></view>
+              <view class="map-tools" aria-label="{{messages.routeTools}}">
+                <button size="mini" class="tool-button" onTap="openContent" aria-label="{{messages.stops}}">☷</button>
+                <button size="mini" class="tool-button" onTap="recenter" aria-label="{{messages.currentLocation}}"><view class="tool-icon focus-icon"><view /></view></button>
+                <button size="mini" class="tool-button {{mapToolsOpen ? 'active' : ''}}" onTap="toggleMapTools" aria-expanded="{{mapToolsOpen}}" aria-label="{{mapToolsOpen ? messages.close : messages.routeTools}}"><text class="tool-glyph">{{mapToolsOpen ? '×' : '⋯'}}</text></button>
+                <block a:if="{{mapToolsOpen}}">
+                  <view class="tool-divider" />
+                  <button size="mini" class="tool-button {{showRoute ? 'active' : ''}}" onTap="toggleRoute" aria-label="{{showRoute ? messages.hideRoute : messages.showRoute}}"><view class="tool-icon route-icon"><view /></view></button>
+                  <button size="mini" class="tool-button" onTap="overview" aria-label="{{messages.overview}}"><text class="tool-glyph">⌗</text></button>
+                  <button size="mini" class="tool-button {{following ? 'active' : ''}}" onTap="toggleFollow" disabled="{{!locationEnabled}}" aria-label="{{following ? messages.unfollow : messages.follow}}"><view class="tool-icon nav-icon"><view /></view></button>
+                  <button size="mini" class="tool-button" onTap="zoomIn" aria-label="{{messages.zoomIn}}"><text class="tool-glyph">＋</text></button>
+                  <button size="mini" class="tool-button" onTap="zoomOut" aria-label="{{messages.zoomOut}}"><text class="tool-glyph">−</text></button>
+                  <button size="mini" class="tool-button" onTap="focusNavigationMap" aria-label="3D"><text>3D</text></button>
+                  <view class="tool-divider" />
+                  <button size="mini" class="tool-button tool-ask" onTap="ask" aria-label="{{messages.ask}}"><view class="tool-icon chat-icon"><view /></view></button>
+                </block>
+              </view>
             </view>
           </scroll-view>
           <view class="voice-button" role="button" aria-label="{{messages.voiceHint}}" onTap="startRecording"><view class="voice-mic-icon"><view class="voice-mic-head" /><view class="voice-mic-stem" /></view></view>

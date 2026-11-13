@@ -1,6 +1,7 @@
 const auth = require('./services/auth');
 const audio = require('./services/audio');
-const config = require('./config');
+const backgroundListening = require('./services/background-listening');
+const tourAudio = require('./services/tour-audio-session');
 const translation = require('./services/translation-session');
 const location = require('./services/location');
 const invitation = require('./services/room-invitation');
@@ -8,6 +9,7 @@ App({
   globalData: { chatContext: null, selectedRoute: '', foreground: true },
   onLaunch(options = {}) { this._coldStart = true; this.globalData.roomInvitation = invitation.entry(options.query); auth.restore(); location.reportCapabilities(); },
   onShow(options = {}) {
+    backgroundListening.setForeground(true);
     const coldStart = this._coldStart; this._coldStart = false;
     this.globalData.foreground = true; location.setForeground(true);
     const entry = invitation.entry(options.query);
@@ -21,5 +23,15 @@ App({
       if (!coldStart && newInvitation) my.reLaunch({ url: invitationUrl });
     } else translation.resume();
   },
-  onHide() { this.globalData.foreground = false; location.setForeground(false); this.globalData.backgroundAudio = audio.snapshot(); translation.suspend({ preserveConnection: config.background }); if (this.globalData.cancelVoiceInput) this.globalData.cancelVoiceInput(); if (!config.background) audio.pause(); }
+  onHide() {
+    this.globalData.foreground = false; backgroundListening.setForeground(false); location.setForeground(false);
+    this.globalData.backgroundAudio = audio.snapshot();
+    tourAudio.setForeground(false);
+    translation.suspend({ preserveConnection: backgroundListening.enabled() });
+    if (this.globalData.cancelVoiceInput) this.globalData.cancelVoiceInput();
+    if (!backgroundListening.enabled()) {
+      audio.pause();
+      if (tourAudio.active()) tourAudio.setPaused(true).catch(() => {});
+    }
+  }
 });

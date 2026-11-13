@@ -1,5 +1,7 @@
 // 按 owner 排他使用；每段重建上下文，迟到的旧段事件不可推进新队列。
 const config = require('../config');
+const backgroundListening = require('./background-listening');
+const interruption = require('./audio-interruption');
 let context = null, owner = '', queue = [], index = 0, hooks = {}, generation = 0, failed = false, playing = false;
 let backgroundContext = false, contextVersion = 0, nativePaused = false, nativeControl = '';
 let accepting = false, finished = false, paused = false, prepared = null;
@@ -53,6 +55,7 @@ function create(token) {
   else { context.autoplay = false; context.obeyMuteSwitch = false; }
   listeners.Play = () => {
     if (!valid()) return;
+    if (!backgroundListening.allowed() || interruption.blocked()) { pause(); return; }
     if (paused && !nativePaused) { active.pause(); return; }
     if (nativePaused) { paused = false; pauseRequested = false; nativePaused = false; nativeControl = 'play'; }
     if (failed) { playing = false; notify(); return; }
@@ -68,6 +71,7 @@ function create(token) {
   listeners.Stop = stopped;
   listeners.TimeUpdate = () => {
     if (!valid()) return;
+    if (!backgroundListening.allowed() || interruption.blocked()) { pause(); return; }
     const time = Number(active.currentTime), finite = Number.isFinite(time);
     const advancing = finite && progressTime !== null && time > progressTime + .1;
     if (!paused && active.paused !== true && (failed ? finite && time > failureTime + .1 : advancing && active.paused === false)) { failed = false; playing = true; }
@@ -89,6 +93,7 @@ function create(token) {
   };
   listeners.Error = error => {
     if (!valid()) return;
+    if (interruption.blocked()) { pause(); return; }
     playing = false;
     const extra = isExtra(queue[index]);
     failed = !extra;
@@ -109,6 +114,7 @@ function snapshot() {
 function notify() { if (hooks.change) hooks.change(snapshot()); }
 function next(token) {
   if (token !== generation) return;
+  if (!backgroundListening.allowed()) { paused = true; pauseRequested = true; }
   dispose();
   if (video && hooks.video) hooks.video(null, token);
   video = null;
@@ -128,6 +134,7 @@ function next(token) {
     notify();
     return;
   }
+  if (interruption.blocked()) { paused = true; pauseRequested = true; notify(); return; }
   if (item.kind === 'interlude-video') {
     discardPrepared(); video = { time: pendingSeek || 0, duration: 0 }; pendingSeek = null;
     if (!hooks.video) { if (hooks.error) hooks.error(Error('此页面暂不支持段间视频')); video = null; index++; next(token); return; }
@@ -162,6 +169,7 @@ function updateLive(item) {
 function pause() { paused = true; pauseRequested = true; nativePaused = false; nativeControl = ''; if (context) context.pause(); if (video && hooks.videoControl) hooks.videoControl('pause'); playing = false; notify(); }
 function resume(expectedOwner) {
   if (owner !== expectedOwner) return;
+  if (!backgroundListening.allowed() || interruption.blocked()) return;
   paused = false;
   pauseRequested = false;
   nativePaused = false; nativeControl = '';
@@ -188,6 +196,7 @@ function seek(seconds, expectedOwner) {
 }
 function videoEvent(kind, token, id, detail = {}) {
   if (!video || Number(token) !== generation || !queue[index] || queue[index].id !== id) return;
+  if (kind === 'play' && interruption.blocked()) { pause(); return; }
   if (kind === 'time') { video.time = Number(detail.currentTime) || 0; video.duration = Number(detail.duration) || 0; }
   if (kind === 'play') { playing = true; paused = false; pauseRequested = false; }
   if (kind === 'pause') { playing = false; paused = true; }
@@ -220,4 +229,5 @@ function finishStream(token) {
   accepting = false;
   if (index >= queue.length) next(token);
 }
+interruption.subscribe(() => { if (interruption.blocked() && (context || video || queue[index])) pause(); });
 module.exports = { playQueue, playLive, updateLive, pause, resume, stop, seek, snapshot, destroy, beginStream, appendStream, finishStream, videoEvent };

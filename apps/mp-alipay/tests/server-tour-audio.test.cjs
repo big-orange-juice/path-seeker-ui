@@ -4,6 +4,13 @@ const { harness, tick, userId, plain } = require('./harness.cjs');
 
 const roomId = '9223372036854775806', routeId = '9223372036854775805', visitId = '9223372036854775804';
 const stageIds = ['9223372036854775803', '9223372036854775802'];
+function interruptionEvents(fixture) {
+  const events = {};
+  fixture.my.onAudioInterruptionBegin = callback => { events.begin = callback; };
+  fixture.my.onAudioInterruptionEnd = callback => { events.end = callback; };
+  fixture.load('services/audio-interruption').init();
+  return events;
+}
 function setup(context, realRoom = false, following = false, realLocation = false) {
   const fixture = harness(), manager = fixture.my.createInnerAudioContext();
   fixture.audioContexts.length = 0;
@@ -53,6 +60,105 @@ test('normal navigation creates one continuous media session and excludes local 
   assert.equal(fixture.requests.length, 1);
   assert.equal(fixture.load('services/audio').snapshot().live, true);
   assert.equal(fixture.audioContexts.length, 0);
+});
+
+test('system interruption pauses the server and end or foreground polling cannot automatically resume it', async context => {
+  const { fixture, manager, page, service, start, reply, assignments } = setup(context, false, true);
+  const events = interruptionEvents(fixture);
+  await start();
+  events.begin(); await tick();
+  assert.equal(service.snapshot().pausedIntent, true);
+  assert.equal(service.diagnostics().phase, 'interrupted');
+  assert.equal(fixture.requests[1].options.data.command, 'pause');
+  reply(fixture.requests[1], { paused: true }); await tick();
+  page.retryAudio();
+  assert.equal(fixture.requests.length, 2);
+  events.end();
+  manager.emit('Play'); manager.emit('Error', { errorMessage: 'audio focus lost' });
+  const pending = service.refresh();
+  reply(fixture.requests[2], { paused: false, status: 'disconnected' }); await pending;
+  await service.setPaused(false); await service.release();
+  assert.equal(fixture.requests.length, 3);
+  assert.equal(assignments(), 1);
+  assert.equal(service.diagnostics().recoveryAttempts, 0);
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+  assert.equal(page.data.audioError, '');
+  assert.match(page.data.followStatus, /点击重新连接/);
+});
+
+test('explicit reconnect after a system interruption realigns before acquiring audio again', async context => {
+  const { fixture, page, service, start, reply, assignments } = setup(context, false, true);
+  const events = interruptionEvents(fixture);
+  await start(); events.begin(); await tick();
+  reply(fixture.requests[1], { paused: true }); await tick();
+  events.end(); page.retryAudio(); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'realign');
+  reply(fixture.requests[2], { paused: false, held: false, stageId: null, itemId: null, queue: [] }); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'resume');
+  reply(fixture.requests[3]); await tick();
+  assert.equal(fixture.requests[4].options.data.command, 'reconnect');
+  reply(fixture.requests[4], { status: 'disconnected' }); await tick();
+  assert.equal(assignments(), 2);
+  assert.equal(service.snapshot().interruption.resumeRequired, false);
+  assert.equal(fixture.load('services/audio').snapshot().playing, true);
+});
+
+test('interruption during creation prevents its late media source from starting', async context => {
+  const { fixture, page, service, state, assignments } = setup(context, false, true);
+  const events = interruptionEvents(fixture);
+  page.startNextSequence(); events.begin(); events.end();
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(assignments(), 0);
+  assert.equal(service.snapshot().pausedIntent, true);
+  assert.equal(fixture.requests[1].options.data.command, 'pause');
+  assert.equal(service.diagnostics().phase, 'interrupted');
+});
+
+test('a call starting during reconnect invalidates the late response and keeps the source paused', async context => {
+  const { fixture, manager, service, start, reply, assignments } = setup(context, false, true);
+  const events = interruptionEvents(fixture);
+  await start();
+  manager.emit('Error', { errorMessage: 'temporary failure' });
+  const resumed = service.setPaused(false); await tick();
+  reply(fixture.requests[1]); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'reconnect');
+  events.begin();
+  reply(fixture.requests[2], { status: 'disconnected' }); await resumed; await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'pause');
+  reply(fixture.requests[3], { paused: true }); await tick(); events.end();
+  assert.equal(assignments(), 1);
+  assert.equal(service.snapshot().pausedIntent, true);
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+});
+
+test('interruption does not permanently mute the driver room inside a continuous audio session', async context => {
+  const { fixture, service, translation, start } = setup(context, true, true);
+  const events = interruptionEvents(fixture);
+  await start(); events.begin(); await tick(); events.end();
+  assert.equal(translation.snapshot().paused, false);
+  assert.equal(service.snapshot().pausedIntent, true);
+  assert.ok(!fixture.requests.some(request => request.options.data?.command === 'room-mute'));
+});
+
+test('disabling screen-off listening pauses a pending session before its late source can autoplay', async context => {
+  const { fixture, page, service, state, reply } = setup(context, false, true);
+  fixture.load('app');
+  page.toggleScreenOffListening();
+  page.startNextSequence();
+  fixture.app.onHide();
+  assert.equal(service.snapshot().pausedIntent, true);
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+  assert.equal(fixture.requests[1].options.data.command, 'pause');
+  reply(fixture.requests[1], { paused: true }); await tick();
+  const count = fixture.requests.length;
+  await service.setPaused(false); await service.release();
+  assert.equal(fixture.requests.length, count);
+  fixture.app.onShow();
+  assert.equal(service.snapshot().pausedIntent, true);
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
 });
 
 test('new server node updates the screen without replacing or stopping the live player', async context => {
@@ -284,7 +390,7 @@ test('playback diagnostics identify server and native state without exposing med
   manager.emit('Error', { errorMessage: 'https://test/media.mp3?ticket=secret Authorization: Bearer access' });
   page.copyAudioReport();
   const report = JSON.parse(fixture.clipboard);
-  assert.equal(report.version, 'tour-audio-follow-lifecycle-20261112');
+  assert.equal(report.version, 'tour-audio-startup-guards-20261113');
   assert.equal(report.sessionId, 'session-1');
   assert.equal(report.player.failed, true);
   assert.equal(report.selectedStageId, stageIds[0]);
@@ -305,7 +411,7 @@ test('foreground diagnostics preserve native playback before refresh or recovery
   service.setForeground(false);
   manager.currentTime = 12.4;
   service.setForeground(true);
-  const records = plain(service.diagnostics().lifecycle);
+  const records = plain(service.diagnostics().lifecycle).slice(-2);
   assert.equal(records[0].event, 'background');
   assert.equal(records[0].playerTime, 12);
   assert.equal(records[1].event, 'foreground-before-refresh');
@@ -313,7 +419,7 @@ test('foreground diagnostics preserve native playback before refresh or recovery
   assert.equal(records[1].streamId, 'stream-1');
   assert.equal(assignments(), 1);
   reply(fixture.requests[1], { mediaTimeSeconds: 80 }); await tick();
-  assert.equal(service.diagnostics().lifecycle[1].lastKnownServerMediaSeconds, 0);
+  assert.equal(service.diagnostics().lifecycle.at(-1).lastKnownServerMediaSeconds, 0);
   assert.equal(service.diagnostics().server.mediaTimeSeconds, 80);
   assert.ok(!/ticket|secret|Bearer|https:/.test(JSON.stringify(service.diagnostics().lifecycle)));
 });
@@ -329,6 +435,9 @@ test('lifecycle evidence is bounded and repeated foreground values do not duplic
   assert.equal(service.diagnostics().lifecycle.length, 12);
   assert.equal(service.diagnostics().lifecycle.at(-1).event, 'foreground-before-refresh');
   service.stop();
+  assert.equal(service.diagnostics().lifecycle.length, 12);
+  assert.equal(service.diagnostics().lifecycle.at(-1).event, 'stopped');
+  fixture.auth.logout();
   assert.deepEqual(plain(service.diagnostics().lifecycle), []);
 });
 
@@ -418,6 +527,185 @@ test('failed creation stays visible and never falls back to the foreground-only 
   assert.equal(fixture.audioContexts.length, 0);
 });
 
+test('failed creation diagnostics explain why no session or player was created', async context => {
+  const { fixture, page, service } = setup(context);
+  page.startNextSequence();
+  fixture.requests[0].options.success({ status: 400, data: { code: 10003, message: '请先开始当前路线的游览' } });
+  await tick();
+  const report = service.diagnostics();
+  assert.equal(report.active, false);
+  assert.equal(report.creating, false);
+  assert.equal(report.sessionId, '');
+  assert.equal(report.phase, 'failed');
+  assert.match(report.error, /请先开始当前路线/);
+  assert.equal(report.lifecycle.at(-1).event, 'create-failed');
+  assert.match(report.lifecycle.at(-1).error, /请先开始当前路线/);
+  assert.equal(report.lifecycle.at(-1).status, 400);
+  assert.equal(report.lifecycle.at(-1).code, 10003);
+  assert.equal(report.player.requested, false);
+});
+
+test('pending creation displays connecting and repeated retry cannot create or resume twice', async context => {
+  const { fixture, page, service, state } = setup(context, false, true);
+  page.startNextSequence();
+  assert.equal(page.data.audioCreating, true);
+  assert.equal(page.data.followStatus, '正在连接讲解，请稍候');
+  page.retryAudio(); page.retryAudio(); page.startNextSequence();
+  assert.equal(fixture.requests.length, 1);
+  fixture.requests[0].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(page.data.audioCreating, false);
+  assert.deepEqual(plain(service.diagnostics().lifecycle).map(record => record.event), ['create-start', 'create-success']);
+  assert.equal(service.diagnostics().phase, 'connecting', 'server streaming with zero native progress does not prove playback');
+});
+
+test('startup prerequisites explain a missing visit without issuing an audio request', async context => {
+  const { fixture, page } = setup(context, false, true);
+  page.setData({ visit: null });
+  page.startNextSequence(); page.retryAudio();
+  assert.equal(fixture.requests.length, 0);
+  assert.equal(page.serverAudioReadiness().code, 'visit-required');
+  assert.match(page.data.audioError, /开始当前路线/);
+  fixture.my.setClipboard = options => { fixture.clipboard = JSON.parse(options.text); };
+  page.copyAudioReport();
+  assert.equal(fixture.clipboard.startup.readiness.code, 'visit-required');
+  assert.equal(fixture.clipboard.startup.roomId, roomId);
+});
+
+test('a failure in a previous room does not suppress startup in the new room', async context => {
+  const { fixture, page, room } = setup(context);
+  page.startNextSequence();
+  fixture.requests[0].reject({ errorMessage: '请求超时' }); await tick();
+  assert.equal(page.data.followStatus, '讲解未连接，请重试');
+  page.startNextSequence();
+  assert.equal(fixture.requests.length, 1);
+  room.room.roomId = '9223372036854775700';
+  page.startNextSequence();
+  assert.equal(fixture.requests.length, 2);
+  assert.equal(fixture.requests[1].options.data.roomId, room.room.roomId);
+  fixture.requests[1].reject({ errorMessage: '请求超时' }); await tick();
+});
+
+test('failed creation history survives cleanup, is redacted, and clears on logout', async context => {
+  const { fixture, page, service } = setup(context);
+  page.startNextSequence();
+  fixture.requests[0].reject({ errorMessage: 'https://media.test/?ticket=secret Bearer access token=secret' }); await tick();
+  await service.stop();
+  const report = service.diagnostics();
+  assert.equal(report.lifecycle.at(-1).event, 'create-failed');
+  assert.ok(!/ticket|secret|Bearer|access|https:/.test(JSON.stringify(report)));
+  fixture.auth.logout();
+  assert.deepEqual(plain(service.diagnostics().lifecycle), []);
+});
+
+test('browsing after startup failure preserves the error and retry entry', async context => {
+  const { fixture, page } = setup(context, false, true);
+  page.startNextSequence();
+  fixture.requests[0].reject({ errorMessage: '连接失败，请重试' }); await tick();
+  page.showStop(1, true);
+  assert.match(page.data.audioError, /连接失败/);
+  assert.equal(page.data.followStatus, '讲解未连接，请重试');
+  assert.equal(fixture.requests.length, 1);
+});
+
+for (const [name, mutate, expected] of [
+  ['closed room', ({ room }) => { room.room.status = 'closed'; }, 'room-ended'],
+  ['missing route', ({ page }) => page.setData({ route: null }), 'route-required'],
+  ['completed visit', ({ page }) => page.setData({ visit: { visitId, routeId, status: 2 } }), 'visit-required'],
+  ['mismatched visit', ({ page }) => page.setData({ visit: { visitId, routeId: 'another-route', status: 1 } }), 'visit-mismatch'],
+  ['unsupported runtime', ({ fixture }) => { delete fixture.my.getBackgroundAudioManager; }, 'unsupported']
+]) {
+  test('explicit startup explains ' + name + ' before requesting a session', async context => {
+    const values = setup(context, false, true);
+    mutate(values);
+    assert.equal(await values.page.ensureServerAudio(), null);
+    assert.equal(values.page.serverAudioReadiness().code, expected);
+    if (expected === 'room-ended') {
+      assert.equal(values.page.data.audioError, '');
+      assert.equal(values.page.data.roomNotice, '车夫已解散房间');
+    } else assert.ok(values.page.data.audioError);
+    assert.equal(values.fixture.requests.length, 0);
+  });
+}
+
+test('manual reconnect clicks share the pending operation after startup failure', async context => {
+  const { fixture, page, state, reply } = setup(context, false, true);
+  page.startNextSequence();
+  fixture.requests[0].reject({ errorMessage: '网络断开' }); await tick();
+  page.retryAudio(); page.retryAudio();
+  assert.equal(fixture.requests.length, 2);
+  fixture.requests[1].ok({ sessionId: 'session-1', mediaUrl: '/TourAudioSessions/session-1/media.mp3?ticket=secret', state: state() });
+  await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'realign');
+  page.retryAudio();
+  reply(fixture.requests[2]); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'resume');
+  reply(fixture.requests[3]); await tick();
+  assert.equal(fixture.requests[4].options.data.command, 'reconnect');
+  reply(fixture.requests[4], { status: 'disconnected' }); await tick();
+  assert.equal(fixture.requests.length, 5);
+  assert.equal(page._audioRetry, null);
+});
+
+test('manual reconnect discards old route backlog and follows the newly detected driver node', async context => {
+  const { fixture, page, service, start, reply, assignments } = setup(context, false, true);
+  await start();
+  const refreshed = service.refresh();
+  reply(fixture.requests[1], { stageId: stageIds[0], itemId: 'chapter0',
+    queue: [{ stageId: stageIds[0], status: 'emitted' }, { stageId: stageIds[1], status: 'queued' }] });
+  await refreshed;
+  await page.enter(1);
+  assert.equal(page._manualBrowse, true);
+  page.retryAudio(); page.retryAudio(); await tick();
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+  assert.equal(page._manualBrowse, false);
+  assert.equal(fixture.requests[2].options.data.command, 'realign');
+  assert.equal(fixture.requests[2].options.data.stageId, undefined);
+  reply(fixture.requests[2], { stageId: null, itemId: null, queue: [], held: false, paused: false }); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'resume');
+  reply(fixture.requests[3]); await tick();
+  assert.equal(fixture.requests[4].options.data.command, 'reconnect');
+  reply(fixture.requests[4], { status: 'disconnected' }); await tick();
+  assert.deepEqual(plain(page.data.sequence), []);
+  assert.equal(page.data.playing, false);
+  const next = service.refresh();
+  reply(fixture.requests[5], { status: 'streaming', streamId: 'stream-2', stageId: stageIds[1],
+    itemId: 'chapter1', itemTimeSeconds: 0, queue: [{ stageId: stageIds[1], status: 'playing' }] });
+  await next;
+  assert.equal(page.data.stop.id, stageIds[1]);
+  assert.equal(page.data.playingStopId, stageIds[1]);
+  assert.equal(assignments(), 2);
+  assert.ok(!fixture.requests.some(request => ['select', 'replay', 'complete'].includes(request.options.data?.command)));
+});
+
+test('a newer question cancels a manual reconnect before it can resume the realigned stream', async context => {
+  const { fixture, page, service, start, reply, assignments } = setup(context, false, true);
+  await start();
+  page.retryAudio(); await tick();
+  assert.equal(fixture.requests[1].options.data.command, 'realign');
+  page.ask();
+  reply(fixture.requests[1], { paused: false, held: false, stageId: null, itemId: null, queue: [] }); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'hold');
+  reply(fixture.requests[2], { held: true }); await tick();
+  assert.equal(service.snapshot().heldIntent, true);
+  assert.equal(fixture.load('services/audio').snapshot().playing, false);
+  assert.equal(assignments(), 1);
+  assert.equal(fixture.requests.length, 3);
+});
+
+test('closing the room during manual realignment prevents any resume or replacement player', async context => {
+  const { fixture, page, service, translation, start, reply, assignments } = setup(context, true, true);
+  await start();
+  page.retryAudio(); await tick();
+  assert.equal(fixture.requests[1].options.data.command, 'realign');
+  translation.event({ type: 'room.closed', roomId, payload: { mode: 'immediate' } });
+  reply(fixture.requests[1], { status: 'closed' }); await tick();
+  assert.equal(service.active(), false);
+  assert.equal(page.data.audioError, '');
+  assert.equal(assignments(), 1);
+  assert.ok(!fixture.requests.some(request => ['resume', 'reconnect'].includes(request.options.data?.command)));
+});
+
 test('a late creation after account logout is revoked and cannot start audio', async context => {
   const { fixture, page, assignments, state } = setup(context);
   page.startNextSequence(); fixture.auth.logout();
@@ -501,7 +789,62 @@ test('an immediate room closure cannot recreate the closing room during teardown
   translation.event({ type: 'room.closed', roomId, payload: { mode: 'immediate' } }); await tick();
   assert.equal(translation.snapshot().room.status, 'closed');
   assert.equal(service.active(), false);
+  assert.equal(translation.snapshot().error, '');
+  assert.equal(translation.snapshot().following, false);
+  assert.equal(translation.snapshot().displayNotice, '车夫已解散房间');
+  assert.equal(page.data.audioError, '');
+  assert.equal(page.data.roomNotice, '车夫已解散房间');
+  assert.equal(service.diagnostics().phase, 'idle');
+  page.retryAudio(); page.startNextSequence();
   assert.equal(fixture.requests.filter(request => request.options.method === 'POST' && /TourAudioSessions$/.test(request.options.url)).length, 1);
+});
+
+test('missing a room closure in background resolves membership rejection as a normal room notice', async context => {
+  const { fixture, page, service, translation } = setup(context, true);
+  translation.attach({ roomId, code: '12345678', status: 'waiting', isHost: false }, 'zh');
+  page.startNextSequence();
+  fixture.requests[0].options.success({ status: 403, data: { code: 10003, message: '请先加入房间' } });
+  await tick();
+  const join = fixture.requests.find(request => /\/TranslationRooms\/join$/.test(request.options.url));
+  assert.ok(join);
+  join.options.success({ status: 400, data: { code: 10001, message: '房间已结束，不能继续加入或输入' } });
+  await tick();
+  assert.equal(translation.snapshot().room.status, 'closed');
+  assert.equal(translation.snapshot().following, false);
+  assert.equal(page.data.roomNotice, '车夫已解散房间');
+  assert.equal(page.data.audioError, '');
+  assert.equal(service.diagnostics().phase, 'idle');
+  page.retryAudio(); page.startNextSequence();
+  await translation.resume();
+  assert.equal(fixture.requests.length, 2);
+});
+
+test('expired membership rejoins an open room before retrying audio instead of declaring it closed', async context => {
+  const { fixture, page, translation } = setup(context, true);
+  const room = { roomId, code: '12345678', status: 'waiting', isHost: false };
+  translation.attach(room, 'zh');
+  page.startNextSequence();
+  fixture.requests[0].options.success({ status: 403, data: { code: 10003, message: '请先加入房间' } });
+  await tick();
+  const join = fixture.requests[1];
+  assert.match(join.options.url, /\/TranslationRooms\/join$/);
+  join.ok(room); await tick();
+  assert.equal(translation.snapshot().room.status, 'waiting');
+  assert.equal(page.data.roomNotice, '');
+  assert.equal(page.data.audioError, '');
+  assert.equal(fixture.requests.length, 2);
+  translation.event({ type: 'subscription.ready', payload: { room } });
+  page.startNextSequence();
+  assert.match(fixture.requests[2].options.url, /TourAudioSessions$/);
+});
+
+test('unrelated authorization failures remain errors and do not trigger a room rejoin', async context => {
+  const { fixture, page } = setup(context, true);
+  page.startNextSequence();
+  fixture.requests[0].options.success({ status: 403, data: { code: 10003, message: '当前用户不可用' } });
+  await tick();
+  assert.equal(page.data.audioError, '当前用户不可用');
+  assert.equal(fixture.requests.length, 1);
 });
 
 test('switching real rooms publishes the new room before teardown can start another media session', async context => {
@@ -974,10 +1317,12 @@ test('following recovery preserves the session guide after browsing a node with 
   assert.equal(page.serverAudioOptions().guideId, '9223372036854775801');
   manager.emit('Error', { error: 1004, errorMessage: 'decoder failed' });
   page.retryAudio(); await tick();
-  assert.equal(fixture.requests[1].options.data.command, 'resume');
+  assert.equal(fixture.requests[1].options.data.command, 'realign');
   reply(fixture.requests[1]); await tick();
-  assert.equal(fixture.requests[2].options.data.command, 'reconnect');
-  reply(fixture.requests[2], { status: 'disconnected' }); await tick();
+  assert.equal(fixture.requests[2].options.data.command, 'resume');
+  reply(fixture.requests[2]); await tick();
+  assert.equal(fixture.requests[3].options.data.command, 'reconnect');
+  reply(fixture.requests[3], { status: 'disconnected' }); await tick();
   assert.equal(service.snapshot().sessionId, 'session-1');
   assert.equal(page.data.stop.id, stageIds[1]);
   assert.equal(assignments(), 2);

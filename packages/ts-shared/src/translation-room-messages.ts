@@ -17,7 +17,7 @@ const zhCN = {
   checking: '正在确认账号权限…', hostReady: '选择讲话语言，创建或返回讲解房间', touristReady: '输入房间码并选择语言，开始收听', joined: '已加入，等待下一段讲解',
   muted: '收听已暂停', blocked: '浏览器已暂停声音，请点击恢复收听', playing: '正在播放译音', received: '本段译音已接收，等待下一段讲解', waitingAudio: '等待下一段译音',
   noAudio: '本段只收到译文，未收到语音，请等待下一段讲解', playbackFailed: '译音播放失败，请恢复声音后等待下一段讲解', unavailableAudio: '本段语音不可用，请阅读字幕',
-  pausedHost: '车夫暂时离线，讲解暂停', draining: '讲解即将结束，正在接收剩余语音', closed: '房间已关闭', endedPlaying: '讲解已结束，剩余语音将继续播放',
+  pausedHost: '车夫暂时离线，讲解暂停', draining: '讲解即将结束，正在接收剩余语音', closed: '车夫已解散房间', endedPlaying: '讲解已结束，剩余语音将继续播放',
   disconnected: '连接已断开，请重新连接房间；旧语音不会重播', networkError: '连接失败，请检查网络后重试', operationFailed: '操作失败，请重试',
   created: '房间已创建，点击开始讲解开启麦克风', languageChanged: '当前语音已停止，请选择语言并重新收听', otherAudio: '其他内容正在播放，回到房间可恢复收听', suspended: '讲解已暂停，请返回房间重新连接',
   invalidCode: '请输入八位房间码', notHost: '当前账号未获车夫授权', loginRequired: '请先登录', accountChanged: '账号或房间已切换，请重试', needRoom: '请先返回讲解房间',
@@ -223,6 +223,7 @@ export function formatRoomMessage(template: string, values: Record<string, strin
 
 const noticeKeys = new Map<string, keyof RoomMessages>(Object.entries(zhCN).map(([key, value]) => [value, key as keyof RoomMessages]))
 const aliases: Partial<Record<keyof RoomMessages, string[]>> = {
+  closed: ['房间已关闭'],
   muted: ['收听已暂停，点击恢复声音'],
   created: ['房间已创建，可返回导航；开始讲解后保持麦克风开启'],
   live: ['讲解中', '正在讲解，可返回导航继续游览', '正在讲解，游客按各自选择的语言收听'],

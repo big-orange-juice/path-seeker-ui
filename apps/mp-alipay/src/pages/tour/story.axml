@@ -8,7 +8,7 @@
     <view a:if="{{stop.images.length > 1}}" class="story-image-navigation"><button size="mini" onTap="previousImage" disabled="{{!imageIndex}}" aria-label="{{messages.previousImage}}">‹</button><text>{{(imageIndex || 0) + 1}} / {{stop.images.length}}</text><button size="mini" onTap="nextImage" disabled="{{imageIndex >= stop.images.length - 1}}" aria-label="{{messages.nextImage}}">›</button></view>
     <view a:if="{{stop.images[imageIndex || 0].caption}}" class="story-image-caption">{{stop.images[imageIndex || 0].caption}}</view>
   </view>
-  <view a:if="{{driverManaged}}" class="follow-story" catchTap="ignorePlaybackTap"><view class="follow-wave {{playing ? 'is-playing' : ''}}"><view/><view/><view/><view/><view/></view><view><text>{{followStatus || '跟随中 · 到站自动讲解'}}</text><view class="follow-help">内容可浏览，手动播放请先关闭跟随车夫</view></view></view>
+  <view a:if="{{driverManaged}}" class="follow-story" catchTap="ignorePlaybackTap"><view class="follow-wave {{playing ? 'is-playing' : ''}}"><view/><view/><view/><view/><view/></view><view><text>{{followStatus || '讲解尚未连接'}}</text><view class="follow-help">内容可浏览，手动播放请先关闭跟随车夫</view></view></view>
   <view a:else class="story-controls">
     <button class="primary grow" onTap="togglePlay" disabled="{{busy || loading || !canPlayStop}}">{{playingStopId && playingStopId !== stop.id ? messages.enterStopPlay : playing ? messages.pause : paused ? messages.resume : messages.play}}</button>
     <button onTap="replay" disabled="{{busy || loading || !canPlayStop || playingStopId && playingStopId !== stop.id}}">{{messages.replayStop}}</button>

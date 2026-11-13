@@ -150,6 +150,25 @@ test('a second background transition aborts a pending rejoin without losing its 
   assert.equal(sockets.length, 2);
 });
 
+test('foreground recovery of a dissolved room clears errors and cache without retrying', async context => {
+  const { fixture, session, join } = setup(context);
+  join(); session.suspend();
+  const pending = session.resume();
+  fixture.requests[0].options.success({ status: 400, data: { code: 10001, message: '房间已结束，不能继续加入或输入' } });
+  await pending;
+  const state = session.snapshot();
+  assert.equal(state.room.status, 'closed');
+  assert.equal(state.following, false);
+  assert.equal(state.reconnecting, false);
+  assert.equal(state.error, '');
+  assert.equal(state.notice, '车夫已解散房间');
+  assert.equal(fixture.storage.has(cacheKey), false);
+  session.suspend();
+  context.mock.timers.tick(60000); await session.resume();
+  assert.equal(fixture.requests.length, 1);
+  assert.equal(session.snapshot().notice, '车夫已解散房间');
+});
+
 test('handshake timeout and missing business pong both lead to guest recovery', async context => {
   const { fixture, session, join, ready } = setup(context);
   join();

@@ -12,6 +12,8 @@ const { diag } = require('../../services/diag');
 const tour = require('../../core/tour');
 const ui = require('../../core/ui');
 const config = require('../../config');
+const backgroundListening = require('../../services/background-listening');
+const interruption = require('../../services/audio-interruption');
 const translation = require('../../services/translation-session');
 const tourAudio = require('../../services/tour-audio-session');
 const { locales } = config;
@@ -80,9 +82,29 @@ Page({
     });
   },
   skipVideo() { const video = this.data.videoItem; if (video) audio.videoEvent('skip', video.generation, video.id); },
+  serverAudioReadiness() {
+    const roomState = translation.snapshot(), room = roomState.room, visit = this.data.visit, route = this.data.route;
+    if (!auth.current()) return { code: 'login-required', message: '请先登录，再连接讲解' };
+    if (!tourAudio.supported()) return { code: 'unsupported', message: '当前环境暂不支持持续讲解，请检查支付宝版本及服务配置' };
+    if (!room || typeof room.roomId !== 'string' || !room.roomId) return { code: 'room-required', message: '请先加入房间，再连接讲解' };
+    if (room.isHost) return { code: 'host', message: '请使用游客身份加入房间收听讲解' };
+    if (['closed', 'draining'].includes(room.status)) return { code: 'room-ended', message: roomState.displayNotice || '车夫已解散房间' };
+    if (roomState.reconnecting && !tourAudio.activeForRoom(room.roomId)) return { code: 'room-reconnecting', message: '正在恢复讲解连接，请稍候' };
+    if (!route || typeof route.id !== 'string' || !route.id) return { code: 'route-required', message: '请先选择讲解路线' };
+    if (!visit || visit.status !== 1 || typeof visit.visitId !== 'string' || !visit.visitId) return { code: 'visit-required', message: '请先开始当前路线的游览，再连接讲解' };
+    if (visit.routeId && visit.routeId !== route.id) return { code: 'visit-mismatch', message: '游览与当前路线不一致，请重新开始当前路线' };
+    return { code: 'ready', message: '' };
+  },
   serverAudioEnabled() {
-    const room = translation.snapshot().room, visit = this.data.visit;
-    return !!(tourAudio.supported() && room && !room.isHost && typeof room.roomId === 'string' && !['closed', 'draining'].includes(room.status) && visit && visit.status === 1 && this.data.route);
+    return this.serverAudioReadiness().code === 'ready';
+  },
+  applyServerReadiness(readiness) {
+    this.setData({ audioError: ['room-ended', 'room-reconnecting'].includes(readiness.code) ? '' : readiness.message,
+      followStatus: readiness.message, audioCreating: false, roomNotice: readiness.code === 'room-ended' ? readiness.message : '' });
+  },
+  serverAudioKey() {
+    const options = this.serverAudioOptions();
+    return [ui.userId(), auth.version(), options.roomId, options.visitId, options.routeId, options.guideId || '', options.language].join('|');
   },
   driverManaged() { return !!(this.data.locationEnabled && translation.snapshot().following !== false && this.serverAudioEnabled()); },
   serverAudioOptions(startStageId = '') {
@@ -96,13 +118,15 @@ Page({
       roomMuted: !!translation.snapshot().paused,
       paused: !!this._userPaused, lockContent: this.driverManaged() ? false : !!(this.data.lockContent || this._visible && (this.data.contentOpen || this.data.queueOpen)) };
   },
-  async ensureServerAudio(startStageId = '', requireIntent = false) {
-    if (!this.serverAudioEnabled() || this._asking || this.data.chatOpen) return null;
+  async ensureServerAudio(startStageId = '', requireIntent = false, recoverMembership = true) {
+    const readiness = this.serverAudioReadiness();
+    if (readiness.code !== 'ready') { this.applyServerReadiness(readiness); return null; }
+    if (this._asking || this.data.chatOpen) { this.setData({ followStatus: '问答中，讲解暂歇' }); return null; }
     if (startStageId && this.driverManaged()) return null;
     const action = startStageId || requireIntent ? this._serverAction = {} : null;
     if (action) { this._serverExtraRequest = null; audio.stop('tour-extra'); }
     if (!this._serverSubscription) this._serverSubscription = tourAudio.subscribe(value => this.applyServerAudio(value));
-    const key = this.data.visit.visitId + ':' + this.data.route.id, user = this._user, rev = this._rev;
+    const key = this.serverAudioKey(), user = this._user, rev = this._rev;
     const options = this.serverAudioOptions(startStageId), accountVersion = auth.version();
     const current = () => (!action || action === this._serverAction) && user === this._user && user === ui.userId() && rev === this._rev && accountVersion === auth.version()
       && this.serverAudioEnabled() && ['roomId', 'visitId', 'routeId', 'guideId', 'language'].every(name => this.serverAudioOptions()[name] === options[name]);
@@ -116,7 +140,21 @@ Page({
       this.setData({ driverAligning: false });
       if (startStageId && (state.stageId !== startStageId || (state.queue || []).some(item => item.stageId === startStageId && ['emitted', 'failed', 'skipped', 'completed'].includes(item.status)))) return await tourAudio.control('select', { stageId: startStageId }, state.sessionId);
       return state;
-    } catch (error) { if (!error.cancelled && current()) { this._serverFailedKey = key; this.setData({ audioError: error.message }); } throw error; }
+    } catch (error) {
+      if (!error.cancelled && current() && recoverMembership && error.status === 403 && error.code === 10003 && error.message === '请先加入房间') {
+        await translation.recoverRoom(options.roomId);
+        if (translation.snapshot().room && translation.snapshot().room.roomId === options.roomId && this.serverAudioReadiness().code === 'room-ended') {
+          this.applyServerReadiness(this.serverAudioReadiness()); return null;
+        }
+        if (user === this._user && user === ui.userId() && rev === this._rev && accountVersion === auth.version()
+          && translation.snapshot().room && translation.snapshot().room.roomId === options.roomId && translation.snapshot().reconnecting) {
+          this._serverFailedKey = ''; this.applyServerReadiness(this.serverAudioReadiness()); return null;
+        }
+        if (current()) return this.ensureServerAudio(startStageId, requireIntent, false);
+      }
+      if (!error.cancelled && current()) { this._serverFailedKey = key; this.setData({ audioError: error.message }); }
+      throw error;
+    }
   },
   applyServerAudio(value) {
     if (this._user !== ui.userId() || this._authVersion !== undefined && this._authVersion !== auth.version()) return;
@@ -133,7 +171,16 @@ Page({
     }
     if (value.active) this._serverSession = true;
     const state = value.state, visit = this.data.visit, route = this.data.route;
-    if (!state || !visit || !route || state.visitId !== visit.visitId || state.routeId !== route.id) { if (value.error) this.setData({ audioError: value.error }); return; }
+    const interruptionNotice = interruption.snapshot().active ? '其他应用正在使用音频，讲解已暂停' : '音频已暂停，请点击重新连接继续收听';
+    if (!state) {
+      const readiness = this.serverAudioReadiness();
+      if (['room-ended', 'room-reconnecting'].includes(readiness.code)) { this.applyServerReadiness(readiness); return; }
+      if (value.active && interruption.blocked()) { this.setData({ audioCreating: value.creating, audioRecovering: false, audioError: '', paused: true, followStatus: interruptionNotice }); return; }
+      this.setData({ audioCreating: value.creating, audioRecovering: false, audioError: value.error || '',
+        followStatus: value.creating ? '正在连接讲解，请稍候' : value.error ? '讲解未连接，请重试' : this.serverAudioReadiness().message || '讲解尚未连接' });
+      return;
+    }
+    if (!visit || !route || state.visitId !== visit.visitId || state.routeId !== route.id) return;
     const playback = audio.snapshot(), owns = playback.live && playback.item && playback.item.id === state.sessionId;
     const audible = value.audible || {}, audibleStage = audible.stageId || '';
     const index = this.data.stops.findIndex(stop => stop.id === audibleStage);
@@ -149,16 +196,16 @@ Page({
     }).filter(Boolean);
     const time = Number(audible.itemTimeSeconds) || 0, duration = Number(audible.itemDurationSeconds) || 0;
     const healthy = owns && playback.playing && !playback.failed && !value.stalled && !value.pausedIntent && !value.heldIntent;
-    const followStatus = value.recovering ? '正在重新连接' : value.error ? '播放中断，请重新连接' : value.pausedIntent ? '已暂停，可重新连接继续' : value.heldIntent ? '问答中，讲解暂歇'
+    const followStatus = interruption.blocked() ? interruptionNotice : value.recovering ? '正在重新连接' : value.error ? '播放中断，请重新连接' : value.pausedIntent ? '已暂停，可重新连接继续' : value.heldIntent ? '问答中，讲解暂歇'
       : !healthy ? '正在连接讲解' : audible.kind === 'idle' ? '沿途趣事' : audible.kind === 'room' ? '车夫正在讲解' : audible.kind === 'route' ? '正在自动讲解' : '跟随中 · 到站自动讲解';
     this._userPaused = value.pausedIntent || !!(owns && playback.nativePaused);
     this.setData({ visit: nextVisit, sequence, queuedCount: sequence.filter(item => item.status === 'queued').length,
       playing: !!(healthy && ['route', 'room', 'idle'].includes(audible.kind)), followStatus,
-      audioRecovering: value.recovering, audioLag: Math.round(value.lagSeconds || 0),
-      paused: value.pausedIntent || value.heldIntent || !!(owns && playback.nativePaused), playingStopId: audibleStage,
+      audioCreating: false, audioRecovering: value.recovering, audioLag: Math.round(value.lagSeconds || 0),
+      paused: interruption.blocked() || value.pausedIntent || value.heldIntent || !!(owns && playback.nativePaused), playingStopId: audibleStage,
       timeLabel: ui.clock(time), durationLabel: ui.clock(duration), hasDuration: duration > 0,
       progress: duration > 0 ? Math.max(0, Math.min(100, time / duration * 100)) : 0,
-      itemTitle: audible.title || '', audioError: value.error || state.error || '', driverAligning: false,
+      itemTitle: audible.title || '', audioError: interruption.blocked() ? '' : value.error || state.error || '', driverAligning: false,
       ...(audibleStage && !this._manualBrowse ? { selectionMode: 'formal', browsing: false } : {}),
       ...(nextVisit.status !== 1 ? { tourStage: 'overview', contentOpen: false, queueOpen: false } : {}) });
     if (playback.owner === 'tour-extra') this.updateServerExtraProgress(playback);
@@ -174,15 +221,29 @@ Page({
     return tourAudio.control(command, values).then(state => command === 'seek' && state ? tourAudio.setPaused(false, state.sessionId) : state).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); return null; });
   },
   retryAudio() {
-    if (this.data.busy || this.data.loading || this._asking || this.data.audioRecovering) return;
+    if (this.data.busy || this.data.loading || this._asking || this.data.chatOpen || this.data.audioRecovering || this._audioRetry || tourAudio.snapshot().creating) return;
+    const room = translation.snapshot().room, readiness = this.serverAudioReadiness();
+    if (tourAudio.supported() && room && !room.isHost && readiness.code !== 'ready') { this.applyServerReadiness(readiness); return; }
+    if (!interruption.resumeManually()) { my.showToast({ content: '其他应用正在使用音频，请结束后重试', type: 'none' }); return; }
     if (!this.driverManaged()) { this.play(true); return; }
-    this.ensureServerAudio().then(state => state && tourAudio.setPaused(false, state.sessionId)).catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); });
+    this._manualBrowse = false;
+    const playback = audio.snapshot();
+    if (playback.live && playback.owner === 'tour') audio.pause();
+    this._audioRetry = this.ensureServerAudio('', true).then(state => state && tourAudio.control('realign', {}, state.sessionId))
+      .then(state => state && tourAudio.setPaused(false, state.sessionId))
+      .catch(error => { if (!error.cancelled) this.setData({ audioError: error.message }); }).finally(() => { this._audioRetry = null; });
   },
   copyAudioReport() {
     const report = tourAudio.diagnostics(), info = my.getSystemInfoSync();
     report.device = { platform: info.platform, system: info.system, model: info.model, version: info.version, SDKVersion: info.SDKVersion };
     report.routeId = this.data.route && this.data.route.id || '';
     report.selectedStageId = this.data.stop && this.data.stop.id || '';
+    const room = translation.snapshot().room;
+    report.startup = { readiness: this.serverAudioReadiness(), roomId: room && room.roomId || '', roomStatus: room && room.status || '',
+      visitId: this.data.visit && this.data.visit.visitId || '', visitStatus: this.data.visit && this.data.visit.status,
+      language: this.data.locale, tourStage: this.data.tourStage, following: !!this.data.locationEnabled, screenOffListening: backgroundListening.enabled(),
+      busy: !!this.data.busy, loading: !!this.data.loading, asking: !!(this._asking || this.data.chatOpen),
+      automaticRetryBlocked: !!(this.serverAudioEnabled() && this._serverFailedKey === this.serverAudioKey()) };
     my.setClipboard({ text: JSON.stringify(report, null, 2), success: () => my.showToast({ content: '已复制诊断记录，不含登录凭证和音频地址', type: 'none' }) });
   },
   syncServerPreferences() {
@@ -192,17 +253,29 @@ Page({
   },
   useServerScheduler() {
     if (tourAudio.active()) return true;
-    if (!this.serverAudioEnabled() || this.data.tourStage !== 'navigation') return false;
-    const key = this.data.visit.visitId + ':' + this.data.route.id;
+    if (this.data.tourStage !== 'navigation') return false;
+    if (!this.serverAudioEnabled()) {
+      const room = translation.snapshot().room;
+      const readiness = this.serverAudioReadiness();
+      if (['room-ended', 'room-reconnecting'].includes(readiness.code)) { this.applyServerReadiness(readiness); return true; }
+      if (tourAudio.supported() && room && !room.isHost && translation.snapshot().following && !this.data.loading && !this.data.busy) {
+        this.applyServerReadiness(readiness);
+        return true;
+      }
+      return false;
+    }
+    const key = this.serverAudioKey();
+    if (this._serverFailedKey === key) this.applyServerAudio(tourAudio.snapshot());
     if (!this.data.busy && !this.data.loading && this._serverFailedKey !== key) this.ensureServerAudio().catch(() => {});
     return true;
   },
   me() { my.navigateTo({ url: '/pages/me/index' }); },
   postcard() { const stop = this.data.stop; if (!stop || !stop.experience || !stop.experience.enabled) return; const visit = this.data.visit; if (!visit) { my.showToast({ content: '请先开始本条路线的游览', type: 'none' }); return; } audio.pause(); my.navigateTo({ url: '/pages/postcards/index?routeId=' + encodeURIComponent(this.data.route.id) + '&stageId=' + encodeURIComponent(stop.id) + '&visitId=' + encodeURIComponent(visit.visitId) }); },
   translationRoom() { translation.prepareEntry(this.data.locale); my.navigateTo({ url: '/pages/translation-room/index' }); },
-  data: { driverAligning: false, mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], queuedCount: 0, lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, selectionMode: 'preview', busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: false, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: tourMessages('zh').locationHint, candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
+  data: { mapToolsOpen: false, driverAligning: false, mapSkew: 0, mapSettings: { enableBuilding: 1, tiltGesturesEnabled: 1, rotateGesturesEnabled: 1 }, messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, queueOpen: false, destinationName: '', sequence: [], queuedCount: 0, lockContent: false, locales, localeIndex: 0, locale: 'zh', destinations: [], destinationIndex: 0, routes: [], search: '', route: null, stops: [], stop: null, stopIndex: 0, guides: [], guideIndex: 0, chapters: [], visit: null, browsing: true, selectionMode: 'preview', busy: false, loading: false, error: '', audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop: false, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '', autoplay: false, skipExtra: false, locationEnabled: false, following: false, showRoute: true, locationNote: tourMessages('zh').locationHint, candidates: [], recording: false, transcribing: false, cancelRecording: false, map: { longitude: 116.383, latitude: 39.937, markers: [], polyline: [], includePoints: [] } },
   onLoad(query = {}) { this._rev = 0; this._visible = true; this._asking = false; this._dismissedCandidates = new Set(); this._arrivalLogged = new Set(); this._arrivalPreviousFix = null; this._launch = { list: query.view === 'routes', routeId: typeof query.routeId === 'string' ? query.routeId : '', routeCode: typeof query.routeCode === 'string' ? query.routeCode : '', destinationId: typeof query.destinationId === 'string' ? query.destinationId : '', locale: locales.some(l => l.value === query.lang) ? query.lang : '' }; this.setData({ messages: Object.assign({}, tourMessages('zh'), arrivalMessages('zh')), arrivalCandidate: null, arrivalCountdown: '', tourStage: 'language', contentOpen: false, sequence: [], queuedCount: 0, lockContent: false, chatOpen: false, immersive: false, mapScale: 15, mapRotation: 0, mapSkew: 0 }); this.initialize(); },
   onShow() {
+    this.setData({ screenOffListening: backgroundListening.enabled() });
     this._visible = true;
     this.syncServerPreferences();
     tourAudio.setForeground(true);
@@ -360,7 +433,7 @@ Page({
     const chapters = tour.sorted(guides[guideIndex] && guides[guideIndex].chapters);
     const canPlayStop = !!(chapters.length || stop && (stop.video || (stop.extraAudios || []).some(item => item && item.url)));
     const selectionMode = browsing ? this.data.visit && this.data.visit.status === 1 && this.data.tourStage === 'navigation' ? 'browse' : 'preview' : 'formal';
-    this.setData({ stopIndex: index, stop, guides, guideIndex, chapters, browsing, selectionMode, imageIndex: 0, audioError: '', playing: false, paused: false, playingStopId: '', canPlayStop, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '' });
+    this.setData({ stopIndex: index, stop, guides, guideIndex, chapters, browsing, selectionMode, imageIndex: 0, audioError: this.serverAudioEnabled() ? tourAudio.snapshot().error || '' : '', playing: false, paused: false, playingStopId: '', canPlayStop, hasDuration: false, timeLabel: '0:00', durationLabel: '0:00', progress: 0, itemTitle: '' });
     this.syncContext();
   },
   browse(event) { const index = Number(ui.dataset(event).index); if (this.data.busy || this.data.loading || !this.data.stops[index]) return; if (this.data.visit && this.data.visit.status === 1) this.mutate(() => this.enter(index)); else { this._manualBrowse = true; this.showStop(index, true); } },
@@ -419,7 +492,8 @@ Page({
     this.setData({ mapSkew: 50, mapScale: 18, mapRotation: follow && Number.isFinite(this._fix.heading) ? this._fix.heading : 0, 'map.longitude': center.longitude, 'map.latitude': center.latitude, 'map.includePoints': [] }, () => this.mapReady());
   },
   overview() { this.setData({ following: false, mapSkew: 0, mapRotation: 0, 'map.includePoints': this.data.map.markers.filter(marker => marker.id !== 0).map(finiteCoordinate).filter(Boolean) }); if (my.createMapContext && this.data.map.includePoints.length) my.createMapContext('tour-map').includePoints({ points: this.data.map.includePoints, padding: [30, 30, 30, 30] }); },
-  recenter() { this.setData({ following: true }); if (this._fix && isUsableLocation(this._fix, DEFAULT_APPROACH_POLICY)) this.followLocation(this._fix, true); else if (my.createMapContext) my.createMapContext('tour-map').moveToLocation(); },
+  toggleMapTools() { this.setData({ mapToolsOpen: !this.data.mapToolsOpen }); },
+  recenter() { this.setData({ following: true, mapToolsOpen: false }); if (this._fix && isUsableLocation(this._fix, DEFAULT_APPROACH_POLICY)) this.followLocation(this._fix, true); else if (my.createMapContext) my.createMapContext('tour-map').moveToLocation(); },
   toggleFollow() { if (!this.data.locationEnabled) return; this.setData({ following: !this.data.following, mapSkew: 50, mapScale: 18, 'map.includePoints': [] }); if (this.data.following && this._fix) this.followLocation(this._fix, true); },
   toggleRoute() { const showRoute = !this.data.showRoute; this.setData({ showRoute, 'map.polyline': showRoute ? (this._fullPolyline || []) : (this.data.map.boundaryLines || []) }); },
   zoomIn() { this.setData({ mapScale: Math.min(20, (this.data.mapScale || 15) + 1) }); },
@@ -549,8 +623,8 @@ Page({
     if (this._launch) { this._launch.locale = locales[index].value; await this.initialize(); }
     else { await this.chooseLocale({ detail: { value: index } }); }
   },
-  backToOverview() { if (this.data.busy || this.data.loading) return; this.clearArrivalPrompt(); this._dwell = null; this.setData({ tourStage: 'overview', contentOpen: false, queueOpen: false, candidates: [], immersive: false }); this.overview(); },
-  openContent() { this.clearArrivalPrompt(); if (this.data.stop) this.setData({ contentOpen: true, queueOpen: false }); this.syncServerPreferences(); },
+  backToOverview() { if (this.data.busy || this.data.loading) return; this.clearArrivalPrompt(); this._dwell = null; this.setData({ tourStage: 'overview', contentOpen: false, queueOpen: false, mapToolsOpen: false, candidates: [], immersive: false }); this.overview(); },
+  openContent() { this.clearArrivalPrompt(); if (this.data.stop) this.setData({ contentOpen: true, queueOpen: false, mapToolsOpen: false }); this.syncServerPreferences(); },
   closeContent() { this.setData({ contentOpen: false }); if (this.driverManaged()) { this._manualBrowse = false; this.applyServerAudio(tourAudio.snapshot()); } this.syncServerPreferences(); this.startNextSequence(); },
   changeContentSwitch(event) { this.changeLock({ detail: { value: !ui.value(event) } }); },
   toggleContent() { if (this.data.contentOpen) this.closeContent(); else this.openContent(); },
@@ -593,6 +667,13 @@ Page({
     if (this.data.driverAligning || this.data.busy || this.data.loading || !this.data.locationEnabled || !this.prepareDriverAlignment(true)) return;
     if (!this.alignDriverPosition()) this.watchLocation(true);
   },
+  toggleScreenOffListening() {
+    if (!config.background || !config.backgroundAudio) { my.showToast({ content: '当前版本未开启后台音频支持', type: 'none' }); return; }
+    const enabled = !backgroundListening.enabled();
+    backgroundListening.setEnabled(enabled);
+    this.setData({ screenOffListening: backgroundListening.enabled() });
+    my.showToast({ content: enabled ? '已开启息屏收听，切换其他 App 也会继续播放' : '已关闭，息屏或切换其他 App 后暂停', type: 'none' });
+  },
   alignDriverPosition() {
     const pending = this._driverAlignment, visit = this.data.visit, room = translation.snapshot().room;
     if (!pending || !visit || !room || pending.rev !== this._rev || pending.key !== room.roomId + ':' + visit.visitId
@@ -631,11 +712,12 @@ Page({
     try {
       const available = this.driverRoomAvailable();
       const roomState = translation.snapshot();
-      this.setData({ hasTranslationRoom: available });
+      const ended = roomState.room && roomState.room.status === 'closed';
+      this.setData({ hasTranslationRoom: available, roomNotice: ended ? roomState.displayNotice || '车夫已解散房间' : '' });
       if (!available && this.data.locationEnabled) {
         this._resumeDriverFollowing = roomState.reconnecting && roomState.following !== false;
         this.toggleLocation({ detail: { value: false } });
-        this.setData({ locationNote: driverMessages(this.data.locale).driverRoomRequired });
+        this.setData({ locationNote: driverMessages(this.data.locale)[ended ? 'driverRoomEnded' : 'driverRoomRequired'] });
       }
       if (!available && (this.data.autoplay || this.data.following)) {
         this.setData({ autoplay: false, following: false });
@@ -833,6 +915,7 @@ Page({
   togglePlay() {
     if (this.driverManaged()) return;
     if (this.data.busy || this.data.loading) return;
+    if (!interruption.resumeManually()) { my.showToast({ content: '其他应用正在使用音频，请结束后重试', type: 'none' }); return; }
     const playback = audio.snapshot();
     if (tourAudio.active() && playback.owner === 'tour-extra' && playback.item) {
       if (playback.playing) audio.pause(); else if (!this._asking) audio.resume('tour-extra');
