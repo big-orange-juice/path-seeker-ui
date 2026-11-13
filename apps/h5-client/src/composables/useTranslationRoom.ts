@@ -35,6 +35,9 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
   const echoSuppressed = shallowRef(false)
   const audioNotice = computed(() => echoSuppressed.value ? messages.value.echoPaused : audioError.value ? localizeRoomNotice(audioError.value, language.value, 'unavailableAudio') : muted.value ? messages.value.muted : audioBlocked.value ? messages.value.blocked : audioBusy.value ? messages.value.playing : audioReceived.value ? messages.value.received : messages.value.waitingAudio)
   const connected = shallowRef(false)
+  const following = shallowRef(true)
+  const continuousAudio = shallowRef(false)
+  const recovering = shallowRef(false)
   const navigationPath = shallowRef('/ride')
   const feed = shallowRef<RoomTextItem[]>([])
   const textFeed = new RoomTextFeed()
@@ -51,6 +54,7 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
   let cursor = new RoomEventCursor()
   let sessionVersion = 0
   let awaitingAudioSegment = false
+  let recovery: Promise<boolean> | null = null
   let pauseWaiter: { resolve: () => void; reject: (error: Error) => void } | null = null
   const echoGuard = createRoomEchoGuard(active => {
     echoSuppressed.value = active
@@ -133,7 +137,7 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
     if (event.type === 'text.delta') translated.value += String(payload.content || '')
     if (event.type === 'translation.final') {
       translated.value = String(payload.text || '')
-      if (!room.value?.isHost && !muted.value && translated.value.trim() && !audioReceived.value && !audioError.value) audioError.value = '本段只收到译文，未收到语音，请等待下一段讲解'
+      if (!continuousAudio.value && !room.value?.isHost && !muted.value && translated.value.trim() && !audioReceived.value && !audioError.value) audioError.value = '本段只收到译文，未收到语音，请等待下一段讲解'
     }
     if (event.type === 'audio.started') {
       audioError.value = ''
@@ -142,11 +146,11 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
     }
     if (event.type === 'audio.delta' && listening.value) {
       if (payload.audio) { audioReceived.value = true; audioError.value = '' }
-      if (echoGuard.isCapturing() || muted.value || awaitingAudioSegment || !audioFocus.isCurrent()) return
+      if (continuousAudio.value || echoGuard.isCapturing() || muted.value || awaitingAudioSegment || !audioFocus.isCurrent()) return
       audioBlocked.value = Boolean(context && context.state !== 'running' && !muted.value)
       player?.push(payload)
     }
-    if (event.type === 'audio.done' && !echoGuard.isCapturing() && !muted.value && !awaitingAudioSegment && audioFocus.isCurrent()) player?.flush()
+    if (event.type === 'audio.done' && !continuousAudio.value && !echoGuard.isCapturing() && !muted.value && !awaitingAudioSegment && audioFocus.isCurrent()) player?.flush()
     if (event.type === 'segment.error') {
       error.value = String(payload.message || '本段翻译暂不可用')
       if (payload.code === 'asr_capacity_exceeded') void stopMicrophone(false)
@@ -161,11 +165,70 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
     if (event.type === 'room.draining') { notice.value = '讲解即将结束，正在接收剩余语音'; questions.reset(false); if (room.value) room.value = { ...room.value, status: 'draining' } }
     if (event.type === 'room.closed') {
       questions.reset(false)
-      if (payload.mode === 'immediate') { player?.stop(); listening.value = false; audioFocus.release() }
-      notice.value = payload.mode === 'immediate' ? '房间已关闭' : '讲解已结束，剩余语音将继续播放'
+      if (payload.mode === 'immediate') { finishRoom(); return }
+      notice.value = '讲解已结束，剩余语音将继续播放'
       if (room.value) room.value = { ...room.value, status: 'closed' }
       void stopMicrophone(false)
       disconnectEvents()
+    }
+  }
+
+  function finishRoom() {
+    if (room.value) room.value = { ...room.value, status: 'closed' }
+    following.value = false
+    recovering.value = false
+    error.value = ''
+    audioError.value = ''
+    notice.value = '车夫已解散房间'
+    questions.reset(false)
+    player?.stop()
+    listening.value = false
+    audioFocus.release()
+    disconnectEvents()
+    void stopMicrophone(false)
+  }
+
+  function recoverRoom(roomId: string): Promise<boolean> {
+    if (recovery) return recovery
+    const previous = room.value
+    if (!previous || previous.roomId !== roomId || previous.isHost || ['closed', 'draining'].includes(previous.status)) return Promise.resolve(false)
+    const current = sessionVersion
+    const targetLanguage = language.value
+    recovering.value = true
+    let pending!: Promise<boolean>
+    pending = (async () => {
+      try {
+        const result = await roomRequest<TranslationRoom>('/join', { code: previous.code, targetLanguage })
+        if (!alive || current !== sessionVersion || language.value !== targetLanguage || room.value?.roomId !== roomId || ['closed', 'draining'].includes(room.value.status)) return false
+        if (result.roomId !== roomId) throw Error('房间已变更，请重新加入')
+        if (['closed', 'draining'].includes(result.status)) { finishRoom(); return false }
+        room.value = result
+        cursor = new RoomEventCursor(result.isHost)
+        connectEvents()
+        error.value = ''
+        return true
+      } catch (failure) {
+        if (current !== sessionVersion || language.value !== targetLanguage || room.value?.roomId !== roomId || ['closed', 'draining'].includes(room.value.status)) return false
+        const message = failure instanceof Error ? failure.message : ''
+        const closed = (failure as { statusCode?: number }).statusCode === 400
+          && ['房间码无效或房间已结束', '房间已结束或服务已重启，请重新加入', '房间已结束，不能继续加入或输入'].includes(message)
+        if (closed) { finishRoom(); return false }
+        throw failure
+      } finally {
+        if (recovery === pending) { recovery = null; recovering.value = false }
+      }
+    })()
+    recovery = pending
+    return pending
+  }
+
+  function setContinuousAudio(value: boolean) {
+    continuousAudio.value = value
+    if (value) {
+      player?.stop()
+      audioFocus.release()
+      audioError.value = ''
+      audioBlocked.value = false
     }
   }
 
@@ -241,6 +304,7 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
       if (!alive || current !== sessionVersion) throw Error('账号或房间已切换，请重试')
       if (room.value?.roomId !== result.roomId) { textFeed.clear(); feed.value = []; source.value = ''; translated.value = '' }
       room.value = result
+      following.value = true
       cursor = new RoomEventCursor(true)
       notice.value = '房间已创建，点击开始讲解开启麦克风'
       connectEvents()
@@ -261,10 +325,11 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
       if (!alive || current !== sessionVersion) throw Error('账号或房间已切换，请重试')
       if (room.value?.roomId !== result.roomId) { textFeed.clear(); feed.value = []; source.value = ''; translated.value = '' }
       room.value = result
+      following.value = true
       cursor = new RoomEventCursor(result.isHost)
       listening.value = !result.isHost
       awaitingAudioSegment = false
-      if (!result.isHost) audioFocus.claim()
+      if (!result.isHost && !continuousAudio.value) audioFocus.claim()
       connectEvents()
     })
   }
@@ -369,6 +434,8 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
     audioReceived.value = false
     audioError.value = ''
     room.value = null
+    continuousAudio.value = false
+    following.value = true
     textFeed.clear()
     feed.value = []
     source.value = ''
@@ -382,6 +449,7 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
 
   function toggleMute() {
     return perform(async () => {
+      if (continuousAudio.value && !room.value?.isHost) { muted.value = !muted.value; return }
       if (!context || room.value?.isHost) return
       if (muted.value || audioBlocked.value || audioError.value) {
         await unlockAudio()
@@ -416,14 +484,14 @@ export const useTranslationRoomStore = defineStore('translation-room', () => {
     if (!room.value) setLanguage(value)
   }
 
-  return { room, canHost, permissionPending, source, translated, notice, error, language, messages, displayNotice, displayError, busy, listening, speaking, muted, audioBlocked, audioNotice, audioReceived, audioError, echoSuppressed, connected, navigationPath, feed,
+  return { room, canHost, permissionPending, source, translated, notice, error, language, messages, displayNotice, displayError, busy, listening, speaking, muted, audioBlocked, audioNotice, audioReceived, audioError, echoSuppressed, connected, following, continuousAudio, recovering, navigationPath, feed,
     questions: questions.questions, questionRecording: questions.recording, questionUploading: questions.uploading, questionPlaying: questions.playing, questionError: questions.error,
     startQuestion: questions.startRecording, stopQuestion: questions.stopRecording, cancelQuestion: questions.cancelRecording,
     listenQuestions: () => perform(questions.listen), stopQuestions: questions.stopPlayback,
-    prepareEntry, setLanguage, loadPermission, create, join, startSpeaking, end, leave, toggleMute, changeLanguage }
+    prepareEntry, setLanguage, loadPermission, create, join, startSpeaking, end, leave, toggleMute, changeLanguage, finishRoom, recoverRoom, setContinuousAudio }
 })
 
 export function useTranslationRoom() {
   const store = useTranslationRoomStore()
-  return { ...storeToRefs(store), startQuestion: store.startQuestion, stopQuestion: store.stopQuestion, cancelQuestion: store.cancelQuestion, listenQuestions: store.listenQuestions, stopQuestions: store.stopQuestions, prepareEntry: store.prepareEntry, setLanguage: store.setLanguage, loadPermission: store.loadPermission, create: store.create, join: store.join, startSpeaking: store.startSpeaking, end: store.end, leave: store.leave, toggleMute: store.toggleMute, changeLanguage: store.changeLanguage }
+  return { ...storeToRefs(store), startQuestion: store.startQuestion, stopQuestion: store.stopQuestion, cancelQuestion: store.cancelQuestion, listenQuestions: store.listenQuestions, stopQuestions: store.stopQuestions, prepareEntry: store.prepareEntry, setLanguage: store.setLanguage, loadPermission: store.loadPermission, create: store.create, join: store.join, startSpeaking: store.startSpeaking, end: store.end, leave: store.leave, toggleMute: store.toggleMute, changeLanguage: store.changeLanguage, finishRoom: store.finishRoom, recoverRoom: store.recoverRoom, setContinuousAudio: store.setContinuousAudio }
 }

@@ -35,6 +35,7 @@ const props = defineProps<{
   /** 已播秒数与总时长，用于展示进度（系统语音无精确时长时总时长为 0） */
   playedSeconds: number
   durationSeconds: number
+  driverManaged?: boolean
 }>()
 const emit = defineEmits<{
   close: []
@@ -53,7 +54,7 @@ const extraAudios = computed(() => props.stop?.extraAudios ?? [])
 const hasPlayableChapter = computed(() => Boolean(props.narration?.chapters?.length))
 const hasPlayableExtra = computed(() => extraAudios.value.some(item => item.url))
 // 整站播放包含额外音频、讲解章节与节点视频。
-const canPlay = computed(() => hasPlayableChapter.value || Boolean(props.stop?.video) || hasPlayableExtra.value)
+const canPlay = computed(() => !props.driverManaged && (hasPlayableChapter.value || Boolean(props.stop?.video) || hasPlayableExtra.value))
 /** 播放主按钮：展示别的节点时是"进入本节点播放"，同节点时是播放/暂停切换 */
 const playLabel = computed(() => {
   if (!props.matchesPlaying) return props.messages.enterStopPlay
@@ -90,14 +91,14 @@ function stopNumber(order: number) {
     <p v-if="browsing" class="tour-story-alert" role="status">{{ messages.browsingNoProgress }}</p>
     <TourImageCarousel :key="stop.id" :images="stop.images" :title="stop.name || messages.content" :previous-label="messages.previousImage" :next-label="messages.nextImage" />
     <div class="tour-story-controls">
-      <button type="button" :disabled="(!canPlay && matchesPlaying) || pending" @click="emit('play')"><Play v-if="!playing || !matchesPlaying" :size="14" aria-hidden="true" /><Pause v-else :size="14" aria-hidden="true" />{{ playLabel }}</button>
+      <button type="button" :disabled="driverManaged || (!canPlay && matchesPlaying) || pending" @click="emit('play')"><Play v-if="!playing || !matchesPlaying" :size="14" aria-hidden="true" /><Pause v-else :size="14" aria-hidden="true" />{{ playLabel }}</button>
       <button type="button" :disabled="!matchesPlaying || !canPlay || pending" @click="emit('replay')"><RotateCcw :size="14" aria-hidden="true" />{{ messages.replayStop }}</button>
       <div class="tour-seek-controls">
         <button type="button" class="tour-seek" :disabled="seekDisabled" :aria-label="messages.rewind15" :title="messages.rewind15" @click="emit('seek', -15)"><SkipBack :size="14" aria-hidden="true" />{{ messages.rewind15 }}</button>
         <button type="button" class="tour-seek" :disabled="seekDisabled" :aria-label="messages.forward15" :title="messages.forward15" @click="emit('seek', 15)"><SkipForward :size="14" aria-hidden="true" />{{ messages.forward15 }}</button>
       </div>
       <button v-if="!matchesPlaying" type="button" :disabled="pending" @click="emit('keepPlaying')">{{ messages.keepNarration }}</button>
-      <select v-if="narrations.length > 1" :disabled="!matchesPlaying || pending" :value="narration?.guideId || ''" :aria-label="messages.guide" @change="emit('guide', ($event.target as HTMLSelectElement).value)"><option v-for="item in narrations" :key="item.id" :value="item.guideId || ''">{{ item.guideName }} · {{ item.specialty }}</option></select>
+      <select v-if="narrations.length > 1" :disabled="driverManaged || !matchesPlaying || pending" :value="narration?.guideId || ''" :aria-label="messages.guide" @change="emit('guide', ($event.target as HTMLSelectElement).value)"><option v-for="item in narrations" :key="item.id" :value="item.guideId || ''">{{ item.guideName }} · {{ item.specialty }}</option></select>
     </div>
     <p v-if="progressText" class="tour-queue-status" role="status">{{ messages.playbackProgress }}：{{ progressText }}</p>
     <p v-if="playingLabel" class="tour-queue-status" role="status" aria-live="polite">
@@ -111,7 +112,8 @@ function stopNumber(order: number) {
     <button v-if="stop.experience?.enabled" type="button" class="tour-complete" @click="emit('postcard')">制作电子明信片</button>
     <div v-if="hasPlayableChapter" class="tour-story-text"><section v-for="chapter in narration?.chapters" :key="chapter.id || chapter.order"><h3 v-if="chapter.title">{{ chapter.title }}</h3><p>{{ chapter.text }}</p><p v-for="media in chapter.interludes" :key="media.id">{{ media.kind === 'video' ? '视频' : '音乐' }} · {{ media.title }}</p></section></div>
     <p v-else class="tour-story-text">{{ messages.noNarration }}</p>
-    <button v-if="stop.video" type="button" class="tour-story-video" :disabled="pending || !matchesPlaying" @click="emit('playVideo')"><Play :size="16" aria-hidden="true" />{{ messages.video }}</button>
+    <p v-if="driverManaged" class="tour-story-alert" role="status">跟随车夫时由到站位置自动播放，关闭跟随后可手动选播。</p>
+    <button v-if="stop.video" type="button" class="tour-story-video" :disabled="driverManaged || pending || !matchesPlaying" @click="emit('playVideo')"><Play :size="16" aria-hidden="true" />{{ messages.video }}</button>
   </aside>
 </template>
 

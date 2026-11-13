@@ -13,6 +13,7 @@ import TourArrivalPrompt from '@/components/tour/TourArrivalPrompt.vue'
 import TourPlaybackQueue from '@/components/tour/TourPlaybackQueue.vue'
 import TourPlaybackDock from '@/components/tour/TourPlaybackDock.vue'
 import { useTourJourney } from '@/composables/useTourJourney'
+import { useDriverTour } from '@/composables/useDriverTour'
 import { useFullscreen } from '@/composables/useFullscreen'
 import { useMinimaxVoiceRecognition } from '@/composables/useMinimaxVoiceRecognition'
 import VoiceWave from '@/components/shell/VoiceWave.vue'
@@ -52,6 +53,13 @@ let resumeNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let drawerReturnFocus: HTMLElement | null = null
 let previousBodyOverflow = ''
 const messages = computed(() => tourMessages(journey.locale.value))
+const driver = useDriverTour(journey, translation, computed(() => askStore.open || askStore.voiceInputActive || askStore.isSseAudioBusy))
+const playedSeconds = computed(() => driver.managed.value ? driver.playback.value.audible?.time ?? 0 : journey.speech.playedSeconds.value)
+const durationSeconds = computed(() => driver.managed.value ? driver.playback.value.audible?.duration ?? 0 : journey.speech.currentItemDuration.value)
+function togglePlayback() {
+  if (driver.managed.value) driver.togglePlayback()
+  else journey.togglePlayback()
+}
 async function enterVideoFullscreen() {
   if (!journey.speech.videoElement.value) return
   try {
@@ -81,14 +89,16 @@ const errorText = computed(() => {
   const error = journey.error.value
   return error in messages.value ? messages.value[error as keyof typeof messages.value] : error
 })
-const speechError = computed(() => journey.speech.error.value === 'voiceMissing' ? messages.value.voiceMissing : journey.speech.error.value ? messages.value.playbackFailed : '')
-const speechStatus = computed(() => journey.speech.status.value)
+const speechError = computed(() => driver.managed.value ? driver.ended.value ? '' : driver.playback.value.error || driver.actionError.value
+  : journey.speech.error.value === 'voiceMissing' ? messages.value.voiceMissing : journey.speech.error.value ? messages.value.playbackFailed : '')
+const speechStatus = computed(() => driver.managed.value ? driver.playback.value.playing ? 'playing' : 'paused' : journey.speech.status.value)
 const isPlaying = computed(() => speechStatus.value === 'playing')
 const isPaused = computed(() => speechStatus.value === 'paused')
-const canSeek = computed(() => journey.speech.canSeek.value)
+const canSeek = computed(() => !driver.managed.value && journey.speech.canSeek.value)
 /** 底部条与抽屉共用的主按钮文案 */
 const playLabel = computed(() => isPlaying.value ? messages.value.pause : isPaused.value ? messages.value.resume : messages.value.play)
 const locationStatus = computed(() => {
+  if (driver.managed.value) return driver.locationNotice.value
   // 权限被拒与"暂时没拿到定位"分开提示：前者要去改设置，后者只需等待，仍可手动选择站点
   if (journey.locationPermissionDenied.value) return messages.value.permissionDenied
   if (journey.locationError.value) return messages.value.locationFailed
@@ -98,6 +108,7 @@ const locationStatus = computed(() => {
 })
 /** 当前节点是否有可播内容：没有则播放键置灰（方案 §4.1） */
 const canPlayCurrent = computed(() => {
+  if (driver.managed.value) return driver.available.value && !driver.playback.value.creating && !driver.playback.value.recovering
   const stop = journey.currentStop.value
   if (!stop) return false
   const hasChapter = (journey.narration.value?.chapters ?? [])
@@ -107,7 +118,7 @@ const canPlayCurrent = computed(() => {
   return (stop.extraAudios ?? []).some(item => Boolean(item.url))
 })
 /** 当前正在播放的条目名：抽屉关闭时在底部信息行显示（方案 §4.1） */
-const playingItemLabel = computed(() => journey.speech.currentItem.value?.title || '')
+const playingItemLabel = computed(() => driver.managed.value ? driver.playback.value.audible?.title || '' : journey.speech.currentItem.value?.title || '')
 const visibleArrivalCandidates = computed(() => journey.arrivalCandidates.value.filter(candidate => !journey.playbackSequence.value.some(item => item.stopId === candidate.stop.id)))
 /** 已经进入全局序列的景点不再显示旧的“进入该站”提示，避免用户重复操作。 */
 const showArrivalPrompt = computed(() => {
@@ -116,7 +127,7 @@ const showArrivalPrompt = computed(() => {
   return count === 1 && !journey.drawerOpen.value
 })
 const queuedCount = computed(() => journey.playbackSequence.value.filter(item => item.status === 'queued').length)
-const roomAudioActive = computed(() => translation.speaking.value || (translation.listening.value && !translation.muted.value))
+const roomAudioActive = computed(() => translation.speaking.value || (!translation.continuousAudio.value && translation.listening.value && !translation.muted.value))
 
 // 识别结果写回输入框由 AskPanel 统一负责（它始终挂载且是草稿的视图），这里只管提示
 watch(() => voice.error.value, (message) => {
@@ -157,6 +168,8 @@ watch(() => askStore.askVoiceFellBack, (fellBack) => {
 /** 切后台只保存断点，回到前台尽量自动恢复（方案 §5.4） */
 function handleVisibility() {
   pageHidden.value = document.visibilityState === 'hidden'
+  driver.visibility(!pageHidden.value)
+  if (driver.managed.value) return
   if (pageHidden.value) {
     journey.handleVisibilityHidden()
     return
@@ -269,11 +282,13 @@ function handlePopState() {
 
 /** 抽屉主按钮：展示的节点就是播放节点时切换播放，否则按正式切站进入该节点 */
 function drawerPlay() {
+  if (driver.managed.value) { togglePlayback(); return }
   if (journey.drawerMatchesPlaying.value) journey.togglePlayback()
   else if (journey.drawerIndex.value >= 0) void journey.selectStop(journey.drawerIndex.value)
 }
 
 function seek(deltaSeconds: number) {
+  if (driver.managed.value) return
   const result = journey.seekBy(deltaSeconds)
   if (result.moved) return
   if (result.reason === 'at-start') showSeekNotice(messages.value.seekAtStart)
@@ -350,6 +365,7 @@ function openAskWithContext() {
 
 /** 近站讲解开关：关掉定位时同步退出跟随，避免镜头停在最后一次定位上 */
 function toggleTracking() {
+  if (translation.room.value && !translation.room.value.isHost) { driver.toggleFollowing(); return }
   if (journey.tracking.value) {
     journey.setAutoPlayEnabled(false)
     journey.stopTracking()
@@ -402,7 +418,7 @@ onBeforeUnmount(() => {
 
 <template>
   <main class="tour-experience" :class="{ 'is-journey': viewingJourney }" :lang="journey.locale.value" :style="{ '--tour-dock-height': `${dockHeight}px` }">
-    <TourMap ref="tourMap" :catalog="journey.catalog.value" :detail="detail" :current-stop-id="viewingJourney ? journey.currentStop.value?.id || null : null" :journey="viewingJourney" :location="journey.tracking.value ? journey.location.value : null" :location-label="messages.currentLocation" :show-route="routeVisible" @select="selectStop" @error="mapFailed = true" />
+    <TourMap ref="tourMap" :catalog="journey.catalog.value" :detail="detail" :current-stop-id="viewingJourney ? journey.currentStop.value?.id || null : null" :journey="viewingJourney" :location="driver.managed.value ? driver.location.value : journey.tracking.value ? journey.location.value : null" :location-label="driver.managed.value ? '车夫位置' : messages.currentLocation" :show-route="routeVisible" @select="selectStop" @error="mapFailed = true" />
     <header class="tour-header" :class="{ preview: !viewingJourney, journey: viewingJourney }">
       <template v-if="viewingJourney">
         <button type="button" @click="back">{{ messages.back }}</button>
@@ -422,7 +438,8 @@ onBeforeUnmount(() => {
       <p v-if="mapFailed">{{ messages.noMap }}</p>
       <p v-if="journey.locationPermissionDenied.value">{{ messages.permissionDenied }}</p>
       <p v-else-if="journey.locationError.value">{{ messages.locationFailed }}</p>
-      <p v-if="speechError">{{ speechError }} <button type="button" :disabled="journey.pending.value" @click="journey.replayCurrentStop">{{ messages.retry }}</button><button type="button" @click="journey.openContentDrawer(journey.currentIndex.value, 'manual')">{{ messages.content }}</button></p>
+      <p v-if="speechError">{{ speechError }} <button type="button" :disabled="journey.pending.value || driver.playback.value.recovering || driver.playback.value.creating" @click="driver.managed.value ? driver.reconnect() : journey.replayCurrentStop()">{{ driver.managed.value ? '重新连接' : messages.retry }}</button><button type="button" @click="journey.openContentDrawer(journey.currentIndex.value, 'manual')">{{ messages.content }}</button></p>
+      <p v-if="driver.ended.value" role="status">{{ translation.displayNotice.value }}</p>
       <p v-if="journey.approachUnknown.value">{{ messages.locationUnknown }}</p>
       <p v-if="seekNotice">{{ seekNotice }}</p>
       <p v-if="resumeNotice">{{ resumeNotice }} <button type="button" :disabled="journey.pending.value" @click="journey.resumePlayback">{{ messages.continuePlayback }}</button></p>
@@ -442,7 +459,7 @@ onBeforeUnmount(() => {
           <span class="toolbar-divider" aria-hidden="true" />
           <button type="button" :aria-label="messages.zoomOut" :title="messages.zoomOut" @click="tourMap?.zoomBy(-1)"><Minus :size="16" /></button>
           <button type="button" :aria-label="messages.overview" :title="messages.overview" @click="tourMap?.overview()"><Focus :size="16" /></button>
-          <button type="button" :class="{ active: following }" :aria-pressed="following" :disabled="!journey.tracking.value" :aria-label="following ? messages.unfollow : messages.follow" :title="following ? messages.unfollow : messages.follow" @click="toggleFollow"><Navigation :size="16" /></button>
+          <button type="button" :class="{ active: following }" :aria-pressed="following" :disabled="!journey.tracking.value && !driver.location.value" :aria-label="following ? messages.unfollow : messages.follow" :title="following ? messages.unfollow : messages.follow" @click="toggleFollow"><Navigation :size="16" /></button>
           <button type="button" :aria-label="messages.zoomIn" :title="messages.zoomIn" @click="tourMap?.zoomBy(1)"><Plus :size="16" /></button>
           <span class="toolbar-divider" aria-hidden="true" />
           <button type="button" class="toolbar-ask" :aria-label="messages.ask" :title="messages.ask" @click="ask"><MessageCircle :size="18" /></button>
@@ -462,13 +479,14 @@ onBeforeUnmount(() => {
             :messages="messages"
             :blocked="journey.speech.blocked.value"
             :restore-approximate="journey.speech.restorePrecision.value === 'approximate'"
-            :playing-label="journey.speech.currentItem.value?.title || ''"
+            :playing-label="playingItemLabel"
             :matches-playing="journey.drawerMatchesPlaying.value"
             :playing-stop-name="journey.currentStop.value?.name || null"
             :browsing="journey.browsing.value"
             :can-seek="canSeek && journey.drawerMatchesPlaying.value"
-            :played-seconds="journey.speech.playedSeconds.value"
-            :duration-seconds="journey.speech.currentItemDuration.value"
+            :played-seconds="playedSeconds"
+            :duration-seconds="durationSeconds"
+            :driver-managed="driver.managed.value"
             @close="closeDrawer"
             @play="drawerPlay"
             @keep-playing="journey.openContentDrawer(journey.currentIndex.value, 'manual')"
@@ -478,7 +496,7 @@ onBeforeUnmount(() => {
             @guide="journey.selectGuide"
             @play-video="journey.playStopVideo"
             @content-lock="journey.setContentAutoSwitchLocked"
-            @postcard="postcardOpen = true; journey.speech.pause()"
+            @postcard="postcardOpen = true; driver.managed.value ? driver.pause() : journey.speech.pause()"
           />
         </div>
       </Transition>
@@ -492,18 +510,24 @@ onBeforeUnmount(() => {
           :play-label="playLabel"
           :can-play="canPlayCurrent"
           :can-seek="canSeek"
-          :can-previous="journey.canGoPrevious.value"
-          :can-next="journey.canGoNext.value"
+          :can-previous="!driver.managed.value && journey.canGoPrevious.value"
+          :can-next="!driver.managed.value && journey.canGoNext.value"
           :pending="journey.pending.value"
-          :played-seconds="journey.speech.playedSeconds.value"
-          :duration-seconds="journey.speech.currentItemDuration.value"
+          :played-seconds="playedSeconds"
+          :duration-seconds="durationSeconds"
           :queued-count="queuedCount"
           :queue-open="queueOpen"
-          :tracking="journey.tracking.value"
+          :tracking="driver.managed.value ? translation.following.value && !driver.ended.value : journey.tracking.value"
+          :driver-room="Boolean(translation.room.value && !translation.room.value.isHost)"
+          :driver-managed="driver.managed.value"
+          :follow-status="driver.status.value"
+          :reconnecting="driver.playback.value.recovering || driver.playback.value.creating"
+          :can-reconnect="!driver.ended.value && !isPlaying"
           :location-status="locationStatus"
           :has-room="Boolean(translation.room.value)"
           :messages="messages"
-          @play="journey.togglePlayback"
+          @play="togglePlayback"
+          @reconnect="driver.reconnect"
           @previous="journey.previousStop"
           @next="journey.nextStop"
           @seek="seek"
@@ -522,7 +546,7 @@ onBeforeUnmount(() => {
             :messages="messages"
             :auto-play-enabled="journey.autoPlayEnabled.value"
             :content-auto-switch-locked="journey.contentAutoSwitchLocked.value"
-            :pending="journey.pending.value"
+            :pending="journey.pending.value || driver.managed.value"
             @close="queueOpen = false"
             @toggle-auto-play="journey.setAutoPlayEnabled"
             @toggle-content-lock="journey.setContentAutoSwitchLocked"
@@ -560,7 +584,7 @@ onBeforeUnmount(() => {
         </div>
       </header>
       <div id="tour-sequence-video" />
-      <button v-if="isPaused" type="button" @click="journey.resumePlayback">{{ messages.continuePlayback }}</button>
+      <button v-if="isPaused && !driver.managed.value" type="button" @click="journey.resumePlayback">{{ messages.continuePlayback }}</button>
     </section>
     <PostcardComposer v-if="postcardOpen && journey.drawerStop.value?.experience?.enabled" :key="journey.drawerStop.value.id" :experience="journey.drawerStop.value.experience" :visit-id="journey.visit.value?.visitId || null" :title="journey.drawerStop.value.name || ''" @close="postcardOpen = false" />
   </main>

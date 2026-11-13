@@ -113,6 +113,7 @@ export function useTourJourney() {
   const active = shallowRef<ClientTourDetail | null>(null)
   const visit = shallowRef<RouteVisit | null>(null)
   const currentIndex = shallowRef(0)
+  const serverManaged = shallowRef(false)
   /** 跨景点的统一自动播放序列；景点内部的 before/chapter/after 仍由 useTourSpeech 管理。 */
   const playbackSequence = shallowRef<PlaybackSequenceItem[]>([])
   const autoPlayEnabled = shallowRef(true)
@@ -354,6 +355,7 @@ export function useTourJourney() {
 
   /** 保存断点：问答打断、手动暂停、切后台都走这里 */
   function saveCheckpoint(interruptedBy: TourInterruptReason) {
+    if (serverManaged.value) return
     const checkpoint = buildCheckpoint(interruptedBy)
     if (checkpoint) writeTourCheckpoint(checkpointStorage, checkpoint)
   }
@@ -384,6 +386,7 @@ export function useTourJourney() {
 
   /** 构建并播放当前站点队列；replayAll 表示显式"重新播放整站"，前置音频也重跑 */
   function playCurrentStop(replayAll = false, resume?: Parameters<typeof speech.play>[4]) {
+    if (serverManaged.value) return
     pendingPlayback = null
     standaloneResume = null
     standaloneVideoPlayback = false
@@ -400,7 +403,7 @@ export function useTourJourney() {
   }
 
   function playbackAllowed(automatic: boolean) {
-    return pageVisible && !askInterrupt && !approachSuppressed.value && !userPaused && !['ask', 'room'].includes(playbackFocus.current() ?? '')
+    return !serverManaged.value && pageVisible && !askInterrupt && !approachSuppressed.value && !userPaused && !['ask', 'room'].includes(playbackFocus.current() ?? '')
       && (!automatic || (autoPlayEnabled.value && !contentAutoSwitchLocked.value && !browsing.value))
   }
 
@@ -442,6 +445,7 @@ export function useTourJourney() {
 
   /** 断点恢复：位置来自 sessionStorage；"暂停中"的断点恢复出条目后保持暂停 */
   function restorePlaybackFromCheckpoint() {
+    if (serverManaged.value) return false
     const checkpoint = readValidCheckpoint()
     if (!checkpoint) return false
     if (selectionMode.value === 'previous' || selectionMode.value === 'next') return false
@@ -657,6 +661,7 @@ export function useTourJourney() {
 
   /** 正式切站（manual / arrival 自动开始）：写 currentStageId，构建并播放新队列，但不标记完成 */
   async function enterStop(index: number, reason: 'manual' | 'arrival' | 'resume' = 'manual', sequenceStopId: string | null = null) {
+    if (serverManaged.value) { openContentDrawer(index, 'manual'); return }
     const stop = stops.value[index]
     const currentVisit = visit.value
     if (!stop || !currentVisit) return
@@ -707,6 +712,7 @@ export function useTourJourney() {
    * 只切本地播放节点，不写服务端进度、不标记完成、播完不自动前进、前置额外音频不去重。
    */
   function browseBy(delta: -1 | 1) {
+    if (serverManaged.value) { openContentDrawer(currentIndex.value + delta, 'manual'); return }
     if (busy.value || !active.value) return
     const target = currentIndex.value + delta
     if (target < 0 || target >= stops.value.length) return
@@ -737,6 +743,7 @@ export function useTourJourney() {
    * - 其他模式：先标记完成（完成与切站解耦），再按自动推进模式决定是否切下一站。
    */
   async function handleQueueFinished() {
+    if (serverManaged.value) return
     if (selectionMode.value === 'previous' || selectionMode.value === 'next') return
     const stop = currentStop.value
     const currentVisit = visit.value
@@ -788,6 +795,7 @@ export function useTourJourney() {
 
   /** 用户点"完成本节点"：标记完成并按现有规则进入下一站 */
   async function completeStop() {
+    if (serverManaged.value) return
     const stop = currentStop.value
     const currentVisit = visit.value
     if (!stop || !currentVisit || currentVisit.status !== 1 || busy.value) return
@@ -811,6 +819,7 @@ export function useTourJourney() {
   }
 
   function togglePlayback() {
+    if (serverManaged.value) return
     if (busy.value) return
     if (speech.status.value === 'playing') {
       userPaused = true
@@ -845,6 +854,7 @@ export function useTourJourney() {
 
   /** 显式"重新播放整站"：清空已播记录与旧断点后重跑完整队列 */
   function replayCurrentStop() {
+    if (serverManaged.value) return
     if (busy.value) return
     clearCheckpoint()
     invalidateInterrupts()
@@ -853,6 +863,7 @@ export function useTourJourney() {
 
   /** 切换导游：只替换讲解内容，额外音频配置与"已播过的前置音频"都保留 */
   function selectGuide(id: string | null) {
+    if (serverManaged.value) return
     if (busy.value) return
     const paused = speech.status.value !== 'playing'
     invalidateInterrupts()
@@ -863,6 +874,7 @@ export function useTourJourney() {
 
   /** 单独播放一条额外音频：站点没有讲解章节时也能用 */
   function playExtraAudio(id: string) {
+    if (serverManaged.value) return
     if (busy.value) return
     const stop = currentStop.value
     const extraAudio = stop?.extraAudios?.find(item => item.id === id)
@@ -875,6 +887,7 @@ export function useTourJourney() {
   }
 
   function playStopVideo() {
+    if (serverManaged.value) return
     if (busy.value || !drawerMatchesPlaying.value || !drawerStop.value?.video) return
     const checkpoint = standaloneResume?.checkpoint ?? (speech.status.value !== 'idle' ? buildCheckpoint('manual') : null)
     if (speech.status.value !== 'idle') saveCheckpoint('manual')
@@ -894,6 +907,7 @@ export function useTourJourney() {
 
   /** 自动播放被阻止时由"继续播放"入口调用 */
   function resumePlayback() {
+    if (serverManaged.value) return
     if (busy.value) return
     userPaused = false
     if (pendingPlayback) pendingPlayback.automatic = false
@@ -904,6 +918,7 @@ export function useTourJourney() {
 
   /** 打开问一问前调用：保存断点并暂停（保留队列与位置，不打断用户意图） */
   function beginAskInterrupt() {
+    if (serverManaged.value) return
     const stageId = currentStageId()
     if (!active.value?.route || !stageId) return
     const wasPlaying = speech.status.value === 'playing' || Boolean(askInterrupt?.token === journeyVersion && askInterrupt.stageId === stageId && askInterrupt.wasPlaying)
@@ -949,6 +964,7 @@ export function useTourJourney() {
   // ==================== 切后台（方案 §5.4） ====================
 
   function handleVisibilityHidden() {
+    if (serverManaged.value) return
     pageVisible = false
     const route = active.value?.route
     const stageId = currentStageId()
@@ -1108,6 +1124,7 @@ export function useTourJourney() {
    * - 当前景点播放期间只追加，不打断当前播放。
    */
   function handleApproach(candidates: TourStopCandidate[]) {
+    if (serverManaged.value) return
     if (!candidates.length) return
     const ending = visit.value?.status !== 1
     const suppressed = approachSuppressed.value || drawerRecentlyInteracted()
@@ -1136,6 +1153,7 @@ export function useTourJourney() {
    * 机会性接受高精度改善。这里只负责把每次定位换算成接近判定需要的时间戳与质量。
    */
   function startTracking() {
+    if (serverManaged.value) return
     if (tracking.value) return
     if (!navigator.geolocation) { locationError.value = true; return }
     tracking.value = true
@@ -1148,6 +1166,7 @@ export function useTourJourney() {
   }
 
   function handleLocationFix(fix: LocationFix) {
+    if (serverManaged.value) return
     location.value = fix
     locationError.value = false
     locationPermissionDenied.value = false
@@ -1224,6 +1243,36 @@ export function useTourJourney() {
     }
   }
 
+  function setServerManaged(value: boolean) {
+    if (serverManaged.value === value) return
+    serverManaged.value = value
+    invalidateInterrupts()
+    stopPending.value = false
+    pendingPlayback = null
+    pendingFinish = null
+    standaloneResume = null
+    clearCheckpoint()
+    speech.stop()
+    stopTracking()
+    playbackSequence.value = []
+    clearStoredPlaybackSequence()
+  }
+
+  function applyServerPlayback(nextVisit: RouteVisit, stageId: string | null, queue: { stageId: string; status: string }[]) {
+    if (!serverManaged.value || nextVisit.visitId !== visit.value?.visitId || nextVisit.routeId !== active.value?.route?.id) return
+    visit.value = nextVisit
+    const index = indexOfStop(stops.value, stageId)
+    if (index >= 0) currentIndex.value = index
+    playbackSequence.value = queue.flatMap(item => {
+      const stopIndex = indexOfStop(stops.value, item.stageId)
+      if (stopIndex < 0) return []
+      const status: PlaybackSequenceStatus = item.status === 'emitted' ? 'playing'
+        : item.status === 'failed' ? 'skipped' : item.status as PlaybackSequenceStatus
+      return [{ stopId: item.stageId, index: stopIndex, status, source: 'arrival-confirmed' as const, queuedAt: 0 }]
+    })
+    writeStoredActiveRoute(nextVisit.status === 1 ? { routeId: nextVisit.routeId, stageId: nextVisit.currentStageId, locale: locale.value, updatedAt: Date.now() } : null)
+  }
+
   /** 抽屉内交互（滚动、点选）：短时间内不再自动切换抽屉内容（方案 §7.5） */
   const drawerInteractionAt = shallowRef(0)
   function markDrawerInteraction() {
@@ -1271,6 +1320,9 @@ export function useTourJourney() {
   })
 
   return {
+    serverManaged,
+    setServerManaged,
+    applyServerPlayback,
     locale,
     languageReady,
     catalog,

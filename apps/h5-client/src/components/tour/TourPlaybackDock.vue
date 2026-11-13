@@ -22,6 +22,11 @@ const props = defineProps<{
   tracking: boolean
   locationStatus: string
   hasRoom: boolean
+  driverRoom?: boolean
+  driverManaged?: boolean
+  followStatus?: string
+  reconnecting?: boolean
+  canReconnect?: boolean
   messages: TourMessages
 }>()
 
@@ -35,6 +40,7 @@ const emit = defineEmits<{
   queue: []
   tracking: []
   room: []
+  reconnect: []
 }>()
 const progress = computed(() => props.durationSeconds > 0 ? Math.min(100, props.playedSeconds / props.durationSeconds * 100) : 0)
 function clock(seconds: number) {
@@ -50,9 +56,10 @@ function seekTo(event: Event) {
   <section class="tour-playback-dock" :aria-label="messages.playbackProgress">
     <div class="dock-modes">
       <button type="button" class="dock-room" @click="emit('room')"><Headphones :size="16" aria-hidden="true" /><span>{{ hasRoom ? messages.commentaryRoom : messages.liveCommentary }}</span><span v-if="hasRoom" class="dock-live-dot" aria-hidden="true" /></button>
-      <button type="button" class="dock-nearby" :class="{ 'is-active': tracking }" :aria-pressed="tracking" :aria-label="tracking ? messages.stopLocate : messages.locate" :title="locationStatus" :disabled="pending" @click="emit('tracking')"><MapPin :size="14" aria-hidden="true" /><span>{{ tracking ? messages.locationReady : messages.locate }}</span><span class="dock-switch" aria-hidden="true" /></button>
+      <button type="button" class="dock-nearby" :class="{ 'is-active': tracking }" :aria-pressed="tracking" :aria-label="driverRoom ? '跟随车夫' : tracking ? messages.stopLocate : messages.locate" :title="locationStatus" :disabled="pending || reconnecting" @click="emit('tracking')"><MapPin :size="14" aria-hidden="true" /><span>{{ driverRoom ? '跟随车夫' : tracking ? messages.locationReady : messages.locate }}</span><span class="dock-switch" aria-hidden="true" /></button>
     </div>
     <p v-if="locationStatus !== messages.locationReady && locationStatus !== messages.locationOff" class="dock-location-note" role="status">{{ locationStatus }}</p>
+    <p v-if="driverManaged" class="dock-location-note" role="status">{{ followStatus }} <button v-if="canReconnect" type="button" :disabled="pending || reconnecting" @click="emit('reconnect')">{{ reconnecting ? '正在连接…' : '重新连接' }}</button></p>
     <div class="dock-main">
       <button type="button" class="dock-play" :aria-label="playLabel" :disabled="pending || !canPlay" @click="emit('play')"><Pause v-if="playing" :size="23" aria-hidden="true" /><Play v-else :size="23" aria-hidden="true" /></button>
       <button type="button" class="dock-story" :aria-label="messages.content" @click="emit('content')"><small>{{ stopIndex + 1 }} / {{ stopCount }} · {{ playing ? messages.playingNow : messages.content }}</small><strong>{{ title }}</strong><span v-if="itemTitle">{{ itemTitle }}</span></button>
@@ -70,6 +77,7 @@ function seekTo(event: Event) {
 
 <style scoped>
 .dock-location-note{margin:8px 0 0;color:#75897d;font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.dock-location-note button{min-height:32px;margin-left:8px;padding:4px 10px;border:1px solid var(--tour-line);border-radius:8px;background:#edf4ef;color:var(--tour-lake)}
 .tour-playback-dock{position:absolute;left:20px;bottom:max(16px,env(safe-area-inset-bottom));z-index:8;box-sizing:border-box;width:min(460px,calc(100% - 40px));padding:0 16px 8px;border:1px solid var(--tour-line);border-radius:24px;background:#fcfefd;box-shadow:0 12px 40px #183e4324;color:var(--tour-lake);font-family:inherit}
 .tour-playback-dock button{font-family:inherit;cursor:pointer}.tour-playback-dock button:disabled{opacity:.4;cursor:default}.tour-playback-dock button:focus-visible,.dock-timeline input:focus-visible{outline:2px solid var(--tour-lake);outline-offset:3px}
 .dock-modes{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:46px;border-bottom:1px solid #e3ece7}.dock-modes button{display:flex;align-items:center;gap:6px;min-height:44px;padding:4px 0;border:0;background:transparent;color:var(--tour-lake);font-size:11px;line-height:1.4;text-align:left}.dock-room{font-weight:600}.dock-room span,.dock-nearby span{overflow-wrap:anywhere}.dock-nearby{max-width:62%;color:#74877e!important}.dock-nearby.is-active{color:var(--tour-lake)!important}.dock-switch{position:relative;flex:0 0 26px;height:15px;border-radius:10px;background:#cedbd3}.dock-switch::after{position:absolute;top:3px;left:3px;width:9px;height:9px;border-radius:50%;background:#fff;content:''}.is-active .dock-switch{background:#357a68}.is-active .dock-switch::after{left:14px}.dock-live-dot{width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:#3b9279}

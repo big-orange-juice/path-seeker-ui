@@ -116,6 +116,87 @@ test('host waits for input pause acknowledgement, then plays visitor audio and c
   assert.equal(socket.closed, false)
 })
 
+test('continuous tour owns guest audio while room subtitles stay live and mute remains an explicit preference', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  const socket = fixture.sockets[0]; socket.onopen()
+  store.setContinuousAudio(true)
+  assert.equal(store.muted, false)
+  socket.onmessage({ data: JSON.stringify({ type: 'subscription.ready', targetLanguage: 'en', payload: { room: store.room } }) })
+  socket.onmessage({ data: JSON.stringify({ type: 'translation.final', targetLanguage: 'en', payload: { text: 'Current commentary' } }) })
+  socket.onmessage({ data: JSON.stringify({ type: 'audio.delta', targetLanguage: 'en', payload: { audio: 'AAAA' } }) })
+  socket.onmessage({ data: JSON.stringify({ type: 'audio.done', targetLanguage: 'en', payload: {} }) })
+  await tick()
+  assert.equal(store.translated, 'Current commentary')
+  assert.equal(store.audioError, '')
+  assert.equal(fixture.played.length, 1)
+  await store.toggleMute()
+  assert.equal(store.muted, true)
+  await store.toggleMute()
+  assert.equal(store.muted, false)
+  assert.equal(fixture.played.length, 1)
+})
+
+test('immediate dismissal stops audio and disables following without an error message', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'zh')
+  const socket = fixture.sockets[0]; socket.onopen()
+  store.error = '请先加入房间'
+  socket.onmessage({ data: JSON.stringify({ type: 'room.closed', payload: { mode: 'immediate' } }) })
+  assert.equal(store.room.status, 'closed')
+  assert.equal(store.following, false)
+  assert.equal(store.listening, false)
+  assert.equal(store.connected, false)
+  assert.equal(store.error, '')
+  assert.equal(store.displayNotice, '车夫已解散房间')
+})
+
+test('room recovery rejoins the original room once and preserves mute and follow preferences', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'en')
+  store.muted = true
+  store.following = false
+  let resolve!: (value: unknown) => void
+  fixture.pending = new Promise(done => { resolve = done })
+  const first = store.recoverRoom(store.room.roomId), second = store.recoverRoom(store.room.roomId)
+  assert.equal(fixture.requests.filter((entry: any) => entry.path === '/join').length, 2)
+  resolve({ ...store.room, status: 'live' })
+  assert.equal(await first, true)
+  assert.equal(await second, true)
+  assert.equal(store.muted, true)
+  assert.equal(store.following, false)
+  assert.equal(store.recovering, false)
+  assert.equal(fixture.requests.at(-1).data.targetLanguage, 'en')
+})
+
+test('room recovery distinguishes confirmed dismissal from unrelated permission failure', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'zh')
+  fixture.pending = Promise.reject(Error('无权加入此房间'))
+  await assert.rejects(store.recoverRoom(store.room.roomId), /无权加入/)
+  assert.notEqual(store.room.status, 'closed')
+  fixture.pending = Promise.reject(Object.assign(Error('房间已结束，不能继续加入或输入'), { statusCode: 400 }))
+  assert.equal(await store.recoverRoom(store.room.roomId), false)
+  assert.equal(store.room.status, 'closed')
+  assert.equal(store.displayNotice, '车夫已解散房间')
+  assert.equal(store.error, '')
+})
+
+test('room recovery cannot restore a room dismissed while the join response was in flight', async context => {
+  const store = setup(context)
+  await store.join('12345678', 'zh')
+  const original = { ...store.room }
+  let resolve!: (value: unknown) => void
+  fixture.pending = new Promise(done => { resolve = done })
+  const recovering = store.recoverRoom(original.roomId)
+  store.finishRoom()
+  resolve(original)
+  assert.equal(await recovering, false)
+  assert.equal(store.room.status, 'closed')
+  assert.equal(store.following, false)
+  assert.equal(store.displayNotice, '车夫已解散房间')
+})
+
 test('visitor short recording uploads one WAV with string identifiers and cancels cleanly', async context => {
   const store = setup(context)
   await store.join('12345678', 'en')
