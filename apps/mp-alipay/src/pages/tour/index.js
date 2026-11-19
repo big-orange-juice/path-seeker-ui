@@ -207,7 +207,8 @@ Page({
       progress: duration > 0 ? Math.max(0, Math.min(100, time / duration * 100)) : 0,
       itemTitle: audible.title || '', audioError: interruption.blocked() ? '' : value.error || state.error || '', driverAligning: false,
       ...(audibleStage && !this._manualBrowse ? { selectionMode: 'formal', browsing: false } : {}),
-      ...(nextVisit.status !== 1 ? { tourStage: 'overview', contentOpen: false, queueOpen: false } : {}) });
+      ...(nextVisit.status !== 1 || state.playbackFinished ? { tourStage: 'overview', contentOpen: false, queueOpen: false } : {}) });
+    if (state.playbackFinished) this.finishPlayback();
     if (playback.owner === 'tour-extra') this.updateServerExtraProgress(playback);
   },
   updateServerExtraProgress(playback) {
@@ -215,6 +216,17 @@ Page({
     this.setData({ playing: playback.playing, paused: !playback.playing, playingStopId: this.data.stop && this.data.stop.id || '',
       itemTitle: playback.item.title || '', timeLabel: ui.clock(playback.time), durationLabel: ui.clock(playback.duration),
       hasDuration: playback.duration > 0, progress: playback.duration > 0 ? Math.max(0, Math.min(100, playback.time / playback.duration * 100)) : 0 });
+  },
+  finishPlayback() {
+    this._heldVisit = null; this._pendingPlayback = null; this._pendingFinish = '';
+    this._roomResume = null; this._askResume = null; this._backgroundResume = null; this._deferredResume = null;
+    this._resumeDriverFollowing = false; this._driverAlignment = null;
+    this.clearArrivalPrompt();
+    if (this._watch) this._watch();
+    this._watch = null;
+    this.setData({ autoplay: false, following: false, locationEnabled: false, driverManaged: false,
+      playing: false, paused: false, driverAligning: false, tourStage: 'overview', contentOpen: false, queueOpen: false,
+      followStatus: this.data.messages.finished });
   },
   serverAudioCommand(command, values = {}) {
     if (this.driverManaged() && ['select', 'preview', 'replay', 'seek', 'skip', 'complete'].includes(command)) return Promise.resolve(null);
@@ -672,7 +684,7 @@ Page({
     const enabled = !backgroundListening.enabled();
     backgroundListening.setEnabled(enabled);
     this.setData({ screenOffListening: backgroundListening.enabled() });
-    my.showToast({ content: enabled ? '已开启息屏收听，切换其他 App 也会继续播放' : '已关闭，息屏或切换其他 App 后暂停', type: 'none' });
+    my.showToast({ content: enabled ? '已开启后台播放，息屏或切换其他 App 也会继续播放' : '已关闭后台播放，息屏或切换其他 App 后暂停', type: 'none' });
   },
   alignDriverPosition() {
     const pending = this._driverAlignment, visit = this.data.visit, room = translation.snapshot().room;
@@ -798,7 +810,10 @@ Page({
       this.sequenceStatus(stageId, 'completed', this.data.stopIndex);
       this._heldVisit = result.status === 1 ? { visit: result, route: this.data.route } : null;
       storage.remove(storage.scoped(user, 'checkpoint'));
-      if (result.status !== 1) { my.showToast({ content: this.data.messages.finished, type: 'success' }); return; }
+      if (result.status !== 1 || source === 2 && stageId === this.data.stops[this.data.stops.length - 1].id) {
+        this.finishPlayback(); translation.setFollowing(false); translation.leave();
+        my.showToast({ content: this.data.messages.finished, type: 'success' }); return;
+      }
       if (this.data.tourStage === 'navigation' && this.data.autoplay && (this._visible || config.background) && !this.data.contentOpen && !this.data.queueOpen && !this._asking && !this.roomAudioActive() && !this.data.lockContent && !this._userPaused) {
         const queued = this.nextSequenceIndex();
         const index = queued >= 0 ? queued : !this.data.locationEnabled ? this.data.stops.findIndex(s => !(result.completedStageIds || []).includes(s.id) && !this.data.sequence.some(item => item.id === s.id && item.status === 'skipped')) : -1;

@@ -483,7 +483,7 @@ test('listener playback state distinguishes missing audio, active playback and n
   }
 });
 
-test('Alipay room selection localizes chat, playback, native title and errors across page reopening', async () => {
+test('Alipay initial language localizes chat, playback, native title and errors across page reopening', async () => {
   const { fixture, handlers } = socketHarness();
   const session = fixture.load('services/translation-session');
   const titles = [];
@@ -493,7 +493,7 @@ test('Alipay room selection localizes chat, playback, native title and errors ac
   page.bindSession();
   let reopened;
   try {
-    page.chooseLanguage({ currentTarget: { dataset: { index: 1 } } });
+    session.prepareEntry('en');
     assert.equal(page.data.language, 'en');
     assert.equal(page.data.messages.joinTitle, 'Join a commentary room');
     assert.equal(page.data.languageIndex, 1);

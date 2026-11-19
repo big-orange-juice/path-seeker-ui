@@ -62,6 +62,86 @@ test('normal navigation creates one continuous media session and excludes local 
   assert.equal(fixture.audioContexts.length, 0);
 });
 
+test('closing and reopening restores the actual heard chapter instead of the server production position', async context => {
+  const first = setup(context, false, true);
+  await first.start();
+  const pending = first.service.refresh();
+  first.reply(first.fixture.requests[1], { stageId: stageIds[1], itemId: 'chapter1', mediaTimeSeconds: 90,
+    timeline: [{ start: 0, end: 90, kind: 'route', stageId: stageIds[0], itemId: 'chapter0',
+      title: '第一站', itemStart: 0, duration: 100, contentKey: 'version-one' }] });
+  await pending;
+  first.manager.currentTime = 23.4; first.manager.emit('TimeUpdate');
+  first.service.stop();
+  const second = setup(context, false, true);
+  for (const [key, value] of first.fixture.storage) if (key.includes('tour-audio-checkpoint')) second.fixture.storage.set(key, plain(value));
+  second.page.startNextSequence();
+  const checkpoint = second.fixture.requests[0].options.data.checkpoint;
+  assert.equal(checkpoint.stageId, stageIds[0]);
+  assert.equal(checkpoint.itemId, 'chapter0');
+  assert.equal(checkpoint.seconds, 23.4);
+  assert.equal(checkpoint.contentKey, 'version-one');
+  assert.equal(checkpoint.finished, false);
+  second.fixture.requests[0].ok({ sessionId: 'restored', mediaUrl: '/TourAudioSessions/restored/media.mp3?ticket=secret',
+    state: { ...second.state(), sessionId: 'restored', stageId: stageIds[0], itemId: 'chapter0' } });
+  await tick();
+  assert.equal(second.service.active(), true);
+});
+
+test('question hold sends the native playback clock and release reconnects with that same position', async context => {
+  const { fixture, manager, page, service, start, reply } = setup(context, false, true);
+  await start();
+  const pending = service.refresh();
+  reply(fixture.requests[1], { mediaTimeSeconds: 80, timeline: [{ start: 0, end: 80, kind: 'route',
+    stageId: stageIds[0], itemId: 'chapter0', itemStart: 0, duration: 100, contentKey: 'version-one' }] });
+  await pending;
+  manager.currentTime = 17.25; manager.emit('TimeUpdate');
+  page.suspendForAsk(); await tick();
+  const hold = fixture.requests[2];
+  assert.equal(hold.options.data.command, 'hold');
+  assert.equal(hold.options.data.streamId, 'stream-1');
+  assert.equal(hold.options.data.mediaTimeSeconds, 17.25);
+  reply(hold, { held: true }); await tick();
+  page.resumeAfterAsk(); await tick();
+  reply(fixture.requests[3], { held: false }); await tick();
+  const reconnect = fixture.requests[4];
+  assert.equal(reconnect.options.data.command, 'reconnect');
+  assert.equal(reconnect.options.data.mediaTimeSeconds, 17.25);
+  reply(reconnect, { status: 'disconnected' }); await tick();
+  assert.equal(service.active(), true);
+  assert.ok(!fixture.requests.some(request => request.options.data?.command === 'realign'));
+});
+
+test('confirmed final audio disables following, leaves only the visitor room and never recreates playback', async context => {
+  const { fixture, page, service, translation, start, reply, state } = setup(context, true, true);
+  await start();
+  const pending = service.refresh();
+  reply(fixture.requests[1], { playbackFinished: true, paused: true,
+    visit: { ...state().visit, completedStageIds: [stageIds[1]] } });
+  await pending; await tick();
+  assert.equal(service.active(), false);
+  assert.equal(translation.snapshot().room, null);
+  assert.equal(page.data.following, false);
+  assert.equal(page.data.locationEnabled, false);
+  assert.equal(page.data.autoplay, false);
+  assert.equal(page.data.tourStage, 'overview');
+  assert.equal(fixture.load('services/room-recovery').read(), null);
+  assert.equal(fixture.requests.filter(request => request.options.url.endsWith('/leave')).length, 1);
+  assert.ok(!fixture.requests.some(request => /\/(close|end)$/.test(request.options.url)));
+  page.startNextSequence(); page.syncDriverFollowing(); await tick();
+  assert.equal(fixture.requests.filter(request => request.options.url.endsWith('/TourAudioSessions') && request.options.method === 'POST').length, 1);
+});
+
+test('server emission of final audio does not leave the room before playback confirmation', async context => {
+  const { fixture, service, translation, start, reply } = setup(context, true, true);
+  await start();
+  const pending = service.refresh();
+  reply(fixture.requests[1], { stageId: stageIds[1], queue: [{ stageId: stageIds[1], status: 'emitted' }] });
+  await pending; await tick();
+  assert.equal(service.active(), true);
+  assert.equal(translation.snapshot().room.roomId, roomId);
+  assert.ok(!fixture.requests.some(request => request.options.url.endsWith('/leave')));
+});
+
 test('system interruption pauses the server and end or foreground polling cannot automatically resume it', async context => {
   const { fixture, manager, page, service, start, reply, assignments } = setup(context, false, true);
   const events = interruptionEvents(fixture);

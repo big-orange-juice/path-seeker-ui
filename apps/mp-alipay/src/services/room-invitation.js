@@ -22,7 +22,7 @@ function url(code, query = {}) { return '/pages/translation-room/index?' + query
 function authUrl(query) { return '/pages/auth/index?' + queryString(query.roomCode, query); }
 function destination(query, language) {
   const values = target(query);
-  if (!values.lang) values.lang = language === 'zh-CN' ? 'zh' : locales.some(locale => locale.value === language) ? language : 'zh';
+  values.lang = language === 'zh-CN' ? 'zh' : locales.some(locale => locale.value === language) ? language : values.lang || 'zh';
   return '/pages/tour/index?view=routes&' + Object.keys(values).map(key => encodeURIComponent(key) + '=' + encodeURIComponent(values[key])).join('&');
 }
 function parameters(value) {

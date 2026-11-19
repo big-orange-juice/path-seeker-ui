@@ -6,6 +6,43 @@ const invitationUrl = '/pages/translation-room/index?roomCode=12345678&autoJoin=
 const signedIn = () => ({ ...session(), isGuest: false });
 const fixedRouteCode = 'OUT-610000000000000001-20261030102158';
 
+test('manual room entry joins with the initial tour language for every supported locale', async () => {
+  for (const locale of ['zh', 'en', 'ru', 'es', 'fr', 'ja', 'ko', 'yue']) {
+    const fixture = harness(signedIn());
+    fixture.load('services/storage').write('locale', locale);
+    const page = fixture.page('translation-room');
+    page.attach = () => {};
+    page.onLoad(); await tick();
+    fixture.requests[0].ok({ canHost: false }); await tick();
+    const language = locale === 'zh' ? 'zh-CN' : locale;
+    assert.equal(page.data.language, language);
+    assert.equal(page.data.notice, page.data.messages.touristReady);
+    page.inputCode({ detail: { value: query.roomCode } });
+    const joining = page.join(); await tick();
+    assert.equal(fixture.requests[1].options.data.targetLanguage, language);
+    fixture.requests[1].ok({ roomId: '9223372036854775805', code: query.roomCode, isHost: false });
+    await joining;
+    page.onUnload();
+  }
+});
+
+test('room invitation keeps the initial language when the shared link carries another language', async () => {
+  for (const storageKey of ['locale', 'tour-locale']) {
+    const fixture = harness(signedIn());
+    fixture.load('services/storage').write(storageKey, 'ja');
+    const navigation = [];
+    fixture.my.reLaunch = options => navigation.push(options.url);
+    const page = fixture.page('translation-room');
+    page.attach = () => {};
+    page.onLoad({ ...query, lang: 'en' }); await tick();
+    fixture.requests[0].ok({ canHost: false }); await tick();
+    assert.equal(fixture.requests[1].options.data.targetLanguage, 'ja');
+    fixture.requests[1].ok({ roomId: '9223372036854775805', code: query.roomCode, isHost: false }); await tick();
+    assert.equal(navigation.at(-1), '/pages/tour/index?view=routes&lang=ja');
+    page.onUnload();
+  }
+});
+
 test('scans decode the APP link and reject malformed, ambiguous and foreign mini program codes', () => {
   const fixture = harness(), invitation = fixture.load('services/room-invitation');
   const scheme = 'alipays://platformapi/startapp?appId=' + fixture.load('config').appId

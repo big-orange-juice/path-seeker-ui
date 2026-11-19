@@ -1,7 +1,7 @@
 <view a:if="{{stop}}" class="tour-playback-dock">
   <view class="dock-modes">
     <button class="dock-room" onTap="translationRoom"><view class="dock-mode-content"><view class="dock-headphones-icon"/><text>{{hasTranslationRoom ? messages.commentaryRoom : messages.liveCommentary}}</text><view a:if="{{hasTranslationRoom}}" class="dock-live-dot"/></view></button>
-    <button class="dock-now {{screenOffListening ? 'is-active' : ''}}" onTap="toggleScreenOffListening" aria-pressed="{{screenOffListening}}" aria-label="息屏收听"><view class="dock-mode-content"><text>息屏收听</text><view class="dock-switch"><view/></view></view></button>
+    <button class="dock-now {{screenOffListening ? 'is-active' : ''}}" onTap="toggleScreenOffListening" aria-pressed="{{screenOffListening}}" aria-label="后台播放"><view class="dock-mode-content"><text>后台播放</text><view class="dock-switch"><view/></view></view></button>
     <button class="dock-nearby {{locationEnabled ? 'is-active' : ''}}" onTap="toggleTracking" disabled="{{busy || loading}}" aria-pressed="{{locationEnabled}}" aria-label="{{locationEnabled ? messages.stopLocate : messages.locate}}"><view class="dock-mode-content"><text>{{locationEnabled ? messages.locationReady : messages.locate}}</text><view class="dock-switch"><view/></view></view></button>
   </view>
   <view a:if="{{locationEnabled || locationNote === messages.driverRoomRequired}}" class="dock-location-note" role="status">{{locationNote}}</view>

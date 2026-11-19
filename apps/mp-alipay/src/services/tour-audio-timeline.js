@@ -9,6 +9,7 @@ function audibleAt(state, playback, validStream = true) {
   if (!span && tail && time >= tail.end && time - tail.end < 3) span = tail;
   if (!span) return null;
   return { kind: span.kind, stageId: span.stageId, title: span.title, itemId: span.itemId,
+    contentKey: span.contentKey,
     itemTimeSeconds: Math.max(0, Math.min(span.duration || 0, span.itemStart + time - span.start)), itemDurationSeconds: span.duration || 0 };
 }
 module.exports = { audibleAt };

@@ -7,6 +7,7 @@ const config = require('../config');
 const { diag } = require('./diag');
 const { createCommandQueue } = require('./audio-command-queue');
 const { audibleAt } = require('./tour-audio-timeline');
+const checkpoint = require('./tour-playback-checkpoint');
 let session = null, pending = null, creation = null, generation = 0, foreground = true, timer = null, request = null;
 let lastNativeControl = '', lastAckAt = 0, failure = '', playbackFailure = '';
 let detachedLifecycle = [];
@@ -105,10 +106,11 @@ function accept(owner, value) {
   if (!owns(owner) || !value || value.sessionId !== owner.id) return false;
   if (owner.state && Number(value.revision) < Number(owner.state.revision)) return false;
   owner.state = value;
+  checkpoint.save(owner, audio.snapshot(), true);
   failure = value.error || '';
   checkProgress(owner);
   audio.updateLive({ title: snapshot().audible && snapshot().audible.title || '寻迹 · 城市漫游' });
-  if (['closed', 'ended', 'expired'].includes(value.status)) { publish(); if (owns(owner)) stop(value.error || ''); return false; }
+  if (value.playbackFinished || ['closed', 'ended', 'expired'].includes(value.status)) { publish(); if (owns(owner)) stop(value.error || ''); return false; }
   publish(); return true;
 }
 function mediaUrl(value) {
@@ -118,7 +120,7 @@ function mediaUrl(value) {
   return result;
 }
 function play(owner) {
-  if (!owns(owner) || interruption.blocked()) return;
+  if (!owns(owner) || interruption.blocked() || owner.state.playbackFinished) return;
   const previous = audio.snapshot();
   if (previous.live && previous.item && previous.item.id === owner.id) audio.stop('tour');
   playbackFailure = '';
@@ -129,6 +131,7 @@ function play(owner) {
   audio.playLive('tour', { id: owner.id, url: owner.url + '&connection=' + Date.now() + '-' + owner.connectionVersion, title: owner.state && owner.state.itemTitle || '寻迹 · 城市漫游' }, {
     change(value) {
       if (!owns(owner)) return;
+      checkpoint.save(owner, value);
       if (value.playing && !value.failed && value.time > 0 && !owner.stalled) playbackFailure = '';
       checkProgress(owner);
       const audible = snapshot().audible;
@@ -159,6 +162,10 @@ function checkProgress(owner) {
   }
 }
 async function start(options) {
+  if (!options.startStageId) {
+    const saved = checkpoint.read(currentUser(), options);
+    if (saved) options = Object.assign({}, options, { checkpoint: saved });
+  }
   if (!backgroundListening.allowed() || interruption.blocked()) options = Object.assign({}, options, { paused: true });
   if (!supported()) throw Error('当前支付宝版本不支持后台持续讲解，请更新客户端');
   if (!['roomId', 'visitId', 'routeId'].every(key => validId(options[key]))) throw Error('请先加入房间并开始行程');
@@ -186,6 +193,7 @@ async function start(options) {
       if (!owner.state || owner.state.sessionId !== owner.id) throw Error('持续讲解状态返回无效');
       recordDetached('create-success', owner);
       pending = null; session = owner;
+      checkpoint.save(owner, audio.snapshot(), true);
       play(owner); publish(); schedule();
       return owner.state;
     } catch (error) {
@@ -219,6 +227,14 @@ function control(command, values = {}, expectedSessionId = '') {
   const owner = session || pending;
   if (expectedSessionId && (!owner || owner.id !== expectedSessionId)) return Promise.reject(cancelled());
   if (!owner || !current(owner)) return Promise.resolve(null);
+  const playback = audio.snapshot();
+  if (['pause', 'hold', 'reconnect'].includes(command)) {
+    checkpoint.save(owner, playback, true);
+    if (owner.state && !owner.reconnecting && owner.state.streamId !== owner.previousStreamId
+      && playback.live && playback.item && playback.item.id === owner.id && Number.isFinite(playback.time) && playback.time >= 0) {
+      values = Object.assign({}, values, { streamId: owner.state.streamId, mediaTimeSeconds: playback.time });
+    }
+  }
   recordIntent(owner, command);
   const intent = owner.intent, playbackGeneration = audio.snapshot().generation;
   const input = Object.assign({}, values, { command, requestId: 'mp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12) });
@@ -270,6 +286,12 @@ async function refresh() {
   finally { if (request === pendingRequest) request = null; schedule(); }
 }
 function setForeground(value) {
+  if (!value && session) {
+    checkpoint.save(session, audio.snapshot(), true);
+    const playback = audio.snapshot();
+    if (!session.reconnecting && session.state.streamId !== session.previousStreamId && playback.live && playback.item && playback.item.id === session.id && playback.time > 0)
+      control('ack', { streamId: session.state.streamId, mediaTimeSeconds: playback.time }).catch(() => {});
+  }
   const next = !!value;
   if (session && foreground !== next) recordLifecycle(session, next ? 'foreground-before-refresh' : 'background');
   foreground = next;
@@ -321,6 +343,7 @@ function reconnect(owner) {
 }
 function stop(error = '') {
   const owner = session;
+  if (owner) checkpoint.save(owner, audio.snapshot(), true);
   if (session || pending) recordDetached(pending ? 'create-cancelled' : 'stopped', session || pending, error);
   if (session) session.controls.close();
   if (pending) pending.controls.close();

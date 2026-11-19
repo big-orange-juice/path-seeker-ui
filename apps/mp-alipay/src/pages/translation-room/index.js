@@ -18,7 +18,7 @@ Page({
     this._inviteCode = this._invitation ? this._invitation.roomCode : '';
     if (this._inviteCode && session.snapshot().room && session.snapshot().room.code !== this._inviteCode) session.leave();
     if (config.driverHostInApp && session.snapshot().room && session.snapshot().room.isHost) session.leave();
-    session.prepareEntry(this._invitation && this._invitation.lang || query.lang || storage.read('locale', storage.read('tour-locale', 'zh')));
+    session.prepareEntry(storage.read('locale', storage.read('tour-locale', '')) || this._invitation && this._invitation.lang || query.lang || 'zh');
     this.setData({ code: this._inviteCode || (typeof query.roomCode === 'string' ? query.roomCode : '') });
     this.bindSession();
     this.loadPermission();
@@ -41,7 +41,7 @@ Page({
       const permission = roomState.room ? { canHost: roomState.room.isHost } : await rooms.api('/host-permission');
       if (!active()) return;
       const canHost = permission.canHost && !config.driverHostInApp;
-      this._notice = canHost ? '选择讲话语言，创建或返回讲解房间' : '输入房间码并选择语言，开始收听';
+      this._notice = canHost ? '选择讲话语言，创建或返回讲解房间' : '输入房间码，开始收听';
       this.setData({ canHost, notice: localizeRoomNotice(roomState.room ? roomState.notice : this._notice, this.data.language) });
     } catch (error) { if (active()) this.setData({ error: localizeRoomNotice(error.message, this.data.language) }); }
     finally {
@@ -128,7 +128,6 @@ Page({
     finally { if (this._visible) this.setData({ busy: false }); }
   },
   inputCode(event) { this.setData({ code: event.detail.value }); },
-  chooseLanguage(event) { const languageIndex = Number(event.currentTarget.dataset.index); if (ROOM_LANGUAGES[languageIndex]) { this.setData({ languageIndex }); session.setLanguage(ROOM_LANGUAGES[languageIndex].value); } },
   chooseSource(event) { const sourceIndex = Number(event.currentTarget.dataset.index); if (ROOM_LANGUAGES[sourceIndex]) { this.setData({ sourceIndex }); session.setLanguage(ROOM_LANGUAGES[sourceIndex].value); } },
   join(options = {}) { return this.run(async () => { if (this._invitation && (!auth.current() || auth.current().isGuest)) { my.reLaunch({ url: invitation.authUrl(this._invitation) }); return; } if (!/^\d{8}$/.test(this.data.code)) throw Error('请输入八位房间码'); const userId = auth.current().userId, version = auth.version(); const room = await rooms.api('/join', { code: this.data.code, targetLanguage: ROOM_LANGUAGES[this.data.languageIndex].value }); if (!auth.current() || auth.current().userId !== userId || auth.version() !== version) throw Error('账号已切换'); if (this._visible) { this.attach(room); if (this._invitation) my.reLaunch({ url: invitation.destination(this._invitation, this.data.language) }); else if (!options.stay) this.back(); } }); },
   create() { this.run(async () => { if (config.driverHostInApp) throw Error('请使用寻迹车夫 APP 创建和管理讲解房间'); if (!this.data.canHost) throw Error('当前账号未获车夫授权'); const userId = auth.current().userId; const room = await rooms.api('', { sourceLanguage: ROOM_LANGUAGES[this.data.sourceIndex].value }); if (!auth.current() || auth.current().userId !== userId) throw Error('账号已切换'); if (this._visible) { this.attach(room); this.back(); } }); },
@@ -146,7 +145,6 @@ Page({
   cancelQuestion() { session.cancelQuestion(); },
   listenQuestions() { this.run(() => session.listenQuestions()); },
   stopQuestions() { session.stopQuestions(); },
-  changeLanguage() { this.run(() => session.changeLanguage()); },
   togglePause() { session.togglePause(); },
   end() { this.run(() => session.end(false)); },
   closeRoom() { this.run(() => session.end(true)); },

@@ -246,6 +246,15 @@ function suspend({ preserveConnection = false } = {}) {
   update({ notice: '讲解已暂停，返回前台将恢复连接' });
 }
 function setFollowing(value) { if (state.following === !!value) return; update({ following: !!value }); remember(); }
+tourAudio.subscribe(value => {
+  if (!value.state || !value.state.playbackFinished || !state.room || state.room.isHost || state.room.roomId !== value.roomId) return;
+  const current = version, roomId = state.room.roomId;
+  Promise.resolve().then(() => {
+    if (current !== version || !state.room || state.room.roomId !== roomId) return;
+    setFollowing(false);
+    leave();
+  });
+});
 function yieldToTour() { if (connection) connection.yieldToTour(); }
 interruption.subscribe((value, event) => {
   if (event !== 'begin' || !state.room || state.room.isHost || state.room.status === 'closed') return;

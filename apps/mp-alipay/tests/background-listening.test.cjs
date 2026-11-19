@@ -13,7 +13,7 @@ function setup() {
   return { fixture, manager, audio, preference };
 }
 
-test('screen-off listening replaces the old action and remembers the selection', () => {
+test('background playback keeps the existing toggle and remembers the selection', () => {
   const { fixture, preference } = setup();
   const page = fixture.page('tour');
   assert.equal(preference.enabled(), true);
@@ -27,6 +27,8 @@ test('screen-off listening replaces the old action and remembers the selection',
   assert.equal(page.data.screenOffListening, true);
   const template = fs.readFileSync(path.resolve(__dirname, '../dist/pages/tour/index.axml'), 'utf8');
   assert.match(template, /onTap="toggleScreenOffListening"/);
+  assert.match(template, /aria-label="后台播放"/);
+  assert.doesNotMatch(template, /息屏收听/);
   assert.doesNotMatch(template, /onTap="returnToNow"/);
 });
 

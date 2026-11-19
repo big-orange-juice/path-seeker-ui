@@ -267,14 +267,30 @@ test('翻译房间解除占用时重试已有近站队列，问答开启期间�
 
 test('忙碌期间完成的讲解保留完成事件，失败的入站不会无限自动重试', async () => {
   const h = harness(), p = tourPage(h, visit());
+  p.setData({ stops: [stop(), stop('next', 2)] });
   p.play(); p.setData({ busy: true }); h.audioContexts[0].emit('Ended');
   assert.equal(h.requests.length, 0); assert.ok(p._pendingFinish);
   p.setData({ busy: false }); p.flushFinished(); assert.equal(h.requests[0].options.data.action, 'complete');
   h.requests[0].ok(visit({ completedStageIds: [stageId] })); await tick();
-  p.setData({ stops: [stop(), stop('next', 2)], autoplay: true });
+  p.setData({ autoplay: true });
   p.enqueueCandidates([{ id: 'next', index: 1, distance: 3, order: 2 }]);
   h.requests[1].reject({ errorMessage: '网络不可用' }); await tick();
   assert.equal(h.requests.length, 2); assert.equal(p.data.busy, false); assert.equal(p.nextSequenceIndex(), 1);
+});
+
+test('最后一站自然播完即关闭跟随并退出游客房间，不再调度旧节点', async () => {
+  const h = harness(), p = tourPage(h, visit());
+  let left = 0, following = true;
+  const room = h.load('services/translation-session');
+  room.setFollowing = value => { following = value; };
+  room.leave = () => { left++; };
+  p.setData({ autoplay: true }); p.play();
+  h.audioContexts[0].emit('Ended');
+  h.requests[0].ok(visit({ completedStageIds: [stageId] })); await tick();
+  assert.equal(following, false); assert.equal(left, 1);
+  assert.equal(p.data.following, false); assert.equal(p.data.locationEnabled, false);
+  assert.equal(p.data.autoplay, false); assert.equal(p.data.tourStage, 'overview');
+  p.startNextSequence(); assert.equal(h.requests.length, 1);
 });
 test('destination boundaries, polygon holes and circular place ranges render alongside native markers', () => {
   const h = harness(), tour = h.load('core/tour'), ring = [[116.38, 39.93], [116.39, 39.93], [116.39, 39.94], [116.38, 39.93]];

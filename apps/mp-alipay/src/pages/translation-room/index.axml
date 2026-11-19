@@ -50,7 +50,6 @@
     <view class="room-invite"><view class="room-caption">{{room.isHost ? messages.invite : messages.currentCode}}</view><view class="room-session-code">{{room.code}}</view><image a:if="{{room.isHost && room.qrImageDataUri}}" src="{{room.qrImageDataUri}}" class="room-qr"/><view class="room-caption">{{listenerLabel}}</view></view>
     <view a:if="{{room.isHost}}" class="room-detail-members"><view class="room-details-label">{{messages.members}}</view><view a:if="{{!languageGroups.length}}" class="room-caption">{{messages.noMembers}}</view><view a:for="{{languageGroups}}" a:key="language" class="room-detail-member"><view class="room-member-avatar">{{item.avatar}}</view><view><view>{{item.label}} · {{item.countLabel}}</view><view class="room-member-names">{{item.names || messages.guest}}</view></view></view></view>
     <view a:if="{{disconnected && room.status !== 'closed'}}"><include src="./entry.axml"/></view>
-    <button a:if="{{!room.isHost && room.status !== 'closed'}}" class="room-action" onTap="changeLanguage" disabled="{{busy}}">{{messages.changeLanguage}}</button>
     <block a:if="{{room.isHost && room.status !== 'closed'}}"><button class="room-action" onTap="end" disabled="{{busy}}">{{messages.end}}</button><button class="room-action room-action-danger" onTap="closeRoom" disabled="{{busy}}">{{messages.closeRoom}}</button></block>
     <button class="room-action room-action-quiet" onTap="leave" disabled="{{busy}}">{{room.isHost ? messages.leaveHost : messages.leave}}</button>
   </view></scroll-view></view></view>
