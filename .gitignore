@@ -35,3 +35,6 @@ apps/web-admin/public/ffmpeg/
 /outputs/rms-webrtc/benchmark/obj/Debug/net10.0
 /outputs/rms-webrtc/benchmark/obj/Release/net10.0/Benchmark.AssemblyInfo.cs
 /outputs/rms-webrtc/benchmark/obj/Release/net10.0/Benchmark.AssemblyInfoInputs.cache
+/docs/driver-manual-assets
+/output/pdf
+/tmp/pdfs/driver-manual
