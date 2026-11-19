@@ -9,7 +9,7 @@ function queueFor(stop, narration, options = {}) {
   const before = extras.filter(e => e.position === 'before' && (!options.playedBefore || !options.playedBefore.includes(e.id)));
   const after = extras.filter(e => e.position === 'after');
   const extra = e => ({ id: e.id, title: e.title, url: e.url, text: '', kind: e.position });
-  const video = stopVideo(stop);
+  const video = require('./tour-video-interlude').configured(stop) ? null : stopVideo(stop);
   return before.map(extra).concat(sorted(narration && narration.chapters).flatMap(c => [{ id: c.id, title: c.title, url: c.audioUrl, text: c.text || '', kind: 'chapter' }].concat(options.skipExtra ? [] : sorted(c.interludes).filter(m => m.url).map(m => ({ id: m.id, title: m.title, url: m.url, text: '', kind: m.kind === 'video' ? 'interlude-video' : 'interlude-audio' })))), video ? [video] : [], after.map(extra));
 }
 function mapPoint(point) {

@@ -13,12 +13,14 @@ const { uploadAttachment } = useUploadAttachment()
 const segments = ref<NarrationSegmentResponse[]>([])
 const videoAttachmentId = shallowRef('')
 const videoUrl = shallowRef('')
+const videoAtProgress = shallowRef(false)
+const videoTriggerPercent = shallowRef<number>(70)
 const initial = shallowRef('')
 const uploading = shallowRef(false)
 const error = shallowRef('')
 const fileInput = useTemplateRef<HTMLInputElement>('fileInput')
 let audioIndex: number | null = null
-const snapshot = () => JSON.stringify({ segments: segments.value, videoAttachmentId: videoAttachmentId.value })
+const snapshot = () => JSON.stringify({ segments: segments.value, videoAttachmentId: videoAttachmentId.value, videoAtProgress: videoAtProgress.value, videoTriggerPercent: videoTriggerPercent.value })
 const dirty = computed(() => initial.value !== snapshot())
 
 watch(() => props.detail, detail => {
@@ -26,6 +28,8 @@ watch(() => props.detail, detail => {
   segments.value = (detail.segments ?? []).map(segment => ({ ...segment }))
   videoAttachmentId.value = detail.videoAttachmentId || ''
   videoUrl.value = detail.videoUrl || ''
+  videoAtProgress.value = detail.videoTriggerPercent != null
+  videoTriggerPercent.value = detail.videoTriggerPercent ?? 70
   initial.value = snapshot()
 }, { immediate: true })
 
@@ -71,10 +75,12 @@ async function save() {
   if (!dirty.value) return
   if (uploading.value) throw new Error('请等待附件上传完成。')
   if (segments.value.some(segment => !segment.text?.trim())) throw new Error('请填写每段讲解正文，或移除空段落。')
+  if (videoAttachmentId.value && videoAtProgress.value && (!Number.isInteger(videoTriggerPercent.value) || videoTriggerPercent.value < 1 || videoTriggerPercent.value > 99)) throw new Error('插播进度请填写1至99的整数。')
   const body: SaveNarrationSegmentsRequest = {
     stageId: props.stageId,
     segments: segments.value.map((segment, index) => ({ segmentNo: index + 1, title: segment.title?.trim() || null, text: segment.text!.trim(), audioAttachmentId: segment.audioAttachmentId || null, durationMs: segment.durationMs })),
     videoAttachmentId: videoAttachmentId.value,
+    videoTriggerPercent: videoAttachmentId.value && videoAtProgress.value ? videoTriggerPercent.value : 0,
   }
   await request('/api/narration/save-segments', { method: 'POST', body })
   initial.value = snapshot()
@@ -94,7 +100,12 @@ defineExpose({ save })
       <div class="flex flex-wrap items-center gap-2"><audio v-if="segment.audioUrl" :src="segment.audioUrl" controls preload="none" class="h-8 max-w-full" /><Button type="button" size="sm" variant="outline" :disabled="!canEdit || disabled || uploading" @click="pick(index)">上传段音频</Button><Button v-if="segment.audioAttachmentId" type="button" size="sm" variant="ghost" :disabled="!canEdit || disabled || uploading" @click="segment.audioAttachmentId = null; segment.audioUrl = null; segment.audioStatus = 0">清除音频</Button></div>
     </div>
     <p v-if="!segments.length" class="text-xs text-muted-foreground">未设置分段时，沿用上方整段解说词。</p>
-    <div class="flex items-center gap-2"><Button type="button" size="sm" variant="outline" :disabled="!canEdit || disabled || uploading" @click="pick(null)">{{ uploading ? '上传中…' : '上传站点视频' }}</Button><Button v-if="videoAttachmentId" type="button" size="sm" variant="ghost" :disabled="!canEdit || disabled || uploading" @click="videoAttachmentId = ''; videoUrl = ''">清除视频</Button></div>
+    <div class="flex items-center gap-2"><Button type="button" size="sm" variant="outline" :disabled="!canEdit || disabled || uploading" @click="pick(null)">{{ uploading ? '上传中…' : '上传站点视频' }}</Button><Button v-if="videoAttachmentId" type="button" size="sm" variant="ghost" :disabled="!canEdit || disabled || uploading" @click="videoAttachmentId = ''; videoUrl = ''; videoAtProgress = false">清除视频</Button></div>
+    <div v-if="videoAttachmentId" class="flex flex-wrap items-center gap-2 text-sm">
+      <label class="flex items-center gap-2"><input v-model="videoAtProgress" type="checkbox" :disabled="!canEdit || disabled || uploading">按讲解进度插播</label>
+      <label v-if="videoAtProgress" class="flex items-center gap-2">讲解到<input v-model.number="videoTriggerPercent" type="number" min="1" max="99" step="1" class="h-8 w-20 rounded-md border bg-background px-2" :disabled="!canEdit || disabled || uploading">% 时播放</label>
+      <span class="text-xs text-muted-foreground">{{ videoAtProgress ? '视频结束后自动继续讲解，每次行程自动插播一次。' : '讲解结束后播放视频。' }}</span>
+    </div>
     <video v-if="videoUrl" :src="videoUrl" controls preload="none" class="max-h-48 w-full rounded-md" />
     <input ref="fileInput" type="file" class="hidden" @change="upload">
     <p v-if="error" class="text-xs text-destructive">{{ error }}</p>

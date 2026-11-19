@@ -52,6 +52,8 @@ export interface NarrationDetailResponse {
   segments?: NarrationSegmentResponse[] | null
   videoAttachmentId?: string | null
   videoUrl?: string | null
+  /** 整站讲解插播百分比，空值表示讲解后播放。 */
+  videoTriggerPercent?: number | null
   stageId?: string | null
   guideId?: string | null
   guideName?: string | null
@@ -90,6 +92,8 @@ export interface SaveNarrationSegmentsRequest {
   stageId: string
   segments: { segmentNo: number; title: string | null; text: string; audioAttachmentId: string | null; durationMs: number | null }[]
   videoAttachmentId?: string | null
+  /** 1..99 插播，0 关闭；未传或空值保留原配置。 */
+  videoTriggerPercent?: number | null
   expectedUpdatedAt?: string | null
 }
 

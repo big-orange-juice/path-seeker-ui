@@ -214,21 +214,21 @@ function recordIntent(owner, command) {
   const previous = owner.pausedIntent + ':' + owner.heldIntent;
   if (command === 'pause') owner.pausedIntent = true;
   if (command === 'resume') owner.pausedIntent = false;
-  if (command === 'hold') owner.heldIntent = true;
-  if (command === 'release') owner.heldIntent = false;
+  if (['hold', 'video-hold'].includes(command)) owner.heldIntent = true;
+  if (['release', 'video-resume'].includes(command)) owner.heldIntent = false;
   const selecting = ['select', 'preview', 'replay', 'realign'].includes(command);
   if (selecting) { owner.pausedIntent = false; owner.heldIntent = false; }
   if (selecting || previous !== owner.pausedIntent + ':' + owner.heldIntent) owner.intent++;
   const playback = audio.snapshot();
-  if (['pause', 'hold'].includes(command) && playback.live && playback.item && playback.item.id === owner.id && !(command === 'pause' && playback.nativePaused)) audio.pause();
+  if (['pause', 'hold', 'video-hold'].includes(command) && playback.live && playback.item && playback.item.id === owner.id && !(command === 'pause' && playback.nativePaused)) audio.pause();
 }
 function control(command, values = {}, expectedSessionId = '') {
-  if (interruption.blocked() && ['resume', 'release', 'select', 'preview', 'replay', 'realign', 'reconnect'].includes(command)) return Promise.reject(cancelled());
+  if (interruption.blocked() && ['resume', 'release', 'video-resume', 'select', 'preview', 'replay', 'realign', 'reconnect'].includes(command)) return Promise.reject(cancelled());
   const owner = session || pending;
   if (expectedSessionId && (!owner || owner.id !== expectedSessionId)) return Promise.reject(cancelled());
   if (!owner || !current(owner)) return Promise.resolve(null);
   const playback = audio.snapshot();
-  if (['pause', 'hold', 'reconnect'].includes(command)) {
+  if (['pause', 'hold', 'video-hold', 'reconnect'].includes(command)) {
     checkpoint.save(owner, playback, true);
     if (owner.state && !owner.reconnecting && owner.state.streamId !== owner.previousStreamId
       && playback.live && playback.item && playback.item.id === owner.id && Number.isFinite(playback.time) && playback.time >= 0) {
@@ -241,7 +241,7 @@ function control(command, values = {}, expectedSessionId = '') {
   const run = async () => {
     if (pending === owner) await owner.promise;
     if (!owns(owner)) throw cancelled();
-    if (interruption.blocked() && ['resume', 'release', 'select', 'preview', 'replay', 'realign', 'reconnect'].includes(command)) throw cancelled();
+    if (interruption.blocked() && ['resume', 'release', 'video-resume', 'select', 'preview', 'replay', 'realign', 'reconnect'].includes(command)) throw cancelled();
     if (command === 'ack' && (owner.reconnecting || audio.snapshot().generation !== playbackGeneration || owner.state.streamId !== input.streamId)) throw cancelled();
     let state;
     try { state = await api(owner, path(owner.id) + '/control', { method: 'POST', data: input }); }
@@ -251,7 +251,7 @@ function control(command, values = {}, expectedSessionId = '') {
     accept(owner, state);
     if (['select', 'preview', 'replay', 'realign', 'seek'].includes(command)) owner.needsReconnect = true;
     if (command === 'preferences') Object.assign(owner.options, values);
-    if (!owns(owner) || ['select', 'preview', 'replay', 'realign', 'hold'].includes(command) && owner.intent !== intent) throw cancelled();
+    if (!owns(owner) || ['select', 'preview', 'replay', 'realign', 'hold', 'video-hold'].includes(command) && owner.intent !== intent) throw cancelled();
     return owner.state;
   };
   const result = owner.controls.enqueue(run);
@@ -331,6 +331,18 @@ async function release(expectedSessionId = '') {
   if (playback.playing && !owner.stalled && playback.live && playback.item && playback.item.id === owner.id && !playback.failed && state.status !== 'disconnected') { if (!playback.nativePaused) audio.resume('tour'); }
   else await reconnect(owner);
 }
+async function resumeVideo(expectedSessionId) {
+  if (!backgroundListening.allowed() || interruption.blocked()) throw cancelled();
+  const owner = session;
+  if (!owner || owner.id !== expectedSessionId || !owns(owner)) throw cancelled();
+  const controlled = control('video-resume', {}, expectedSessionId), intent = owner.intent;
+  const state = await controlled;
+  if (!owns(owner) || owner.intent !== intent || owner.pausedIntent || owner.heldIntent) return;
+  // 后端已为正常插播保留一次断点恢复；再发 reconnect 会把它误当成断网恢复。
+  owner.needsReconnect = false;
+  play(owner);
+  return state;
+}
 function reconnect(owner) {
   owner.reconnectIntent = owner.intent;
   if (owner.reconnecting) return owner.reconnecting;
@@ -367,4 +379,4 @@ auth.subscribe(() => {
     stop(); detachedLifecycle = []; failure = ''; diagnosticUser = ''; publish();
   }
 });
-module.exports = { supported, active, activeForRoom, snapshot, diagnostics, captureIntent, subscribe, start, control, refresh, setForeground, setPaused, release, stop };
+module.exports = { supported, active, activeForRoom, snapshot, diagnostics, captureIntent, subscribe, start, control, refresh, setForeground, setPaused, release, resumeVideo, stop };
