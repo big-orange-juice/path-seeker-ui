@@ -38,3 +38,4 @@ apps/web-admin/public/ffmpeg/
 /docs/driver-manual-assets
 /output/pdf
 /tmp/pdfs/driver-manual
+/tmp/pdfs
